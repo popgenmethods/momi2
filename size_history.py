@@ -34,6 +34,8 @@ class TruncatedSizeHistory(object):
 
     @property
     def sfs(self):
+        if self.n_max == 1:
+            return {(1, 1): self.tau}
         ret = {}
         # compute the SFS for n_max via Polanski and Kimmel
         ww = Wvec(self.n_max, np.arange(1, self.n_max), np.arange(2, self.n_max + 1)[:, None])
@@ -64,13 +66,12 @@ class TruncatedSizeHistory(object):
         # TODO: add assertion back in
         return ret
 
-
     def transition_prob(self, v):
         return moran_model.moran_action(self.scaled_time, v)
 
+
 class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
     '''Constant size population truncated to time tau.'''
-
     @property
     def etjj(self):
         j = np.arange(2, self.n_max + 1)

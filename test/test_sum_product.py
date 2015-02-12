@@ -2,7 +2,7 @@ from __future__ import division
 import pytest
 from sum_product import SumProduct
 from demography import Demography
-from util import H
+from util import H, grouper
 
 @pytest.fixture
 def demo():
@@ -21,13 +21,14 @@ def test_sfs(demo):
 
 def test_generated_cases(demo):
     with open("test_cases.txt", "rt") as f:
-        while f:
-            newick = next(f).strip()
-            node_states = eval(next(f).strip())
-            ret = float(next(f).strip())
+        for lines in grouper(3, f):
+            newick, node_states, ret = [l.strip() for l in lines]
+            node_states = eval(node_states)
+            ret = float(ret)
             dl = node_states.values()[0]['lineages']
-            demo = Demography.from_newick(newick, default_lineages=dl, default_N=10000.)
+            # N0 = 20000 in generate data due to haploid/diploid thing
+            demo = Demography.from_newick(newick, default_lineages=dl, default_N=20000.)
             demo.update_state(node_states)
             sp = SumProduct(demo)
             p = sp.p()
-            assert abs(p - ret) < 1e-8
+            assert abs(p - ret) / ret < 1e-2

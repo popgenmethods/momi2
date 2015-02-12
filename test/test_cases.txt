@@ -1,0 +1,36 @@
+(l0:1.000000,l1:1.000000)
+{'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 1, 'ancestral': 0, 'lineages': 1}}
+20001.0
+(l0:1.000000,l1:1.000000)
+{'l0': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
+20001.0
+((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
+{'l4': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
+6671.79987585
+((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
+{'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l3': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 1, 'ancestral': 0, 'lineages': 1}}
+667.46689583
+((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
+{'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 1, 'ancestral': 0, 'lineages': 1}}
+6670.19982586
+((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
+{'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
+6671.39978086
+((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
+{'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
+6671.39978086
+((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
+{'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
+6669.79970087
+((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
+{'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l3': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
+1334.40008498
+((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
+{'l4': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l5': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
+667.266755823
+((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
+{'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
+6669.79970087
+((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
+{'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
+1334.20004166
