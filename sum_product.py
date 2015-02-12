@@ -1,17 +1,9 @@
 from __future__ import print_function, division
-from combinatorics import logbinom, log_urn_prob
 import scipy.misc, scipy.signal
-import warnings
 import math
 import numpy as np
-from scipy import sparse
-from scipy.sparse.linalg import expm_multiply
-from util import memoize_instance, memoize
-from collections import namedtuple
-from huachen_eqs import SFS_Chen
-from sfs_polanski_kimmel import SFS_PolanskiKimmel
-from moran_model import MoranTransition
 
+from util import memoize_instance, memoize
 
 class SumProduct(object):
     ''' 
@@ -28,32 +20,29 @@ class SumProduct(object):
         '''Return joint SFS entry for the demography'''
         return self.joint_sfs(self.G.root)
 
-    def leaf_likelihood_bottom(self, node):
-        n_node = self.G.n_leaf_lineages[node]
+    def leaf_likelihood_bottom(self, leaf):
+        n_node = self.G.node_data[leaf]['lineages']
         ret = np.zeros(n_node + 1)
-        ret[self.G[node]['n_derived']] = 1.0
+        ret[self.G.node_data[leaf]['derived']] = 1.0
         return ret
 
     def combinatorial_factors(self, node):
-        n_node = self.G.n_leaf_lineages[node]
+        n_node = self.G.n_lineages_subtended_by[node]
         return scipy.misc.comb(n_node, np.arange(n_node + 1))
 
     def truncated_sfs(self, node):
-        n_node = self.G.n_leaf_lineages[node]
-        sfs = np.array([self.G[node]['eta'].freq(n_derived, n_node) for n_derived in range(n_node + 1)])
+        n_node = self.G.n_lineages_subtended_by[node]
+        sfs = np.array([self.G.node_data[node]['model'].freq(n_derived, n_node) for n_derived in range(n_node + 1)])
         sfs[sfs == float("inf")] = 0.0
         return sfs
 
-    def convolve(self, left, right):
-        return scipy.signal.fftconvolve(left, right)
-
-    def partial_top_likelihood(self, node):
+    def partial_likelihood_top(self, top, bottom):
         ''' Partial likelihood of data at top of node, i.e.
         i.e. = P(n_top) P(x | n_derived_top, n_ancestral_top)
         note n_top is fixed in Moran model, so P(n_top)=1
         '''       
-        bottom_likelihood = self.partial_likelihood_bottom(node)       
-        return node.moran.computeAction(bottom_likelihood)
+        bottom_likelihood = self.partial_likelihood_bottom(bottom)       
+        return self.G.node_data[bottom]['model'].transition_prob(bottom_likelihood)
 
     @memoize_instance    
     def partial_likelihood_bottom(self, node):
@@ -63,15 +52,14 @@ class SumProduct(object):
         '''
         if self.G.is_leaf(node):
             return self.leaf_likelihood_bottom(node)
-
-        liks = [self.partial_top_likelihood(child) * self.combinatorial_factors(child) for child in self.G[node]]
-        return self.convolve(*liks) / self.combinatorial_factors(node)
+        liks = [self.partial_likelihood_top(node, child) * self.combinatorial_factors(child) 
+                for child in self.G[node]]
+        return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(node)
        
     def joint_sfs(self, node):
         '''The joint SFS entry for the configuration under this node'''
         # if no derived leafs, return 0
-        n_leaves_subtended = sum([self.G.n_leaf_lineages[leaf] for leaf in self.G.leaves_subtended_by(node)])
-        if self.G.n_derived_leaves[node] == 0:
+        if self.G.n_derived_subtended_by[node] == 0:
             return 0.0
                
         # term for mutation occurring at this node
@@ -82,7 +70,8 @@ class SumProduct(object):
         
         # add on terms for mutation occurring below this node
         # if no derived leafs on right, add on term from the left
-        for child in self.G[node]:
-            if self.G.n_leaf_derived[child] == 0:
-                ret += self.joint_sfs(child)
+        c1, c2 = self.G[node]
+        for child, other_child in ((c1, c2), (c2, c1)):
+            if self.G.n_derived_subtended_by[child] == 0:
+                ret += self.joint_sfs(other_child)
         return ret

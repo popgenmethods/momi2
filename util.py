@@ -1,7 +1,11 @@
 import functools
+import numpy as np
 from functools import partial
 
 EPSILON = 1e-8
+
+def H(n):
+    return (1. / np.arange(1, n + 1)).sum()
 
 def memoize(obj):
     cache = obj.cache = {}
