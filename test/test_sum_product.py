@@ -19,7 +19,7 @@ def test_sfs(demo):
     sp = SumProduct(demo)
     sp.p()
 
-def test_generated_cases(demo):
+def demo_generator():
     with open("test_cases.txt", "rt") as f:
         for lines in grouper(3, f):
             newick, node_states, ret = [l.strip() for l in lines]
@@ -27,8 +27,13 @@ def test_generated_cases(demo):
             ret = float(ret)
             dl = node_states.values()[0]['lineages']
             # N0 = 20000 in generate data due to haploid/diploid thing
-            demo = Demography.from_newick(newick, default_lineages=dl, default_N=20000.)
-            demo.update_state(node_states)
-            sp = SumProduct(demo)
-            p = sp.p()
-            assert abs(p - ret) / ret < 1e-2
+            dm = Demography.from_newick(newick, default_lineages=dl, default_N=20000.)
+            dm.update_state(node_states)
+            yield dm, ret
+
+@pytest.mark.parametrize("demo,ret", demo_generator())
+def test_generated_cases(demo, ret):
+    sp = SumProduct(demo)
+    p = sp.p()
+    assert abs(p - ret) / ret < 1e-3
+
