@@ -17,7 +17,6 @@ def W(n, b, j):
         ret = W(n, b, jj) * -(1 + jj) * (3 + 2 * jj) * (n - jj) / jj / (2 * jj - 1) / (n + jj + 1)
         ret += W(n, b, jj + 1) * (3 + 2 * jj) * (n - 2 * b) / jj / (n + jj + 1)
         return ret
-    return ret
 
 class TruncatedSizeHistory(object):
     def __init__(self, N, n_max, tau):
