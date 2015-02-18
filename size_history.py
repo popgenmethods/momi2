@@ -19,8 +19,6 @@ def W(n, b, j):
         return ret
     return ret
 
-Wvec = np.vectorize(W, excluded=['n'])
-
 class TruncatedSizeHistory(object):
     def __init__(self, N, n_max, tau):
         self.N = N
@@ -38,7 +36,10 @@ class TruncatedSizeHistory(object):
             return {(1, 1): self.tau}
         ret = {}
         # compute the SFS for n_max via Polanski and Kimmel
-        ww = Wvec(self.n_max, np.arange(1, self.n_max), np.arange(2, self.n_max + 1)[:, None])
+        ww = np.zeros([self.n_max - 1, self.n_max - 1])
+        for i in range(2, self.n_max + 1):
+            for j in range(1, self.n_max):
+                ww[i - 2, j - 1] = W(self.n_max, j, i)
         bv = (ww * self.etjj[:, None]).sum(axis=0)
         ret = dict(((b, self.n_max), v) for b, v in enumerate(bv, 1))
         # compute entry for monomorphic site
