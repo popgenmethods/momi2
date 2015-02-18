@@ -33,36 +33,31 @@ class Demography(nx.DiGraph):
         if not all('lineages' in nd[k] for k in self.leaves):
             raise Exception("'lineages' attribute must be set for each leaf node.")
 
-    @property
+    @cached_property
     def root(self):
         nds = [node for node, deg in self.in_degree().items() if deg == 0]
         assert len(nds) == 1
         return nds[0]
     
-    @property
+    @cached_property
     def node_data(self):
         return dict(self.nodes(data=True))
 
-    @property
+    @cached_property
     def leaves(self):
         return set([k for k, v in self.out_degree().items() if v == 0])
 
-    @property
+    @cached_property
     def n_lineages_subtended_by(self):
         nd = self.node_data
         return {v: sum(nd[l]['lineages'] for l in self.leaves_subtended_by[v]) for v in self}
 
-    @property
+    @cached_property
     def n_derived_subtended_by(self):
         nd = self.node_data
         return {v: sum(nd[l]['derived'] for l in self.leaves_subtended_by[v]) for v in self}
 
-    @property
-    def max_leaf_lineages(self):
-        nd = self.node_data
-        return max([nd[l]['derived'] + nd[l]['ancestral'] for v in self.leaves])
-
-    @property
+    @cached_property
     def leaves_subtended_by(self):
         return {v: self.leaves & set(nx.dfs_preorder_nodes(self, v)) for v in self}
 
@@ -76,7 +71,12 @@ class Demography(nx.DiGraph):
             ndn.update(state[node])
             if ndn['lineages'] != ndn['derived'] + ndn['ancestral']:
                 raise Exception("derived + ancestral must add to lineages at node %s" % node)
-
+        # Invalidate the caches which depend on node state
+        try:
+            del self.n_derived_subtended_by
+            del self.node_data
+        except AttributeError:
+            pass
 
 
 _field_factories = {

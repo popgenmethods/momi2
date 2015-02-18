@@ -32,7 +32,7 @@ class TruncatedSizeHistory(object):
             return 0.0
         return self.sfs[(n_derived, n)]
 
-    @property
+    @cached_property
     def sfs(self):
         if self.n_max == 1:
             return {(1, 1): self.tau}
@@ -40,9 +40,9 @@ class TruncatedSizeHistory(object):
         # compute the SFS for n_max via Polanski and Kimmel
         ww = Wvec(self.n_max, np.arange(1, self.n_max), np.arange(2, self.n_max + 1)[:, None])
         bv = (ww * self.etjj[:, None]).sum(axis=0)
-        ret = dict(((i, self.n_max), v) for i, v in enumerate(bv, 1))
+        ret = dict(((b, self.n_max), v) for b, v in enumerate(bv, 1))
         # compute entry for monomorphic site
-        ret[(self.n_max, self.n_max)] = self.before_tmrca
+        ret[(self.n_max, self.n_max)] = self._before_tmrca(ret)
 
         # use recurrence to compute SFS for n < maxSampleSize
         for n in range(self.n_max - 1, 0, -1):
@@ -55,14 +55,9 @@ class TruncatedSizeHistory(object):
                 "%.16f, %.16f"  % (self.tau, ret[(1, 1)])
         return ret
 
-    @property
-    def before_tmrca(self):
-        b = np.arange(1, self.n_max)[:, None]
-        j = np.arange(2, self.n_max + 1)
-        # FIXME: this can be more efficiently computed via the V term
-        # in the same Polanski Kimmel paper
-        ww = Wvec(self.n_max, b, j) * b / self.n_max * self.etjj
-        ret = self.tau - fsum(ww.flat)
+    def _before_tmrca(self, partial_sfs):
+        ret = self.tau - fsum([partial_sfs[(b, self.n_max)] * b / self.n_max 
+                               for b in range(1, self.n_max)])
         # TODO: add assertion back in
         return ret
 
@@ -72,7 +67,7 @@ class TruncatedSizeHistory(object):
 
 class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
     '''Constant size population truncated to time tau.'''
-    @property
+    @cached_property
     def etjj(self):
         j = np.arange(2, self.n_max + 1)
         denom = j * (j - 1) / 2 / self.N

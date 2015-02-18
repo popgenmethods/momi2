@@ -1,228 +1,228 @@
 (l0:1.000000,l1:1.000000)
 {'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 1, 'ancestral': 0, 'lineages': 1}}
-20001.0
+20001
 (l0:1.000000,l1:1.000000)
 {'l0': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
-20001.0
+20001
 ((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
 {'l4': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
-6671.79987585
+6669.2
 ((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
 {'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l3': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 1, 'ancestral': 0, 'lineages': 1}}
-667.46689583
+666.5
 ((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
 {'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 1, 'ancestral': 0, 'lineages': 1}}
-6670.19982586
+6669.2
 ((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
 {'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
-6671.39978086
+6669.6
 ((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
 {'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
-6671.39978086
+6672.4
 ((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
 {'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
-6669.79970087
+6672.4
 ((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
 {'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l3': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
-1334.40008498
+1333.2
 ((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
 {'l4': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l5': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
-667.266755823
+666.533
 ((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
 {'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l2': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
-6669.79970087
+6670.4
 ((l5:4.000000,l3:4.000000):1.000000,(((l4:1.000000,l1:1.000000):1.000000,l0:2.000000):1.000000,l2:3.000000):2.000000)
 {'l4': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l5': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l2': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l3': {'derived': 0, 'ancestral': 1, 'lineages': 1}, 'l0': {'derived': 1, 'ancestral': 0, 'lineages': 1}, 'l1': {'derived': 0, 'ancestral': 1, 'lineages': 1}}
-1334.20004166
+1333
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-2.7569533289e-10
+2.79347e-10
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-2.71222978037e-10
+2.74747e-10
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 3, 'ancestral': 7, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-10.440029847
+10.3679
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-2.8017389353e-10
+2.73217e-10
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 6, 'ancestral': 4, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-0.00127544487445
+0.0012851
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-6.1303664774e-15
+9.03978e-15
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-2.69715421517e-10
+3.01345e-10
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-2.8017389353e-10
+2.73321e-10
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 8, 'ancestral': 2, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-1.36467265053e-06
+1.48837e-06
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 5, 'ancestral': 5, 'lineages': 10}}
-0.0289630979659
+0.028992
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-9.83788028244e-15
+2.79712e-15
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 10, 'ancestral': 0, 'lineages': 10}}
-2.72703021086e-10
+2.73321e-10
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 1, 'ancestral': 9, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4064.73580783
+4069.56
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 3, 'ancestral': 7, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-10.6635197246
+10.3835
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-8.36525539364e-15
+-2.51757e-14
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-2.91355766158e-14
+2.70971e-16
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-3.02326512875e-10
+2.74747e-10
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-2.69715421517e-10
+2.73217e-10
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 7, 'ancestral': 3, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4.72135859157e-05
+4.76353e-05
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 7, 'ancestral': 3, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4.88087419602e-05
+4.79921e-05
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 1, 'ancestral': 9, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4056.64231779
+4097.74
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 1, 'ancestral': 9, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4070.68505444
+4061.42
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 2, 'ancestral': 8, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-187.057505538
+190.906
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 1, 'ancestral': 9, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4070.68505444
+4061.47
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 1, 'ancestral': 9, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4052.57112863
+4057.41
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 3, 'ancestral': 7, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-10.3301621468
+10.6539
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 2, 'ancestral': 8, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-187.057505538
+187.503
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 3, 'ancestral': 7, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-10.3459858982
+10.3835
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 7, 'ancestral': 3, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4.77459464886e-05
+4.81686e-05
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 3, 'ancestral': 7, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-10.3301621468
+10.3674
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 4, 'ancestral': 6, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-0.5651803714
+0.567969
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 1, 'ancestral': 9, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4058.67055666
+4063.48
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 7, 'ancestral': 3, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4.75683742396e-05
+4.7987e-05
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 5, 'ancestral': 5, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-0.0291135521409
+0.029294
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-2.66744715554e-10
+2.70277e-10
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 3, 'ancestral': 7, 'lineages': 10}}
-10.3618043223
+10.3679
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 1, 'ancestral': 9, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4056.64231779
+4061.42
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l2': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l3': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l0': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l9': {'derived': 10, 'ancestral': 0, 'lineages': 10}}
-1.56749912553e-14
+-1.40202e-14
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 5, 'ancestral': 5, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-0.0288878882751
+0.0290665
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 1, 'ancestral': 9, 'lineages': 10}}
-4060.69608092
+4061.47
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 3, 'ancestral': 7, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-10.3933995856
+10.4312
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 2, 'ancestral': 8, 'lineages': 10}}
-187.435377037
+187.508
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 7, 'ancestral': 3, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-5.13909196998e-05
+4.81686e-05
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 1, 'ancestral': 9, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4098.94244919
+4063.48
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 10, 'ancestral': 0, 'lineages': 10}}
-3.38010754372e-14
+1.0025e-14
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 3, 'ancestral': 7, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-10.2984467399
+10.3361
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l7': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l2': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l3': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l0': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l1': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l8': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l9': {'derived': 10, 'ancestral': 0, 'lineages': 10}}
-3.31868731111e-11
+3.00742e-11
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 4, 'ancestral': 6, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-0.57567305934
+0.57032
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-2.66744715554e-10
+2.70277e-10
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 6, 'ancestral': 4, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-0.0013118959194
+0.00129314
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 2, 'ancestral': 8, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-186.678380884
+187.129
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 2, 'ancestral': 8, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-191.019230811
+187.695
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 6, 'ancestral': 4, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-0.00127544487445
+0.0012851
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 1, 'ancestral': 9, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-4052.57112863
+4057.41
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 3, 'ancestral': 7, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-10.440029847
+10.3674
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 10, 'ancestral': 0, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 10, 'ancestral': 0, 'lineages': 10}}
--1.88723582162e-14
+-5.23331e-15
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 3, 'ancestral': 7, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-10.2984467399
+10.3361
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 2, 'ancestral': 8, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-188.368006417
+187.503
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 4, 'ancestral': 6, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-0.5651803714
+0.567969
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 2, 'ancestral': 8, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-186.678380884
+187.129
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 2, 'ancestral': 8, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-187.812310177
+188.263
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 4, 'ancestral': 6, 'lineages': 10}}
-0.569870086613
+0.57032
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 5, 'ancestral': 5, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-0.0288127319016
+0.0289899
 (l7:9.000000,(((l0:2.000000,l8:2.000000):3.000000,(l9:4.000000,l1:4.000000):1.000000):3.000000,((l6:1.000000,l3:1.000000):6.000000,(l5:6.000000,(l4:3.000000,l2:3.000000):3.000000):1.000000):1.000000):1.000000)
 {'l6': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l7': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l4': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l5': {'derived': 4, 'ancestral': 6, 'lineages': 10}, 'l2': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l3': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l0': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l1': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l8': {'derived': 0, 'ancestral': 10, 'lineages': 10}, 'l9': {'derived': 0, 'ancestral': 10, 'lineages': 10}}
-0.572212352945
+0.575018

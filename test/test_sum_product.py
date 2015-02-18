@@ -4,6 +4,9 @@ from sum_product import SumProduct
 from demography import Demography
 from util import H, grouper
 
+import os
+TEST_CASES = os.path.join(os.path.dirname(os.path.realpath(__file__)), "test_cases.txt")
+
 @pytest.fixture
 def demo():
     test_newick = """
@@ -19,8 +22,8 @@ def test_sfs(demo):
     sp = SumProduct(demo)
     sp.p()
 
-def demo_generator():
-    with open("test_cases.txt", "rt") as f:
+def demo_generator(fn=TEST_CASES):
+    with open(fn, "rt") as f:
         for lines in grouper(3, f):
             newick, node_states, ret = [l.strip() for l in lines]
             node_states = eval(node_states)
@@ -35,5 +38,9 @@ def demo_generator():
 def test_generated_cases(demo, ret):
     sp = SumProduct(demo)
     p = sp.p()
-    assert abs(p - ret) / ret < 1e-3
+    assert abs(p - ret) / ret < 1e-4
 
+if __name__=="__main__":
+    for dm, ret in demo_generator("test_cases.txt"):
+        sp = SumProduct(dm)
+        print("Me: %f\tTest case: %f" % (sp.p(), ret))
