@@ -78,6 +78,9 @@ class Demography(nx.DiGraph):
         except AttributeError:
             pass
 
+    def to_newick(self):
+        return _to_newick(self, self.root)
+
 
 _field_factories = {
     "N": float, "lineages": int, "ancestral": int, 
@@ -122,3 +125,21 @@ def _newick_to_nx(newick, default_lineages=None):
     for node in node_data:
         tn[node].update(node_data[node])
     return t
+
+def _to_newick(G, root):
+    parent = list(G.predecessors(root))
+    try:
+        edge_length = str(G[parent[0]][root]['branch_length'])
+    except IndexError:
+        edge_length = None
+    if not G[root]:
+        assert edge_length is not None
+        return root + ":" + edge_length
+    else:
+        children = list(G[root])
+        assert len(children) == 2
+        dta = [(_to_newick(G, child),) for child in children]
+        ret = "(%s,%s)" % (dta[0] + dta[1])
+        if edge_length:
+            ret += ":" + edge_length
+        return ret
