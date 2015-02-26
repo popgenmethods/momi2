@@ -11,6 +11,20 @@ def rate_matrix(n, sparse_format="csr"):
     M = scipy.sparse.diags(diags, [1, 0, -1], (n + 1, n + 1), format=sparse_format)
     return M
 
-def moran_action(t, v):
-    return expm_multiply(rate_matrix(len(v) - 1) * t, v)
+@memoize
+def moran_eigensystem(n):
+    M = rate_matrix(n).todense()
+    d, P = np.linalg.eig(M)
+    return P, d, np.linalg.inv(P)
 
+def moran_action(t, v):
+    n = len(v) - 1
+    P, d, Pinv = moran_eigensystem(n)
+    D = np.diag(np.exp(t * d))
+    # TODO: this can be optimized using np.einsum()
+    return P.dot(D).dot(Pinv).dot(v)
+
+def _old_moran_action(t, v):
+    n = len(v) - 1
+    M = rate_matrix(n)
+    return expm_multiply(t * M, v)
