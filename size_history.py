@@ -3,6 +3,8 @@ from util import EPSILON, memoize
 from math import exp, fsum, log, expm1
 from cached_property import cached_property
 import numpy as np
+import scipy.integrate
+from scipy.special import comb as binom
 
 import moran_model
 
@@ -19,8 +21,7 @@ def W(n, b, j):
         return ret
 
 class TruncatedSizeHistory(object):
-    def __init__(self, N, n_max, tau):
-        self.N = N
+    def __init__(self, n_max, tau):
         self.n_max = n_max
         self.tau = tau
 
@@ -67,10 +68,14 @@ class TruncatedSizeHistory(object):
 
 class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
     '''Constant size population truncated to time tau.'''
+    def __init__(self, n_max, tau, N):
+        super(ConstantTruncatedSizeHistory, self).__init__(n_max, tau)
+        self.N = N
+
     @cached_property
     def etjj(self):
         j = np.arange(2, self.n_max + 1)
-        denom = j * (j - 1) / 2 / self.N
+        denom = binom(j, 2) / self.N
         scaled_time = denom * self.tau
         num = -np.expm1(-scaled_time) # equals 1 - exp(-scaledTime)
         assert np.all([num >= 0.0, num <= 1.0, num <= scaled_time]), "numerator=%g, scaledTime=%g" % (num, scaled_time)
@@ -86,3 +91,38 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
 
     def __str__(self):
         return "(ConstantPopSize: N=%f, tau=%f)" % (self.N, self.tau)
+
+
+class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
+    '''Size history parameterized by an arbitrary function f.'''
+    
+    def __init__(self, n_max, tau, f):
+        '''Initialize the model. For t > 0, f(t) >= is the instantaneous
+        rate of coalescence (i.e., the inverse of the population size).
+        f should accept and return vectors of times.
+        '''
+        super(FunctionalTruncatedSizeHistory, self).__init__(n_max, tau)
+        self._f = f
+
+    def _R(self, t):
+        return scipy.integrate.quad(self._f, 0, t)[0]
+
+    @cached_property
+    def etjj(self):
+        ret = []
+        # TODO: if this is too slow for large n_max, it could be sped up
+        # by using vectorized integration (a la scipy.integrate.simps)
+        for j in range(2, self.n_max + 1):
+            j2 = binom(j, 2)
+            # tau * P(Tjj > tau)
+            r1 = self.tau * np.exp(-j2 * self.scaled_time)
+            def _int(t):
+                return t * self._f(t) * np.exp(-j2 * self._R(t))
+            r2 = scipy.integrate.quad(_int, 0, self.tau)[0]
+            ret.append(r1 + j2 * r2)
+        return np.array(ret)
+
+    @cached_property
+    def scaled_time(self):
+        return self._R(self.tau)
+
