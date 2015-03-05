@@ -18,7 +18,8 @@ class SumProduct(object):
         
     def p(self, normalized = False):
         '''Return joint SFS entry for the demography'''
-        ret = self.joint_sfs(self.G.root)
+        assert len(self.G.node_data[self.G.root]['model']) == 1
+        ret = self.joint_sfs(self.G.root, 0)
         if normalized:
             ret /= self.G.totalSfsSum
         return ret
@@ -35,20 +36,20 @@ class SumProduct(object):
         return scipy.misc.comb(n_node, np.arange(n_node + 1))
 
     @memoize_instance
-    def truncated_sfs(self, node):
+    def truncated_sfs(self, node, sub_pop):
         n_node = self.G.n_lineages_subtended_by[node]
-        sfs = np.array([self.G.node_data[node]['model'].freq(n_derived, n_node) for n_derived in range(n_node + 1)])
+        sfs = np.array([self.G.node_data[node]['model'][sub_pop].freq(n_derived, n_node) for n_derived in range(n_node + 1)])
         sfs[sfs == float("inf")] = 0.0
         return sfs
 
     @memoize_instance
-    def partial_likelihood_top(self, top, bottom):
+    def partial_likelihood_top(self, node, sub_pop):
         ''' Partial likelihood of data at top of node, i.e.
         i.e. = P(n_top) P(x | n_derived_top, n_ancestral_top)
         note n_top is fixed in Moran model, so P(n_top)=1
         '''       
-        bottom_likelihood = self.partial_likelihood_bottom(bottom)       
-        return self.G.node_data[bottom]['model'].transition_prob(bottom_likelihood)
+        bottom_likelihood = self.partial_likelihood_bottom(node)       
+        return self.G.node_data[node]['model'][sub_pop].transition_prob(bottom_likelihood)
 
     @memoize_instance
     def partial_likelihood_bottom(self, node):
@@ -58,28 +59,35 @@ class SumProduct(object):
         '''
         if self.G.is_leaf(node):
             return self.leaf_likelihood_bottom(node)
-        liks = [self.partial_likelihood_top(node, child) * self.combinatorial_factors(child) 
-                for child in self.G[node]]
-        return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(node)
+        if self.G.node_data[node]['event'] == 'merge_clusters':
+            merge_subpops = self.G.node_data[node]['merge_dims']
+            liks = [self.partial_likelihood_top(child, merge_subpops[child]) * self.combinatorial_factors(child) 
+                    for child in self.G[node]]
+            return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(node)
+        else:
+            raise Exception("event type not yet implemented")
        
     @memoize_instance
-    def joint_sfs(self, node):
-        '''The joint SFS entry for the configuration under this node'''
+    def joint_sfs(self, node, sub_pop):
+        '''The joint SFS entry for the configuration under sub_pop of this node'''
         # if no derived leafs, return 0
         if self.G.n_derived_subtended_by[node] == 0:
             return 0.0
                
         # term for mutation occurring at this node
-        ret = (self.partial_likelihood_bottom(node) * self.truncated_sfs(node)).sum()
+        ret = (self.partial_likelihood_bottom(node) * self.truncated_sfs(node, sub_pop)).sum()
         
         if self.G.is_leaf(node):
             return ret
         
-        # add on terms for mutation occurring below this node
-        # if no derived leafs on right, add on term from the left
-        c1, c2 = self.G[node]
-        for child, other_child in ((c1, c2), (c2, c1)):
-            if self.G.n_derived_subtended_by[child] == 0:
-                ret += self.joint_sfs(other_child)
-        return ret
-
+        if self.G.node_data[node]['event'] == 'merge_clusters':
+            # add on terms for mutation occurring below this node
+            # if no derived leafs on right, add on term from the left
+            c1, c2 = self.G[node]
+            merge_subpop = self.G.node_data[node]['merge_dims']
+            for child, other_child in ((c1, c2), (c2, c1)):
+                if self.G.n_derived_subtended_by[child] == 0:
+                    ret += self.joint_sfs(other_child, merge_subpop[other_child])
+            return ret
+        else:
+            raise Exception("event type not yet implemented")
