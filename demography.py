@@ -13,24 +13,18 @@ class Demography(nx.DiGraph):
             n_sub = t.n_lineages_subtended_by[v1]
             nd = t.node_data[v1]
             if 'model' not in nd or nd['model'] == "constant":
-                nd['model'] = [ConstantTruncatedSizeHistory(
+                nd['model'] = ConstantTruncatedSizeHistory(
                         N=nd.get('N', default_N),
                         tau=d['branch_length'], 
-                        n_max=n_sub)]
+                        n_max=n_sub)
             else:
                 raise Exception("Unsupported model type: %s" % nd['model'])
-            nd0 = t.node_data[v0]
-            if 'event' not in nd0:
-                nd0['event'] = 'merge_clusters'
-                nd0['merge_dims'] = {}
-            assert v1 not in nd0['merge_dims']
-            nd0['merge_dims'][v1] = 0
         nd = t.node_data[t.root]
         # FIXME: all possible size histories for root
-        nd['model'] = [ConstantTruncatedSizeHistory(
+        nd['model'] = ConstantTruncatedSizeHistory(
                 N=nd.get('N', default_N),
                 n_max=t.n_lineages_subtended_by[t.root], 
-                tau=float("inf"))]
+                tau=float("inf"))
         return t
 
     def __init__(self, *args, **kwargs):
