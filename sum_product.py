@@ -69,8 +69,10 @@ class SumProduct(object):
         
         newpop = event['newpop']
         # term for mutation occurring at the newpop
-        #ret = (self.partial_likelihood_bottom(event) * self.truncated_sfs(event, newpop)).sum()
-        ret = (self.partial_likelihood_bottom(newpop) * self.truncated_sfs(newpop)).sum()
+        # do some fancy slicing to consider only configs where derived alleles are all in newpop
+        idx = [0] * len(event['subpops'])
+        idx[event['subpops'].idx(newpop)] = slice(self.G.n_lineages_subtended_by[newpop]+1)
+        ret = (self.partial_likelihood_bottom(newpop)[idx] * self.truncated_sfs(newpop)).sum()
         
         #if self.G.is_leaf(node):
         if event['type'] == 'leaf':
