@@ -3,5 +3,3 @@ __pycache__
 *.swp
 
 momi.egg-info
-
-*.py~
