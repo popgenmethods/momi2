@@ -31,12 +31,12 @@ def getEventTree(demo):
     for v in reversed([demo.root] + [v1 for v0,v1 in nx.bfs_edges(demo, demo.root)]):
         assert len(demo.predecessors(v)) <= 1
         if demo.is_leaf(v):
-            e = FrozenDict({'type' : 'leaf', 'subpops' : frozenset([v])})
+            e = FrozenDict({'type' : 'leaf', 'subpops' : frozenset([v]), 'newpop' : v})
             eventDict[v] = e
         else:
-            e = FrozenDict({'type' : 'merge_clusters', 'subpops' : frozenset([v])})
+            e = FrozenDict({'type' : 'merge_clusters', 'subpops' : frozenset([v]), 'newpop' : v})
             eventDict[v] = e
-            eventEdges += [(e,eventDict[c]) for c in demo[v]]
+            eventEdges += [(e,eventDict[c], {'childPop' : c}) for c in demo[v]]
     ret = nx.DiGraph(eventEdges)
     ret.demography = demo
     ret.root = eventDict[demo.root]

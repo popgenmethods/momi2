@@ -13,13 +13,14 @@ class SumProduct(object):
     '''
     def __init__(self, demography):
         self.G = demography
-         
+        # TODO: make eventTree contain the demography rather than vice versa
+        self.eventTree = self.G.eventTree
         # assert self.n_derived_leafs(tree) > 0 and self.n_derived_leafs(tree) < self.n_leaf_lins(tree)
         
     def p(self, normalized = False):
         '''Return joint SFS entry for the demography'''
         assert len(self.G.node_data[self.G.root]['model']) == 1
-        ret = self.joint_sfs(self.G.root)
+        ret = self.joint_sfs(self.eventTree.root)
         if normalized:
             ret /= self.G.totalSfsSum
         return ret
@@ -64,22 +65,28 @@ class SumProduct(object):
         return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(node)
        
     @memoize_instance
-    def joint_sfs(self, node):
+    def joint_sfs(self, event):
         '''The joint SFS entry for the configuration under this node'''
         # if no derived leafs, return 0
-        if self.G.n_derived_subtended_by[node] == 0:
+        if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in event['subpops']):
             return 0.0
-               
-        # term for mutation occurring at this node
-        ret = (self.partial_likelihood_bottom(node) * self.truncated_sfs(node)).sum()
         
-        if self.G.is_leaf(node):
+        newpop = event['newpop']
+        # term for mutation occurring at the newpop
+        #ret = (self.partial_likelihood_bottom(event) * self.truncated_sfs(event, newpop)).sum()
+        ret = (self.partial_likelihood_bottom(newpop) * self.truncated_sfs(newpop)).sum()
+        
+        #if self.G.is_leaf(node):
+        if event['type'] == 'leaf':
             return ret
-        
         # add on terms for mutation occurring below this node
         # if no derived leafs on right, add on term from the left
-        c1, c2 = self.G[node]
-        for child, other_child in ((c1, c2), (c2, c1)):
-            if self.G.n_derived_subtended_by[child] == 0:
-                ret += self.joint_sfs(other_child)
-        return ret
+        elif event['type'] == 'merge_clusters':
+            c1, c2 = self.eventTree[event]
+            for child, other_child in ((c1, c2), (c2, c1)):
+                #if self.G.n_derived_subtended_by[child] == 0:
+                if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in child['subpops']):
+                    ret += self.joint_sfs(other_child)
+            return ret
+        else:
+            raise Exception("Event type %s not yet implemented" % event['type'])
