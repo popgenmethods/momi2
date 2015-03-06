@@ -4,6 +4,43 @@ from cStringIO import StringIO
 from cached_property import cached_property
 from size_history import ConstantTruncatedSizeHistory
 
+class FrozenDict(object):
+    def __init__(self, dict):
+        self._dict = dict
+        self._frozen = frozenset(dict.iteritems())
+    
+    def __getitem__(self, key):
+        return self._dict[key]
+
+    def __hash__(self):
+        return self._frozen.__hash__()
+
+    def __eq__(self, other):
+        return self._frozen == other._frozen
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+# only works for tree demographies
+# TODO: for more general demographies, build event tree first, then demo
+def getEventTree(demo):
+    eventDict = {}
+    eventEdges = []
+    # breadth first search
+    for v in reversed([demo.root] + [v1 for v0,v1 in nx.bfs_edges(demo, demo.root)]):
+        assert len(demo.predecessors(v)) <= 1
+        if demo.is_leaf(v):
+            e = FrozenDict({'type' : 'leaf', 'subpops' : frozenset([v])})
+            eventDict[v] = e
+        else:
+            e = FrozenDict({'type' : 'merge_clusters', 'subpops' : frozenset([v])})
+            eventDict[v] = e
+            eventEdges += [(e,eventDict[c]) for c in demo[v]]
+    ret = nx.DiGraph(eventEdges)
+    ret.demography = demo
+    ret.root = eventDict[demo.root]
+    return ret
+
 class Demography(nx.DiGraph):
     @classmethod
     def from_newick(cls, newick, default_lineages=None, default_N=1.0):
@@ -32,6 +69,8 @@ class Demography(nx.DiGraph):
         nd = self.node_data
         if not all('lineages' in nd[k] for k in self.leaves):
             raise Exception("'lineages' attribute must be set for each leaf node.")
+        # TODO: make event tree create the demography, instead of vice versa
+        self.eventTree = getEventTree(self)
 
     @cached_property
     def root(self):
