@@ -40,25 +40,29 @@ class SumProduct(object):
         return sfs
 
     @memoize_instance
-    def partial_likelihood_top(self, top, bottom):
+    def partial_likelihood_top(self, event, pop):
         ''' Partial likelihood of data at top of node, i.e.
         i.e. = P(n_top) P(x | n_derived_top, n_ancestral_top)
         note n_top is fixed in Moran model, so P(n_top)=1
         '''       
-        bottom_likelihood = self.partial_likelihood_bottom(bottom)       
-        return self.G.node_data[bottom]['model'].transition_prob(bottom_likelihood)
+        bottom_likelihood = self.partial_likelihood_bottom(event)       
+        return self.G.node_data[pop]['model'].transition_prob(bottom_likelihood)
 
     @memoize_instance
-    def partial_likelihood_bottom(self, node):
+    def partial_likelihood_bottom(self, event):
         '''Partial likelihood of data under Moran model, given alleles at bottom of node
         i.e. = P(n_bottom) P(x | n_derived_bottom, n_ancestral_bottom)
         note n_bottom is fixed in Moran model, so P(n_bottom)=1
         '''
-        if self.G.is_leaf(node):
-            return self.leaf_likelihood_bottom(node)
-        liks = [self.partial_likelihood_top(node, child) * self.combinatorial_factors(child) 
-                for child in self.G[node]]
-        return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(node)
+        #if self.G.is_leaf(node):
+        if event['type'] == 'leaf':
+            return self.leaf_likelihood_bottom(event['newpop'])
+        elif event['type'] == 'merge_clusters':
+            liks = [self.partial_likelihood_top(childEvent, edgeInfo['childPop']) * self.combinatorial_factors(edgeInfo['childPop']) 
+                    for parEvent, childEvent, edgeInfo in self.eventTree.edges([event], data=True)]
+            return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(event['newpop'])
+        else:
+            raise Exception("Event type %s not yet implemented" % event['type'])
        
     @memoize_instance
     def joint_sfs(self, event):
@@ -72,7 +76,7 @@ class SumProduct(object):
         # do some fancy slicing to consider only configs where derived alleles are all in newpop
         idx = [0] * len(event['subpops'])
         idx[event['subpops'].idx(newpop)] = slice(self.G.n_lineages_subtended_by[newpop]+1)
-        ret = (self.partial_likelihood_bottom(newpop)[idx] * self.truncated_sfs(newpop)).sum()
+        ret = (self.partial_likelihood_bottom(event)[idx] * self.truncated_sfs(newpop)).sum()
         
         #if self.G.is_leaf(node):
         if event['type'] == 'leaf':
