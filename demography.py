@@ -5,32 +5,6 @@ from cached_property import cached_property
 from size_history import ConstantTruncatedSizeHistory
 from sum_product import SumProduct
 
-class TupleDict(object):
-    def __init__(self, theList):
-        self._list = tuple(theList)
-        self._dict = {k:v for v,k in enumerate(self._list)}
-
-    def __getitem__(self,key):
-        return self._list[key]
-
-    def __iter__(self):
-        return self._list.__iter__()
-
-    def idx(self, val):
-        return self._dict[val]
-    
-    def __len__(self):
-        return self._list.__len__()
-
-    def __hash__(self):
-        return self._list.__hash__()
-
-    def __eq__(self, other):
-        return self._list == other._list
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
 class FrozenDict(object):
     def __init__(self, dict):
         self._dict = dict
@@ -60,10 +34,10 @@ def getEventTree(demo):
     for v in reversed([demo.root] + [v1 for v0,v1 in nx.bfs_edges(demo, demo.root)]):
         assert len(demo.predecessors(v)) <= 1
         if demo.is_leaf(v):
-            e = FrozenDict({'type' : 'leaf', 'subpops' : TupleDict([v]), 'newpop' : v})
+            e = FrozenDict({'type' : 'leaf', 'subpops' : (v,), 'newpop' : v})
             eventDict[v] = e
         else:
-            e = FrozenDict({'type' : 'merge_clusters', 'subpops' : TupleDict([v]), 'newpop' : v})
+            e = FrozenDict({'type' : 'merge_clusters', 'subpops' : (v,), 'newpop' : v})
             eventDict[v] = e
             eventEdges += [(e,eventDict[c], {'childPop' : c}) for c in demo[v]]
     ret = nx.DiGraph(eventEdges)

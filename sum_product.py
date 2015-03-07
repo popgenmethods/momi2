@@ -5,6 +5,53 @@ import numpy as np
 
 from util import memoize_instance, memoize
 
+class LabeledAxisArray(object):
+    def __init__(self, array, axisLabels, copyArray=True):
+        self.array = array
+        if copyArray:
+            self.array = self.array.copy()
+        self.axes = {x : i for i,x in enumerate(axisLabels)}
+    
+    # returns array[0,...,0,:,0,...,0] with : at specified axis
+    def get_zeroth_vector(self, axisLabel):
+        idx = [0] * len(self.axes)
+        axis = self.axes[axisLabel]
+        idx[axis] = slice(self.array.shape[axis])
+        return self.array[idx]
+
+    def apply_along_axis(self, axisLabel, func):
+        # this might be slow (like a for loop)
+        self.array = np.apply_along_axis(func, self.axes[axisLabel], self.array)
+
+    def multiply_along_axis(self, axisLabel, vec):
+        np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)
+        self.array *= vec
+        np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)
+
+    def divide_along_axis(self, axisLabel, vec):
+        np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)
+        self.array /= vec
+        np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)        
+
+    def relabel_axis(self, old_label, new_label):
+        self.axes[new_label] = self.axes[old_label]
+        del self.axes[old_label]
+
+    def expand_labels(self, new_labels):
+        added_labels = [x for x in new_labels if x not in self.axes]
+        # new_labels should contain all the old_labels
+        assert len(new_labels) == len(added_labels) + len(self.axes)
+        self.array.resize(list(self.array.shape) + [1] * len(added_labels))
+        for l in added_labels:
+            self.axes[l] = len(self.axes)
+        self.shuffle_labels(new_labels)
+
+    def shuffle_labels(self, new_order):
+        assert len(new_order) == len(self.axes)
+        label_permutation = [self.axes[l] for l in new_order]
+        self.array = self.array.transpose(label_permutation)
+        self.axes = {x : i for i,x in enumerate(new_order)}
+
 class SumProduct(object):
     ''' 
     compute joint SFS entry via a sum-product like algorithm,
@@ -44,14 +91,16 @@ class SumProduct(object):
         return sfs
 
     @memoize_instance
-    def partial_likelihood_top(self, event, pop):
+    def partial_likelihood_top(self, event, popList):
         ''' Partial likelihood of data at top of node, i.e.
         i.e. = P(n_top) P(x | n_derived_top, n_ancestral_top)
         note n_top is fixed in Moran model, so P(n_top)=1
         '''       
-        bottom_likelihood = self.partial_likelihood_bottom(event)
         #return self.G.node_data[pop]['model'].transition_prob(bottom_likelihood)
-        return np.apply_along_axis(lambda x: self.G.node_data[pop]['model'].transition_prob(x), event['subpops'].idx(pop),bottom_likelihood)
+        ret = LabeledAxisArray(self.partial_likelihood_bottom(event), event['subpops'])
+        for pop in popList:
+            ret.apply_along_axis(pop, lambda x: self.G.node_data[pop]['model'].transition_prob(x))
+        return ret.array
 
     @memoize_instance
     def partial_likelihood_bottom(self, event):
@@ -62,48 +111,39 @@ class SumProduct(object):
         #if self.G.is_leaf(node):
         if event['type'] == 'leaf':
             return self.leaf_likelihood_bottom(event['newpop'])
+#         elif event['type'] == 'merge_subpops':
+#             newpop = event['newpop']
+#             childPops = self.G[newpop]
+#             childEvent = *(self.eventTree[event])
+#             childTopLik = self.partial_likelihood_top(childEvent, frozenset(childPops))
+            
+#             c1,c2 = *childPops
+#             ret = np.zeros([self.G.n_lineages_subtended_by[subpop]+1 for subpop in event['subpops']])
+#             ret = np.swapaxes(ret, event['subpops'].idx(newpop), 0)
+#             for d1 in range(self.G.n_lineages_subtended_by[c1]+1):
+#                 for d2 in range(self.G.n_lineages_subtended_by[c2]+1):
+#                     # FIXME
+#                     ret[d1+d2,...] += toAdd[d1,d2,...] * hypergeometricTerm
+#             ret = np.swapaxes(ret, event['subpops'].idx(newpop), 0)
+#             return ret
+#             # now rearrange indices of childTopLik to be like event['subpops']
         elif event['type'] == 'merge_clusters':
-#            liks = [self.partial_likelihood_top(childEvent, edgeInfo['childPop']) * self.combinatorial_factors(edgeInfo['childPop']) ]
             newpop = event['newpop']
             liks = []
             for parEvent, childEvent, edgeInfo in self.eventTree.edges([event], data=True):
                 assert parEvent is event
                 childPop = edgeInfo['childPop']
-                childTopLik = self.partial_likelihood_top(childEvent, childPop)
-                # swap axes so we can do broadcasting, to multiply efficiently along a dimension
-                childTopLik = np.swapaxes(childTopLik, childEvent['subpops'].idx(childPop), len(childTopLik.shape)-1)
-                # multiply
-                childTopLik *= self.combinatorial_factors(childPop)
-                # swap axes back
-                childTopLik = np.swapaxes(childTopLik, childEvent['subpops'].idx(childPop), len(childTopLik.shape)-1)
-
-                # now transform childTopLik so it has same dimensions has the parent event
-                reshapedDims = [1] * len(event['subpops']) # dimensions of the new array
-                sliceIdx = [0] * len(event['subpops']) # slice indexing to set new array
-                childDimsOrder = [-1] * len(event['subpops']) # map of new dimensions to old dimensions
-                for childSubpop in childEvent['subpops']:
-                    if childSubpop == childPop:
-                        parentSubpop = newpop
-                    else:
-                        parentSubpop = childSubpop
-                    parentIdx = event['subpops'].idx(parentSubpop)
-                    childIdx = childEvent['subpops'].idx(childSubpop)
-                    reshapedDims[parentIdx] = childTopLik.shape[childIdx]
-                    sliceIdx[parentIdx] = slice(reshapedDims[parentIdx])
-                    childDimsOrder[parentIdx] = childIdx
-                childDimsOrder = [x for x in childDimsOrder if x >= 0]
-
-                reshapedLik = np.zeros(reshapedDims)
-                reshapedLik[sliceIdx] = np.transpose(childTopLik, childDimsOrder)
-                liks.append(reshapedLik)
+                childTopLik = self.partial_likelihood_top(childEvent, frozenset([childPop]))
+                childTopLik = LabeledAxisArray(childTopLik, childEvent['subpops'])
+                childTopLik.multiply_along_axis(childPop, self.combinatorial_factors(childPop))
+                # make childTopLik have same axisLabels as toReturn
+                childTopLik.relabel_axis(childPop, newpop)
+                childTopLik.expand_labels(event['subpops'])
+                liks.append(childTopLik.array)
 #            return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(event['newpop'])
-            ret = scipy.signal.fftconvolve(*liks)
-            # swap axes so we can do broadcasting, to divide efficiently along a dimension
-            ret = np.swapaxes(ret, event['subpops'].idx(newpop), len(ret.shape)-1)
-            # multiply
-            ret /= self.combinatorial_factors(newpop)
-            # swap axes back, and return
-            return np.swapaxes(ret, event['subpops'].idx(newpop), len(ret.shape)-1)
+            ret = LabeledAxisArray(scipy.signal.fftconvolve(*liks), event['subpops'], copyArray=False)
+            ret.divide_along_axis(newpop, self.combinatorial_factors(newpop))
+            return ret.array
         else:
             raise Exception("Event type %s not yet implemented" % event['type'])
        
@@ -116,11 +156,9 @@ class SumProduct(object):
         
         newpop = event['newpop']
         # term for mutation occurring at the newpop
-        # do some fancy slicing to consider only configs where derived alleles are all in newpop
-        idx = [0] * len(event['subpops'])
-        idx[event['subpops'].idx(newpop)] = slice(self.G.n_lineages_subtended_by[newpop]+1)
-        ret = (self.partial_likelihood_bottom(event)[idx] * self.truncated_sfs(newpop)).sum()
-        
+        ret = LabeledAxisArray(self.partial_likelihood_bottom(event), event['subpops'], copyArray=False)
+        ret = (ret.get_zeroth_vector(newpop) * self.truncated_sfs(newpop)).sum()
+
         #if self.G.is_leaf(node):
         if event['type'] == 'leaf':
             return ret
