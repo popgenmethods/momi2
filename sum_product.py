@@ -45,8 +45,9 @@ class SumProduct(object):
         i.e. = P(n_top) P(x | n_derived_top, n_ancestral_top)
         note n_top is fixed in Moran model, so P(n_top)=1
         '''       
-        bottom_likelihood = self.partial_likelihood_bottom(event)       
-        return self.G.node_data[pop]['model'].transition_prob(bottom_likelihood)
+        bottom_likelihood = self.partial_likelihood_bottom(event)
+        #return self.G.node_data[pop]['model'].transition_prob(bottom_likelihood)
+        return np.apply_along_axis(lambda x: self.G.node_data[pop]['model'].transition_prob(x), event['subpops'].idx(pop),bottom_likelihood)
 
     @memoize_instance
     def partial_likelihood_bottom(self, event):
