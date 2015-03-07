@@ -59,9 +59,47 @@ class SumProduct(object):
         if event['type'] == 'leaf':
             return self.leaf_likelihood_bottom(event['newpop'])
         elif event['type'] == 'merge_clusters':
-            liks = [self.partial_likelihood_top(childEvent, edgeInfo['childPop']) * self.combinatorial_factors(edgeInfo['childPop']) 
-                    for parEvent, childEvent, edgeInfo in self.eventTree.edges([event], data=True)]
-            return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(event['newpop'])
+#            liks = [self.partial_likelihood_top(childEvent, edgeInfo['childPop']) * self.combinatorial_factors(edgeInfo['childPop']) ]
+            newpop = event['newpop']
+            liks = []
+            for parEvent, childEvent, edgeInfo in self.eventTree.edges([event], data=True):
+                assert parEvent is event
+                childPop = edgeInfo['childPop']
+                childTopLik = self.partial_likelihood_top(childEvent, childPop)
+                # swap axes so we can do broadcasting, to multiply efficiently along a dimension
+                childTopLik = np.swapaxes(childTopLik, childEvent['subpops'].idx(childPop), len(childTopLik.shape)-1)
+                # multiply
+                childTopLik *= self.combinatorial_factors(childPop)
+                # swap axes back
+                childTopLik = np.swapaxes(childTopLik, childEvent['subpops'].idx(childPop), len(childTopLik.shape)-1)
+
+                # now transform childTopLik so it has same dimensions has the parent event
+                reshapedDims = [1] * len(event['subpops']) # dimensions of the new array
+                sliceIdx = [0] * len(event['subpops']) # slice indexing to set new array
+                childDimsOrder = [-1] * len(event['subpops']) # map of new dimensions to old dimensions
+                for childSubpop in childEvent['subpops']:
+                    if childSubpop == childPop:
+                        parentSubpop = newpop
+                    else:
+                        parentSubpop = childSubpop
+                    parentIdx = event['subpops'].idx(parentSubpop)
+                    childIdx = childEvent['subpops'].idx(childSubpop)
+                    reshapedDims[parentIdx] = childTopLik.shape[childIdx]
+                    sliceIdx[parentIdx] = slice(reshapedDims[parentIdx])
+                    childDimsOrder[parentIdx] = childIdx
+                childDimsOrder = [x for x in childDimsOrder if x >= 0]
+
+                reshapedLik = np.zeros(reshapedDims)
+                reshapedLik[sliceIdx] = np.transpose(childTopLik, childDimsOrder)
+                liks.append(reshapedLik)
+#            return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(event['newpop'])
+            ret = scipy.signal.fftconvolve(*liks)
+            # swap axes so we can do broadcasting, to divide efficiently along a dimension
+            ret = np.swapaxes(ret, event['subpops'].idx(newpop), len(ret.shape)-1)
+            # multiply
+            ret /= self.combinatorial_factors(newpop)
+            # swap axes back, and return
+            return np.swapaxes(ret, event['subpops'].idx(newpop), len(ret.shape)-1)
         else:
             raise Exception("Event type %s not yet implemented" % event['type'])
        
