@@ -2,6 +2,7 @@ from __future__ import print_function, division
 import scipy.misc, scipy.signal
 import math
 import numpy as np
+import bidict as bd
 
 from util import memoize_instance, memoize
 
@@ -10,8 +11,33 @@ class LabeledAxisArray(object):
         self.array = array
         if copyArray:
             self.array = self.array.copy()
-        self.axes = {x : i for i,x in enumerate(axisLabels)}
+        self.axes = bd.bidict({x : i for i,x in enumerate(axisLabels)})
+
+     def sum_axes(self, old_axes, new_label):
+         a0,a1 = *(self.axes[l] for l in old_axes)
+         self.swap_axis(a0, 0)
+         self.swap_axis(a1, 1)
+
+         new_array = np.zeros([self.array.shape[0] + self.array.shape[1] - 1] + list(self.array.shape[2:]))
+         for i in range(array.shape[0]):
+             for j in range(array.shape[1]):
+                 new_array[i+j,...] += array[i,j,...]
+
+         new_axes = bd.bidict()
+         new_axes[new_label] = 0
+         for i in range(2,len(self.axes)):
+             new_axes[self.axes[:i]] = i-1
+
+         self.array = new_array
+         self.axes = new_axes
     
+     def swap_axis(self, axis, new_pos):
+         swapped_axis = self.axes[:new_pos]
+         old_pos = self.axes[axis:]
+         self.axes[axis] = new_pos
+         self.axes[swapped_axis] = old_pos
+         self.array = self.array.swapaxes(self.array, old_pos, new_pos)
+
     # returns array[0,...,0,:,0,...,0] with : at specified axis
     def get_zeroth_vector(self, axisLabel):
         idx = [0] * len(self.axes)
@@ -35,7 +61,7 @@ class LabeledAxisArray(object):
 
     def relabel_axis(self, old_label, new_label):
         self.axes[new_label] = self.axes[old_label]
-        del self.axes[old_label]
+        # del self.axes[old_label]
 
     def expand_labels(self, new_labels):
         added_labels = [x for x in new_labels if x not in self.axes]
@@ -136,7 +162,7 @@ class SumProduct(object):
                 childTopLik = self.partial_likelihood_top(childEvent, frozenset([childPop]))
                 childTopLik = LabeledAxisArray(childTopLik, childEvent['subpops'])
                 childTopLik.multiply_along_axis(childPop, self.combinatorial_factors(childPop))
-                # make childTopLik have same axisLabels as toReturn
+                # make childTopLik have same axisLabels as the array toReturn
                 childTopLik.relabel_axis(childPop, newpop)
                 childTopLik.expand_labels(event['subpops'])
                 liks.append(childTopLik.array)
