@@ -133,22 +133,21 @@ class SumProduct(object):
         #if self.G.is_leaf(node):
         if event['type'] == 'leaf':
             return self.leaf_likelihood_bottom(event['newpop'])
-#         elif event['type'] == 'merge_subpops':
-#             newpop = event['newpop']
-#             childPops = self.G[newpop]
-#             childEvent = *(self.eventTree[event])
-#             childTopLik = self.partial_likelihood_top(childEvent, frozenset(childPops))
+        elif event['type'] == 'merge_subpops':
+            newpop = event['newpop']
+            childPops = self.G[newpop]
+            childEvent = *(self.eventTree[event])
+            childTopLik = self.partial_likelihood_top(childEvent, frozenset(childPops))
             
-#             c1,c2 = *childPops
-#             ret = np.zeros([self.G.n_lineages_subtended_by[subpop]+1 for subpop in event['subpops']])
-#             ret = np.swapaxes(ret, event['subpops'].idx(newpop), 0)
-#             for d1 in range(self.G.n_lineages_subtended_by[c1]+1):
-#                 for d2 in range(self.G.n_lineages_subtended_by[c2]+1):
-#                     # FIXME
-#                     ret[d1+d2,...] += toAdd[d1,d2,...] * hypergeometricTerm
-#             ret = np.swapaxes(ret, event['subpops'].idx(newpop), 0)
-#             return ret
-#             # now rearrange indices of childTopLik to be like event['subpops']
+            c1,c2 = *childPops
+            ret = LabeledAxisArray(childTopLik, childEvent['subpops'])
+            for c in c1,c2:
+                ret.multiply_along_axis(c, self.combinatorial_factors(c))
+            ret.sum_axes((c1,c2), newpop)
+            ret.divide_along_axis(newpop, self.combinatorial_factors(newpop))
+            # make sure axis labels are correctly ordered
+            ret.shuffle_labels(event['subpops'])
+            return ret.array
         elif event['type'] == 'merge_clusters':
             newpop = event['newpop']
             liks = []
