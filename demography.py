@@ -77,7 +77,7 @@ class Demography(nx.DiGraph):
         t = cls(_newick_to_nx(newick, default_lineages))
         # add models to edges
         for v0, v1, d in t.edges(data=True):
-            n_sub = t.n_lineages_subtended_by[v1]
+            n_sub = t.n_lineages_at_node[v1]
             nd = t.node_data[v1]
             if 'model' not in nd or nd['model'] == "constant":
                 nd['model'] = ConstantTruncatedSizeHistory(
@@ -90,7 +90,7 @@ class Demography(nx.DiGraph):
         # FIXME: all possible size histories for root
         nd['model'] = ConstantTruncatedSizeHistory(
                 N=nd.get('N', default_N),
-                n_max=t.n_lineages_subtended_by[t.root], 
+                n_max=t.n_lineages_at_node[t.root], 
                 tau=float("inf"))
         return t
 
@@ -121,10 +121,20 @@ class Demography(nx.DiGraph):
     def leaves(self):
         return set([k for k, v in self.out_degree().items() if v == 0])
 
+#     @cached_property
+#     def n_lineages_subtended_by(self):
+#         nd = self.node_data
+#         return {v: sum(nd[l]['lineages'] for l in self.leaves_subtended_by[v]) for v in self}
     @cached_property
-    def n_lineages_subtended_by(self):
+    def n_lineages_at_node(self):
         nd = self.node_data
-        return {v: sum(nd[l]['lineages'] for l in self.leaves_subtended_by[v]) for v in self}
+        n_lin_dict = {}
+        for v in nx.dfs_postorder_nodes(self, self.root):
+            if self.is_leaf(v):
+                n_lin_dict[v] = nd[v]['lineages']
+            else:
+                n_lin_dict[v] = sum([n_lin_dict[c] for c in self[v]])
+        return n_lin_dict
 
     @cached_property
     def n_derived_subtended_by(self):
@@ -134,6 +144,14 @@ class Demography(nx.DiGraph):
     @cached_property
     def leaves_subtended_by(self):
         return {v: self.leaves & set(nx.dfs_preorder_nodes(self, v)) for v in self}
+
+#     @memoize_instance
+#     def admixture_inherit(self, admixture_node):
+#         # admixture node must have two parents
+#         n_node = self.n_lineages_subtended_by[admixture_node]
+
+#         edge1,edge2 = self.in_edges([admixture_node], data=True)
+#         assert edge1[2]['prob'] == 1.0 - edge2[2]['prob']
 
     def is_leaf(self, node):
         return node in self.leaves
