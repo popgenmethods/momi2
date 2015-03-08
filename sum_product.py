@@ -14,7 +14,7 @@ class LabeledAxisArray(object):
         self.axes = bd.bidict({x : i for i,x in enumerate(axisLabels)})
 
      def sum_axes(self, old_axes, new_label):
-         a0,a1 = *(self.axes[l] for l in old_axes)
+         a0,a1 = (self.axes[l] for l in old_axes)
          self.swap_axis(a0, 0)
          self.swap_axis(a1, 1)
 
@@ -140,7 +140,7 @@ class SumProduct(object):
         elif event['type'] == 'merge_subpops':
             newpop = event['newpop']
             childPops = self.G[newpop]
-            childEvent = *(self.eventTree[event])
+            childEvent, = self.eventTree[event]
             childTopLik = self.partial_likelihood_top(childEvent, frozenset(childPops))
             
             c1,c2 = *childPops
@@ -195,6 +195,10 @@ class SumProduct(object):
                 #if self.G.n_derived_subtended_by[child] == 0:
                 if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in child['subpops']):
                     ret += self.joint_sfs(other_child)
+            return ret
+        elif event['type'] == 'merge_subpops':
+            childEvent, = self.eventTree[event]
+            ret += self.joint_sfs(childEvent)
             return ret
         else:
             raise Exception("Event type %s not yet implemented" % event['type'])
