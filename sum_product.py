@@ -104,12 +104,12 @@ class SumProduct(object):
         return ret
 
     def combinatorial_factors(self, node):
-        n_node = self.G.n_lineages_subtended_by[node]
+        n_node = self.G.n_lineages_at_node[node]
         return scipy.misc.comb(n_node, np.arange(n_node + 1))
 
     @memoize_instance
     def truncated_sfs(self, node):
-        n_node = self.G.n_lineages_subtended_by[node]
+        n_node = self.G.n_lineages_at_node[node]
         sfs = np.array([self.G.node_data[node]['model'].freq(n_derived, n_node) for n_derived in range(n_node + 1)])
         sfs[sfs == float("inf")] = 0.0
         return sfs
@@ -136,6 +136,9 @@ class SumProduct(object):
         if event['type'] == 'leaf':
             leafpop, = event['newpops']
             return self.leaf_likelihood_bottom(leafpop)
+#         elif event['type'] == 'split_subpop':
+#             childpop = event['childpop']
+#             p1,p2 = event['parentpops']
         elif event['type'] == 'merge_subpops':
             newpop, = event['newpops']
             childPops = self.G[newpop]
@@ -203,7 +206,7 @@ class SumProduct(object):
                 if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in child['subpops']):
                     ret += self.joint_sfs(other_child)
             return ret
-        elif event['type'] == 'merge_subpops':
+        elif event['type'] == 'merge_subpops' or event['type'] == 'split_subpop':
             childEvent, = self.eventTree[event]
             ret += self.joint_sfs(childEvent)
             return ret
