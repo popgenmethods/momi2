@@ -12,31 +12,33 @@ class LabeledAxisArray(object):
         if copyArray:
             self.array = self.array.copy()
         self.axes = bd.bidict({x : i for i,x in enumerate(axisLabels)})
+        assert len(self.axes) == len(axisLabels) # assert no repeats
+        assert len(self.axes) == len(self.array.shape)
 
-     def sum_axes(self, old_axes, new_label):
-         a0,a1 = (self.axes[l] for l in old_axes)
-         self.swap_axis(a0, 0)
-         self.swap_axis(a1, 1)
+    def sum_axes(self, old_axes, new_label):
+        #a0,a1 = (self.axes[l] for l in old_axes)
+        a0,a1 = old_axes
+        self.swap_axis(a0, 0)
+        self.swap_axis(a1, 1)
 
-         new_array = np.zeros([self.array.shape[0] + self.array.shape[1] - 1] + list(self.array.shape[2:]))
-         for i in range(array.shape[0]):
-             for j in range(array.shape[1]):
-                 new_array[i+j,...] += array[i,j,...]
+        new_array = np.zeros([self.array.shape[0] + self.array.shape[1] - 1] + list(self.array.shape[2:]))
+        for i in range(self.array.shape[0]):
+            for j in range(self.array.shape[1]):
+                new_array[i+j,...] += self.array[i,j,...]
 
-         new_axes = bd.bidict()
-         new_axes[new_label] = 0
-         for i in range(2,len(self.axes)):
-             new_axes[self.axes[:i]] = i-1
-
-         self.array = new_array
-         self.axes = new_axes
+        new_axes = bd.bidict()
+        new_axes[new_label] = 0
+        for i in range(2,len(self.axes)):
+            new_axes[self.axes[:i]] = i-1
+        self.array = new_array
+        self.axes = new_axes
     
-     def swap_axis(self, axis, new_pos):
-         swapped_axis = self.axes[:new_pos]
-         old_pos = self.axes[axis:]
-         self.axes[axis] = new_pos
-         self.axes[swapped_axis] = old_pos
-         self.array = self.array.swapaxes(self.array, old_pos, new_pos)
+    def swap_axis(self, axis, new_pos):
+        swapped_axis = self.axes[:new_pos]
+        old_pos = self.axes[axis:]
+        self.axes.forceput(axis, new_pos)
+        self.axes.forceput(swapped_axis, old_pos)
+        self.array = self.array.swapaxes(old_pos, new_pos)
 
     # returns array[0,...,0,:,0,...,0] with : at specified axis
     def get_zeroth_vector(self, axisLabel):
@@ -50,14 +52,14 @@ class LabeledAxisArray(object):
         self.array = np.apply_along_axis(func, self.axes[axisLabel], self.array)
 
     def multiply_along_axis(self, axisLabel, vec):
-        np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)
-        self.array *= vec
-        np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)
+        tmpView = np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)
+        tmpView *= vec
+        #np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)
 
     def divide_along_axis(self, axisLabel, vec):
-        np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)
-        self.array /= vec
-        np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)        
+        tmpView = np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)
+        tmpView /= vec
+        #np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)        
 
     def relabel_axis(self, old_label, new_label):
         self.axes[new_label] = self.axes[old_label]
@@ -132,14 +134,15 @@ class SumProduct(object):
         '''
         #if self.G.is_leaf(node):
         if event['type'] == 'leaf':
-            return self.leaf_likelihood_bottom(event['newpop'])
+            leafpop, = event['newpops']
+            return self.leaf_likelihood_bottom(leafpop)
         elif event['type'] == 'merge_subpops':
-            newpop = event['newpop']
+            newpop, = event['newpops']
             childPops = self.G[newpop]
             childEvent, = self.eventTree[event]
             childTopLik = self.partial_likelihood_top(childEvent, frozenset(childPops))
             
-            c1,c2 = *childPops
+            c1,c2 = childPops
             ret = LabeledAxisArray(childTopLik, childEvent['subpops'])
             for c in c1,c2:
                 ret.multiply_along_axis(c, self.combinatorial_factors(c))
@@ -148,8 +151,16 @@ class SumProduct(object):
             # make sure axis labels are correctly ordered
             ret.shuffle_labels(event['subpops'])
             return ret.array
+        elif event['type'] == 'dummy_merge_clusters':
+            c1,c2 = self.eventTree[event]
+            array = np.multiply.outer(*[self.partial_likelihood_bottom(c) for c in c1,c2])
+            labels = list(c1['subpops']) + list(c2['subpops'])
+            ret = LabeledAxisArray(array, labels, copyArray=False)
+            # make sure array dimensions has correct ordering
+            ret.shuffle_labels(event['subpops'])
+            return ret.array
         elif event['type'] == 'merge_clusters':
-            newpop = event['newpop']
+            newpop, = event['newpops']
             liks = []
             for parEvent, childEvent, edgeInfo in self.eventTree.edges([event], data=True):
                 assert parEvent is event
@@ -161,7 +172,6 @@ class SumProduct(object):
                 childTopLik.relabel_axis(childPop, newpop)
                 childTopLik.expand_labels(event['subpops'])
                 liks.append(childTopLik.array)
-#            return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(event['newpop'])
             ret = LabeledAxisArray(scipy.signal.fftconvolve(*liks), event['subpops'], copyArray=False)
             ret.divide_along_axis(newpop, self.combinatorial_factors(newpop))
             return ret.array
@@ -175,17 +185,18 @@ class SumProduct(object):
         if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in event['subpops']):
             return 0.0
         
-        newpop = event['newpop']
-        # term for mutation occurring at the newpop
-        ret = LabeledAxisArray(self.partial_likelihood_bottom(event), event['subpops'], copyArray=False)
-        ret = (ret.get_zeroth_vector(newpop) * self.truncated_sfs(newpop)).sum()
+        ret = 0.0
+        for newpop in event['newpops']:
+            # term for mutation occurring at the newpop
+            labeledArray = LabeledAxisArray(self.partial_likelihood_bottom(event), event['subpops'], copyArray=False)
+            ret += (labeledArray.get_zeroth_vector(newpop) * self.truncated_sfs(newpop)).sum()
 
         #if self.G.is_leaf(node):
         if event['type'] == 'leaf':
             return ret
         # add on terms for mutation occurring below this node
         # if no derived leafs on right, add on term from the left
-        elif event['type'] == 'merge_clusters':
+        elif event['type'] in ['merge_clusters', 'dummy_merge_clusters']:
             c1, c2 = self.eventTree[event]
             for child, other_child in ((c1, c2), (c2, c1)):
                 #if self.G.n_derived_subtended_by[child] == 0:

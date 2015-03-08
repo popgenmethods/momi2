@@ -33,16 +33,42 @@ def getEventTree(demo):
     for v in reversed([demo.root] + [v1 for v0,v1 in nx.bfs_edges(demo, demo.root)]):
         assert len(demo.predecessors(v)) <= 1
         if demo.is_leaf(v):
-            e = FrozenDict({'type' : 'leaf', 'subpops' : (v,), 'newpop' : v})
+            e = FrozenDict({'type' : 'leaf', 'subpops' : (v,), 'newpops' : (v,)})
             eventDict[v] = e
         else:
-            e = FrozenDict({'type' : 'merge_clusters', 'subpops' : (v,), 'newpop' : v})
+            e = FrozenDict({'type' : 'merge_clusters', 'subpops' : (v,), 'newpops' : (v,)})
             eventDict[v] = e
             eventEdges += [(e,eventDict[c], {'childPop' : c}) for c in demo[v]]
     ret = nx.DiGraph(eventEdges)
     ret.demography = demo
     ret.root = eventDict[demo.root]
     return ret
+
+# for testing that merge_subpops works
+def replaceWithDummyMerge(eventTree):
+    old_nodes = [v for v in eventTree]
+    for v in old_nodes:
+        if v['type'] == 'merge_clusters':
+            c1,c2 = eventTree[v]
+            childEventSubpops = tuple(list(c1['subpops']) + list(c2['subpops']))
+
+            dummy_merge = FrozenDict({'type' : 'dummy_merge_clusters', 'subpops' : childEventSubpops, 'newpops' : ()})
+            merge_subpops = FrozenDict({'type' : 'merge_subpops', 'subpops' : v['subpops'], 'newpops' : v['newpops']})
+
+            eventTree.add_nodes_from([dummy_merge, merge_subpops])
+            eventTree.add_edge(merge_subpops, dummy_merge)
+
+            for c in eventTree[v]:
+                eventTree.add_edge(dummy_merge, c)
+
+            for parentEdge in eventTree.in_edges(v):
+                eventTree.add_edge(parentEdge[0], merge_subpops)
+                
+            eventTree.remove_node(v)
+            if v == eventTree.root:
+                eventTree.root = merge_subpops
+    for v in eventTree:
+        assert v['type'] != 'merge_clusters'
 
 class Demography(nx.DiGraph):
     @classmethod
@@ -74,6 +100,7 @@ class Demography(nx.DiGraph):
             raise Exception("'lineages' attribute must be set for each leaf node.")
         # TODO: make event tree create the demography, instead of vice versa
         self.eventTree = getEventTree(self)
+        #replaceWithDummyMerge(self.eventTree)
 
     @cached_property
     def root(self):
