@@ -3,7 +3,8 @@ from Bio import Phylo
 from cStringIO import StringIO
 from cached_property import cached_property
 from size_history import ConstantTruncatedSizeHistory
-from util import memoize_instance
+from util import memoize_instance, memoize
+import scipy, scipy.misc, scipy.signal
 
 class FrozenDict(object):
     def __init__(self, dict):
@@ -123,6 +124,7 @@ class Demography(nx.DiGraph):
 #         return {v: sum(nd[l]['lineages'] for l in self.leaves_subtended_by[v]) for v in self}
     @cached_property
     def n_lineages_at_node(self):
+        '''Due to admixture events, # lineages at node >= # lineages at leafs'''
         nd = self.node_data
         n_lin_dict = {}
         for v in nx.dfs_postorder_nodes(self, self.root):
@@ -141,13 +143,36 @@ class Demography(nx.DiGraph):
     def leaves_subtended_by(self):
         return {v: self.leaves & set(nx.dfs_preorder_nodes(self, v)) for v in self}
 
-#     @memoize_instance
-#     def admixture_inherit(self, admixture_node):
-#         # admixture node must have two parents
-#         n_node = self.n_lineages_subtended_by[admixture_node]
+    @memoize_instance
+    def admixture_prob(self, admixture_node):
+        '''
+        Returns LabeledAxisArray with dimensions [child_der, par1_der, par2_der]
 
-#         edge1,edge2 = self.in_edges([admixture_node], data=True)
-#         assert edge1[2]['prob'] == 1.0 - edge2[2]['prob']
+        child_der: # derived alleles in admixture_node
+        par1_der, par2_der: # derived alleles in parent1, parent2 of admixture_node
+
+        returns probability of child_der given par1_der, par2_der
+        '''
+        n_node = self.n_lineages_at_node[admixture_node]
+
+        # admixture node must have two parents
+        edge1,edge2 = self.in_edges([admixture_node], data=True)
+        prob1,prob2 = edge1[2]['prob'], edge2[2]['prob']
+        parent1,parent2 = edge1[0], edge2[0]
+        assert prob1 + prob2 == 1.0
+
+        # dimensions are [child_derived, parent1_derived, parent2_derived]
+        ret = np.zeros((n_node, n_node, n_node))
+        # FIXME: replace for loops with vectorized operations!!
+        # iterate over entries of ret
+        for child_der in range(n_node+1):
+            for par1_der in range(n_node+1):
+                for par2_der in range(n_node+1):
+                    # iterate over number of lineages inherited from parent 1
+                    for n_from_1 in range(n_node+1):
+                        n_from_2 = n_node - n_from_1
+                        ret[child_der, par1_der, par2_der] += scipy.misc.comb(n_node, n_from_1) * (prob1**n_from_1) * (prob2**n_from_2) * der_in_admixture_node(n_from_1, n_from_2, par1_der, par2_der)[child_der]
+        return LabeledAxisArray(ret, [admixture_node, parent1, parent2], copyArray=False)
 
     def is_leaf(self, node):
         return node in self.leaves
@@ -168,6 +193,27 @@ class Demography(nx.DiGraph):
 
     def to_newick(self):
         return _to_newick(self, self.root)
+
+@memoize
+def der_in_admixture_node(n_from_1, n_from_2, der_in_1, der_in_2):
+    '''
+    Given admixture node inherits n_from_1, n_from_2 lineages in parents1,2
+    and parents1,2 have der_in_1, der_in_2 derived alleles
+    returns array giving probability that admixture node has der_in_child derived alleles
+    '''
+    n_node = n_from_1 + n_from_2
+    to_convolve = []
+    for n_from_parent, der_in_parent in (n_from_1, der_in_1), (n_from_2, der_in_2):
+        anc_in_parent = n_node - der_in_parent
+
+        der_from_parent = np.arange(n_from+1)
+        anc_from_parent = n_from_parent - der_from_parent
+
+        to_convolve.append(scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(anc_in_parent, anc_from_parent) / scipy.misc.com(n_node, n_from_parent))
+
+    ret = scipy.signal.fftconvolve(*to_convolve)
+    assert len(ret) == n_node+1
+    return ret
 
 
 _field_factories = {

@@ -15,6 +15,13 @@ class LabeledAxisArray(object):
         assert len(self.axes) == len(axisLabels) # assert no repeats
         assert len(self.axes) == len(self.array.shape)
 
+    def tensor_multiply(other, axis):
+        new_array = np.tensordot(self.array, other.array, [[self.axes[axis]], [other.axes[axis]]])
+        new_axes = []
+        for old in self, other:
+            new_axes += [old.axes[:i] for i in range(len(old.axes)) if old.axes[:i] != axis]
+        return LabeledAxisArray(new_array, new_axes, copyArray=False)
+
     def sum_axes(self, old_axes, new_label):
         #a0,a1 = (self.axes[l] for l in old_axes)
         a0,a1 = old_axes
@@ -72,9 +79,9 @@ class LabeledAxisArray(object):
         self.array.resize(list(self.array.shape) + [1] * len(added_labels))
         for l in added_labels:
             self.axes[l] = len(self.axes)
-        self.shuffle_labels(new_labels)
+        self.reorder_axes(new_labels)
 
-    def shuffle_labels(self, new_order):
+    def reorder_axes(self, new_order):
         assert len(new_order) == len(self.axes)
         label_permutation = [self.axes[l] for l in new_order]
         self.array = self.array.transpose(label_permutation)
@@ -136,9 +143,17 @@ class SumProduct(object):
         if event['type'] == 'leaf':
             leafpop, = event['newpops']
             return self.leaf_likelihood_bottom(leafpop)
-#         elif event['type'] == 'split_subpop':
-#             childpop = event['childpop']
-#             p1,p2 = event['parentpops']
+        elif event['type'] == 'admixture':
+            childpop = event['childpop']
+            p1,p2 = event['parentpops']
+
+            childEvent, = self.eventTree[event]
+            childTopLik = self.partial_likelihood_top(childEvent, frozenset(childPops))
+            
+            ret = LabeledAxisArray(childTopLik, childEvent['subpops'])
+            ret = ret.tensor_multiply(self.G.admixture_prob(childpop), childpop)
+            ret.reorder_axes(event['subpops']) # make sure axes are in correct order
+            return ret.array
         elif event['type'] == 'merge_subpops':
             newpop, = event['newpops']
             childPops = self.G[newpop]
@@ -152,7 +167,7 @@ class SumProduct(object):
             ret.sum_axes((c1,c2), newpop)
             ret.divide_along_axis(newpop, self.combinatorial_factors(newpop))
             # make sure axis labels are correctly ordered
-            ret.shuffle_labels(event['subpops'])
+            ret.reorder_axes(event['subpops'])
             return ret.array
         elif event['type'] == 'dummy_merge_clusters':
             c1,c2 = self.eventTree[event]
@@ -160,7 +175,7 @@ class SumProduct(object):
             labels = list(c1['subpops']) + list(c2['subpops'])
             ret = LabeledAxisArray(array, labels, copyArray=False)
             # make sure array dimensions has correct ordering
-            ret.shuffle_labels(event['subpops'])
+            ret.reorder_axes(event['subpops'])
             return ret.array
         elif event['type'] == 'merge_clusters':
             newpop, = event['newpops']
@@ -206,7 +221,7 @@ class SumProduct(object):
                 if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in child['subpops']):
                     ret += self.joint_sfs(other_child)
             return ret
-        elif event['type'] == 'merge_subpops' or event['type'] == 'split_subpop':
+        elif event['type'] == 'merge_subpops' or event['type'] == 'admixture':
             childEvent, = self.eventTree[event]
             ret += self.joint_sfs(childEvent)
             return ret
