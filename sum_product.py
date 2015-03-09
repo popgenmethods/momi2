@@ -15,7 +15,7 @@ class LabeledAxisArray(object):
         assert len(self.axes) == len(axisLabels) # assert no repeats
         assert len(self.axes) == len(self.array.shape)
 
-    def tensor_multiply(other, axis):
+    def tensor_multiply(self, other, axis):
         new_array = np.tensordot(self.array, other.array, [[self.axes[axis]], [other.axes[axis]]])
         new_axes = []
         for old in self, other:
@@ -149,10 +149,10 @@ class SumProduct(object):
             return self.leaf_likelihood_bottom(leafpop)
         elif event['type'] == 'admixture':
             childpop = event['childpop']
-            p1,p2 = event['parentpops']
+            p1,p2 = event['newpops']
 
             childEvent, = self.eventTree[event]
-            childTopLik = self.partial_likelihood_top(childEvent, frozenset(childPops))
+            childTopLik = self.partial_likelihood_top(childEvent, frozenset([childpop]))
             
             ret = LabeledAxisArray(childTopLik, childEvent['subpops'])
             ret = ret.tensor_multiply(self.G.admixture_prob(childpop), childpop)
