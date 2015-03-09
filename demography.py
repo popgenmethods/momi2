@@ -5,6 +5,8 @@ from cached_property import cached_property
 from size_history import ConstantTruncatedSizeHistory
 from util import memoize_instance, memoize
 import scipy, scipy.misc, scipy.signal
+import numpy as np
+from sum_product import LabeledAxisArray
 
 class FrozenDict(object):
     def __init__(self, dict):
@@ -32,15 +34,51 @@ def getEventTree(demo):
     eventDict = {}
     eventEdges = []
     # breadth first search
-    for v in reversed([demo.root] + [v1 for v0,v1 in nx.bfs_edges(demo, demo.root)]):
-        assert len(demo.predecessors(v)) <= 1
-        if demo.is_leaf(v):
+    #for v in reversed([demo.root] + [v1 for v0,v1 in nx.bfs_edges(demo, demo.root)]):
+    for v in nx.dfs_postorder_nodes(demo, demo.root):
+        #assert len(demo.predecessors(v)) <= 1
+        in_edges,out_edges = demo.in_edges(v, data=True),demo.out_edges(v, data=True)
+
+        if len(out_edges) == 0:
             e = FrozenDict({'type' : 'leaf', 'subpops' : (v,), 'newpops' : (v,)})
             eventDict[v] = e
-        else:
-            e = FrozenDict({'type' : 'merge_clusters', 'subpops' : (v,), 'newpops' : (v,)})
-            eventDict[v] = e
-            eventEdges += [(e,eventDict[c], {'childPop' : c}) for c in demo[v]]
+
+        if len(out_edges) == 2:
+            childEvent1,childEvent2 = [eventDict[e[1]] for e in out_edges]
+            if childEvent1 != childEvent2:
+                subpops = set(list(childEvent1['subpops']) + list(childEvent2['subpops']))
+                for childPop in demo[v]:
+                    subpops.remove(childPop)
+                subpops.add(v)
+                e = FrozenDict({'type' : 'merge_clusters', 'subpops' : tuple(subpops), 'newpops' : (v,)})
+                # update the current event all vertices are pointing to
+                eventEdges += [(e,eventDict[c], {'childPop' : c}) for c in demo[v]]
+                for p in e['subpops']:
+                    eventDict[p] = e
+                #eventDict[v] = e
+            else:
+                childEvent = childEvent1
+                subpops = set(childEvent['subpops'])
+                for childPop in demo[v]:
+                    subpops.remove(childPop)
+                subpops.add(v)
+                e = FrozenDict({'type' : 'merge_subpops', 'subpops' : tuple(subpops), 'newpops' : (v,)})
+                eventEdges += [(e, childEvent)]
+                for p in e['subpops']:
+                    eventDict[p] = e
+
+        if len(in_edges) == 2:
+            # must be done after adding leaf/merge event for this node
+            childEvent = e
+            subpops = set(childEvent['subpops'])
+            subpops.remove(v)
+            newpops = frozenset(demo.predecessors(v))
+            for parent in newpops:
+                subpops.add(parent)
+            e = FrozenDict({'type' : 'admixture', 'subpops' : tuple(subpops), 'newpops' : tuple(newpops), 'childpop' : v})
+            for p in e['subpops']:
+                eventDict[p] = e
+            eventEdges += [(e,childEvent)]
     ret = nx.DiGraph(eventEdges)
     ret.demography = demo
     ret.root = eventDict[demo.root]
@@ -104,6 +142,7 @@ class Demography(nx.DiGraph):
         self.eventTree = getEventTree(self)
         #replaceWithDummyMerge(self.eventTree)
 
+
     @cached_property
     def root(self):
         nds = [node for node, deg in self.in_degree().items() if deg == 0]
@@ -157,12 +196,13 @@ class Demography(nx.DiGraph):
 
         # admixture node must have two parents
         edge1,edge2 = self.in_edges([admixture_node], data=True)
-        prob1,prob2 = edge1[2]['prob'], edge2[2]['prob']
+        nd = self.node_data[admixture_node]
         parent1,parent2 = edge1[0], edge2[0]
+        prob1,prob2 = nd['splitprobs'][parent1], nd['splitprobs'][parent2]
         assert prob1 + prob2 == 1.0
 
         # dimensions are [child_derived, parent1_derived, parent2_derived]
-        ret = np.zeros((n_node, n_node, n_node))
+        ret = np.zeros((n_node+1, n_node+1, n_node+1))
         # FIXME: replace for loops with vectorized operations!!
         # iterate over entries of ret
         for child_der in range(n_node+1):
@@ -206,10 +246,10 @@ def der_in_admixture_node(n_from_1, n_from_2, der_in_1, der_in_2):
     for n_from_parent, der_in_parent in (n_from_1, der_in_1), (n_from_2, der_in_2):
         anc_in_parent = n_node - der_in_parent
 
-        der_from_parent = np.arange(n_from+1)
+        der_from_parent = np.arange(n_from_parent+1)
         anc_from_parent = n_from_parent - der_from_parent
 
-        to_convolve.append(scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(anc_in_parent, anc_from_parent) / scipy.misc.com(n_node, n_from_parent))
+        to_convolve.append(scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent))
 
     ret = scipy.signal.fftconvolve(*to_convolve)
     assert len(ret) == n_node+1
