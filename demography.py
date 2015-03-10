@@ -3,6 +3,7 @@ from Bio import Phylo
 from cStringIO import StringIO
 from cached_property import cached_property
 from size_history import ConstantTruncatedSizeHistory
+from sum_product import SumProduct
 
 class Demography(nx.DiGraph):
     @classmethod
@@ -32,6 +33,10 @@ class Demography(nx.DiGraph):
         nd = self.node_data
         if not all('lineages' in nd[k] for k in self.leaves):
             raise Exception("'lineages' attribute must be set for each leaf node.")
+       
+    @cached_property
+    def totalSfsSum(self):
+        return NormalizingConstant(self).normalizing_constant()
 
     @cached_property
     def root(self):
@@ -72,11 +77,10 @@ class Demography(nx.DiGraph):
             if ndn['lineages'] != ndn['derived'] + ndn['ancestral']:
                 raise Exception("derived + ancestral must add to lineages at node %s" % node)
         # Invalidate the caches which depend on node state
-        try:
-            del self.n_derived_subtended_by
-            del self.node_data
-        except AttributeError:
-            pass
+        # FIXME: breaks for version 1.0.0 of cached_property module!
+        self.n_derived_subtended_by # make sure cache exists
+        del self.n_derived_subtended_by #reset cache
+        del self.node_data  #reset cache
 
     def to_newick(self):
         return _to_newick(self, self.root)
@@ -142,4 +146,29 @@ def _to_newick(G, root):
         ret = "(%s,%s)" % (dta[0] + dta[1])
         if edge_length:
             ret += ":" + edge_length
+        return ret
+
+
+class NormalizingConstant(SumProduct):
+    def __init__(self, demography):
+        # to_directed() makes a deep-copy of the nx.DiGraph
+        demography = Demography(demography.to_directed())
+        # set all alleles to be of ancestral type
+        state = {}
+        for v in demography.leaves:
+            state[v] = {}
+            state[v]['derived'] = 0
+            state[v]['ancestral'] = demography.node_data[v]['lineages']
+        demography.update_state(state)
+        # now create the Sum-Product
+        super(NormalizingConstant,self).__init__(demography)
+
+    def normalizing_constant(self, node=None):
+        if node is None:
+            node = self.G.root
+
+        ret = ((1.0 - self.partial_likelihood_bottom(node)) * self.truncated_sfs(node)).sum()
+        for c in self.G[node]:
+            ret += self.normalizing_constant(c)
+        
         return ret
