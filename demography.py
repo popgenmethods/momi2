@@ -72,11 +72,10 @@ class Demography(nx.DiGraph):
             if ndn['lineages'] != ndn['derived'] + ndn['ancestral']:
                 raise Exception("derived + ancestral must add to lineages at node %s" % node)
         # Invalidate the caches which depend on node state
-        try:
-            del self.n_derived_subtended_by
-            del self.node_data
-        except AttributeError:
-            pass
+        # FIXME: breaks for version 1.0.0 of cached_property module!
+        self.n_derived_subtended_by # make sure cache exists
+        del self.n_derived_subtended_by #reset cache
+        del self.node_data  #reset cache
 
     def to_newick(self):
         return _to_newick(self, self.root)
