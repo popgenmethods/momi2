@@ -16,7 +16,7 @@ class SumProduct(object):
          
         # assert self.n_derived_leafs(tree) > 0 and self.n_derived_leafs(tree) < self.n_leaf_lins(tree)
         
-    def p(self):
+    def p(self, normalized = False):
         '''Return joint SFS entry for the demography'''
         return self.joint_sfs(self.G.root)
 

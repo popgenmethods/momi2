@@ -9,7 +9,7 @@ from collections import Counter, defaultdict
 from pprint import pprint
 import random
 
-from sum_product import SumProduct, NormalizingConstant
+from sum_product import SumProduct
 from demography import Demography
 
 scrm = sh.Command(os.environ["SCRM_PATH"])
@@ -32,14 +32,14 @@ def test_joint_sfs_inference():
         #print(join_time)
         tree = newick_tpl.format(t0=join_time, N0=N0, t1=t1, rt0=t1 - join_time)
         demo = Demography.from_newick(tree)
-        totalSum = NormalizingConstant(demo).normalizing_constant()
+        #totalSum = NormalizingConstant(demo).normalizing_constant()
         ret = 0.0
         for states, weight in sorted(jsfs.items()):
             st = {a: {'derived': b, 'ancestral': 1 - b} for a, b in zip("abc", states)}
             demo.update_state(st)
             sp = SumProduct(demo)
             #print(weight, states, sp.p(), totalSum)
-            ret -= weight * math.log(sp.p() / totalSum)
+            ret -= weight * math.log(sp.p(normalized=True))
             #ret -= weight * math.log(sp.p())
         return ret
     #f(t0)
