@@ -99,9 +99,12 @@ class SumProduct(object):
         self.eventTree = self.G.eventTree
         # assert self.n_derived_leafs(tree) > 0 and self.n_derived_leafs(tree) < self.n_leaf_lins(tree)
         
-    def p(self):
+    def p(self, normalized = False):
         '''Return joint SFS entry for the demography'''
-        return self.joint_sfs(self.eventTree.root)
+        ret = self.joint_sfs(self.eventTree.root)
+        if normalized:
+            ret /= self.G.totalSfsSum
+        return ret
 
     @memoize_instance
     def leaf_likelihood_bottom(self, leaf):
