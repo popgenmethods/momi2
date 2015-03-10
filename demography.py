@@ -6,7 +6,7 @@ from size_history import ConstantTruncatedSizeHistory
 from util import memoize_instance, memoize
 import scipy, scipy.misc, scipy.signal
 import numpy as np
-from sum_product import LabeledAxisArray, SumProduct
+from sum_product import LabeledAxisArray
 
 class FrozenDict(object):
     def __init__(self, dict):
@@ -141,10 +141,7 @@ class Demography(nx.DiGraph):
         # TODO: make event tree create the demography, instead of vice versa
         self.eventTree = getEventTree(self)
         #replaceWithDummyMerge(self.eventTree)
-        
-    @cached_property
-    def totalSfsSum(self):
-        return NormalizingConstant(self).normalizing_constant()
+
 
     @cached_property
     def root(self):
@@ -228,10 +225,11 @@ class Demography(nx.DiGraph):
             if ndn['lineages'] != ndn['derived'] + ndn['ancestral']:
                 raise Exception("derived + ancestral must add to lineages at node %s" % node)
         # Invalidate the caches which depend on node state
-        # FIXME: breaks for version 1.0.0 of cached_property module!
-        self.n_derived_subtended_by # make sure cache exists
-        del self.n_derived_subtended_by #reset cache
-        del self.node_data  #reset cache
+        try:
+            del self.n_derived_subtended_by
+            del self.node_data
+        except AttributeError:
+            pass
 
     def to_newick(self):
         return _to_newick(self, self.root)
@@ -318,36 +316,4 @@ def _to_newick(G, root):
         ret = "(%s,%s)" % (dta[0] + dta[1])
         if edge_length:
             ret += ":" + edge_length
-        return ret
-
-
-class NormalizingConstant(SumProduct):
-    def __init__(self, demography):
-        # to_directed() makes a deep-copy of the nx.DiGraph
-        demography = Demography(demography.to_directed())
-        # set all alleles to be of ancestral type
-        state = {}
-        for v in demography.leaves:
-            state[v] = {}
-            state[v]['derived'] = 0
-            state[v]['ancestral'] = demography.n_lineages_at_node[v]
-        demography.update_state(state)
-        # now create the Sum-Product
-        super(NormalizingConstant,self).__init__(demography)
-
-    def normalizing_constant(self, event=None):
-        if event is None:
-            event = self.eventTree.root
-
-        ret = 0.0
-        for newpop in event['newpops']:
-            # term for mutation occurring at the newpop
-            # partial_likelihood_bottom is the likelihood of _no_ derived alleles beneath event, given value of derived alleles
-            labeledArray = LabeledAxisArray(self.partial_likelihood_bottom(event), event['subpops'], copyArray=False)
-            # do 1.0 - partial_likelihood_bottom to get the likelihood of _some_ derived alleles beneath event
-            ret += ((1.0 - labeledArray.get_zeroth_vector(newpop)) * self.truncated_sfs(newpop)).sum()        
-
-        for childEvent in self.eventTree[event]:
-            ret += self.normalizing_constant(childEvent)
-        
         return ret
