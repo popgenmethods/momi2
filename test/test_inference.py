@@ -95,7 +95,7 @@ def test_jeff():
 def run_scrm(N0, theta, t0, t1):
     t0 /= 2. * N0
     t1 /= 2. * N0
-    scrm_args = [3, 50000, '-t', theta, '-I', 3, 1, 1, 1, '-ej', t1, 2, 3, '-ej', t0, 1, 2]
+    scrm_args = [3, 1000, '-t', theta, '-I', 3, 1, 1, 1, '-ej', t1, 2, 3, '-ej', t0, 1, 2]
     print(scrm_args)
     def f(x):
         if x == "//":
