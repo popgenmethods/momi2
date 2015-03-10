@@ -7,6 +7,7 @@ import math
 import re
 from collections import Counter, defaultdict
 from pprint import pprint
+import random
 
 from sum_product import SumProduct, NormalizingConstant
 from demography import Demography
@@ -20,13 +21,11 @@ def test_joint_sfs_inference():
           b:{t0:f}[&&momi:model=constant:N={N0:f}:lineages=1]):{rt0:f},
          c:{t1:f}[&&momi:model=constant:N={N0:f}:lineages=1])[&&momi:model=constant:N={N0:f}];
     """
-    N0 = 10000
-    theta = 4 * N0 * 2e-8 * 1000
-    t0 = 250000 / 25.
-    t1 = 500000 / 25.
+    N0=1.0
+    theta=1.0
+    t0=random.uniform(.25,2.5)
+    t1= t0 + random.uniform(.5,5.0)
     jsfs = run_scrm(N0, theta, t0, t1)
-    #M = 100000
-    #jsfs = {(0, 0, 1): M * 2, (1, 1, 0): M, (1, 0, 0): M, (0, 1, 0): M}
     pprint(dict(jsfs))
     def f(join_time):
         print(join_time)
@@ -40,10 +39,13 @@ def test_joint_sfs_inference():
             sp = SumProduct(demo)
             print(weight, states, sp.p(), totalSum)
             ret -= weight * math.log(sp.p() / totalSum)
+            #ret -= weight * math.log(sp.p())
         return ret
-    res = scipy.optimize.fminbound(f, 0, t1, xtol=10.)
-    assert res == t0
-    #assert abs(res - t0) / t0 < .99999
+    #f(t0)
+    res = scipy.optimize.fminbound(f, 0, t1, xtol=.1)
+    #res = scipy.optimize.minimize(f, random.uniform(0,t1), bounds=((0,t1),))
+    #assert res == t0
+    assert abs(res - t0) / t0 < .95
 #    print (res, t0, t1)
 #    print(res.x, t0, t1)
 
@@ -91,9 +93,9 @@ def test_jeff():
 
 
 def run_scrm(N0, theta, t0, t1):
-    t0 /= 4. * N0
-    t1 /= 4. * N0
-    scrm_args = [3, 10000, '-t', theta, '-I', 3, 1, 1, 1, '-ej', t1, 2, 3, '-ej', t0, 1, 2]
+    t0 /= 2. * N0
+    t1 /= 2. * N0
+    scrm_args = [3, 50000, '-t', theta, '-I', 3, 1, 1, 1, '-ej', t1, 2, 3, '-ej', t0, 1, 2]
     print(scrm_args)
     def f(x):
         if x == "//":
