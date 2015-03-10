@@ -8,40 +8,44 @@ import re
 from collections import Counter, defaultdict
 from pprint import pprint
 
-from sum_product import SumProduct
+from sum_product import SumProduct, NormalizingConstant
 from demography import Demography
 
 scrm = sh.Command(os.environ["SCRM_PATH"])
 
 def test_joint_sfs_inference():
-    return True
+    #return True
     newick_tpl = """
         ((a:{t0:f}[&&momi:model=constant:N={N0:f}:lineages=1],
           b:{t0:f}[&&momi:model=constant:N={N0:f}:lineages=1]):{rt0:f},
          c:{t1:f}[&&momi:model=constant:N={N0:f}:lineages=1])[&&momi:model=constant:N={N0:f}];
     """
-    N0 = 1000
-    theta = 4 * N0 * 1e-8 * 1000
+    N0 = 10000
+    theta = 4 * N0 * 2e-8 * 1000
     t0 = 250000 / 25.
     t1 = 500000 / 25.
-    # jsfs = run_scrm(N0, theta, t0, t1)
-    M = 100000
-    jsfs = {(0, 0, 1): M * 2, (1, 1, 0): M, (1, 0, 0): M, (0, 1, 0): M}
+    jsfs = run_scrm(N0, theta, t0, t1)
+    #M = 100000
+    #jsfs = {(0, 0, 1): M * 2, (1, 1, 0): M, (1, 0, 0): M, (0, 1, 0): M}
     pprint(dict(jsfs))
     def f(join_time):
         print(join_time)
         tree = newick_tpl.format(t0=join_time, N0=N0, t1=t1, rt0=t1 - join_time)
         demo = Demography.from_newick(tree)
+        totalSum = NormalizingConstant(demo).normalizing_constant()
         ret = 0.0
         for states, weight in sorted(jsfs.items()):
             st = {a: {'derived': b, 'ancestral': 1 - b} for a, b in zip("abc", states)}
             demo.update_state(st)
             sp = SumProduct(demo)
-            ret -= weight * math.log(sp.p())
-            print(weight, states, math.log(sp.p()))
+            print(weight, states, sp.p(), totalSum)
+            ret -= weight * math.log(sp.p() / totalSum)
         return ret
     res = scipy.optimize.fminbound(f, 0, t1, xtol=10.)
-    print(res.x, t0, t1)
+    assert res == t0
+    #assert abs(res - t0) / t0 < .99999
+#    print (res, t0, t1)
+#    print(res.x, t0, t1)
 
 def test_jeff():
     return True
