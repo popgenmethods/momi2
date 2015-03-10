@@ -101,7 +101,6 @@ class SumProduct(object):
         
     def p(self, normalized = False):
         '''Return joint SFS entry for the demography'''
-        assert len(self.G.node_data[self.G.root]['model']) == 1
         ret = self.joint_sfs(self.eventTree.root)
         if normalized:
             ret /= self.G.totalSfsSum

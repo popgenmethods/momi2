@@ -7,7 +7,7 @@ from sum_product import SumProduct
 from util import memoize_instance, memoize
 import scipy, scipy.misc, scipy.signal
 import numpy as np
-from sum_product import LabeledAxisArray
+from sum_product import LabeledAxisArray, SumProduct
 
 class FrozenDict(object):
     def __init__(self, dict):
@@ -142,7 +142,10 @@ class Demography(nx.DiGraph):
         # TODO: make event tree create the demography, instead of vice versa
         self.eventTree = getEventTree(self)
         #replaceWithDummyMerge(self.eventTree)
-
+        
+    @cached_property
+    def totalSfsSum(self):
+        return NormalizingConstant(self).normalizing_constant()
 
     @cached_property
     def totalSfsSum(self):
@@ -337,12 +340,18 @@ class NormalizingConstant(SumProduct):
         # now create the Sum-Product
         super(NormalizingConstant,self).__init__(demography)
 
-    def normalizing_constant(self, node=None):
-        if node is None:
-            node = self.G.root
+    def normalizing_constant(self, event=None):
+        if event is None:
+            event = self.eventTree.root
 
-        ret = ((1.0 - self.partial_likelihood_bottom(node)) * self.truncated_sfs(node)).sum()
-        for c in self.G[node]:
-            ret += self.normalizing_constant(c)
-        
+        ret = 0.0
+        for newpop in event['newpops']:
+            # term for mutation occurring at the newpop
+            # partial_likelihood_bottom is the likelihood of _no_ derived alleles beneath event, given value of derived alleles
+            labeledArray = LabeledAxisArray(self.partial_likelihood_bottom(event), event['subpops'], copyArray=False)
+            # do 1.0 - partial_likelihood_bottom to get the likelihood of _some_ derived alleles beneath event
+            ret += ((1.0 - labeledArray.get_zeroth_vector(newpop)) * self.truncated_sfs(newpop)).sum()        
+
+        for childEvent in self.eventTree[event]:
+            ret += self.normalizing_constant(childEvent)       
         return ret
