@@ -25,7 +25,7 @@ def test_joint_sfs_inference():
     theta=1.0
     t0=random.uniform(.25,2.5)
     t1= t0 + random.uniform(.5,5.0)
-    jsfs = run_scrm(N0, theta, t0, t1)
+    jsfs = run_scrm_example(N0, theta, t0, t1)
     pprint(dict(jsfs))
     print(t0,t1)
     def f(join_time):
@@ -92,11 +92,21 @@ def test_jeff():
     res = scipy.optimize.minimize_scalar(f, method="bounded", bounds=(0, 0.2))
     print(res.x)
 
-
-def run_scrm(N0, theta, t0, t1):
+def run_scrm_example(N0, theta, t0, t1):
     t0 /= 2. * N0
     t1 /= 2. * N0
     scrm_args = [3, 10000, '-t', theta, '-I', 3, 1, 1, 1, '-ej', t1, 2, 3, '-ej', t0, 1, 2]
+    return run_scrm(scrm_args, (1,1,1))
+
+def run_scrm(scrm_args, lins_per_pop):
+    n = scrm_args[0]
+    assert sum(lins_per_pop) == n
+    pops_by_lin = []
+    for pop in range(len(lins_per_pop)):
+        for i in range(lins_per_pop[pop]):
+            pops_by_lin.append(pop)
+    assert len(pops_by_lin) == n
+
     print(scrm_args)
     def f(x):
         if x == "//":
@@ -110,15 +120,24 @@ def run_scrm(N0, theta, t0, t1):
         lines = list(lines)
         assert lines[0] == "//"
         nss = int(lines[1].split(":")[1])
-        dd = [0] * 3
         if nss == 0:
             continue
-        for i, line in enumerate(lines[3:(3 + 3)]):
-            dd[i] += int(line[0])
-        assert sum(dd) > 0
-        c[tuple(dd)] += 1 
+        # remove header
+        lines = lines[3:]
+        # remove trailing line if necessary
+        if len(lines) == n+1:
+            assert lines[n] == ''
+            lines = lines[:-1]
+        # number of lines == number of haplotypes
+        assert len(lines) == n
+        # columns are snps
+        for column in range(len(lines[0])):
+            dd = [0] * len(lins_per_pop)
+            for i, line in enumerate(lines):
+                dd[pops_by_lin[i]] += int(line[column])
+            assert sum(dd) > 0
+            c[tuple(dd)] += 1
     return c
-
 
 if __name__ == "__main__":
     # test_jeff()
