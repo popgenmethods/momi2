@@ -27,8 +27,9 @@ def test_joint_sfs_inference():
     t1= t0 + random.uniform(.5,5.0)
     jsfs = run_scrm(N0, theta, t0, t1)
     pprint(dict(jsfs))
+    print(t0,t1)
     def f(join_time):
-        print(join_time)
+        #print(join_time)
         tree = newick_tpl.format(t0=join_time, N0=N0, t1=t1, rt0=t1 - join_time)
         demo = Demography.from_newick(tree)
         totalSum = NormalizingConstant(demo).normalizing_constant()
@@ -37,15 +38,15 @@ def test_joint_sfs_inference():
             st = {a: {'derived': b, 'ancestral': 1 - b} for a, b in zip("abc", states)}
             demo.update_state(st)
             sp = SumProduct(demo)
-            print(weight, states, sp.p(), totalSum)
+            #print(weight, states, sp.p(), totalSum)
             ret -= weight * math.log(sp.p() / totalSum)
             #ret -= weight * math.log(sp.p())
         return ret
     #f(t0)
-    res = scipy.optimize.fminbound(f, 0, t1, xtol=.1)
+    res = scipy.optimize.fminbound(f, 0, t1, xtol=.01)
     #res = scipy.optimize.minimize(f, random.uniform(0,t1), bounds=((0,t1),))
     #assert res == t0
-    assert abs(res - t0) / t0 < .95
+    assert abs(res - t0) / t0 < .1
 #    print (res, t0, t1)
 #    print(res.x, t0, t1)
 
@@ -95,7 +96,7 @@ def test_jeff():
 def run_scrm(N0, theta, t0, t1):
     t0 /= 2. * N0
     t1 /= 2. * N0
-    scrm_args = [3, 1000, '-t', theta, '-I', 3, 1, 1, 1, '-ej', t1, 2, 3, '-ej', t0, 1, 2]
+    scrm_args = [3, 10000, '-t', theta, '-I', 3, 1, 1, 1, '-ej', t1, 2, 3, '-ej', t0, 1, 2]
     print(scrm_args)
     def f(x):
         if x == "//":
