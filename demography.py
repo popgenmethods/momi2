@@ -150,14 +150,14 @@ def _to_newick(G, root):
 
 class NormalizingConstant(SumProduct):
     def __init__(self, demography):
-        # make a copy
-        demography = Demography(demography)
+        # to_directed() makes a deep-copy of the nx.DiGraph
+        demography = Demography(demography.to_directed())
         # set all alleles to be of ancestral type
         state = {}
         for v in demography.leaves:
             state[v] = {}
             state[v]['derived'] = 0
-            state[v]['ancestral'] = state[v]['lineages'] = demography.n_lineages_at_node[v]
+            state[v]['ancestral'] = demography.n_lineages_at_node[v]
         demography.update_state(state)
         # now create the Sum-Product
         super(NormalizingConstant,self).__init__(demography)
