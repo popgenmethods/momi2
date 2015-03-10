@@ -38,7 +38,7 @@ def test_joint_sfs_inference():
             st = {a: {'derived': b, 'ancestral': 1 - b} for a, b in zip("abc", states)}
             demo.update_state(st)
             sp = SumProduct(demo)
-            #print(weight, states, sp.p(), totalSum)
+            print(weight, states, sp.p(normalized=True))
             ret -= weight * math.log(sp.p(normalized=True))
             #ret -= weight * math.log(sp.p())
         return ret

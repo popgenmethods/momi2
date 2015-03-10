@@ -18,7 +18,10 @@ class SumProduct(object):
         
     def p(self, normalized = False):
         '''Return joint SFS entry for the demography'''
-        return self.joint_sfs(self.G.root)
+        ret = self.joint_sfs(self.G.root)
+        if normalized:
+            ret /= self.G.totalSfsSum
+        return ret
 
     @memoize_instance
     def leaf_likelihood_bottom(self, leaf):
@@ -78,31 +81,5 @@ class SumProduct(object):
         for child, other_child in ((c1, c2), (c2, c1)):
             if self.G.n_derived_subtended_by[child] == 0:
                 ret += self.joint_sfs(other_child)
-
-
-class NormalizingConstant(SumProduct):
-    def __init__(self, demography):
-        super(NormalizingConstant,self).__init__(demography)
-
-    def leaf_likelihood_bottom(self, leaf):
-        n_node = self.G.node_data[leaf]['lineages']
-        ret = np.array([0.0] * (n_node + 1))
-        ret[0] = 1.0
-        return ret        
-
-    def normalizing_constant(self, event=None):
-        if event is None:
-            event = self.eventTree.root
-
-        ret = 0.0
-        for newpop in event['newpops']:
-            # term for mutation occurring at the newpop
-            # partial_likelihood_bottom is the likelihood of _no_ derived alleles beneath event, given value of derived alleles
-            labeledArray = LabeledAxisArray(self.partial_likelihood_bottom(event), event['subpops'], copyArray=False)
-            # do 1.0 - partial_likelihood_bottom to get the likelihood of _some_ derived alleles beneath event
-            ret += ((1.0 - labeledArray.get_zeroth_vector(newpop)) * self.truncated_sfs(newpop)).sum()        
-
-        for childEvent in self.eventTree[event]:
-            ret += self.normalizing_constant(childEvent)
-        
         return ret
+

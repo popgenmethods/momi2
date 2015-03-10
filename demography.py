@@ -3,6 +3,7 @@ from Bio import Phylo
 from cStringIO import StringIO
 from cached_property import cached_property
 from size_history import ConstantTruncatedSizeHistory
+from sum_product import SumProduct
 
 class Demography(nx.DiGraph):
     @classmethod
@@ -157,24 +158,17 @@ class NormalizingConstant(SumProduct):
         for v in demography.leaves:
             state[v] = {}
             state[v]['derived'] = 0
-            state[v]['ancestral'] = demography.n_lineages_at_node[v]
+            state[v]['ancestral'] = demography.node_data[v]['lineages']
         demography.update_state(state)
         # now create the Sum-Product
         super(NormalizingConstant,self).__init__(demography)
 
-    def normalizing_constant(self, event=None):
-        if event is None:
-            event = self.eventTree.root
+    def normalizing_constant(self, node=None):
+        if node is None:
+            node = self.G.root
 
-        ret = 0.0
-        for newpop in event['newpops']:
-            # term for mutation occurring at the newpop
-            # partial_likelihood_bottom is the likelihood of _no_ derived alleles beneath event, given value of derived alleles
-            labeledArray = LabeledAxisArray(self.partial_likelihood_bottom(event), event['subpops'], copyArray=False)
-            # do 1.0 - partial_likelihood_bottom to get the likelihood of _some_ derived alleles beneath event
-            ret += ((1.0 - labeledArray.get_zeroth_vector(newpop)) * self.truncated_sfs(newpop)).sum()        
-
-        for childEvent in self.eventTree[event]:
-            ret += self.normalizing_constant(childEvent)
+        ret = ((1.0 - self.partial_likelihood_bottom(node)) * self.truncated_sfs(node)).sum()
+        for c in self.G[node]:
+            ret += self.normalizing_constant(c)
         
         return ret
