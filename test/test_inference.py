@@ -8,11 +8,15 @@ import re
 from collections import Counter, defaultdict
 from pprint import pprint
 import random
+import numpy as np
 
 from sum_product import SumProduct
 from demography import Demography
 
 scrm = sh.Command(os.environ["SCRM_PATH"])
+# _scrm = sh.Command(os.environ["MSPATH"])
+# def scrm(*x):
+#     return _scrm(*x,_ok_code=[0,16,17,18])
 
 def test_joint_sfs_inference():
     #return True
@@ -25,7 +29,7 @@ def test_joint_sfs_inference():
     theta=1.0
     t0=random.uniform(.25,2.5)
     t1= t0 + random.uniform(.5,5.0)
-    jsfs = run_scrm_example(N0, theta, t0, t1)
+    jsfs,sqCounts = run_scrm_example(N0, theta, t0, t1)
     pprint(dict(jsfs))
     print(t0,t1)
     def f(join_time):
@@ -115,8 +119,10 @@ def run_scrm(scrm_args, lins_per_pop):
     f.i = 0
     runs = itertools.groupby((line.strip() for line in scrm(*scrm_args)), f)
     next(runs)
-    c = Counter()
+    sumCounts = Counter()
+    sumSqCounts = Counter()
     for i, lines in runs:
+        currCounts = Counter()
         lines = list(lines)
         assert lines[0] == "//"
         nss = int(lines[1].split(":")[1])
@@ -136,8 +142,37 @@ def run_scrm(scrm_args, lins_per_pop):
             for i, line in enumerate(lines):
                 dd[pops_by_lin[i]] += int(line[column])
             assert sum(dd) > 0
-            c[tuple(dd)] += 1
-    return c
+            currCounts[tuple(dd)] += 1
+        for config in currCounts:
+            sumCounts[config] += currCounts[config]
+            sumSqCounts[config] += currCounts[config]**2
+    return sumCounts,sumSqCounts
+
+# approximate empirical_sfs - theoretical_sfs / sd by standard normal
+def sfs_p_value(empirical_sfs, squaredCounts, theoretical_sfs, theta, runs):
+    configs = empirical_sfs.keys()
+    def sfsArray(sfs):
+        return np.array([sfs[x] for x in configs])
+    
+    empirical_sfs = sfsArray(empirical_sfs)
+    squaredCounts = sfsArray(squaredCounts)
+    theoretical_sfs = sfsArray(theoretical_sfs)
+
+    means = empirical_sfs / float(runs)
+    sqMeans = squaredCounts / float(runs)
+    variances = sqMeans - np.square(means)
+    offsets = means - theta / 2.0 * theoretical_sfs
+    
+    # approximate observed counts by a Gaussian
+    # empirical_mean - theoretical mean ~ N(0, variance / runs)
+    z_vals = offsets / np.sqrt(variances) * np.sqrt(runs)
+    print("# z-values, empirical-sfs, theoretical-sfs")
+    print(np.array([z_vals, empirical_sfs, theoretical_sfs * theta / 2.0 * runs]).transpose())
+    # so then the square-norm is chi-square
+    chi2 = np.square(z_vals).sum()
+    
+    # return 1 -cdf
+    return scipy.stats.chi2.sf(chi2, len(z_vals))
 
 if __name__ == "__main__":
     # test_jeff()
