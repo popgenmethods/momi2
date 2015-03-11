@@ -148,10 +148,6 @@ class Demography(nx.DiGraph):
         return NormalizingConstant(self).normalizing_constant()
 
     @cached_property
-    def totalSfsSum(self):
-        return NormalizingConstant(self).normalizing_constant()
-
-    @cached_property
     def root(self):
         nds = [node for node, deg in self.in_degree().items() if deg == 0]
         assert len(nds) == 1
