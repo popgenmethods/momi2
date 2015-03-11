@@ -9,6 +9,7 @@ from collections import Counter, defaultdict
 from pprint import pprint
 import random
 import numpy as np
+import newick
 
 from sum_product import SumProduct
 from demography import Demography
@@ -29,7 +30,7 @@ def test_joint_sfs_inference():
     theta=1.0
     t0=random.uniform(.25,2.5)
     t1= t0 + random.uniform(.5,5.0)
-    jsfs,sqCounts = run_scrm_example(N0, theta, t0, t1)
+    jsfs,sqCounts,nonzero = run_scrm_example(N0, theta, t0, t1)
     pprint(dict(jsfs))
     print(t0,t1)
     def f(join_time):
@@ -112,6 +113,8 @@ def run_scrm(scrm_args, lins_per_pop):
     assert len(pops_by_lin) == n
 
     print(scrm_args)
+    assert scrm_args[2] in ['-t','-T']
+    trees = scrm_args[2] == '-T'
     def f(x):
         if x == "//":
             f.i += 1
@@ -121,13 +124,28 @@ def run_scrm(scrm_args, lins_per_pop):
     next(runs)
     sumCounts = Counter()
     sumSqCounts = Counter()
+    nonzeroCounts = Counter()
     for i, lines in runs:
-        currCounts = Counter()
         lines = list(lines)
+        if not trees:
+            currCounts = read_empirical_sfs(lines, len(lins_per_pop), pops_by_lin)
+        else:
+            currCounts = read_tree_lens(lines, len(lins_per_pop), pops_by_lin)
+
+        for config in currCounts:
+            sumCounts[config] += currCounts[config]
+            sumSqCounts[config] += currCounts[config]**2
+            nonzeroCounts[config] += 1
+    return sumCounts,sumSqCounts,nonzeroCounts
+
+def read_empirical_sfs(lines, num_pops, pops_by_lin):
+        currCounts = Counter()
+        n = len(pops_by_lin)
+
         assert lines[0] == "//"
         nss = int(lines[1].split(":")[1])
         if nss == 0:
-            continue
+            return currCounts
         # remove header
         lines = lines[3:]
         # remove trailing line if necessary
@@ -138,25 +156,46 @@ def run_scrm(scrm_args, lins_per_pop):
         assert len(lines) == n
         # columns are snps
         for column in range(len(lines[0])):
-            dd = [0] * len(lins_per_pop)
+            dd = [0] * num_pops
             for i, line in enumerate(lines):
                 dd[pops_by_lin[i]] += int(line[column])
             assert sum(dd) > 0
             currCounts[tuple(dd)] += 1
-        for config in currCounts:
-            sumCounts[config] += currCounts[config]
-            sumSqCounts[config] += currCounts[config]**2
-    return sumCounts,sumSqCounts
+        return currCounts
+
+def read_tree_lens(lines, num_pops, pops_by_lin):
+    assert lines[0] == "//"
+    return NewickSfs(lines[1], num_pops, pops_by_lin).sfs
+
+class NewickSfs(newick.tree.TreeVisitor):
+    def __init__(self, newick_str, num_pops, pops_by_lin):
+        self.tree = newick.parse_tree(newick_str)
+        self.sfs = Counter()
+        self.num_pops = num_pops
+        self.pops_by_lin = pops_by_lin
+
+        self.tree.dfs_traverse(self)
+
+    def pre_visit_edge(self,src,b,len,dst):
+        dd = [0] * self.num_pops
+        # get the # lineages in each pop below edge
+        for leaf in dst.get_leaves_identifiers():
+            dd[self.pops_by_lin[int(leaf)-1]] += 1
+        # add length to the sfs entry. multiply by 2 cuz of ms format
+        self.sfs[tuple(dd)] += len * 2.0
+
 
 # approximate empirical_sfs - theoretical_sfs / sd by standard normal
-def sfs_p_value(empirical_sfs, squaredCounts, theoretical_sfs, theta, runs):
-    configs = empirical_sfs.keys()
+# use theta=2.0 if simulating trees instead of mutations
+def sfs_p_value(nonzeroCounts, empirical_sfs, squaredCounts, theoretical_sfs, runs, theta=2.0):
+    configs = theoretical_sfs.keys()
     def sfsArray(sfs):
         return np.array([sfs[x] for x in configs])
     
     empirical_sfs = sfsArray(empirical_sfs)
     squaredCounts = sfsArray(squaredCounts)
     theoretical_sfs = sfsArray(theoretical_sfs)
+    nonzeroCounts = sfsArray(nonzeroCounts)
 
     means = empirical_sfs / float(runs)
     sqMeans = squaredCounts / float(runs)
@@ -172,8 +211,8 @@ def sfs_p_value(empirical_sfs, squaredCounts, theoretical_sfs, theta, runs):
     abs_t_vals = np.abs(t_vals)
     p_vals = 2.0 * scipy.stats.t.sf(abs_t_vals, df=runs-1)
     # print some stuff
-    print("# configs, p-values, empirical-sfs, theoretical-sfs")
-    toPrint = np.array([configs, p_vals, empirical_sfs, theoretical_sfs * theta / 2.0 * runs]).transpose()
+    print("# configs, p-values, empirical-sfs, theoretical-sfs, nonzeroCounts")
+    toPrint = np.array([configs, p_vals, empirical_sfs, theoretical_sfs * theta / 2.0 * runs, nonzeroCounts]).transpose()
     toPrint = toPrint[toPrint[:,1].argsort()[::-1]] # reverse-sort by p-vals
     print(toPrint)
     

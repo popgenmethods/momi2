@@ -9,9 +9,12 @@ from test_inference import run_scrm, sfs_p_value
 import numpy as np
 from collections import Counter
 import scipy, scipy.stats
+import itertools
 
-theta = 1.0
+#theta = 1.0
 num_scrm_samples = 10000
+#num_scrm_samples = 5000
+#num_scrm_samples = 1000
 #theta = .01
 #num_scrm_samples = 100000
 
@@ -51,7 +54,8 @@ def tree_demo_2():
 
     scrm_args = [sum([v for k,v in leaf_lins.iteritems()]), 
                  num_scrm_samples, 
-                 '-t', theta, 
+                 #'-t', theta, 
+                 '-T',
                  '-I', 2, leaf_lins['a'], leaf_lins['b'], # 1=a, 2=b
                  '-ej', abJoin/2.0, 2, 1, # 1=ab
                  ]
@@ -98,7 +102,8 @@ def tree_demo_4():
 
     scrm_args = [sum([v for k,v in leaf_lins.iteritems()]), 
                  num_scrm_samples, 
-                 '-t', theta, 
+                 #'-t', theta, 
+                 '-T',
                  '-I', len(leaf_lins), leaf_lins['a'], leaf_lins['b'], leaf_lins['c'], leaf_lins['d'], # 1=a, 2=b, 3=c, 4=d
                  '-ej', abJoin/2.0, 2, 1, # 1=ab
                  '-ej', abcJoin/2.0, 3, 1, # 1 = abc
@@ -157,7 +162,8 @@ def admixture_demo():
 
     scrm_args = [sum([v for k,v in leaf_lins.iteritems()]), 
                  num_scrm_samples, 
-                 '-t', theta, 
+                 #'-t', theta, 
+                 '-T',
                  '-I', 2, leaf_lins['a'], leaf_lins['bcd'], # 1=a, 2=bcd
                  '-es', bcdSplit/2.0, 2, bcdProb, # 1=a, 2=bc, 3=d
                  '-es', bcSplit/2.0, 2, 1-bcProb, # 1=a, 2=c, 3=d, 4=b
@@ -177,19 +183,24 @@ test_demos = [admixture_demo, tree_demo_2, tree_demo_4]
 def test_sfs_counts(demo_func):
     demo, scrm_args, leaf_lins, leaf_pops = demo_func()
 
-    empirical_sfs,sqCounts = run_scrm(scrm_args, tuple([leaf_lins[v] for v in leaf_pops]))
+    empirical_sfs,sqCounts,nonzeroCounts = run_scrm(scrm_args, tuple([leaf_lins[v] for v in leaf_pops]))
     
     theoretical_sfs = {}
-    for sfs_entry in empirical_sfs:
-#         state = {'a' : {'derived' : sfs_entry[0]},
-#                  'bcd' : {'derived' : sfs_entry[1]}}
+    ranges = [range(leaf_lins[v]+1) for v in leaf_pops]
+    total_lins = sum([leaf_lins[v] for v in leaf_pops])
+    #for sfs_entry in empirical_sfs:
+    for sfs_entry in itertools.product(*ranges):
+        sfs_entry = tuple(sfs_entry)
+        if sum(sfs_entry) == 0 or sum(sfs_entry) == total_lins:
+            continue # skip polymorphic sites
         state = {leaf_pops[i] : {'derived' : sfs_entry[i]} for i in range(len(sfs_entry))}
         for v in state:
             state[v].update({'ancestral' : leaf_lins[v] - state[v]['derived']})
         demo.update_state(state)
         theoretical_sfs[sfs_entry] = SumProduct(demo).p()
         #theoretical_sfs[sfs_entry] = SumProduct(demo).p() * float(num_scrm_samples) * theta / 2.0
-    p_val = sfs_p_value(empirical_sfs, sqCounts, theoretical_sfs, theta, num_scrm_samples)
+    #p_val = sfs_p_value(empirical_sfs, sqCounts, theoretical_sfs, num_scrm_samples, theta)
+    p_val = sfs_p_value(nonzeroCounts, empirical_sfs, sqCounts, theoretical_sfs, num_scrm_samples)
     print(p_val)
     cutoff = 0.05
     #cutoff = 1.0
