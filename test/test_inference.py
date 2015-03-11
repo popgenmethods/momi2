@@ -166,8 +166,10 @@ def sfs_p_value(empirical_sfs, squaredCounts, theoretical_sfs, theta, runs):
     # approximate observed counts by a Gaussian
     # empirical_mean - theoretical mean ~ N(0, variance / runs)
     z_vals = offsets / np.sqrt(variances) * np.sqrt(runs)
-    print("# z-values, empirical-sfs, theoretical-sfs")
-    print(np.array([z_vals, empirical_sfs, theoretical_sfs * theta / 2.0 * runs]).transpose())
+    print("# configs, z-values, empirical-sfs, theoretical-sfs")
+    toPrint = np.array([configs, z_vals, empirical_sfs, theoretical_sfs * theta / 2.0 * runs]).transpose()
+    toPrint = toPrint[np.abs(toPrint[:,1]).argsort()]
+    print(toPrint)
     # so then the square-norm is chi-square
     chi2 = np.square(z_vals).sum()
     
