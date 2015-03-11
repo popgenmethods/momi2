@@ -160,21 +160,26 @@ def sfs_p_value(empirical_sfs, squaredCounts, theoretical_sfs, theta, runs):
 
     means = empirical_sfs / float(runs)
     sqMeans = squaredCounts / float(runs)
-    variances = sqMeans - np.square(means)
-    offsets = means - theta / 2.0 * theoretical_sfs
-    
-    # approximate observed counts by a Gaussian
-    # empirical_mean - theoretical mean ~ N(0, variance / runs)
-    z_vals = offsets / np.sqrt(variances) * np.sqrt(runs)
-    print("# configs, z-values, empirical-sfs, theoretical-sfs")
-    toPrint = np.array([configs, z_vals, empirical_sfs, theoretical_sfs * theta / 2.0 * runs]).transpose()
-    toPrint = toPrint[np.abs(toPrint[:,1]).argsort()]
+    bias = means - theta / 2.0 * theoretical_sfs
+    # estimated variance = empirical variance + bias^2
+    variances = sqMeans - np.square(means) + np.square(bias)
+    variances *= runs / float(runs-1)
+
+    # observed counts are Gaussian by CLT
+    # empirical_mean - theoretical mean / estimated variance ~ t distribution with df runs-1
+    t_vals = bias / np.sqrt(variances) * np.sqrt(runs)
+    # get the p-values
+    abs_t_vals = np.abs(t_vals)
+    p_vals = 2.0 * scipy.stats.t.sf(abs_t_vals, df=runs-1)
+    # print some stuff
+    print("# configs, p-values, empirical-sfs, theoretical-sfs")
+    toPrint = np.array([configs, p_vals, empirical_sfs, theoretical_sfs * theta / 2.0 * runs]).transpose()
+    toPrint = toPrint[toPrint[:,1].argsort()[::-1]] # reverse-sort by p-vals
     print(toPrint)
-    # so then the square-norm is chi-square
-    chi2 = np.square(z_vals).sum()
     
-    # return 1 -cdf
-    return scipy.stats.chi2.sf(chi2, len(z_vals))
+    # p-values should be uniformly distributed
+    # so then the min p-value should be beta distributed
+    return scipy.stats.beta.cdf(np.min(p_vals), 1, len(p_vals))
 
 if __name__ == "__main__":
     # test_jeff()

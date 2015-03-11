@@ -12,6 +12,8 @@ import scipy, scipy.stats
 
 theta = 1.0
 num_scrm_samples = 10000
+#theta = .01
+#num_scrm_samples = 100000
 
 def tree_demo_2():
     leaf_lins = {'a' : 4, 'b': 4}
@@ -168,6 +170,8 @@ def admixture_demo():
 
 test_demos = [admixture_demo, tree_demo_2, tree_demo_4]
 #test_demos = [admixture_demo]
+#test_demos = [tree_demo_4]
+#test_demos = [tree_demo_2]
 
 @pytest.mark.parametrize("demo_func", test_demos)
 def test_sfs_counts(demo_func):
@@ -188,7 +192,8 @@ def test_sfs_counts(demo_func):
     p_val = sfs_p_value(empirical_sfs, sqCounts, theoretical_sfs, theta, num_scrm_samples)
     print(p_val)
     cutoff = 0.05
-    assert p_val > cutoff, {key: (empirical_sfs[key], theoretical_sfs[key] * theta / 2.0 * num_scrm_samples) for key in empirical_sfs}
+    #cutoff = 1.0
+    assert p_val > cutoff
 
     #configs = sorted(empirical_sfs.keys())
     #assert scipy.stats.chisquare(sfsArray(empirical_sfs), sfsArray(theoretical_sfs))[1] >= .05
