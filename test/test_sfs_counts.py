@@ -12,9 +12,9 @@ import scipy, scipy.stats
 import itertools
 
 #theta = 1.0
-num_scrm_samples = 10000
+#num_scrm_samples = 10000
 #num_scrm_samples = 5000
-#num_scrm_samples = 1000
+num_scrm_samples = 1000
 #theta = .01
 #num_scrm_samples = 100000
 
@@ -179,9 +179,16 @@ test_demos = [admixture_demo, tree_demo_2, tree_demo_4]
 #test_demos = [tree_demo_4]
 #test_demos = [tree_demo_2]
 
+
+### this demography seemed to failed, test it more extensively at some point:
+## ms/scrm command: [8, 1000, '-T', '-I', 4, 2, 2, 2, 2, '-ej', 0.16507302559974607, 2, 1, '-ej', 0.59432917721588141, 3, 1, '-ej', 0.80215123165144697, 4, 1]
+
+
 @pytest.mark.parametrize("demo_func", test_demos)
 def test_sfs_counts(demo_func):
     demo, scrm_args, leaf_lins, leaf_pops = demo_func()
+
+    scrm_args += ['-seed', random.randint(0,999999999)]
 
     empirical_sfs,sqCounts,nonzeroCounts = run_scrm(scrm_args, tuple([leaf_lins[v] for v in leaf_pops]))
     

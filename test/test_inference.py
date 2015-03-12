@@ -187,8 +187,10 @@ class NewickSfs(newick.tree.TreeVisitor):
 
 # approximate empirical_sfs - theoretical_sfs / sd by standard normal
 # use theta=2.0 if simulating trees instead of mutations
-def sfs_p_value(nonzeroCounts, empirical_sfs, squaredCounts, theoretical_sfs, runs, theta=2.0):
+def sfs_p_value(nonzeroCounts, empirical_sfs, squaredCounts, theoretical_sfs, runs, theta=2.0, minSamples=25):
     configs = theoretical_sfs.keys()
+    # throw away all the entries with too few observations (they will not be very Gaussian)
+    configs = [x for x in configs if nonzeroCounts[x] > minSamples]
     def sfsArray(sfs):
         return np.array([sfs[x] for x in configs])
     
@@ -207,6 +209,7 @@ def sfs_p_value(nonzeroCounts, empirical_sfs, squaredCounts, theoretical_sfs, ru
     # observed counts are Gaussian by CLT
     # empirical_mean - theoretical mean / estimated variance ~ t distribution with df runs-1
     t_vals = bias / np.sqrt(variances) * np.sqrt(runs)
+
     # get the p-values
     abs_t_vals = np.abs(t_vals)
     p_vals = 2.0 * scipy.stats.t.sf(abs_t_vals, df=runs-1)
