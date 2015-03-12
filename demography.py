@@ -36,7 +36,7 @@ class Demography(nx.DiGraph):
        
     @cached_property
     def totalSfsSum(self):
-        return NormalizingConstant(self).normalizing_constant()
+        return normalizing_constant(self)
 
     @cached_property
     def root(self):
@@ -149,26 +149,33 @@ def _to_newick(G, root):
         return ret
 
 
-class NormalizingConstant(SumProduct):
-    def __init__(self, demography):
-        # to_directed() makes a deep-copy of the nx.DiGraph
-        demography = Demography(demography.to_directed())
-        # set all alleles to be of ancestral type
-        state = {}
-        for v in demography.leaves:
-            state[v] = {}
-            state[v]['derived'] = 0
-            state[v]['ancestral'] = demography.node_data[v]['lineages']
-        demography.update_state(state)
-        # now create the Sum-Product
-        super(NormalizingConstant,self).__init__(demography)
+def normalizing_constant(demography):
+    # to_directed() makes a deep-copy of the nx.DiGraph
+    demography = Demography(demography.to_directed())
+    # set all alleles to be of ancestral type
+    state = {}
+    for v in demography.leaves:
+        state[v] = {}
+        state[v]['derived'] = 0
+        state[v]['ancestral'] = demography.node_data[v]['lineages']
+    demography.update_state(state)
+    # now create the Sum-Product
+    sp = SumProduct(demography)
 
-    def normalizing_constant(self, node=None):
-        if node is None:
-            node = self.G.root
+    ret = 0.0
+    for node in demography:
+        # 1 - partial_likelihood_bottom is probability of at least one derived leaf lineage
+        ret += ((1.0 - sp.partial_likelihood_bottom(node)) * sp.truncated_sfs(node)).sum()
 
-        ret = ((1.0 - self.partial_likelihood_bottom(node)) * self.truncated_sfs(node)).sum()
-        for c in self.G[node]:
-            ret += self.normalizing_constant(c)
-        
-        return ret
+    # subtract off the term for all alleles derived
+    state = {}
+    for v in demography.leaves:
+        state[v] = {}
+        state[v]['derived'] = demography.node_data[v]['lineages']
+        state[v]['ancestral'] = 0
+    demography.update_state(state)
+    # now create the Sum-Product
+    sp = SumProduct(demography)
+
+    ret -= sp.p(normalized=False)
+    return ret
