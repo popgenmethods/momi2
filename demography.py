@@ -145,7 +145,7 @@ class Demography(nx.DiGraph):
         
     @cached_property
     def totalSfsSum(self):
-        return NormalizingConstant(self).normalizing_constant()
+        return normalizing_constant(self)
 
     @cached_property
     def root(self):
@@ -322,32 +322,35 @@ def _to_newick(G, root):
         return ret
 
 
-class NormalizingConstant(SumProduct):
-    def __init__(self, demography):
-        # to_directed() makes a deep-copy of the nx.DiGraph
-        demography = Demography(demography.to_directed())
-        # set all alleles to be of ancestral type
-        state = {}
-        for v in demography.leaves:
-            state[v] = {}
-            state[v]['derived'] = 0
-            state[v]['ancestral'] = demography.node_data[v]['lineages']
-        demography.update_state(state)
-        # now create the Sum-Product
-        super(NormalizingConstant,self).__init__(demography)
+def normalizing_constant(demography):
+    # to_directed() makes a deep-copy of the nx.DiGraph
+    demography = Demography(demography.to_directed())
+    # set all alleles to be of ancestral type
+    state = {}
+    for v in demography.leaves:
+        state[v] = {}
+        state[v]['derived'] = 0
+        state[v]['ancestral'] = demography.node_data[v]['lineages']
+    demography.update_state(state)
+    # now create the Sum-Product
+    sp = SumProduct(demography)
 
-    def normalizing_constant(self, event=None):
-        if event is None:
-            event = self.eventTree.root
-
-        ret = 0.0
+    ret = 0.0
+    for event in sp.eventTree:
         for newpop in event['newpops']:
-            # term for mutation occurring at the newpop
-            # partial_likelihood_bottom is the likelihood of _no_ derived alleles beneath event, given value of derived alleles
-            labeledArray = LabeledAxisArray(self.partial_likelihood_bottom(event), event['subpops'], copyArray=False)
-            # do 1.0 - partial_likelihood_bottom to get the likelihood of _some_ derived alleles beneath event
-            ret += ((1.0 - labeledArray.get_zeroth_vector(newpop)) * self.truncated_sfs(newpop)).sum()        
+            labeledArray = LabeledAxisArray(sp.partial_likelihood_bottom(event), event['subpops'], copyArray=False)
+            # 1 - partial_likelihood_bottom is probability of at least one derived leaf lineage
+            ret += ((1.0 - labeledArray.get_zeroth_vector(newpop)) * sp.truncated_sfs(newpop)).sum()
 
-        for childEvent in self.eventTree[event]:
-            ret += self.normalizing_constant(childEvent)       
-        return ret
+    # subtract off the term for all alleles derived
+    state = {}
+    for v in demography.leaves:
+        state[v] = {}
+        state[v]['derived'] = demography.node_data[v]['lineages']
+        state[v]['ancestral'] = 0
+    demography.update_state(state)
+    # now create the Sum-Product
+    sp = SumProduct(demography)
+
+    ret -= sp.p(normalized=False)
+    return ret
