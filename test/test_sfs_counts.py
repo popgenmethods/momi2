@@ -148,7 +148,7 @@ def admixture_demo():
                     'bc' : bcSplit - bcdSplit, #bc splits
                     'b' : bdJoin - bcSplit, 'd' : bdJoin - bcdSplit, # b,d join
                     'a' : abdJoin, 'bd' : abdJoin - bdJoin, # a,bd join
-                    'c' : abcdJoin, 'abd' : abcdJoin - abdJoin, #abd,c join
+                    'c' : abcdJoin - bcSplit, 'abd' : abcdJoin - abdJoin, #abd,c join
                     'abcd' : float('inf'), #tmrca
                     }
 
