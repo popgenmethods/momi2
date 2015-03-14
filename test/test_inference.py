@@ -25,7 +25,11 @@ def test_joint_sfs_inference():
     theta=1.0
     t0=random.uniform(.25,2.5)
     t1= t0 + random.uniform(.5,5.0)
-    jsfs = run_scrm_example(N0, theta, t0, t1)
+    num_runs = 10000
+    jsfs = run_scrm_example(N0, theta, t0, t1, num_runs)
+    totalSnps = sum([v for k,v in jsfs.items()])
+    logFactorialTotalSnps = sum([math.log(x) for x in range(1,totalSnps)])
+
     pprint(dict(jsfs))
     print(t0,t1)
     def f(join_time):
@@ -33,7 +37,10 @@ def test_joint_sfs_inference():
         tree = newick_tpl.format(t0=join_time, N0=N0, t1=t1, rt0=t1 - join_time)
         demo = Demography.from_newick(tree)
         #totalSum = NormalizingConstant(demo).normalizing_constant()
-        ret = 0.0
+        #ret = 0.0
+        lambd = theta / 2.0 * num_runs * demo.totalSfsSum
+        # poisson probability for total # snps is e^-lambd * lambd^totalSnps / totalSnps!
+        ret = lambd + logFactorialTotalSnps - totalSnps * math.log(lambd)
         for states, weight in sorted(jsfs.items()):
             st = {a: {'derived': b, 'ancestral': 1 - b} for a, b in zip("abc", states)}
             demo.update_state(st)
@@ -46,7 +53,7 @@ def test_joint_sfs_inference():
     res = scipy.optimize.fminbound(f, 0, t1, xtol=.01)
     #res = scipy.optimize.minimize(f, random.uniform(0,t1), bounds=((0,t1),))
     #assert res == t0
-    assert abs(res - t0) / t0 < .1
+    assert abs(res - t0) / t0 < .05
 #    print (res, t0, t1)
 #    print(res.x, t0, t1)
 
@@ -92,10 +99,10 @@ def test_jeff():
     res = scipy.optimize.minimize_scalar(f, method="bounded", bounds=(0, 0.2))
     print(res.x)
 
-def run_scrm_example(N0, theta, t0, t1):
+def run_scrm_example(N0, theta, t0, t1, num_runs):
     t0 /= 2. * N0
     t1 /= 2. * N0
-    scrm_args = [3, 10000, '-t', theta, '-I', 3, 1, 1, 1, '-ej', t1, 2, 3, '-ej', t0, 1, 2]
+    scrm_args = [3, num_runs, '-t', theta, '-I', 3, 1, 1, 1, '-ej', t1, 2, 3, '-ej', t0, 1, 2]
     return run_scrm(scrm_args, (1,1,1))
 
 def run_scrm(scrm_args, lins_per_pop):
