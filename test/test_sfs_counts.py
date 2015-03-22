@@ -96,6 +96,7 @@ def tree_demo_4():
     for v in demo:
         nd = demo.node_data[v]
         n_sub = demo.n_lineages_at_node[v]
+
         nd['model'] = ConstantTruncatedSizeHistory(N=1.0,
                                                    tau= popWaitTimes[v],
                                                    n_max=n_sub)    
