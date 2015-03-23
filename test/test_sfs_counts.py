@@ -1,4 +1,4 @@
-from size_history import ConstantTruncatedSizeHistory
+from size_history import ConstantTruncatedSizeHistory, PiecewiseHistory, ExponentialTruncatedSizeHistory
 from demography import Demography
 import pytest
 import networkx as nx
@@ -15,8 +15,36 @@ import itertools
 #num_scrm_samples = 10000
 #num_scrm_samples = 5000
 num_scrm_samples = 1000
+#num_scrm_samples = 10
 #theta = .01
 #num_scrm_samples = 100000
+
+def expo_demo_func(n, tau, growth_rate, N_top, theta, rho=None, numLoci=None, smcLen = None):
+    N_bottom = N_top * np.exp(growth_rate * tau)
+    def expo_demo():
+        leaf_lins = {'a' : n}
+        leaf_pops = ('a',)
+        demo = nx.DiGraph([])
+        demo.add_node('a')
+        nd = dict(demo.nodes(data=True))
+        nd['a']['lineages'] = leaf_lins['a']
+        
+        demo = Demography(demo)
+        nd = demo.node_data['a']
+        nd['model'] = PiecewiseHistory([ExponentialTruncatedSizeHistory(n, theta/2. * tau, theta/2. * N_top, theta/2. * N_bottom),
+                                        ConstantTruncatedSizeHistory(n, float('inf'), theta/2. * N_top),
+                                        ])
+
+        scrm_args = [n, num_scrm_samples,
+                     '-t', theta * N_bottom,
+                     '-G', growth_rate * N_bottom * 2.0,
+                     '-eG', tau / N_bottom / 2.0, 0.0,
+                     ]
+        if rho is not None:
+            scrm_args += ['-r', rho * N_bottom, numLoci,
+                          '-l', smcLen]
+        return demo, scrm_args, leaf_lins, leaf_pops
+    return expo_demo
 
 def tree_demo_2():
     leaf_lins = {'a' : 4, 'b': 4}
@@ -175,14 +203,14 @@ def admixture_demo():
     leaf_pops = ('a','bcd')
     return demo, scrm_args, leaf_lins, leaf_pops
 
-test_demos = [admixture_demo, tree_demo_2, tree_demo_4]
+test_demos = [admixture_demo, 
+              tree_demo_2,
+              tree_demo_4,
+              expo_demo_func(n=10, tau=.01, growth_rate=random.uniform(-500,500), N_top=random.uniform(0.1,10.0), theta=random.uniform(0.1,10.0))]
+#test_demos = [expo_demo_func(n=10, tau=400.0 /2e4, growth_rate=150.0, N_top=1.0, theta=10000., rho=10000., numLoci=int(1e7), smcLen=int(1e4))] # test for Matthias
 #test_demos = [admixture_demo]
 #test_demos = [tree_demo_4]
 #test_demos = [tree_demo_2]
-
-
-### this demography seemed to failed, test it more extensively at some point:
-## ms/scrm command: [8, 1000, '-T', '-I', 4, 2, 2, 2, 2, '-ej', 0.16507302559974607, 2, 1, '-ej', 0.59432917721588141, 3, 1, '-ej', 0.80215123165144697, 4, 1]
 
 
 @pytest.mark.parametrize("demo_func", test_demos)

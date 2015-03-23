@@ -224,6 +224,7 @@ def sfs_p_value(nonzeroCounts, empirical_sfs, squaredCounts, theoretical_sfs, ru
     print("# configs, p-values, empirical-sfs, theoretical-sfs, nonzeroCounts")
     toPrint = np.array([configs, p_vals, empirical_sfs, theoretical_sfs * theta / 2.0 * runs, nonzeroCounts]).transpose()
     toPrint = toPrint[toPrint[:,1].argsort()[::-1]] # reverse-sort by p-vals
+    #toPrint = toPrint[toPrint[:,0].argsort()] # sort by config
     print(toPrint)
     
     # p-values should be uniformly distributed

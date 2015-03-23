@@ -81,7 +81,7 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
         assert np.all([num >= 0.0, num <= 1.0, num <= scaled_time]), "numerator=%g, scaledTime=%g" % (num, scaled_time)
         return num / denom
     
-    @property
+    @cached_property
     def scaled_time(self):
         '''
         integral of 1/haploidN(t) from 0 to tau.
@@ -92,6 +92,33 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
     def __str__(self):
         return "(ConstantPopSize: N=%f, tau=%f)" % (self.N, self.tau)
 
+class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
+    def __init__(self, n_max, tau, N_top, N_bottom):
+        super(ExponentialTruncatedSizeHistory, self).__init__(n_max, tau)
+        self.N_top, self.N_bottom = N_top, N_bottom
+        # N_bottom = N_top * exp(tau * growth_rate)
+        self.growth_rate = log(N_bottom / N_top) / tau
+
+    @cached_property
+    def etjj(self):
+        j = np.arange(2, self.n_max+1)
+        ret = scipy.special.expi(- scipy.misc.comb(j,2) / self.N_bottom * np.exp(self.growth_rate * self.tau) / self.growth_rate)
+        ret = ret - scipy.special.expi(- scipy.misc.comb(j,2) / self.N_bottom / self.growth_rate)
+        ret = ret * (1.0 / self.growth_rate * np.exp(1.0 / self.growth_rate * scipy.misc.comb(j,2) / self.N_bottom))
+
+        assert np.all(np.ediff1d(ret) <= 0) # ret should be decreasing
+        assert np.all(ret >= 0)
+        assert np.all(ret <= self.tau)
+
+        return ret
+
+    @cached_property
+    def scaled_time(self):
+        '''
+        integral of 1/haploidN(t) from 0 to tau.
+        used for Moran model transitions
+        '''
+        return 1.0 / self.growth_rate / self.N_bottom * np.expm1(self.growth_rate * self.tau)
 
 class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
     '''Size history parameterized by an arbitrary function f.'''
@@ -126,3 +153,27 @@ class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
     def scaled_time(self):
         return self._R(self.tau)
 
+
+class PiecewiseHistory(TruncatedSizeHistory):
+    def __init__(self, pieces):
+        n_max = pieces[0].n_max
+        assert all([p.n_max == n_max for p in pieces])
+        tau = sum([p.tau for p in pieces])
+        super(PiecewiseHistory, self).__init__(n_max, tau)
+        self.pieces = pieces
+
+    @cached_property
+    def etjj(self):
+        j = np.arange(2, self.n_max+1)
+        jChoose2 = scipy.misc.comb(j,2)
+
+        ret = np.zeros(len(j))
+        noCoalProb = np.ones(len(j))
+        for pop in self.pieces:
+            ret = ret + noCoalProb * pop.etjj
+            noCoalProb = noCoalProb * np.exp(- pop.scaled_time * jChoose2)
+        return ret
+
+    @cached_property
+    def scaled_time(self):
+        return sum([pop.scaled_time for pop in self.pieces])
