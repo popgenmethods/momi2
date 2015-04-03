@@ -15,7 +15,7 @@ def test_rate_matrix():
 
 @pytest.mark.parametrize("n,t", 
         ((n, t) for n in (5, 10, 50, 100, 250) 
-            for t in (0.01, 0.1, 1.0, 10.0, 100.0)))
+            for t in (0.01, 0.1, 1.0, 10.0, 100.0) if n * t < 100))
 def test_eig_vs_expm(n, t):
     print(n, t)
     v = np.random.random(n + 1)
