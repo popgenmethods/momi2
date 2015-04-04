@@ -175,9 +175,14 @@ class PiecewiseHistory(TruncatedSizeHistory):
         noCoalProb = np.ones(len(j))
         for pop in self.pieces:
             ret = ret + noCoalProb * pop.etjj
-            noCoalProb = noCoalProb * exp(- pop.scaled_time * jChoose2)
+            if pop.scaled_time != float('inf'):
+                noCoalProb = noCoalProb * exp(- jChoose2 * pop.scaled_time)
+            else:
+                assert pop is self.pieces[-1]
         return ret
 
     @cached_property
     def scaled_time(self):
+        if self.tau == float('inf'):
+            return self.tau
         return sum([pop.scaled_time for pop in self.pieces])
