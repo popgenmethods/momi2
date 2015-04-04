@@ -76,9 +76,12 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
     def etjj(self):
         j = np.arange(2, self.n_max + 1)
         denom = binom(j, 2) / self.N
+        if self.tau == float('inf'):
+            return 1.0 / denom
+
         scaled_time = denom * self.tau
         num = -np.array(expm1(-scaled_time)) # equals 1 - exp(-scaledTime)
-        assert np.all([num >= 0.0, num <= 1.0, num <= scaled_time]), "numerator=%g, scaledTime=%g" % (num, scaled_time)
+        assert np.all([num >= 0.0, num <= 1.0, num <= scaled_time]), "numerator=%s, scaledTime=%s" % (str(num), str(scaled_time))
         return num / denom
     
     @cached_property
