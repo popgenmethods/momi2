@@ -31,8 +31,8 @@ def test_constant_size_freqs(N,n,t):
         N_hat = xhat[0]
         print N_hat, t
         est_hist = ConstantTruncatedSizeHistory(n,t,N_hat)
-        #ret = np.array([est_hist.freq(der,n) for der in range(1,n)])
-        ret = est_hist.etjj
+        ret = np.array([est_hist.freq(der,n) for der in range(1,n)])
+        #ret = est_hist.etjj
         print ret
         return ret
     x = np.array((N,))
