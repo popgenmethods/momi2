@@ -10,6 +10,10 @@ from pprint import pprint
 import random
 import numpy as np
 import newick
+from ad import gh, adnumber
+import ad.admath
+import networkx as nx
+from size_history import ConstantTruncatedSizeHistory
 
 from sum_product import SumProduct
 from demography import Demography
@@ -19,46 +23,86 @@ scrm = sh.Command(os.environ["SCRM_PATH"])
 # def scrm(*x):
 #     return _scrm(*x,_ok_code=[0,16,17,18])
 
+def get_exact_jsfs(demo, theta=2.0):
+    leafs = sorted(list(demo.leaves))
+    n_ders = [range(demo.node_data[l]['lineages']+1) for l in leafs]
+    total_n = sum([demo.node_data[l]['lineages'] for l in leafs])
+    jsfs = {}
+    for comb in itertools.product(*n_ders):
+        assert len(comb) == len(leafs)
+        state = {}
+        total_der = 0
+        for l,n_d in zip(leafs,comb):
+            total_der += n_d
+            state[l] = {'derived' : n_d, 'ancestral' : demo.node_data[l]['lineages'] - n_d}
+        if total_der == 0 or total_der == total_n:
+            continue
+        demo.update_state(state)
+        weight = SumProduct(demo).p(normalized=False) * theta / 2.0
+        state = tuple([state[l]['derived'] for l in leafs])
+        jsfs[state] = weight
+    return jsfs
+
 def test_joint_sfs_inference():
-    #return True
-    newick_tpl = """
-        ((a:{t0:f}[&&momi:model=constant:N={N0:f}:lineages=1],
-          b:{t0:f}[&&momi:model=constant:N={N0:f}:lineages=1]):{rt0:f},
-         c:{t1:f}[&&momi:model=constant:N={N0:f}:lineages=1])[&&momi:model=constant:N={N0:f}];
-    """
+    def get_demo(t0, N0, t1, rt0):
+        demo = nx.DiGraph([('ab','a'),('ab','b'),('abc','ab'),('abc','c')])
+        nd = dict(demo.nodes(data=True))
+        nd['a']['lineages'] = 1
+        nd['b']['lineages'] = 1
+        nd['c']['lineages'] = 1
+        nd['a']['model'] = nd['b']['model'] = ConstantTruncatedSizeHistory(N=N0,
+                                                                           tau=t0,
+                                                                           n_max=1)
+        nd['ab']['model'] = ConstantTruncatedSizeHistory(N=N0, tau=rt0, n_max=2)
+        nd['c']['model'] = ConstantTruncatedSizeHistory(N=N0, tau=t1, n_max=1)
+        nd['abc']['model'] = ConstantTruncatedSizeHistory(N=N0, tau=float('inf'), n_max=3)
+        return Demography(demo)
     N0=1.0
     theta=1.0
     t0=random.uniform(.25,2.5)
     t1= t0 + random.uniform(.5,5.0)
-    num_runs = 10000
+    num_runs = 1000
     jsfs,sqCounts,nonzero = run_scrm_example(N0, theta, t0, t1, num_runs)
-    totalSnps = sum([v for k,v in jsfs.items()])
-    logFactorialTotalSnps = sum([math.log(x) for x in range(1,totalSnps)])
-
     pprint(dict(jsfs))
+    true_demo = get_demo(t0=t0,N0=N0,t1=t1,rt0=t1-t0)
+    jsfs_exact = get_exact_jsfs(true_demo, theta=theta*num_runs)
+    pprint(dict(jsfs_exact))
+
+    jsfs = jsfs_exact
+    totalSnps = sum([v for k,v in jsfs.items()])
+
     print(t0,t1)
     def f(join_time):
-        #print(join_time)
-        tree = newick_tpl.format(t0=join_time, N0=N0, t1=t1, rt0=t1 - join_time)
-        demo = Demography.from_newick(tree)
+        print(join_time[0],N0,t1,t1-join_time[0])
+        #tree = newick_tpl.format(t0=join_time, N0=N0, t1=t1, rt0=t1 - join_time)
+        #demo = Demography.from_newick(tree)
+        demo = get_demo(t0=join_time[0], N0=N0, t1=t1, rt0=t1 - join_time[0])
         #totalSum = NormalizingConstant(demo).normalizing_constant()
         #ret = 0.0
         lambd = theta / 2.0 * num_runs * demo.totalSfsSum
         # poisson probability for total # snps is e^-lambd * lambd^totalSnps / totalSnps!
-        ret = lambd + logFactorialTotalSnps - totalSnps * math.log(lambd)
+        ret = lambd - totalSnps * math.log(lambd)
         for states, weight in sorted(jsfs.items()):
             st = {a: {'derived': b, 'ancestral': 1 - b} for a, b in zip("abc", states)}
             demo.update_state(st)
+            #true_demo.update_state(st)
+            #weight = SumProduct(true_demo).p(normalized=True)
             sp = SumProduct(demo)
             #print(weight, states, sp.p(normalized=True))
-            ret -= weight * math.log(sp.p(normalized=True))
+            ret -= weight * ad.admath.log(sp.p(normalized=True))
             #ret -= weight * math.log(sp.p())
+        print ret
         return ret
     #f(t0)
-    res = scipy.optimize.fminbound(f, 0, t1, xtol=.01)
-    #res = scipy.optimize.minimize(f, random.uniform(0,t1), bounds=((0,t1),))
+    #res = scipy.optimize.fminbound(f, 0, t1, xtol=.01)
+    x0 = random.uniform(0,t1)
+    #res = scipy.optimize.minimize(f, x0, bounds=((0,t1),), method='L-BFGS-B')
     #assert res == t0
-    assert abs(res - t0) / t0 < .05
+    grad, hess = gh(f)
+    #res = scipy.optimize.minimize(f, x0, method='L-BFGS-B', jac=grad, bounds=((0,t1),), options={'ftol': 1e-8, 'disp': False})
+    res = scipy.optimize.minimize(f, x0, method='L-BFGS-B', jac=grad, bounds=((0,t1),))
+    print res.jac
+    assert abs(res.x - t0) / t0 < .05
 #    print (res, t0, t1)
 #    print(res.x, t0, t1)
 

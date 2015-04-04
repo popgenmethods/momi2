@@ -1,6 +1,6 @@
 from __future__ import division
 from util import EPSILON, memoize
-from math import exp, fsum, log, expm1
+from ad.admath import exp, log, expm1
 from cached_property import cached_property
 import numpy as np
 import scipy.integrate
@@ -57,7 +57,7 @@ class TruncatedSizeHistory(object):
         return ret
 
     def _before_tmrca(self, partial_sfs):
-        ret = self.tau - fsum([partial_sfs[(b, self.n_max)] * b / self.n_max 
+        ret = self.tau - sum([partial_sfs[(b, self.n_max)] * b / self.n_max 
                                for b in range(1, self.n_max)])
         # TODO: add assertion back in
         return ret
@@ -77,7 +77,7 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
         j = np.arange(2, self.n_max + 1)
         denom = binom(j, 2) / self.N
         scaled_time = denom * self.tau
-        num = -np.expm1(-scaled_time) # equals 1 - exp(-scaledTime)
+        num = -np.array(expm1(-scaled_time)) # equals 1 - exp(-scaledTime)
         assert np.all([num >= 0.0, num <= 1.0, num <= scaled_time]), "numerator=%g, scaledTime=%g" % (num, scaled_time)
         return num / denom
     
@@ -98,13 +98,14 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
         self.N_top, self.N_bottom = N_top, N_bottom
         # N_bottom = N_top * exp(tau * growth_rate)
         self.growth_rate = log(N_bottom / N_top) / tau
+        raise Exception("must implement scipy.special.expi for adnumber")
 
     @cached_property
     def etjj(self):
         j = np.arange(2, self.n_max+1)
-        ret = scipy.special.expi(- scipy.misc.comb(j,2) / self.N_bottom * np.exp(self.growth_rate * self.tau) / self.growth_rate)
+        ret = scipy.special.expi(- scipy.misc.comb(j,2) / self.N_bottom * exp(self.growth_rate * self.tau) / self.growth_rate)
         ret = ret - scipy.special.expi(- scipy.misc.comb(j,2) / self.N_bottom / self.growth_rate)
-        ret = ret * (1.0 / self.growth_rate * np.exp(1.0 / self.growth_rate * scipy.misc.comb(j,2) / self.N_bottom))
+        ret = ret * (1.0 / self.growth_rate * exp(1.0 / self.growth_rate * scipy.misc.comb(j,2) / self.N_bottom))
 
         assert np.all(np.ediff1d(ret) <= 0) # ret should be decreasing
         assert np.all(ret >= 0)
@@ -118,7 +119,7 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
         integral of 1/haploidN(t) from 0 to tau.
         used for Moran model transitions
         '''
-        return 1.0 / self.growth_rate / self.N_bottom * np.expm1(self.growth_rate * self.tau)
+        return 1.0 / self.growth_rate / self.N_bottom * expm1(self.growth_rate * self.tau)
 
 class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
     '''Size history parameterized by an arbitrary function f.'''
@@ -142,9 +143,9 @@ class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
         for j in range(2, self.n_max + 1):
             j2 = binom(j, 2)
             # tau * P(Tjj > tau)
-            r1 = self.tau * np.exp(-j2 * self.scaled_time)
+            r1 = self.tau * exp(-j2 * self.scaled_time)
             def _int(t):
-                return t * self._f(t) * np.exp(-j2 * self._R(t))
+                return t * self._f(t) * exp(-j2 * self._R(t))
             r2 = scipy.integrate.quad(_int, 0, self.tau)[0]
             ret.append(r1 + j2 * r2)
         return np.array(ret)
@@ -171,7 +172,7 @@ class PiecewiseHistory(TruncatedSizeHistory):
         noCoalProb = np.ones(len(j))
         for pop in self.pieces:
             ret = ret + noCoalProb * pop.etjj
-            noCoalProb = noCoalProb * np.exp(- pop.scaled_time * jChoose2)
+            noCoalProb = noCoalProb * exp(- pop.scaled_time * jChoose2)
         return ret
 
     @cached_property
