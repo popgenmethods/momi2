@@ -28,7 +28,8 @@ def minimize_l2_err(f, x0, x, upper_bound=None, lower_bound=1e-12):
     if len(x) == 1:
         #res = scipy.optimize.minimize(objective, x0, method='trust-ncg', jac=grad, hess=hess)
         res = scipy.optimize.minimize(objective, x0, method='newton-cg', jac=grad, hess=hess)
-        assert np.abs(x - res.x) < 1e-3 and res.fun < 1.0
+        print res
+        assert np.abs(log(x / res.x)) < 1e-2 and res.fun < 1.0
     else:
         res = scipy.optimize.minimize(objective, x0, method='newton-cg', jac=grad, hess=hess)
         #res = scipy.optimize.minimize(objective, x0, method='trust-ncg', jac=grad, hess=hess)
@@ -41,10 +42,7 @@ def minimize_l2_err(f, x0, x, upper_bound=None, lower_bound=1e-12):
         print "withoutGradient:\n",res2
         # using Hessian/gradient should allow fewer iterations and/or more accurate results
         assert res.nfev < res2.nfev or res.fun < res2.fun
-        assert res.fun < 1.0 and res2.fun < 1.0
-
-
-#def test_moran_action(epochs,params):
+        assert res.fun < 1.0 and res2.fun < 1.0 
 
 @pytest.mark.parametrize("N,n,t", ((random.uniform(.1,10),random.randint(1,20), random.uniform(.01,100)),))
 def test_truncconst_sfs(N,n,t):
@@ -80,12 +78,33 @@ def get_demo_from_epochs(x, n, addInfEpoch=True):
     pieces = [ConstantTruncatedSizeHistory(n, t, N) for t,N in zip(times, sizes)]
     return PiecewiseHistory(pieces)
 
-@pytest.mark.parametrize("epochs,params", ((e,p) for e in (1,9) 
-                                           for p in (1,2,4) 
-                                           #for p in (1,)
-                                           if p <= e * 2))
-def test_sfs(epochs,params):
-    n = 50
+def get_sfs(n):
+    def sfs_func(est_hist):
+        return np.array([est_hist.freq(der,n) for der in range(1,n)])
+    return sfs_func
+    
+def get_random_action(n):
+    vec = np.random.normal(size=n+1)
+    def action_func(est_hist):
+        return est_hist.transition_prob(vec)
+    return action_func
+
+@pytest.mark.parametrize("epochs", 
+                         (e for e in (1,3,5,7)))
+def test_action(epochs):
+    return constant_piecewise_test(epochs, 1, False, get_random_action)
+
+@pytest.mark.parametrize("epochs,params", 
+                         ((e,p)
+                          for e in (1,9) 
+                          for p in (1,2,4) 
+                          #for p in (1,)
+                          if p <= e * 2))
+def test_sfs(epochs, params):
+    return constant_piecewise_test(epochs, params, True, get_sfs)
+
+def constant_piecewise_test(epochs,params,addInfEpoch,get_stat):
+    n = 20
 
     N_bds, t_bds = (.1,10), (.1/float(epochs),10/float(epochs))
     N = np.random.uniform(*N_bds,size=epochs)
@@ -102,6 +121,8 @@ def test_sfs(epochs,params):
     x0 = log(x0[params])
     x = log(truth[params])
 
+    f_stat = get_stat(n)
+
     def statistic(xhat):
         #print xhat
 
@@ -109,8 +130,9 @@ def test_sfs(epochs,params):
         for i in range(len(xhat)):
             demo_prms[params[i]] = exp(xhat[i])
         
-        est_hist = get_demo_from_epochs(demo_prms, n)
-        ret = np.array([est_hist.freq(der,n) for der in range(1,n)])
+        est_hist = get_demo_from_epochs(demo_prms, n, addInfEpoch)
+        ret = f_stat(est_hist)
+        #ret = np.array([est_hist.freq(der,n) for der in range(1,n)])
         #ret = est_hist.etjj
         #print ret
         return ret
