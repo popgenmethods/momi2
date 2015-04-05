@@ -12,26 +12,40 @@ import random
 # using gradient descent starting from x0
 def minimize_l2_err(f, x0, x, upper_bound=None, lower_bound=1e-12):
     fx = f(x)
-    def objective(xhat):
+    def pre_objective(xhat):
         xhat = xhat
         ret = sum((f(xhat) - fx)**2)
         #print ret
         return ret
+    start_err = pre_objective(x0)
+    def objective(xhat):
+        return pre_objective(xhat) / start_err
+
     grad, hess = gh(objective)
     bds = ((lower_bound,upper_bound),) * len(x0)
 
-    #x0d = adnumber(x0)
-    #o0d = objective(x0d)
-    #print "starting_x", x0d, "starting_obj", o0d, "starting_deriv", o0d.d(x0d[0]), "all_derivs" , o0d.d()
-
-    res = scipy.optimize.minimize(objective, x0, method='newton-cg', jac=grad, hess=hess, options={'xtol':1e-6})
-    #res = scipy.optimize.minimize(objective, x0, method='dogleg', jac=grad, hess=hess, options={'gtol':1e-10})
-    #res = scipy.optimize.minimize(objective, x0, method='trust-ncg', jac=grad, hess=hess, options={'gtol':1e-10})
-    print res
-    print x0, res.x, x
-    #assert max(np.abs(x - res.x)) < 1e-2
-    assert res.fun < 1e-6
+    print "x_start", x0, "loss(x_start)", start_err, "x_true", x
+    if len(x) == 1:
+        #res = scipy.optimize.minimize(objective, x0, method='trust-ncg', jac=grad, hess=hess)
+        res = scipy.optimize.minimize(objective, x0, method='newton-cg', jac=grad, hess=hess)
+        assert np.abs(x - res.x) < 1e-3 and res.fun < 1.0
+    else:
+        res = scipy.optimize.minimize(objective, x0, method='newton-cg', jac=grad, hess=hess)
+        #res = scipy.optimize.minimize(objective, x0, method='trust-ncg', jac=grad, hess=hess)
+        #res2 = scipy.optimize.minimize(objective, x0, method='newton-cg', jac=grad)
+        res2 = scipy.optimize.minimize(objective, x0, method='tnc')
+        #res2 = scipy.optimize.minimize(objective, x0, method='nelder-mead')
+        #res2 = scipy.optimize.minimize(objective, x0)
+        print "withHessian:\n",res
+        print "withoutGradient:\n",res2
+        assert res.nfev <= res2.nfev and res.fun < 1.0 and res2.fun < 1.0
+#         assert res.fun < 1e-1
+#         assert res2.fun < 1e-1
+#         assert res.fun < f_start * 1e-1 or f_start < 1e-10
+#         assert res2.fun < f_start * 1e-1 or f_start < 1e-10
     #assert np.all(res.x > lower_bound)
+
+#def test_moran_action(epochs,params):
 
 @pytest.mark.parametrize("N,n,t", ((random.uniform(.1,10),random.randint(1,20), random.uniform(.01,100)),))
 def test_truncconst_sfs(N,n,t):
@@ -49,7 +63,7 @@ def test_truncconst_sfs(N,n,t):
     x, x0 = log(x), log(x0)
     minimize_l2_err(statistic, x0, x)
 
-def get_demo(x, n):
+def get_demo_from_epochs(x, n, addInfEpoch=True):
     #print x
     x = list(x)
     assert len(x) % 2 == 0
@@ -59,14 +73,18 @@ def get_demo(x, n):
     for i in range(1,len(times)):
         times[i] += times[i-1]
 
-    sizes = [1.0] + sizes
-    #sizes = sizes + [1.0]
-    times = times + [float('inf')]
+    if addInfEpoch:
+        sizes = [1.0] + sizes
+        #sizes = sizes + [1.0]
+        times = times + [float('inf')]
     
     pieces = [ConstantTruncatedSizeHistory(n, t, N) for t,N in zip(times, sizes)]
     return PiecewiseHistory(pieces)
 
-@pytest.mark.parametrize("epochs,params", ((e,p) for e in (1,9) for p in (1,2,4) if p <= e * 2))
+@pytest.mark.parametrize("epochs,params", ((e,p) for e in (1,9) 
+                                           for p in (1,2,4) 
+                                           #for p in (1,)
+                                           if p <= e * 2))
 def test_sfs(epochs,params):
     n = 50
 
@@ -92,9 +110,9 @@ def test_sfs(epochs,params):
         for i in range(len(xhat)):
             demo_prms[params[i]] = exp(xhat[i])
         
-        est_hist = get_demo(demo_prms, n)
-        #ret = np.array([est_hist.freq(der,n) for der in range(1,n)])
-        ret = est_hist.etjj
+        est_hist = get_demo_from_epochs(demo_prms, n)
+        ret = np.array([est_hist.freq(der,n) for der in range(1,n)])
+        #ret = est_hist.etjj
         #print ret
         return ret
     #x0 = np.random.uniform(0.1,10,len(x)) * x
