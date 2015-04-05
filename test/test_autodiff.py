@@ -33,17 +33,16 @@ def minimize_l2_err(f, x0, x, upper_bound=None, lower_bound=1e-12):
         res = scipy.optimize.minimize(objective, x0, method='newton-cg', jac=grad, hess=hess)
         #res = scipy.optimize.minimize(objective, x0, method='trust-ncg', jac=grad, hess=hess)
         #res2 = scipy.optimize.minimize(objective, x0, method='newton-cg', jac=grad)
-        res2 = scipy.optimize.minimize(objective, x0, method='tnc')
-        #res2 = scipy.optimize.minimize(objective, x0, method='nelder-mead')
+        #res2 = scipy.optimize.minimize(objective, x0, method='tnc')
+        #res2 = scipy.optimize.minimize(objective, x0, method='cg')
+        res2 = scipy.optimize.minimize(objective, x0, method='nelder-mead')
         #res2 = scipy.optimize.minimize(objective, x0)
         print "withHessian:\n",res
         print "withoutGradient:\n",res2
-        assert res.nfev <= res2.nfev and res.fun < 1.0 and res2.fun < 1.0
-#         assert res.fun < 1e-1
-#         assert res2.fun < 1e-1
-#         assert res.fun < f_start * 1e-1 or f_start < 1e-10
-#         assert res2.fun < f_start * 1e-1 or f_start < 1e-10
-    #assert np.all(res.x > lower_bound)
+        # using Hessian/gradient should allow fewer iterations and/or more accurate results
+        assert res.nfev < res2.nfev or res.fun < res2.fun
+        assert res.fun < 1.0 and res2.fun < 1.0
+
 
 #def test_moran_action(epochs,params):
 
