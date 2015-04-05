@@ -73,6 +73,23 @@ def test_simple_3():
         return sum(x) / sum(x)
     check_gradient(f, np.random.normal(size=10))
 
+def simple_two_pop_demo(x, n_lins):
+    assert len(x) == 4
+    assert list(sorted(n_lins.keys())) == ['a','b']
+
+    demo = nx.DiGraph([('ab','a'), ('ab','b')])
+    nd = dict(demo.nodes(data=True))
+    nd['a']['lineages'] = n_lins['a']
+    nd['b']['lineages'] = n_lins['b']
+    
+    demo = Demography(demo)
+    nd = demo.node_data
+    nd['a']['model'] = ConstantTruncatedSizeHistory(N=exp(x[1]), tau=exp(x[0]), n_max = n_lins['a'])
+    nd['b']['model'] = ConstantTruncatedSizeHistory(N=exp(x[2]), tau=exp(x[0]), n_max = n_lins['b'])
+    nd['ab']['model'] = ConstantTruncatedSizeHistory(N=exp(x[3]), tau=float('inf'),
+                                                     n_max = n_lins['a'] + n_lins['b'])
+    return demo
+
 def piecewise_constant_demo(x, n_lins):
     assert len(x) % 2 == 1
     assert n_lins.keys() == ['a']
@@ -121,29 +138,38 @@ def sfs_func(demo_func, n_lins, normalized=True):
     return f
 
 @pytest.mark.parametrize("n,epochs,normalized", 
-                         ((5,5,norm) for norm in (False,True)))
+                         ((random.randint(2,10),random.randint(1,10),norm) for norm in (False,True)))
 def test_piecewise_constant_p(n, epochs, normalized):
     n_lins = {'a' : n}
 
-    #x = np.random.normal(size=2*epochs - 1)
-    x = np.zeros(2*epochs-1)
+    x = np.random.normal(size=2*epochs - 1)
+    #x = np.zeros(2*epochs-1)
     f = sfs_func(piecewise_constant_demo, n_lins, normalized=normalized)
 
     check_gradient(f,x)
 
 
-def normalizing_constant_func(demo_func, n_lins):
-    def f(x):
-        demo = demo_func(x, n_lins)
-        return demo.totalSfsSum
-    return f
+# def normalizing_constant_func(demo_func, n_lins):
+#     def f(x):
+#         demo = demo_func(x, n_lins)
+#         return demo.totalSfsSum
+#     return f
+# @pytest.mark.parametrize("n,epochs", 
+#                          ((5,5),))
+# def test_piecewise_constant_normalizing(n, epochs):
+#     n_lins = {'a' : n}
 
-@pytest.mark.parametrize("n,epochs", 
-                         ((5,5),))
-def test_piecewise_constant_normalizing(n, epochs):
-    n_lins = {'a' : n}
+#     x = np.random.normal(size=2*epochs - 1)
+#     f = normalizing_constant_func(piecewise_constant_demo, n_lins)
 
-    x = np.random.normal(size=2*epochs - 1)
-    f = normalizing_constant_func(piecewise_constant_demo, n_lins)
+#     check_gradient(f,x)
 
+@pytest.mark.parametrize("n1,n2,normalized", 
+                         ((random.randint(1,10),random.randint(1,10),norm) for norm in (False,True)))
+def test_simple_two_pop(n1,n2,normalized):
+    n_lins = {'a' : n1, 'b' : n2}
+
+    x = np.random.normal(size=4)
+    f = sfs_func(simple_two_pop_demo, n_lins, normalized=normalized)
+    
     check_gradient(f,x)

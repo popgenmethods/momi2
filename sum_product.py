@@ -59,7 +59,8 @@ class SumProduct(object):
             return self.leaf_likelihood_bottom(node)
         liks = [self.partial_likelihood_top(node, child) * self.combinatorial_factors(child) 
                 for child in self.G[node]]
-        return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(node)
+        #return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(node)
+        return np.convolve(*liks) / self.combinatorial_factors(node)
        
     @memoize_instance
     def joint_sfs(self, node):
