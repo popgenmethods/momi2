@@ -150,8 +150,17 @@ def _to_newick(G, root):
 
 
 def normalizing_constant(demography):
+    # get the previous state
+    try:
+        prev_state = {}
+        for v in demography.leaves:
+            nd = demography.node_data[v]
+            prev_state[v] = {'ancestral' : nd['ancestral'], 'derived' : nd['derived']}
+    except:
+        prev_state = None
+
     # to_directed() makes a deep-copy of the nx.DiGraph
-    demography = Demography(demography.to_directed())
+    #demography = Demography(demography.to_directed())
     # set all alleles to be of ancestral type
     state = {}
     for v in demography.leaves:
@@ -178,4 +187,8 @@ def normalizing_constant(demography):
     sp = SumProduct(demography)
 
     ret -= sp.p(normalized=False)
+
+    ## now reset the state
+    if prev_state is not None:
+        demography.update_state(prev_state)
     return ret
