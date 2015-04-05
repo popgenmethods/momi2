@@ -151,6 +151,7 @@ def _to_newick(G, root):
 
 def normalizing_constant(demography):
     # get the previous state
+    ## TODO: remove this, make state a property of SumProduct instead of Demography
     try:
         prev_state = {}
         for v in demography.leaves:
@@ -189,6 +190,7 @@ def normalizing_constant(demography):
     ret -= sp.p(normalized=False)
 
     ## now reset the state
+    ## TODO: remove this, make state a property of SumProduct instead of Demography
     if prev_state is not None:
         demography.update_state(prev_state)
     return ret
