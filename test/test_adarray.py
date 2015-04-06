@@ -67,7 +67,7 @@ def test_simple_addot2():
     x,y = adnumber(np.random.normal(size=2))
 
     left_dims = 5
-    right_dims = 6
+    right_dims = 10
     polys = []
     for _ in range(left_dims+1):
         polys.append([(x ** random.randint(1,5)) * (y ** random.randint(1,5)) for _ in range(right_dims)])
@@ -85,8 +85,10 @@ def test_simple_addot2():
     #print grad1, "\n", grad2
     assert np.all(np.array(grad1) == np.array(grad2))
     
+    hess1 = [z1.d2c(i,j) for i in x,y for j in x,y if i is not j]
+    hess1 += [z1.d2(i) for i in x,y]
+    hess2 = [np.array([z2i.d2c(i,j) for z2i in z2]) for i in x,y for j in x,y if i is not j]
+    hess2 += [np.array([z2i.d2(i) for z2i in z2]) for i in x,y]
 
-#     hess1 = z1.hessian([x,y])
-#     hess2 = z2.hessian([x,y])
-
-#     assert hess1 == hess2
+    print hess1, "\n", hess2
+    assert np.all(np.array(hess1) == np.array(hess2))
