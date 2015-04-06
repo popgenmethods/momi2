@@ -2,7 +2,7 @@ from __future__ import division
 import pytest
 from ad import adnumber
 import numpy as np
-from adarray import array, adapply, adsum
+from adarray import array, adapply, adsum, addot
 import random
 
 def check_gradient(ad_arr, arr_of_ad, vars):
@@ -18,18 +18,75 @@ def check_gradient(ad_arr, arr_of_ad, vars):
     assert grad1 == grad2
 
 
-def test_simple():
+def test_simple_polynomials():
     x,y = adnumber(np.random.normal(size=2))
 
+    num_dims = 5
     polys = []
-    for _ in range(2):
-        polys.append([(x ** random.randint(1,5)) * (y ** random.randint(1,5)) for _ in range(2)])
-    u,v = polys
+    for _ in range(3):
+        polys.append([(x ** random.randint(1,5)) * (y ** random.randint(1,5)) for _ in range(num_dims)])
+    u,v,w = polys
 
-    z1 = adsum(array(u) * array(v))
-    z2 = np.sum((np.array(u) * np.array(v)))
+    z1 = adsum(array(u) * array(v) * array(w))
+    z2 = np.sum(np.array(u) * np.array(v) * np.array(w))
 
     grad1 = z1.gradient([x,y])
     grad2 = z2.gradient([x,y])
 
     assert grad1 == grad2
+    
+    hess1 = z1.hessian([x,y])
+    hess2 = z2.hessian([x,y])
+
+    assert hess1 == hess2
+
+
+def test_simple_addot():
+    x,y = adnumber(np.random.normal(size=2))
+
+    num_dims = 5
+    polys = []
+    for _ in range(2):
+        polys.append([(x ** random.randint(1,5)) * (y ** random.randint(1,5)) for _ in range(num_dims)])
+    u,v = polys
+
+    z1 = addot(array(u) , array(v))
+    z2 = np.dot(np.array(u) , np.array(v))
+
+    grad1 = z1.gradient([x,y])
+    grad2 = z2.gradient([x,y])
+
+    assert grad1 == grad2
+    
+    hess1 = z1.hessian([x,y])
+    hess2 = z2.hessian([x,y])
+
+    assert hess1 == hess2
+
+def test_simple_addot2():
+    x,y = adnumber(np.random.normal(size=2))
+
+    left_dims = 5
+    right_dims = 6
+    polys = []
+    for _ in range(left_dims+1):
+        polys.append([(x ** random.randint(1,5)) * (y ** random.randint(1,5)) for _ in range(right_dims)])
+    b = polys[0]
+    A = polys[1:]
+
+    #A = np.array(A).transpose()
+
+    z2 = np.dot(np.array(A) , np.array(b))
+    z1 = addot(array(A) , array(b))
+
+    grad1 = z1.gradient([x,y])
+    grad2 = [np.array([z2i.d(u) for z2i in z2]) for u in x,y]
+
+    #print grad1, "\n", grad2
+    assert np.all(np.array(grad1) == np.array(grad2))
+    
+
+#     hess1 = z1.hessian([x,y])
+#     hess2 = z2.hessian([x,y])
+
+#     assert hess1 == hess2

@@ -178,9 +178,14 @@ def d2c(self, x=None, y=None):
         else:
             return self._cp
 
+@property
+def shape(self):
+    return self.x.shape
+
 ADF.d = d
 ADF.d2 = d2
 ADF.d2c = d2c
+ADF.shape = shape
 
 '''converts a list or np.array of adnumbers into an adfunction of np.arrays'''
 class ADArray(ADF):
@@ -216,24 +221,48 @@ class ADArray(ADF):
                         x_d[k] = np.zeros(x.shape)
                     x_d[k][i] = xi_d[k]
 
-        super(ADArray, self).__init__(x, lc_dict, qc_dict, cp_dict)
+        x_old = x
+        x = np.zeros(x.shape)
+        for i,xi in np.ndenumerate(x_old):
+            if isinstance(xi,ADF):
+                x[i] = xi.x
+            elif isinstance(xi, Number):
+                x[i] = xi
+            else:
+                raise Exception
 
-    @property
-    def shape(self):
-        return self.x.shape
+        super(ADArray, self).__init__(x, lc_dict, qc_dict, cp_dict)
 
 
 def array(x):
     return ADArray(x)
 
-def adapply(f, x):
+def adapply(f, x, *args, **kwargs):
     ret = array(x)
 
-    ret.x = f(ret.x)
+    ret.x = f(ret.x, *args, **kwargs)
     for d in (x._lc, x._qc, x._cp):
         for v in d:
-            d[v] = f(d[v])
+            d[v] = f(d[v], *args, **kwargs)
     return ret
 
-def adsum(x):
-    return adapply(np.sum, x)
+def adsum(x, *args, **kwargs):
+    return adapply(np.sum, x, *args, **kwargs)
+
+def addot(x,y):
+    # TODO: remove this requirement
+    assert len(y.shape) == 1 and len(x.shape) <= 2
+    
+    if len(y.shape) == 1:
+        if len(x.shape) == 1:
+            return adsum(x * y)
+        elif len(x.shape) == 2:
+            #old_x = x
+            #x = adapply(np.transpose, x)
+            ret = x * y
+            ret = adsum(ret,axis=1)
+            assert len(ret.shape) == 1
+            assert ret.shape[0] == x.shape[0]
+            return ret
+    raise Exception("General matrix/tensor multiplication not yet implemented")
+
