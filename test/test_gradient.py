@@ -173,3 +173,51 @@ def test_simple_two_pop(n1,n2,normalized):
     f = sfs_func(simple_two_pop_demo, n_lins, normalized=normalized)
     
     check_gradient(f,x)
+
+
+def simple_five_pop_demo(x, epochs_per_pop, n_lins):
+    # number of edges is 2n-1
+    total_epochs = epochs_per_pop * (2*len(n_lins)-1)
+    assert len(x) == 2 * total_epochs + 1 # a size and a time for each epoch, plus a final size
+    assert list(sorted(n_lins.keys())) == ['a','b','c','d','e']
+
+    demo = nx.DiGraph([('ab','a'), ('ab','b'),
+                       ('cd','c'), ('cd','d'),
+                       ('cde','cd'), ('cde','e'),
+                       ('abcde','ab'),('abcde','cde')])
+    nd = dict(demo.nodes(data=True))
+    for v in ('a','b','c','d','e'):
+        nd[v]['lineages'] = n_lins[v]
+        nd[v]['lineages'] = n_lins[v]
+    
+    demo = Demography(demo)
+    nd = demo.node_data
+    pops = sorted(nd.keys())
+    i = 0
+    for v in pops:
+        pieces = []
+        for j in range(epochs_per_pop):
+            pieces.append(ConstantTruncatedSizeHistory(N=exp(x[i]), tau=exp(x[i+1]), n_max = demo.n_lineages_subtended_by[v]))
+            i += 2
+        if v == 'abcde':
+            pieces.append(ConstantTruncatedSizeHistory(N=exp(x[i]), tau=float('inf'), n_max = demo.n_lineages_subtended_by[v]))
+            i += 1
+        nd[v]['model'] = PiecewiseHistory(pieces)
+    return demo
+
+
+@pytest.mark.parametrize("n1,n2,n3,n4,n5,e,normalized", 
+                         ((random.randint(1,5),random.randint(1,5),random.randint(1,5),random.randint(1,5),random.randint(1,5),3,norm) for norm in (False,True)))
+def test_simple_five_pop(n1,n2,n3,n4,n5,e,normalized):
+    n_lins = {'a' : n1, 'b' : n2, 'c' : n3, 'd' : n4, 'e' : n5}
+
+    epochs_per_pop=e
+    total_epochs = epochs_per_pop * (2*len(n_lins)-1)
+    x_len = 2 * total_epochs + 1 # a size and a time for each epoch, plus a final size
+
+    x = np.random.normal(size=x_len)
+    def demo_func(y,n_lins):
+        return simple_five_pop_demo(y,epochs_per_pop,n_lins)
+    f = sfs_func(demo_func, n_lins, normalized=normalized)
+    
+    check_gradient(f,x)
