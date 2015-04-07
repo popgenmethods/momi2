@@ -1,6 +1,6 @@
 from __future__ import division
 from util import EPSILON, memoize
-from ad.admath import exp, log, expm1
+from admath import exp, log, expm1
 from cached_property import cached_property
 import numpy as np
 import scipy.integrate

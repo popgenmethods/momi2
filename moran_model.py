@@ -2,7 +2,8 @@ import numpy as np
 from util import memoize
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
-from ad.admath import exp
+from admath import exp
+from adarray import array
 
 @memoize
 def rate_matrix(n, sparse_format="csr"):

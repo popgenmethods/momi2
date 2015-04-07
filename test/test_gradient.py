@@ -1,7 +1,7 @@
 from __future__ import division
 import pytest
 from ad import gh, adnumber
-from ad.admath import exp,log
+from admath import exp,log
 import numpy as np
 from size_history import ConstantTruncatedSizeHistory, PiecewiseHistory
 import networkx as nx

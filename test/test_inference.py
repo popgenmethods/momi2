@@ -11,8 +11,8 @@ import random
 import numpy as np
 import newick
 from ad import gh, adnumber
-import ad.admath
 import networkx as nx
+import admath
 from size_history import ConstantTruncatedSizeHistory
 
 from sum_product import SumProduct
@@ -89,7 +89,7 @@ def test_joint_sfs_inference():
             #weight = SumProduct(true_demo).p(normalized=True)
             sp = SumProduct(demo)
             #print(weight, states, sp.p(normalized=True))
-            ret -= weight * ad.admath.log(sp.p(normalized=True))
+            ret -= weight * admath.log(sp.p(normalized=True))
             #ret -= weight * math.log(sp.p())
         print ret
         return ret
