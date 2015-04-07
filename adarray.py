@@ -2,6 +2,7 @@ import ad
 from ad import adnumber, ADF, ADV
 import numpy as np
 from numbers import Number
+import scipy, scipy.signal
 
 def d(self, x=None):
     """
@@ -169,8 +170,8 @@ def d2c(self, x=None, y=None):
                 else:
                     tmp = 0.0
                 
-                return tmp
-                #return tmp if tmp.imag else tmp.real
+            return tmp
+            #return tmp if tmp.imag else tmp.real
 
         elif ((x is not None) and not (y is not None)) or \
              ((y is not None) and not (x is not None)):
@@ -196,14 +197,14 @@ class ADArray(ADF):
             return
 
         if not isinstance(x, np.ndarray):
-            x = np.array(x)
+            x = np.asarray(x)
         # get the variables to differentiate against
         adentries = []
         for i,xi in np.ndenumerate(x):
             if isinstance(xi, ADF):
                 adentries.append((i,xi))
             elif not isinstance(xi,Number):
-                raise TypeError(str(xi))
+                raise TypeError(str((i,xi)))
         variables = self._get_variables([xi for _,xi in adentries])
 
         # initialize the dictionaries of derivatives
@@ -249,20 +250,42 @@ def adapply(f, x, *args, **kwargs):
 def adsum(x, *args, **kwargs):
     return adapply(np.sum, x, *args, **kwargs)
 
-def addot(x,y):
-    # TODO: remove this requirement
-    assert len(y.shape) == 1 and len(x.shape) <= 2
+# def addot(x,y):
+#     # TODO: remove this requirement
+#     assert len(y.shape) == 1 and len(x.shape) <= 2
     
-    if len(y.shape) == 1:
-        if len(x.shape) == 1:
-            return adsum(x * y)
-        elif len(x.shape) == 2:
-            #old_x = x
-            #x = adapply(np.transpose, x)
-            ret = x * y
-            ret = adsum(ret,axis=1)
-            assert len(ret.shape) == 1
-            assert ret.shape[0] == x.shape[0]
-            return ret
-    raise Exception("General matrix/tensor multiplication not yet implemented")
+#     if len(y.shape) == 1:
+#         if len(x.shape) == 1:
+#             return adsum(x * y)
+#         elif len(x.shape) == 2:
+#             #old_x = x
+#             #x = adapply(np.transpose, x)
+#             ret = x * y
+#             ret = adsum(ret,axis=1)
+#             assert len(ret.shape) == 1
+#             assert ret.shape[0] == x.shape[0]
+#             return ret
+#     raise Exception("General matrix/tensor multiplication not yet implemented")
+
+''' implements product rule for multiplication-like operations, e.g. matrix/tensor multiplication, convolution'''
+def adproduct(prod):
+    def f(a,b, *args, **kwargs):
+        x = prod(a.x,b.x)
+
+        variables = a._get_variables([a,b])
+        lc, qc, cp = {}, {}, {}
+        for v in variables:
+            lc[v] = prod(a.d(v), b.x, *args, **kwargs) + prod(a.x, b.d(v),*args,**kwargs)
+            qc[v] = prod(a.d2(v), b.x, *args, **kwargs ) + 2 * prod(a.d(v), b.d(v), *args, **kwargs) + prod(a.x, b.d2(v), *args, **kwargs)
+
+            for u in variables:
+                if u is not v:
+                    cp[(v,u)] = prod(a.d2c(u,v), b.x, *args, **kwargs) + prod(a.d(u), b.d(v), *args, **kwargs) + prod(a.d(v) , b.d(u), *args, **kwargs) + prod(a.x, b.d2c(u,v), *args, **kwargs)
+        return ADF(x, lc, qc, cp)
+    return f
+
+
+dot = adproduct(np.dot)
+tensordot = adproduct(np.tensordot)
+fftconvolve = adproduct(scipy.signal.fftconvolve)
 
