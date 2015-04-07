@@ -125,6 +125,9 @@ ADF.sum = adarray_sum
 ''' implements product rule for multiplication-like operations, e.g. matrix/tensor multiplication, convolution'''
 def adproduct(prod):
     def f(a,b, *args, **kwargs):
+        if not isinstance(a, ADF) and not isinstance(b, ADF):
+            return prod(a,b)
+
         a,b = to_auto_diff(a), to_auto_diff(b)
         x = prod(a.x,b.x, *args, **kwargs)
 
