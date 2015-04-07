@@ -4,50 +4,152 @@ import numpy as np
 from numbers import Number
 import scipy, scipy.signal
 
+''' This file hacks the ad module so that we can have ad(np.ndarray) objects'''
+
+'''function analogous to np.array, except with derivatives'''
+def array(x):
+    if isinstance(x, ADF):
+        return adapply(np.array, x)
+
+    if not isinstance(x, np.ndarray):
+        x = np.asarray(x)
+
+    if np.issubdtype(x.dtype, np.number):
+        return x
+
+    # get the variables to differentiate against
+    adentries = []
+    for i,xi in np.ndenumerate(x):
+        if isinstance(xi, ADF):
+            adentries.append((i,xi))
+        elif not isinstance(xi,Number):
+            raise TypeError(str((i,xi)))
+    variables = _get_variables([xi for _,xi in adentries])
+
+    # initialize the dictionaries of derivatives
+    lc_dict, qc_dict, cp_dict = {}, {}, {}
+    d_dicts = (lc_dict, qc_dict, cp_dict)
+
+    # fill the dictionaries of derivatives
+    for i,xi in adentries:
+        for xi_d, x_d in zip((xi._lc, xi._qc, xi._cp), d_dicts):
+            for k in xi_d:
+                if k not in x_d:
+                    x_d[k] = np.zeros(x.shape)
+                x_d[k][i] = xi_d[k]
+
+    x_old = x
+    x = np.zeros(x.shape)
+    for i,xi in np.ndenumerate(x_old):
+        if isinstance(xi,ADF):
+            x[i] = xi.x
+        elif isinstance(xi, Number):
+            x[i] = xi
+        else:
+            raise Exception
+
+    return ADF(x, lc_dict, qc_dict, cp_dict)
+
+
+''' for a list of ADF, gets all the directions with derivatives'''
+def _get_variables(adfuncs):
+    variables = set()
+    for x in adfuncs:
+        variables |= set(x._lc)
+    return variables
+
+'''add shape and length to ADF'''
+@property
+def shape(self):
+    return self.x.shape
+
+def adlen(self):
+    return self.x.__len__()
+
+ADF.shape = shape
+ADF.__len__ = adlen
+
+'''redefine to_auto_diff to treat numpy arrays as constants'''
+def to_auto_diff(x):
+    if isinstance(x, ADF):
+        return x
+
+    if isinstance(x, Number) or (isinstance(x, np.ndarray) and np.issubdtype(x.dtype, np.number)):
+        # constants have no derivatives to define:
+        return ADF(x, {}, {}, {})
+
+    raise NotImplementedError(
+        'Automatic differentiation not yet supported for {:} objects'.format(
+        type(x))
+        )
+
+ad.to_auto_diff = to_auto_diff
+
+''' apply f to x and all its derivatives '''
+def adapply(f, x, *args, **kwargs):
+    ret_x = f(x.x, *args, **kwargs)
+    lc, qc, cp = {},{},{}
+    for ret_d, x_d in zip((lc, qc, cp), (x._lc, x._qc, x._cp)):
+        for v in x_d:
+            ret_d[v] = f(x_d[v], *args, **kwargs)
+    return ADF(ret_x, lc, qc, cp)
+
+''' implement __getitem__ for ADF'''
+def ad_getitem(self, *args, **kwargs):
+    return adapply(np.ndarray.__getitem__, self, *args, **kwargs)
+
+ADF.__getitem__ = ad_getitem
+
+''' implement sum for ADF'''
+def sum(x, *args, **kwargs):
+    if isinstance(x, ADF):
+        return adapply(np.sum, x, *args, **kwargs)
+    return np.sum(x, *args, **kwargs)
+
+def adarray_sum(self, *args, **kwargs):
+    return adapply(np.ndarray.sum, self, *args, **kwargs)
+
+ADF.sum = adarray_sum
+
+''' implements product rule for multiplication-like operations, e.g. matrix/tensor multiplication, convolution'''
+def adproduct(prod):
+    def f(a,b, *args, **kwargs):
+        a,b = to_auto_diff(a), to_auto_diff(b)
+        x = prod(a.x,b.x, *args, **kwargs)
+
+        variables = _get_variables([a,b])
+        lc, qc, cp = {}, {}, {}
+        for i,v in enumerate(variables):
+            lc[v] = prod(a.d(v), b.x, *args, **kwargs) + prod(a.x, b.d(v),*args,**kwargs)
+            qc[v] = prod(a.d2(v), b.x, *args, **kwargs ) + 2 * prod(a.d(v), b.d(v), *args, **kwargs) + prod(a.x, b.d2(v), *args, **kwargs)
+
+            for j,u in enumerate(variables):
+                if i < j:
+                    cp[(v,u)] = prod(a.d2c(u,v), b.x, *args, **kwargs) + prod(a.d(u), b.d(v), *args, **kwargs) + prod(a.d(v) , b.d(u), *args, **kwargs) + prod(a.x, b.d2c(u,v), *args, **kwargs)
+        return ADF(x, lc, qc, cp)
+    return f
+
+'''matrix multiplication, tensor multiplication, and convolution (Fourier domain multiplication)'''
+dot = adproduct(np.dot)
+tensordot = adproduct(np.tensordot)
+fftconvolve = adproduct(scipy.signal.fftconvolve)
+
+
+''' hack d, d2, and d2c, to work with ad(np.ndarray) types'''
+def zero(x):
+    try:
+        return np.zeros(shape=x.shape)
+    except AttributeError:
+        return 0.0
+
 def d(self, x=None):
-    """
-    Returns first derivative with respect to x (an AD object).
-
-    Optional
-    --------
-    x : AD object
-        Technically this can be any object, but to make it practically 
-        useful, ``x`` should be a single object created using the 
-        ``adnumber(...)`` constructor. If ``x=None``, then all associated 
-        first derivatives are returned in the form of a ``dict`` object.
-
-    Returns
-    -------
-    df/dx : scalar
-        The derivative (if it exists), otherwise, zero.
-
-    Examples
-    --------
-    ::
-        >>> x = adnumber(2)
-        >>> y = 3
-        >>> z = x**y
-
-        >>> z.d()
-        {ad(2): 12.0}
-
-        >>> z.d(x)
-        12.0
-
-        >>> z.d(y)  # derivative wrt y is zero since it's not an AD object
-        0.0
-
-    See Also
-    --------
-    d2, d2c, gradient, hessian
-
-    """
     if x is not None:
         if isinstance(x, ADF):
             try:
                 tmp = self._lc[x]
             except KeyError:
-                tmp = 0.0
+                #tmp = 0.0
+                tmp = zero(self)
             return tmp
             #return tmp if tmp.imag else tmp.real
         else:
@@ -56,236 +158,46 @@ def d(self, x=None):
         return self._lc
 
 def d2(self, x=None):
-        """
-        Returns pure second derivative with respect to x (an AD object).
-        
-        Optional
-        --------
-        x : AD object
-            Technically this can be any object, but to make it practically 
-            useful, ``x`` should be a single object created using the 
-            ``adnumber(...)`` constructor. If ``x=None``, then all associated 
-            second derivatives are returned in the form of a ``dict`` object.
-                    
-        Returns
-        -------
-        d2f/dx2 : scalar
-            The pure second derivative (if it exists), otherwise, zero.
-            
-        Examples
-        --------
-        ::
-            >>> x = adnumber(2.5)
-            >>> y = 3
-            >>> z = x**y
-            
-            >>> z.d2()
-            {ad(2): 15.0}
-            
-            >>> z.d2(x)
-            15.0
-            
-            >>> z.d2(y)  # second deriv wrt y is zero since not an AD object
-            0.0
-            
-        See Also
-        --------
-        d, d2c, gradient, hessian
-        
-        """
-        if x is not None:
-            if isinstance(x, ADF):
-                try:
-                    tmp = self._qc[x]
-                except KeyError:
-                    tmp = 0.0
-                #return tmp if tmp.imag else tmp.real
-                return tmp
-            else:
-                return 0.0
+    if x is not None:
+        if isinstance(x, ADF):
+            try:
+                tmp = self._qc[x]
+            except KeyError:
+                #tmp = 0.0
+                tmp = zero(self)
+            #return tmp if tmp.imag else tmp.real
+            return tmp
         else:
-            return self._qc
+            return 0.0
+    else:
+        return self._qc
 
 def d2c(self, x=None, y=None):
-        """
-        Returns cross-product second derivative with respect to two objects, x
-        and y (preferrably AD objects). If both inputs are ``None``, then a dict
-        containing all cross-product second derivatives is returned. This is 
-        one-way only (i.e., if f = f(x, y) then **either** d2f/dxdy or d2f/dydx
-        will be in that dictionary and NOT BOTH). 
-        
-        If only one of the inputs is ``None`` or if the cross-product 
-        derivative doesn't exist, then zero is returned.
-        
-        If x and y are the same object, then the pure second-order derivative
-        is returned.
-        
-        Optional
-        --------
-        x : AD object
-            Technically this can be any object, but to make it practically 
-            useful, ``x`` should be a single object created using the 
-            ``adnumber(...)`` constructor.
-        y : AD object
-            Same as ``x``.
-                    
-        Returns
-        -------
-        d2f/dxdy : scalar
-            The pure second derivative (if it exists), otherwise, zero.
-            
-        Examples
-        --------
-        ::
-            >>> x = adnumber(2.5)
-            >>> y = adnumber(3)
-            >>> z = x**y
-            
-            >>> z.d2c()
-            {(ad(2.5), ad(3)): 33.06704268553368}
-            
-            >>> z.d2c(x, y)  # either input order gives same result
-            33.06704268553368
-            
-            >>> z.d2c(y, y)  # pure second deriv wrt y
-            0.8395887053184748
-            
-        See Also
-        --------
-        d, d2, gradient, hessian
-        
-        """
-        if (x is not None) and (y is not None):
-            if x is y:
-                tmp = self.d2(x)
-            else:
-                if isinstance(x, ADF) and isinstance(y, ADF):
-                    try:
-                        tmp = self._cp[(x, y)]
-                    except KeyError:
-                        try:
-                            tmp = self._cp[(y, x)]
-                        except KeyError:
-                            tmp = 0.0
-                else:
-                    tmp = 0.0
-                
-            return tmp
-            #return tmp if tmp.imag else tmp.real
-
-        elif ((x is not None) and not (y is not None)) or \
-             ((y is not None) and not (x is not None)):
-            return 0.0
+    if (x is not None) and (y is not None):
+        if x is y:
+            tmp = self.d2(x)
         else:
-            return self._cp
+            if isinstance(x, ADF) and isinstance(y, ADF):
+                try:
+                    tmp = self._cp[(x, y)]
+                except KeyError:
+                    try:
+                        tmp = self._cp[(y, x)]
+                    except KeyError:
+                        #tmp = 0.0
+                        tmp = zero(self)
+            else:
+                tmp = 0.0
 
-@property
-def shape(self):
-    return self.x.shape
+        return tmp
+        #return tmp if tmp.imag else tmp.real
+
+    elif ((x is not None) and not (y is not None)) or \
+         ((y is not None) and not (x is not None)):
+        return 0.0
+    else:
+        return self._cp
 
 ADF.d = d
 ADF.d2 = d2
 ADF.d2c = d2c
-ADF.shape = shape
-
-'''converts a list or np.array of adnumbers into an adfunction of np.arrays'''
-class ADArray(ADF):
-    def __init__(self, x):
-        if isinstance(x, ADF):
-            # deep copy
-            super(ADArray, self).__init__(x.x, x._lc, x._qc, x._cp)
-            return
-
-        if not isinstance(x, np.ndarray):
-            x = np.asarray(x)
-        # get the variables to differentiate against
-        adentries = []
-        for i,xi in np.ndenumerate(x):
-            if isinstance(xi, ADF):
-                adentries.append((i,xi))
-            elif not isinstance(xi,Number):
-                raise TypeError(str((i,xi)))
-        variables = self._get_variables([xi for _,xi in adentries])
-
-        # initialize the dictionaries of derivatives
-        lc_dict, qc_dict, cp_dict = {}, {}, {}
-        d_dicts = (lc_dict, qc_dict, cp_dict)
-#         for v in variables:
-#             for d in d_dicts:
-#                 d[v] = np.zeros(x.shape)
-        
-        # fill the dictionaries of derivatives
-        for i,xi in adentries:
-            for xi_d, x_d in zip((xi._lc, xi._qc, xi._cp), d_dicts):
-                for k in xi_d:
-                    if k not in x_d:
-                        x_d[k] = np.zeros(x.shape)
-                    x_d[k][i] = xi_d[k]
-
-        x_old = x
-        x = np.zeros(x.shape)
-        for i,xi in np.ndenumerate(x_old):
-            if isinstance(xi,ADF):
-                x[i] = xi.x
-            elif isinstance(xi, Number):
-                x[i] = xi
-            else:
-                raise Exception
-
-        super(ADArray, self).__init__(x, lc_dict, qc_dict, cp_dict)
-
-
-def array(x):
-    return ADArray(x)
-
-def adapply(f, x, *args, **kwargs):
-    ret = array(x)
-
-    ret.x = f(ret.x, *args, **kwargs)
-    for d in (x._lc, x._qc, x._cp):
-        for v in d:
-            d[v] = f(d[v], *args, **kwargs)
-    return ret
-
-def adsum(x, *args, **kwargs):
-    return adapply(np.sum, x, *args, **kwargs)
-
-# def addot(x,y):
-#     # TODO: remove this requirement
-#     assert len(y.shape) == 1 and len(x.shape) <= 2
-    
-#     if len(y.shape) == 1:
-#         if len(x.shape) == 1:
-#             return adsum(x * y)
-#         elif len(x.shape) == 2:
-#             #old_x = x
-#             #x = adapply(np.transpose, x)
-#             ret = x * y
-#             ret = adsum(ret,axis=1)
-#             assert len(ret.shape) == 1
-#             assert ret.shape[0] == x.shape[0]
-#             return ret
-#     raise Exception("General matrix/tensor multiplication not yet implemented")
-
-''' implements product rule for multiplication-like operations, e.g. matrix/tensor multiplication, convolution'''
-def adproduct(prod):
-    def f(a,b, *args, **kwargs):
-        x = prod(a.x,b.x)
-
-        variables = a._get_variables([a,b])
-        lc, qc, cp = {}, {}, {}
-        for v in variables:
-            lc[v] = prod(a.d(v), b.x, *args, **kwargs) + prod(a.x, b.d(v),*args,**kwargs)
-            qc[v] = prod(a.d2(v), b.x, *args, **kwargs ) + 2 * prod(a.d(v), b.d(v), *args, **kwargs) + prod(a.x, b.d2(v), *args, **kwargs)
-
-            for u in variables:
-                if u is not v:
-                    cp[(v,u)] = prod(a.d2c(u,v), b.x, *args, **kwargs) + prod(a.d(u), b.d(v), *args, **kwargs) + prod(a.d(v) , b.d(u), *args, **kwargs) + prod(a.x, b.d2c(u,v), *args, **kwargs)
-        return ADF(x, lc, qc, cp)
-    return f
-
-
-dot = adproduct(np.dot)
-tensordot = adproduct(np.tensordot)
-fftconvolve = adproduct(scipy.signal.fftconvolve)
-
