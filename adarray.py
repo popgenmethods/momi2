@@ -100,6 +100,17 @@ def ad_getitem(self, *args, **kwargs):
 
 ADF.__getitem__ = ad_getitem
 
+''' implement __setitem__ for ADF'''
+def ad_setitem(self, key, value):
+    if not isinstance(key, Number):
+        raise NotImplementedError
+    self.x[key] = value
+    for derivatives in (self._lc, self._qc, self._cp):
+        for direction in derivatives:
+            derivatives[direction][key] = 0.0
+
+ADF.__setitem__ = ad_setitem
+
 ''' implement sum for ADF'''
 def sum(x, *args, **kwargs):
     if isinstance(x, ADF):
