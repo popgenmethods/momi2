@@ -250,36 +250,24 @@ def adapply(f, x, *args, **kwargs):
 def adsum(x, *args, **kwargs):
     return adapply(np.sum, x, *args, **kwargs)
 
-# def addot(x,y):
-#     # TODO: remove this requirement
-#     assert len(y.shape) == 1 and len(x.shape) <= 2
-    
-#     if len(y.shape) == 1:
-#         if len(x.shape) == 1:
-#             return adsum(x * y)
-#         elif len(x.shape) == 2:
-#             #old_x = x
-#             #x = adapply(np.transpose, x)
-#             ret = x * y
-#             ret = adsum(ret,axis=1)
-#             assert len(ret.shape) == 1
-#             assert ret.shape[0] == x.shape[0]
-#             return ret
-#     raise Exception("General matrix/tensor multiplication not yet implemented")
-
 ''' implements product rule for multiplication-like operations, e.g. matrix/tensor multiplication, convolution'''
-def adproduct(prod):
+def adproduct(times):
+    def prod(u,v, *args, **kwargs):
+        if (isinstance(u,Number) and u == 0.0) or (isinstance(v,Number) and v == 0.0):
+            return 0.0
+        return times(u,v, *args, **kwargs)
+
     def f(a,b, *args, **kwargs):
-        x = prod(a.x,b.x)
+        x = prod(a.x,b.x, *args, **kwargs)
 
         variables = a._get_variables([a,b])
         lc, qc, cp = {}, {}, {}
-        for v in variables:
+        for i,v in enumerate(variables):
             lc[v] = prod(a.d(v), b.x, *args, **kwargs) + prod(a.x, b.d(v),*args,**kwargs)
             qc[v] = prod(a.d2(v), b.x, *args, **kwargs ) + 2 * prod(a.d(v), b.d(v), *args, **kwargs) + prod(a.x, b.d2(v), *args, **kwargs)
 
-            for u in variables:
-                if u is not v:
+            for j,u in enumerate(variables):
+                if i < j:
                     cp[(v,u)] = prod(a.d2c(u,v), b.x, *args, **kwargs) + prod(a.d(u), b.d(v), *args, **kwargs) + prod(a.d(v) , b.d(u), *args, **kwargs) + prod(a.x, b.d2c(u,v), *args, **kwargs)
         return ADF(x, lc, qc, cp)
     return f
@@ -288,4 +276,3 @@ def adproduct(prod):
 dot = adproduct(np.dot)
 tensordot = adproduct(np.tensordot)
 fftconvolve = adproduct(scipy.signal.fftconvolve)
-

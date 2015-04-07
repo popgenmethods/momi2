@@ -2,7 +2,7 @@ from __future__ import division
 import pytest
 from ad import adnumber, ADF
 import numpy as np
-from adarray import array, adapply, adsum, dot
+from adarray import array, adapply, adsum, dot, tensordot, fftconvolve
 import random
 
 
@@ -17,7 +17,7 @@ def check_gradient(x_ad, x_np, *vars):
         grad2.append(curr)
 
     grad1,grad2 = [np.array(g) for g in grad1,grad2]
-    assert max(np.abs(np.log(grad1 / grad2))) < 1e-12
+    assert np.max(np.abs(np.log(grad1 / grad2))) < 1e-12
 
     hess1 = x_ad.hessian(vars)
     hess2 = []
@@ -68,7 +68,7 @@ def test_simple_addot():
     u,v = [get_random_monomials([x,y], shape=5) for _ in range(2)]
 
     z1 = dot(array(u) , array(v))
-    z2 = np.dot(np.array(u) , np.array(v))
+    z2 = np.dot(u , v)
 
     check_gradient(z1,z2,x,y)
 
@@ -79,6 +79,30 @@ def test_simple_addot2():
     v = get_random_monomials([x,y], shape=5)
 
     z1 = dot(array(u) , array(v))
-    z2 = np.dot(np.array(u) , np.array(v))
+    z2 = np.dot(u , v)
 
     check_gradient(z1,z2,x,y)
+
+def test_convolve():
+    x,y = adnumber(np.random.normal(size=2))
+    
+    u = get_random_monomials([x,y], shape=(10,))
+    v = get_random_monomials([x,y], shape=(10,))
+
+    z1 = fftconvolve(array(u), array(v))
+    z2 = np.convolve(u,v)
+
+    check_gradient(z1,z2,x,y)
+
+def test_tensordot():
+    x,y,z = adnumber(np.random.normal(size=3))
+    
+    u = get_random_monomials([x,y,z], shape=(2,3,4,5))
+    v = get_random_monomials([x,y,z], shape=(2,3,4,5))
+
+    axes = [[2,3]]*2
+
+    z2 = np.tensordot(u,v, axes=axes)
+    z1 = tensordot(array(u), array(v), axes=axes)
+
+    check_gradient(z1,z2,x,y,z)
