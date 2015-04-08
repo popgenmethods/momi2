@@ -75,9 +75,12 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
     @cached_property
     def etjj(self):
         j = np.arange(2, self.n_max + 1)
-        denom = binom(j, 2) / self.N
         if self.tau == float('inf'):
-            return 1.0 / denom
+            #return 1.0 / denom ## breaks for adnumber now
+            return self.N / binom(j,2)
+
+        ## WARNING: binom(j,2) / self.N breaks if self.N is an adnumber
+        denom = 1.0 / self.N * binom(j, 2)
 
         scaled_time = denom * self.tau
         num = -np.array(expm1(-scaled_time)) # equals 1 - exp(-scaledTime)
@@ -176,7 +179,8 @@ class PiecewiseHistory(TruncatedSizeHistory):
         for pop in self.pieces:
             ret = ret + noCoalProb * pop.etjj
             if pop.scaled_time != float('inf'):
-                noCoalProb = noCoalProb * exp(- jChoose2 * pop.scaled_time)
+                ## WARNING: autodifferentiate will break if jChoose2 * pop.scaled_time (the reverse order)
+                noCoalProb = noCoalProb * exp(- pop.scaled_time * jChoose2)
             else:
                 assert pop is self.pieces[-1]
         return ret
