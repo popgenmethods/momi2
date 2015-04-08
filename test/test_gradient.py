@@ -1,7 +1,7 @@
 from __future__ import division
 import pytest
-from ad import gh, adnumber
-from admath import exp,log
+from adarray import gh, adnumber, outer, array, sum
+from adarray.ad.admath import exp,log
 import numpy as np
 from size_history import ConstantTruncatedSizeHistory, PiecewiseHistory
 import networkx as nx
@@ -59,12 +59,14 @@ def check_gradient(f, x):
 
 def test_simple():
     def f(x):
-        return np.sum(np.outer(x,x))
+        x = array(x)
+        return sum(outer(x,x))
     check_gradient(f, np.random.normal(size=10))
 
 def test_simple_2():
     def f(x):
-        return np.sum(1.0 / np.outer(x,x))
+        x = array(x)
+        return sum(array(1.0) / outer(x,x))
     check_gradient(f, np.random.normal(size=10))
 
 def test_simple_3():

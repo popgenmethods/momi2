@@ -1,6 +1,7 @@
 from __future__ import print_function, division
 import scipy.misc, scipy.signal
 import numpy as np
+from adarray import array, fftconvolve
 
 from util import memoize_instance, memoize
 
@@ -27,17 +28,18 @@ class SumProduct(object):
         n_node = self.G.node_data[leaf]['lineages']
         ret = np.zeros(n_node + 1)
         ret[self.G.node_data[leaf]['derived']] = 1.0
-        return ret
+        return array(ret)
 
     def combinatorial_factors(self, node):
         n_node = self.G.n_lineages_subtended_by[node]
-        return scipy.misc.comb(n_node, np.arange(n_node + 1))
+        return array(scipy.misc.comb(n_node, np.arange(n_node + 1)))
 
+    ## TODO: make this a property of the demography, instead of the sum_product
     @memoize_instance
     def truncated_sfs(self, node):
         n_node = self.G.n_lineages_subtended_by[node]
-        sfs = np.array([self.G.node_data[node]['model'].freq(n_derived, n_node) for n_derived in range(n_node + 1)])
-        sfs[sfs == float("inf")] = 0.0
+        sfs = array([self.G.node_data[node]['model'].freq(n_derived, n_node) for n_derived in range(n_node + 1)])
+        sfs[sfs.x == float("inf")] = 0.0
         return sfs
 
     @memoize_instance
@@ -60,7 +62,8 @@ class SumProduct(object):
         liks = [self.partial_likelihood_top(node, child) * self.combinatorial_factors(child) 
                 for child in self.G[node]]
         #return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(node)
-        return np.convolve(*liks) / self.combinatorial_factors(node)
+        #return np.convolve(*liks) / self.combinatorial_factors(node)
+        return fftconvolve(*liks) / self.combinatorial_factors(node)
        
     @memoize_instance
     def joint_sfs(self, node):

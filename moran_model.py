@@ -2,9 +2,8 @@ import numpy as np
 from util import memoize
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
-from ad import ADF
-from admath import exp
-from adarray import array, dot
+from adarray import ADF, array, dot, diag
+from adarray.ad.admath import exp
 
 @memoize
 def rate_matrix(n, sparse_format="csr"):
@@ -18,13 +17,13 @@ def rate_matrix(n, sparse_format="csr"):
 def moran_eigensystem(n):
     M = np.asarray(rate_matrix(n).todense())
     d, P = np.linalg.eig(M)
-    return P, d, np.linalg.inv(P)
+    return array(P), array(d), array(np.linalg.inv(P))
 
 def moran_action(t, v):
     n = len(v) - 1
     P, d, Pinv = moran_eigensystem(n)
     ## WARNING: t can be an ADF, so keep it on the left
-    D = np.diag(exp(t * d))
+    D = diag(exp(t * d))
     # TODO: this can be optimized using np.einsum()
     return dot(P, dot(D, dot(Pinv,v)))
 

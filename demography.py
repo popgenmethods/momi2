@@ -4,6 +4,7 @@ from cStringIO import StringIO
 from cached_property import cached_property
 from size_history import ConstantTruncatedSizeHistory
 from sum_product import SumProduct
+from adarray import array
 
 class Demography(nx.DiGraph):
     @classmethod
@@ -172,10 +173,10 @@ def normalizing_constant(demography):
     # now create the Sum-Product
     sp = SumProduct(demography)
 
-    ret = 0.0
+    ret = array(0.0)
     for node in demography:
         # 1 - partial_likelihood_bottom is probability of at least one derived leaf lineage
-        ret += ((1.0 - sp.partial_likelihood_bottom(node)) * sp.truncated_sfs(node)).sum()
+        ret = ret + ((array(1.0) - sp.partial_likelihood_bottom(node)) * sp.truncated_sfs(node)).sum()
 
     # subtract off the term for all alleles derived
     state = {}
@@ -187,7 +188,7 @@ def normalizing_constant(demography):
     # now create the Sum-Product
     sp = SumProduct(demography)
 
-    ret -= sp.p(normalized=False)
+    ret = ret - sp.p(normalized=False)
 
     ## now reset the state
     ## TODO: remove this, make state a property of SumProduct instead of Demography

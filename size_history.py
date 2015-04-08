@@ -1,6 +1,7 @@
 from __future__ import division
 from util import EPSILON, memoize
-from admath import exp, log, expm1
+from adarray import array, sum
+from adarray.ad.admath import exp, log, expm1
 from cached_property import cached_property
 import numpy as np
 import scipy.integrate
@@ -23,7 +24,7 @@ def W(n, b, j):
 class TruncatedSizeHistory(object):
     def __init__(self, n_max, tau):
         self.n_max = n_max
-        self.tau = tau
+        self.tau = array(tau)
 
     def freq(self, n_derived, n):
         if n_derived == 0:
@@ -40,6 +41,7 @@ class TruncatedSizeHistory(object):
         for i in range(2, self.n_max + 1):
             for j in range(1, self.n_max):
                 ww[i - 2, j - 1] = W(self.n_max, j, i)
+        ww = array(ww)
         bv = (ww * self.etjj[:, None]).sum(axis=0)
         ret = dict(((b, self.n_max), v) for b, v in enumerate(bv, 1))
         # compute entry for monomorphic site
@@ -48,18 +50,17 @@ class TruncatedSizeHistory(object):
         # use recurrence to compute SFS for n < maxSampleSize
         for n in range(self.n_max - 1, 0, -1):
             for k in range(1, n + 1):
-                ret[(k, n)] = (ret[(k + 1, n + 1)] * (k + 1) / (n + 1) + 
-                        ret[(k, n + 1)] * (n + 1 - k) / (n + 1))
+                ret[(k, n)] = (ret[(k + 1, n + 1)] * array((k + 1) / (n + 1)) + 
+                        ret[(k, n + 1)] * array((n + 1 - k) / (n + 1)))
 
         # check accuracy
-        assert self.tau == ret[(1, 1)] or abs(log(self.tau / ret[(1, 1)])) < EPSILON, \
+        assert self.tau == ret[(1, 1)] or abs(log(self.tau / ret[(1, 1)])).x < EPSILON, \
                 "%.16f, %.16f"  % (self.tau, ret[(1, 1)])
         return ret
 
     def _before_tmrca(self, partial_sfs):
-        ret = self.tau - sum([partial_sfs[(b, self.n_max)] * b / self.n_max 
+        ret = self.tau - sum([partial_sfs[(b, self.n_max)] * array(b / self.n_max)
                                for b in range(1, self.n_max)])
-        # TODO: add assertion back in
         return ret
 
     def transition_prob(self, v):
@@ -70,21 +71,20 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
     '''Constant size population truncated to time tau.'''
     def __init__(self, n_max, tau, N):
         super(ConstantTruncatedSizeHistory, self).__init__(n_max, tau)
-        self.N = N
+        self.N = array(N)
 
     @cached_property
     def etjj(self):
         j = np.arange(2, self.n_max + 1)
-        if self.tau == float('inf'):
-            #return 1.0 / denom ## breaks for adnumber now
-            return self.N / binom(j,2)
 
         ## WARNING: binom(j,2) / self.N breaks if self.N is an adnumber
-        denom = 1.0 / self.N * binom(j, 2)
+        denom = array(binom(j, 2)) / self.N
+        if self.tau.x == float('inf'):
+            return array(1.0) / denom
 
         scaled_time = denom * self.tau
-        num = -np.array(expm1(-scaled_time)) # equals 1 - exp(-scaledTime)
-        assert np.all([num >= 0.0, num <= 1.0, num <= scaled_time]), "numerator=%s, scaledTime=%s" % (str(num), str(scaled_time))
+        num = -expm1(-scaled_time) # equals 1 - exp(-scaledTime)
+        assert np.all([num.x >= 0.0, num.x <= 1.0, num.x <= scaled_time.x]), "numerator=%s, scaledTime=%s" % (str(num), str(scaled_time))
         return num / denom
     
     @cached_property
@@ -172,13 +172,13 @@ class PiecewiseHistory(TruncatedSizeHistory):
     @cached_property
     def etjj(self):
         j = np.arange(2, self.n_max+1)
-        jChoose2 = scipy.misc.comb(j,2)
+        jChoose2 = array(scipy.misc.comb(j,2))
 
-        ret = np.zeros(len(j))
-        noCoalProb = np.ones(len(j))
+        ret = array(np.zeros(len(j)))
+        noCoalProb = array(np.ones(len(j)))
         for pop in self.pieces:
             ret = ret + noCoalProb * pop.etjj
-            if pop.scaled_time != float('inf'):
+            if pop.scaled_time.x != float('inf'):
                 ## WARNING: autodifferentiate will break if jChoose2 * pop.scaled_time (the reverse order)
                 noCoalProb = noCoalProb * exp(- pop.scaled_time * jChoose2)
             else:
@@ -187,6 +187,6 @@ class PiecewiseHistory(TruncatedSizeHistory):
 
     @cached_property
     def scaled_time(self):
-        if self.tau == float('inf'):
+        if self.tau.x == float('inf'):
             return self.tau
         return sum([pop.scaled_time for pop in self.pieces])
