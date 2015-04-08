@@ -48,14 +48,17 @@ class TruncatedSizeHistory(object):
         ret[(self.n_max, self.n_max)] = self._before_tmrca(ret)
 
         # use recurrence to compute SFS for n < maxSampleSize
-        for n in range(self.n_max - 1, 0, -1):
-            for k in range(1, n + 1):
-                ret[(k, n)] = (ret[(k + 1, n + 1)] * array((k + 1) / (n + 1)) + 
-                        ret[(k, n + 1)] * array((n + 1 - k) / (n + 1)))
+        ### TODO: this part is slow with autodifferentiation, but could be sped up using
+        ### vectorized numpy operations.
+        ### However we technically don't even need it, so just comment it out for now
+#         for n in range(self.n_max - 1, 0, -1):
+#             for k in range(1, n + 1):
+#                 ret[(k, n)] = (ret[(k + 1, n + 1)] * array((k + 1) / (n + 1)) + 
+#                         ret[(k, n + 1)] * array((n + 1 - k) / (n + 1)))
 
-        # check accuracy
-        assert self.tau == ret[(1, 1)] or abs(log(self.tau / ret[(1, 1)])).x < EPSILON, \
-                "%.16f, %.16f"  % (self.tau, ret[(1, 1)])
+#         # check accuracy
+#         assert self.tau == ret[(1, 1)] or abs(log(self.tau / ret[(1, 1)])).x < EPSILON, \
+#                 "%.16f, %.16f"  % (self.tau, ret[(1, 1)])
         return ret
 
     def _before_tmrca(self, partial_sfs):
