@@ -1,5 +1,8 @@
 TODO:
 
+***
+get all unit tests working again. clean them up a bit if necessary
+
 ****
 in adarray, make __pow__ work for at least some arrays
 in adarray, implement logical_or, logical_and
