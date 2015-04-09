@@ -1,0 +1,13 @@
+TODO:
+
+****
+in adarray, make __pow__ work for at least some arrays
+in adarray, implement logical_or, logical_and
+
+after above two changes, do cleanup in size_history, removing array() and num.x calls where possible
+
+***
+implement expm_multiply in adarray
+
+***
+implement only tracking first-order derivatives in adarray

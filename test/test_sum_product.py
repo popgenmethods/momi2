@@ -37,7 +37,7 @@ def demo_generator(fn=TEST_CASES):
 @pytest.mark.parametrize("demo,ret", demo_generator())
 def test_generated_cases(demo, ret):
     sp = SumProduct(demo)
-    p = sp.p().x
+    p = sp.p()
     assert abs(p - ret) / ret < 1e-4
 
 if __name__=="__main__":

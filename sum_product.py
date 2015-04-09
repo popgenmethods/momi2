@@ -32,14 +32,14 @@ class SumProduct(object):
 
     def combinatorial_factors(self, node):
         n_node = self.G.n_lineages_subtended_by[node]
-        return array(scipy.misc.comb(n_node, np.arange(n_node + 1)))
+        return scipy.misc.comb(n_node, np.arange(n_node + 1))
 
     ## TODO: make this a property of the demography, instead of the sum_product
     @memoize_instance
     def truncated_sfs(self, node):
         n_node = self.G.n_lineages_subtended_by[node]
         sfs = array([self.G.node_data[node]['model'].freq(n_derived, n_node) for n_derived in range(n_node + 1)])
-        sfs[sfs.x == float("inf")] = 0.0
+        sfs[sfs == float("inf")] = 0.0
         return sfs
 
     @memoize_instance
