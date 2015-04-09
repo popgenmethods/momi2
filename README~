@@ -1,6 +1,0 @@
-TODO:
-
-in adarray, make __pow__ work for at least some arrays
-in adarray, implement logical_or, logical_and
-
-after above two changes, cleanup in size_history, removing array() and num.x calls

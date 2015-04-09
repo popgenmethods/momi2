@@ -11,3 +11,13 @@ implement expm_multiply in adarray
 
 ***
 implement only tracking first-order derivatives in adarray
+
+***
+make adarray be able to merge back into original project easily
+
+to do this, instead of using ADF class, change ADF to be abstract superclass
+old-ad ADF becomes ADScalar
+my new ADF becomes ADArray
+whenever ADF arithmetic returns something, it calls self.getAD(result) to make
+the result be of appropriate type, where ADScalar and ADArray each return their own
+getAD
