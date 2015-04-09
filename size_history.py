@@ -1,7 +1,7 @@
 from __future__ import division
 from util import EPSILON, memoize
 from adarray import sum, array
-from adarray.ad.admath import exp, log, expm1
+from adarray.ad.admath import exp, log, expm1, expi
 from cached_property import cached_property
 import numpy as np
 import scipy.integrate
@@ -105,21 +105,22 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
 class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
     def __init__(self, n_max, tau, N_top, N_bottom):
         super(ExponentialTruncatedSizeHistory, self).__init__(n_max, tau)
-        self.N_top, self.N_bottom = N_top, N_bottom
+        self.N_top, self.N_bottom = array(N_top), array(N_bottom)
         # N_bottom = N_top * exp(tau * growth_rate)
-        self.growth_rate = log(N_bottom / N_top) / tau
-        raise Exception("must implement scipy.special.expi for adnumber")
+        self.growth_rate = log(self.N_bottom / self.N_top) / self.tau
 
     @cached_property
     def etjj(self):
         j = np.arange(2, self.n_max+1)
-        ret = scipy.special.expi(- scipy.misc.comb(j,2) / self.N_bottom * exp(self.growth_rate * self.tau) / self.growth_rate)
-        ret = ret - scipy.special.expi(- scipy.misc.comb(j,2) / self.N_bottom / self.growth_rate)
-        ret = ret * (1.0 / self.growth_rate * exp(1.0 / self.growth_rate * scipy.misc.comb(j,2) / self.N_bottom))
+        jChoose2 = array(scipy.misc.comb(j,2))
 
-        assert np.all(np.ediff1d(ret) <= 0) # ret should be decreasing
-        assert np.all(ret >= 0)
-        assert np.all(ret <= self.tau)
+        ret = expi(- jChoose2 / self.N_bottom * exp(self.growth_rate * self.tau) / self.growth_rate)
+        ret = ret - expi(- jChoose2 / self.N_bottom / self.growth_rate)
+        ret = ret * (exp(jChoose2 / self.growth_rate / self.N_bottom) / self.growth_rate )
+
+        assert np.all(np.ediff1d(ret.x) <= 0) # ret should be decreasing
+        assert np.all(ret.x >= 0)
+        assert np.all(ret.x <= self.tau)
 
         return ret
 
@@ -129,11 +130,11 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
         integral of 1/haploidN(t) from 0 to tau.
         used for Moran model transitions
         '''
-        return 1.0 / self.growth_rate / self.N_bottom * expm1(self.growth_rate * self.tau)
+        return array(1.0) / self.growth_rate / self.N_bottom * expm1(self.growth_rate * self.tau)
 
 class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
     '''Size history parameterized by an arbitrary function f.'''
-    
+    # TODO: make this work for autodifferentiation (by swapping integral with derivative?)    
     def __init__(self, n_max, tau, f):
         '''Initialize the model. For t > 0, f(t) >= is the instantaneous
         rate of coalescence (i.e., the inverse of the population size).
@@ -141,6 +142,7 @@ class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
         '''
         super(FunctionalTruncatedSizeHistory, self).__init__(n_max, tau)
         self._f = f
+        raise NotImplementedError("Not yet implemented for autodifferentiation")
 
     def _R(self, t):
         return scipy.integrate.quad(self._f, 0, t)[0]

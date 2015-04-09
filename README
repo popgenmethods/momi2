@@ -11,18 +11,14 @@ compare:
 ***
 compare which version of expm_multiply is faster (with and without derivatives)
 
-***
-get all population size histories working again!
-
-***
-get all unit tests working again. clean them up a bit if necessary
-
 ****
 in adarray, make __pow__ work for arrays, for at least some cases
 (e.g. if raising an array to a constant power -- having x**-1 would be nice)
 in adarray, implement logical_or, logical_and
+in adarray, implement allclose
 
-after above two changes, do cleanup in size_history, removing array() and num.x calls where possible
+after above changes, do cleanup in size_history, removing array() and num.x calls where possible
+also do cleanup in test_size_history with np.allclose
 
 ***
 implement expm_multiply in adarray
@@ -43,3 +39,6 @@ getAD
 ***
 make size_history store the SFS as an array,
 instead of having sum_product have to convert to an array everytime
+
+***
+Make functional size history work with autodifferentiation! Right now assumes it's a constant function always

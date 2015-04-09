@@ -10,9 +10,8 @@ from pprint import pprint
 import random
 import numpy as np
 import newick
-from ad import gh, adnumber
+from adarray import gh, adnumber, admath, array, sum
 import networkx as nx
-import admath
 from size_history import ConstantTruncatedSizeHistory
 
 from sum_product import SumProduct
@@ -69,19 +68,19 @@ def test_joint_sfs_inference():
     pprint(dict(jsfs_exact))
 
     jsfs = jsfs_exact
-    totalSnps = sum([v for k,v in jsfs.items()])
+    totalSnps = sum(array([v for k,v in jsfs.items()]))
 
     print(t0,t1)
     def f(join_time):
-        print(join_time[0],N0,t1,t1-join_time[0])
+        print(join_time[0],N0,t1,-join_time[0]+t1)
         #tree = newick_tpl.format(t0=join_time, N0=N0, t1=t1, rt0=t1 - join_time)
         #demo = Demography.from_newick(tree)
-        demo = get_demo(t0=join_time[0], N0=N0, t1=t1, rt0=t1 - join_time[0])
+        demo = get_demo(t0=join_time[0], N0=N0, t1=t1, rt0= -join_time[0]+t1)
         #totalSum = NormalizingConstant(demo).normalizing_constant()
         #ret = 0.0
-        lambd = theta / 2.0 * num_runs * demo.totalSfsSum
+        lambd = demo.totalSfsSum * theta / 2.0 * num_runs
         # poisson probability for total # snps is e^-lambd * lambd^totalSnps / totalSnps!
-        ret = lambd - totalSnps * math.log(lambd)
+        ret = lambd - totalSnps * admath.log(lambd)
         for states, weight in sorted(jsfs.items()):
             st = {a: {'derived': b, 'ancestral': 1 - b} for a, b in zip("abc", states)}
             demo.update_state(st)
@@ -243,7 +242,7 @@ def sfs_p_value(nonzeroCounts, empirical_sfs, squaredCounts, theoretical_sfs, ru
     # throw away all the entries with too few observations (they will not be very Gaussian)
     configs = [x for x in configs if nonzeroCounts[x] > minSamples]
     def sfsArray(sfs):
-        return np.array([sfs[x] for x in configs])
+        return np.array([float(sfs[x]) for x in configs])
     
     empirical_sfs = sfsArray(empirical_sfs)
     squaredCounts = sfsArray(squaredCounts)
@@ -252,9 +251,9 @@ def sfs_p_value(nonzeroCounts, empirical_sfs, squaredCounts, theoretical_sfs, ru
 
     means = empirical_sfs / float(runs)
     sqMeans = squaredCounts / float(runs)
-    bias = means - theta / 2.0 * theoretical_sfs
+    bias = theoretical_sfs * theta / 2.0 - means
     # estimated variance = empirical variance + bias^2
-    variances = sqMeans - np.square(means) + np.square(bias)
+    variances = bias**2 + sqMeans - np.square(means)
     variances *= runs / float(runs-1)
 
     # observed counts are Gaussian by CLT
