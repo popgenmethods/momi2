@@ -1,7 +1,15 @@
 TODO:
 
 ***
-do some speed testing
+do some speed testing, to see how much autodifferentiation slows stuff down
+compare:
+1. previous implementation (before adarray)
+2. constant case (no derivatives)
+3. first order derivatives
+4. second order derivatives
+
+***
+compare which version of expm_multiply is faster (with and without derivatives)
 
 ***
 get all population size histories working again!
@@ -10,7 +18,8 @@ get all population size histories working again!
 get all unit tests working again. clean them up a bit if necessary
 
 ****
-in adarray, make __pow__ work for at least some arrays
+in adarray, make __pow__ work for arrays, for at least some cases
+(e.g. if raising an array to a constant power -- having x**-1 would be nice)
 in adarray, implement logical_or, logical_and
 
 after above two changes, do cleanup in size_history, removing array() and num.x calls where possible
@@ -30,3 +39,7 @@ my new ADF becomes ADArray
 whenever ADF arithmetic returns something, it calls self.getAD(result) to make
 the result be of appropriate type, where ADScalar and ADArray each return their own
 getAD
+
+***
+make size_history store the SFS as an array,
+instead of having sum_product have to convert to an array everytime
