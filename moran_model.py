@@ -2,7 +2,7 @@ import numpy as np
 from util import memoize
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
-from adarray import dot, diag
+from adarray import dot, diag, ad_expm_multiply
 from adarray.ad.admath import exp
 
 @memoize
@@ -27,7 +27,12 @@ def moran_action(t, v):
     # TODO: this can be optimized using np.einsum()
     return dot(P, dot(D, dot(Pinv,v)))
 
+@memoize
+def _old_moran_action_func(n):
+    return ad_expm_multiply(rate_matrix(n))
+
 def _old_moran_action(t, v):
     n = len(v) - 1
-    M = rate_matrix(n)
-    return expm_multiply(t * M, v)
+    return _old_moran_action_func(n)(t,v)
+#     M = rate_matrix(n)
+#     return expm_multiply(t * M, v)

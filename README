@@ -21,12 +21,6 @@ after above changes, do cleanup in size_history, removing array() and num.x call
 also do cleanup in test_size_history with np.allclose
 
 ***
-implement expm_multiply in adarray
-
-***
-implement only tracking first-order derivatives in adarray
-
-***
 make adarray be able to merge back into original project easily
 
 to do this, instead of using ADF class, change ADF to be abstract superclass
