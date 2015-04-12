@@ -15,7 +15,7 @@ from msdemo import get_demo
 from sum_product import SumProduct
 from demography import Demography
 
-scrm = sh.Command(os.environ["SCRM_PATH"])
+scrm = lambda x: sh.Command(os.environ["SCRM_PATH"])(*(x.split()))
 # _scrm = sh.Command(os.environ["MSPATH"])
 # def scrm(*x):
 #     return _scrm(*x,_ok_code=[0,16,17,18])
@@ -28,11 +28,11 @@ def test_joint_sfs_inference():
     num_runs = 10000
 
     def scrm_cmd(join_time):
-        return "3 %d -t %f -I 3 1 1 1 -ej %f 1 2 -ej %f 2 3" % (num_runs, theta, join_time / 2. * N0, t1 / 2. * N0)
+        return "-I 3 1 1 1 -ej %f 1 2 -ej %f 2 3" % (join_time / 2. * N0, t1 / 2. * N0)
 
     true_demo = get_demo(scrm_cmd(t0))
 
-    jsfs,sqCounts,nonzero = run_scrm(true_demo)
+    jsfs,sqCounts,nonzero = run_scrm(true_demo, num_runs, theta=theta)
     totalSnps = sum([v for k,v in jsfs.items()])
     logFactorialTotalSnps = sum([math.log(x) for x in range(1,totalSnps)])
 
@@ -65,36 +65,46 @@ def run_scrm_example(N0, theta, t0, t1, num_runs):
     scrm_args = [3, num_runs, '-t', theta, '-I', 3, 1, 1, 1, '-ej', t1, 2, 3, '-ej', t0, 1, 2]
     return run_scrm(scrm_args, (1,1,1))
 
-def run_scrm(demo):
-    scrm_args = demo.graph['cmd']
+def run_scrm(demo, num_sims, theta=None, seed=None, additionalParams=""):
+    if any([(x in additionalParams) for x in "-t","-T","seed"]):
+        raise IOError("additionalParams should not contain -t,-T,-seed,-seeds")
+
     lins_per_pop = [demo.n_lineages_subtended_by[l] for l in sorted(demo.leaves)]
-
-    scrm_args = scrm_args.split()
-
-    n = scrm_args[0]
-    assert sum(lins_per_pop) == int(n)
+    n = sum(lins_per_pop)
     pops_by_lin = []
     for pop in range(len(lins_per_pop)):
         for i in range(lins_per_pop[pop]):
             pops_by_lin.append(pop)
     assert len(pops_by_lin) == int(n)
 
-    print(scrm_args)
-    assert scrm_args[2] in ['-t','-T']
-    trees = scrm_args[2] == '-T'
+    scrm_args = demo.graph['cmd']
+    if additionalParams:
+        scrm_args = "%s %s" % (scrm_args, additionalParams)
+
+    if seed is None:
+        seed = random.randint(0,999999999)
+    scrm_args = "%s --seed %s" % (scrm_args, str(seed))
+
+    assert scrm_args.startswith("-I ")
+    if not theta:
+        scrm_args = "-T %s" % scrm_args
+    else:
+        scrm_args = "-t %f %s" % (theta, scrm_args)
+    scrm_args = "%d %d %s" % (n, num_sims, scrm_args)
+
     def f(x):
         if x == "//":
             f.i += 1
         return f.i
     f.i = 0
-    runs = itertools.groupby((line.strip() for line in scrm(*scrm_args)), f)
+    runs = itertools.groupby((line.strip() for line in scrm(scrm_args)), f)
     next(runs)
     sumCounts = Counter()
     sumSqCounts = Counter()
     nonzeroCounts = Counter()
     for i, lines in runs:
         lines = list(lines)
-        if not trees:
+        if theta:
             currCounts = read_empirical_sfs(lines, len(lins_per_pop), pops_by_lin)
         else:
             currCounts = read_tree_lens(lines, len(lins_per_pop), pops_by_lin)

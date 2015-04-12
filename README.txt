@@ -10,3 +10,5 @@ instead have etjj and sfs take n as a parameter, and return
 the appropriate vector
 ***
 make exponential size history work with growth rate 0
+***
+add option to simulate from ms instead of scrm

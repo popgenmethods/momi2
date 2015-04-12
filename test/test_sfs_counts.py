@@ -27,16 +27,14 @@ def test_exp_growth():
     N_top=random.uniform(0.1,10.0)
     N_bottom = N_top * np.exp(growth_rate * tau)
 
-    scrm_args = "%d %d -T -G %f -eN %f %f" % (n, num_scrm_samples, growth_rate * N_bottom * 2.0, tau / N_bottom / 2.0, N_top / N_bottom)
+    scrm_args = "-I 1 %d -G %f -eN %f %f" % (n, growth_rate * N_bottom * 2.0, tau / N_bottom / 2.0, N_top / N_bottom)
     
     check_sfs_counts(scrm_args)
 
 
 def test_tree_demo_2():
     n = [4,4]
-
-    scrm_args = "%d %d -T -I %d %s -ej %f 2 1" % (sum(n), num_scrm_samples, len(n), " ".join(map(str,n)), 2 * np.random.random() + 0.1)
-
+    scrm_args = "-I %d %s -ej %f 2 1" % (len(n), " ".join(map(str,n)), 2 * np.random.random() + 0.1)
     check_sfs_counts(scrm_args)
 
 def test_tree_demo_4():
@@ -46,8 +44,7 @@ def test_tree_demo_4():
     for i in range(1,len(times)):
         times[i] += times[i-1]
 
-    scrm_args = "%d %d -T -I %d %s -ej %f 2 1 -ej %f 3 1 -ej %f 4 1" % (sum(n), num_scrm_samples, len(n), " ".join(map(str,n)), times[0], times[1], times[2])
-
+    scrm_args = "-I %d %s -ej %f 2 1 -ej %f 3 1 -ej %f 4 1" % (len(n), " ".join(map(str,n)), times[0], times[1], times[2])
     check_sfs_counts(scrm_args)
 
 
@@ -56,11 +53,11 @@ def check_sfs_counts(scrm_args):
     leaf_lins = {l : demo.n_lineages_subtended_by[l] for l in demo.leaves}
     leaf_pops = sorted(list(leaf_lins.keys()))
 
-    scrm_args = scrm_args.split()
-    scrm_args += ['-seed', random.randint(0,999999999)]
+#     scrm_args = scrm_args.split()
+    #scrm_args += ['-seed', random.randint(0,999999999)]
 
     #empirical_sfs,sqCounts,nonzeroCounts = run_scrm(scrm_args, tuple([leaf_lins[v] for v in leaf_pops]))
-    empirical_sfs,sqCounts,nonzeroCounts = run_scrm(demo)
+    empirical_sfs,sqCounts,nonzeroCounts = run_scrm(demo, num_scrm_samples)
     
     theoretical_sfs = {}
     ranges = [range(leaf_lins[v]+1) for v in leaf_pops]

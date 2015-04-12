@@ -6,11 +6,15 @@ from size_history import ConstantTruncatedSizeHistory as ConstHist
 from size_history import PiecewiseHistory
 
 def get_demo(ms_cmd):
-    # if ms_cmd = "3 1 -t 1.0 -T -I 2 1 2"
-    # then cmd_list = [[3,1], [t,1.0], [T], [I,2,1,2]]
+    ms_cmd = ms_cmd.strip()
+    if not ms_cmd.startswith("-I "):
+        raise IOError(("Must start cmd with -I", ms_cmd))
+
+    # if ms_cmd = "-I 2 1 2 -G -.3 -ej 1.0 2 1"
+    # then make cmd_list = [[I,2,1,2],[G,-.3],[ej,1.0,2,1]]
     cmd_list = []
-    curr_args = []
-    cmd_list.append(curr_args)
+#     curr_args = []
+#     cmd_list.append(curr_args)
 
     for arg in ms_cmd.split():
         if arg[0] == '-' and arg[1].isalpha():
@@ -19,14 +23,15 @@ def get_demo(ms_cmd):
         else:
             curr_args.append(arg)
 
-    n,_ = map(int, cmd_list[0])
-    cmd_list = cmd_list[1:]
+    #n,_ = map(int, cmd_list[0])
+    #cmd_list = cmd_list[1:]
+    assert cmd_list[0][0] == 'I'
 
     # remove all cmds in ignore_params
-    cmd_list = [cmd for cmd in cmd_list if cmd[0] not in ignore_params]
+    #cmd_list = [cmd for cmd in cmd_list if cmd[0] not in ignore_params]
 
     ## TODO: convert roots to [None] (will be useful for adding pops with -es)
-    kwargs = {'events':[],'edges':[],'nodes':{},'roots':{},'n':n,'cmd':ms_cmd}
+    kwargs = {'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd}
     for cmd in cmd_list:
         if cmd[0] not in valid_params:
             raise NotImplementedError("-%s not implemented" % cmd[0])
@@ -36,13 +41,11 @@ def get_demo(ms_cmd):
     return demo(**kwargs)
 
 valid_params = set(["G","I","n","g","eG","eg","eN","en","ej"])
-ignore_params = set(["seeds","seed","t","s","T","L","p","r","c"])
+#ignore_params = set(["seeds","seed","t","s","T","L","p","r","c"])
 
-def demo(events, edges, nodes, roots, n, cmd, **kwargs):
-    print cmd
-    if not nodes:
-        assert not any([events, edges, roots])
-        _I(1, n, edges=edges, nodes=nodes, roots=roots, n=n, cmd=cmd)
+def demo(events, edges, nodes, roots, cmd, **kwargs):
+    #print cmd
+    assert nodes
     if len(roots) != 1:
         raise IOError(("Must have a single root population", cmd))
     
@@ -92,6 +95,7 @@ def _en(t,i,N, nodes, roots, **kwargs):
     nodes[roots[i]]['sizes'].append({'t':t,'N':N,'alpha':None})
 
 def _eN(t,N, roots, **kwargs):
+    assert roots
     for i in roots:
         _en(t, i, N, roots=roots, **kwargs)
 
@@ -100,38 +104,40 @@ def _eg(t,i,alpha, roots, nodes, **kwargs):
     nodes[roots[i]]['sizes'].append({'t':t,'alpha':alpha})
 
 def _eG(t,alpha, roots, **kwargs):
+    assert roots
     for i in roots:
         _eg(t,i,alpha, roots=roots, **kwargs)
 
 def _n(i,N, nodes, events, edges, roots, **kwargs):
-    if not nodes or events:
-        raise IOError(("-n should be called after -I and before any demographic changes", kwargs['cmd']))
+    assert roots
+    if events:
+        raise IOError(("-n should be called before any demographic changes", kwargs['cmd']))
     assert not edges and len(nodes) == len(roots)
 
     assert len(nodes[i]['sizes']) == 1
     nodes[i]['sizes'][0]['N'] = float(N)
 
 def _g(i,alpha, nodes, events, edges, roots, **kwargs):
-    if not nodes or events:
-        raise IOError(("-g should be called after -I and before any demographic changes", kwargs['cmd']))
+    assert roots
+    if events:
+        raise IOError(("-g,-G should be called before any demographic changes", kwargs['cmd']))
     assert not edges and len(nodes) == len(roots)
 
     assert len(nodes[i]['sizes']) == 1
     nodes[i]['sizes'][0]['alpha'] = float(alpha)
 
-def _G(rate, roots, nodes, n, **kwargs):
-    if not nodes:
-        _I(1,n, n=n, roots=roots, nodes=nodes, **kwargs)  
+def _G(rate, roots, nodes, **kwargs):
+    assert roots
     for i in roots:
-        _g(i, rate, n=n, roots=roots, nodes=nodes, **kwargs)
+        _g(i, rate, roots=roots, nodes=nodes, **kwargs)
 
 def _I(*args, **kwargs):
-    if kwargs['nodes']:
-        raise IOError(("-I should be called earlier", kwargs['cmd']))
-    assert all([not kwargs[x] for x in 'roots','events','edges'])
+    # -I should be called first, so kwargs should be empty
+    assert all([not kwargs[x] for x in 'roots','events','edges','nodes'])
+
     npop = int(args[0])
     lins_per_pop = map(int,args[1:])
-    if len(lins_per_pop) != npop or sum(lins_per_pop) != kwargs['n']:
+    if len(lins_per_pop) != npop:
         raise IOError(("Bad args for -I. Note continuous migration is not implemented.", kwargs['cmd']))
 
     kwargs['nodes'].update({str(i+1) : {'sizes':[{'t':0.0,'N':1.0,'alpha':None}],'lineages':lins_per_pop[i]} for i in range(npop)})
@@ -168,7 +174,7 @@ def set_model(node_data, end_time, cmd):
     def model_func(n_max):
         pieces = []
         for size in sizes:
-            print size
+            #print size
             if size['alpha'] is not None:
                 pieces.append(ExpHist(n_max=n_max, tau=size['tau'], N_top=size['N_top'], N_bottom=size['N']))
             else:
