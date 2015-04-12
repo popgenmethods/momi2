@@ -1,9 +1,19 @@
 TODO:
 
-add from_ms method
-Change from_newick to use from_ms
-replace run_scrm() function with Demography.simulate() method
+***
+clean up from_newick, to_newick in demography.py
 
+Either:
+get rid of it entirely
+or
+change it to use from_ms
+or
+implement to_ms, so Demography.simulate_sfs() can work for newick demos
+
+***
+for simulate_sfs, make theta=None work when -r is set
+(right now it counts up the total branch length, but doesn't know
+how to deal with multiple trees)
 
 ***
 replace cached_property module (v1.0.0 not compatible with using nx.DiGraph)

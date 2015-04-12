@@ -4,12 +4,9 @@ import pytest
 import networkx as nx
 import random
 from sum_product import SumProduct
-from test_inference import run_scrm, sfs_p_value
 import numpy as np
-from collections import Counter
 import scipy, scipy.stats
 import itertools
-
 
 #theta = 1.0
 #num_scrm_samples = 10000
@@ -56,7 +53,8 @@ def check_sfs_counts(scrm_args):
     #scrm_args += ['-seed', random.randint(0,999999999)]
 
     #empirical_sfs,sqCounts,nonzeroCounts = run_scrm(scrm_args, tuple([leaf_lins[v] for v in leaf_pops]))
-    empirical_sfs,sqCounts,nonzeroCounts = run_scrm(demo, num_scrm_samples)
+    #empirical_sfs,sqCounts,nonzeroCounts = run_scrm(demo, num_scrm_samples)
+    empirical_sfs,sqCounts,nonzeroCounts = demo.simulate_sfs(num_scrm_samples)
     
     theoretical_sfs = {}
     ranges = [range(leaf_lins[v]+1) for v in leaf_pops]
@@ -82,3 +80,42 @@ def check_sfs_counts(scrm_args):
     #configs = sorted(empirical_sfs.keys())
     #assert scipy.stats.chisquare(sfsArray(empirical_sfs), sfsArray(theoretical_sfs))[1] >= .05
     #assert theoretical_sfs == empirical_sfs
+
+# approximate empirical_sfs - theoretical_sfs / sd by standard normal
+# use theta=2.0 if simulating trees instead of mutations
+def sfs_p_value(nonzeroCounts, empirical_sfs, squaredCounts, theoretical_sfs, runs, theta=2.0, minSamples=25):
+    configs = theoretical_sfs.keys()
+    # throw away all the entries with too few observations (they will not be very Gaussian)
+    configs = [x for x in configs if nonzeroCounts[x] > minSamples]
+    def sfsArray(sfs):
+        return np.array([sfs[x] for x in configs])
+    
+    empirical_sfs = sfsArray(empirical_sfs)
+    squaredCounts = sfsArray(squaredCounts)
+    theoretical_sfs = sfsArray(theoretical_sfs)
+    nonzeroCounts = sfsArray(nonzeroCounts)
+
+    means = empirical_sfs / float(runs)
+    sqMeans = squaredCounts / float(runs)
+    bias = means - theta / 2.0 * theoretical_sfs
+    # estimated variance = empirical variance + bias^2
+    variances = sqMeans - np.square(means) + np.square(bias)
+    variances *= runs / float(runs-1)
+
+    # observed counts are Gaussian by CLT
+    # empirical_mean - theoretical mean / estimated variance ~ t distribution with df runs-1
+    t_vals = bias / np.sqrt(variances) * np.sqrt(runs)
+
+    # get the p-values
+    abs_t_vals = np.abs(t_vals)
+    p_vals = 2.0 * scipy.stats.t.sf(abs_t_vals, df=runs-1)
+    # print some stuff
+    print("# configs, p-values, empirical-sfs, theoretical-sfs, nonzeroCounts")
+    toPrint = np.array([configs, p_vals, empirical_sfs, theoretical_sfs * theta / 2.0 * runs, nonzeroCounts]).transpose()
+    toPrint = toPrint[toPrint[:,1].argsort()[::-1]] # reverse-sort by p-vals
+    #toPrint = toPrint[toPrint[:,0].argsort()] # sort by config
+    print(toPrint)
+    
+    # p-values should be uniformly distributed
+    # so then the min p-value should be beta distributed
+    return scipy.stats.beta.cdf(np.min(p_vals), 1, len(p_vals))
