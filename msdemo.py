@@ -51,7 +51,7 @@ def demo(events, edges, nodes, roots, n, cmd, **kwargs):
 
     if 'alpha' in nodes[node]['sizes'][-1] and nodes[node]['sizes'][-1]['alpha'] is not None:
         raise IOError(("Root ancestral population must not have growth parameter",cmd))
-    set_model(nodes[node], float('inf'))
+    set_model(nodes[node], float('inf'), cmd)
 
     ret = nx.DiGraph(edges)
     for v in nodes:
@@ -67,12 +67,12 @@ def event_tree(events, demography):
     ## TODO: need to implement this for pulse migration
     pass
 
-def _ej(t,i,j, events, nodes, roots, edges, **kwargs):
+def _ej(t,i,j, events, nodes, roots, edges, cmd, **kwargs):
     t = float(t)
 
     for k in i,j:
         # sets the TruncatedSizeHistory, and N_top and alpha for all epochs
-        set_model(nodes[roots[k]], t)
+        set_model(nodes[roots[k]], t, cmd)
 
     new_pop = "(%s,%s)" % (roots[i],roots[j])
     events.append( [(new_pop,roots[i]),
@@ -138,7 +138,7 @@ def _I(*args, **kwargs):
     kwargs['roots'].update({k : k for k in kwargs['nodes']})
 
 
-def set_model(node_data, end_time):
+def set_model(node_data, end_time, cmd):
     # add 'model_func' to node_data, add information to node_data['sizes']
     sizes = node_data['sizes']
     # add a dummy epoch with the end time
@@ -160,7 +160,8 @@ def set_model(node_data, end_time):
             N = N * exp(-alpha * tau / 2.0)
         sizes[i]['N_top'] = N
 
-        assert all([sizes[i][x] >= 0.0 for x in 'tau','N','N_top'])
+        if not all([sizes[i][x] >= 0.0 for x in 'tau','N','N_top']):
+            raise IOError(("Negative time or population size. (Were events specified in correct order?", cmd))
     sizes.pop() # remove the final dummy epoch
 
     # construct function that returns size history from number of lineages
