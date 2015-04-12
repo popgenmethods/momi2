@@ -5,12 +5,11 @@ import networkx as nx
 import random
 from sum_product import SumProduct
 from test_inference import run_scrm, sfs_p_value
-#scrm = sh.Command(os.environ["SCRM_PATH"])
 import numpy as np
 from collections import Counter
 import scipy, scipy.stats
 import itertools
-from msdemo import get_demo
+
 
 #theta = 1.0
 #num_scrm_samples = 10000
@@ -49,7 +48,7 @@ def test_tree_demo_4():
 
 
 def check_sfs_counts(scrm_args):
-    demo = get_demo(scrm_args)
+    demo = Demography.from_ms(scrm_args)
     leaf_lins = {l : demo.n_lineages_subtended_by[l] for l in demo.leaves}
     leaf_pops = sorted(list(leaf_lins.keys()))
 

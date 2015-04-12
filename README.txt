@@ -1,5 +1,10 @@
 TODO:
 
+add from_ms method
+Change from_newick to use from_ms
+replace run_scrm() function with Demography.simulate() method
+
+
 ***
 replace cached_property module (v1.0.0 not compatible with using nx.DiGraph)
 ***

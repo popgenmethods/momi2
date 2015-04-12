@@ -10,7 +10,6 @@ from pprint import pprint
 import random
 import numpy as np
 import newick
-from msdemo import get_demo
 
 from sum_product import SumProduct
 from demography import Demography
@@ -30,7 +29,7 @@ def test_joint_sfs_inference():
     def scrm_cmd(join_time):
         return "-I 3 1 1 1 -ej %f 1 2 -ej %f 2 3" % (join_time / 2. * N0, t1 / 2. * N0)
 
-    true_demo = get_demo(scrm_cmd(t0))
+    true_demo = Demography.from_ms(scrm_cmd(t0))
 
     jsfs,sqCounts,nonzero = run_scrm(true_demo, num_runs, theta=theta)
     totalSnps = sum([v for k,v in jsfs.items()])
@@ -39,7 +38,7 @@ def test_joint_sfs_inference():
     pprint(dict(jsfs))
     print(t0,t1)
     def f(join_time):
-        demo = get_demo(scrm_cmd(join_time))
+        demo = Demography.from_ms(scrm_cmd(join_time))
         lambd = theta / 2.0 * num_runs * demo.totalSfsSum
         # poisson probability for total # snps is e^-lambd * lambd^totalSnps / totalSnps!
         ret = lambd + logFactorialTotalSnps - totalSnps * math.log(lambd)
