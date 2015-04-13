@@ -1,4 +1,6 @@
 import networkx as nx
+from cStringIO import StringIO
+from Bio import Phylo
 from size_history import ExponentialTruncatedSizeHistory as ExpHist
 from size_history import ConstantTruncatedSizeHistory as ConstHist
 from size_history import PiecewiseHistory
@@ -11,7 +13,7 @@ import itertools
 from collections import Counter
 
 '''Construct networkx DiGraph from ms command'''
-def to_nx(ms_cmd):
+def to_nx(ms_cmd, leafs=None):
     ms_cmd = ms_cmd.strip()
     if not ms_cmd.startswith("-I "):
         raise IOError(("Must start cmd with -I", ms_cmd))
@@ -34,7 +36,7 @@ def to_nx(ms_cmd):
     assert cmd_list[0][0] == 'I'
 
     # now parse the ms cmd, store results in kwargs
-    kwargs = {'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd}
+    kwargs = {'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd,'leafs':leafs}
     ## TODO: convert roots to [None] (will be useful for adding pops with -es)
     for cmd in cmd_list:
         if cmd[0] not in valid_params:
@@ -110,7 +112,7 @@ def _n(i,N, nodes, events, edges, roots, **kwargs):
     if events:
         raise IOError(("-n should be called before any demographic changes", kwargs['cmd']))
     assert not edges and len(nodes) == len(roots)
-
+    i = roots[i]
     assert len(nodes[i]['sizes']) == 1
     nodes[i]['sizes'][0]['N'] = float(N)
 
@@ -119,7 +121,7 @@ def _g(i,alpha, nodes, events, edges, roots, **kwargs):
     if events:
         raise IOError(("-g,-G should be called before any demographic changes", kwargs['cmd']))
     assert not edges and len(nodes) == len(roots)
-
+    i = roots[i]
     assert len(nodes[i]['sizes']) == 1
     nodes[i]['sizes'][0]['alpha'] = float(alpha)
 
@@ -137,9 +139,13 @@ def _I(*args, **kwargs):
     if len(lins_per_pop) != npop:
         raise IOError(("Bad args for -I. Note continuous migration is not implemented.", kwargs['cmd']))
 
-    kwargs['nodes'].update({str(i+1) : {'sizes':[{'t':0.0,'N':1.0,'alpha':None}],'lineages':lins_per_pop[i]} for i in range(npop)})
-    kwargs['roots'].update({k : k for k in kwargs['nodes']})
-
+    for i in range(npop):
+        if kwargs['leafs']:
+            leaf_name = kwargs['leafs'][i]
+        else:
+            leaf_name = str(i+1)
+        kwargs['nodes'][leaf_name] = {'sizes':[{'t':0.0,'N':1.0,'alpha':None}],'lineages':lins_per_pop[i]}
+        kwargs['roots'][str(i+1)] = leaf_name
 
 def set_model(node_data, end_time, cmd):
     # add 'model_func' to node_data, add information to node_data['sizes']
@@ -283,3 +289,121 @@ class NewickSfs(newick.tree.TreeVisitor):
             dd[self.pops_by_lin[int(leaf)-1]] += 1
         # add length to the sfs entry. multiply by 2 cuz of ms format
         self.sfs[tuple(dd)] += len * 2.0
+
+
+'''Construct ms cmd line from newick (for back compatibility)'''
+## TODO: solve back compatibitily issues and remove newick format
+_field_factories = {
+    "N": float, "lineages": int, "ancestral": int, 
+    "derived": int, "model": str
+    }
+def _extract_momi_fields(comment):
+    for field in comment.split("&&"):
+        if field.startswith("momi:"):
+            attrs = field.split(":")
+            assert attrs[0] == "momi"
+            attrs = [a.split("=") for a in attrs[1:]]
+            attrdict = dict((a, _field_factories[a](b)) for a, b in attrs)
+            return attrdict
+    return {}
+
+def from_newick(newick, default_lins=None, default_N = 1.0):
+    newick = StringIO(newick)
+    phy = Phylo.read(newick, "newick")
+    phy.rooted = True
+    edges = []
+    nodes = []
+    node_data = {}
+    clades = [phy.root]
+    phy.root.name = phy.root.name or "root"
+    i = 0
+    while clades:
+        clade = clades.pop()
+        nd = _extract_momi_fields(clade.comment or "")
+    
+        nodes.append((clade.name, nd))
+        for c_clade in clade.clades:
+            clades += clade.clades
+            if c_clade.name is None:
+                c_clade.name = "node%d" % i
+                i += 1
+            ed = {'branch_length': c_clade.branch_length}
+            edges.append((clade.name, (c_clade.name), ed))
+    t = nx.DiGraph(data=edges)
+    t.add_nodes_from(nodes)
+    tn = dict(t.nodes(data=True))
+    for node in node_data:
+        tn[node].update(node_data[node])
+    return _newick_nx_to_cmd(t, default_lins, default_N)
+
+def _newick_nx_to_cmd(newick_nx, default_lins, default_N):
+    leafs = sorted([k for k, v in newick_nx.out_degree().items() if v == 0])
+    
+    nd = newick_nx.node
+
+    for l in leafs:
+        if 'lineages' not in newick_nx.node[l]:
+            nd[l]['lineages'] = default_lins
+        nd[l]['height'] = 0.0
+    
+    cmd = "-I %d" % len(leafs)
+    cmd = "%s %s" % (cmd, " ".join([str(nd[l]['lineages']) for l in leafs]))
+
+    roots = {l : i for i,l in enumerate(leafs,start=1)}
+    
+    # add heights
+    for parent in nx.dfs_postorder_nodes(newick_nx):
+        for child in newick_nx[parent]:
+            ed = newick_nx[parent][child]
+            h = nd[child]['height'] + ed['branch_length']
+            if 'height' in nd[parent]:
+                assert abs(nd[parent]['height'] - h) < 1e-12
+            else:
+                nd[parent]['height'] = h
+
+    # add sizes
+    for node in newick_nx:
+        node = newick_nx.node[node]
+        if "model" in node and node['model'] != 'constant':
+            raise NotImplementedError("Unsupported model type: %s" % nd['model'])
+        if 'N' not in node:
+            node['N'] = default_N
+
+    # add leaf sizes to cmd
+    for i,l in enumerate(leafs,start=1):
+        if nd[l]['N'] != 1.0:
+            cmd = "%s -n %d %f" % (cmd, i, nd[l]['N'])
+
+    # add other sizes and join-on events
+    for node in nx.dfs_postorder_nodes(newick_nx):
+        if node in leafs:
+            continue
+        
+        c1,c2 = newick_nx[node]
+        t = newick_nx.node[node]['height'] / 2.0
+        cmd = "%s -ej %f %d %d" % (cmd, t, roots[c1], roots[c2])
+        roots[node] = roots[c2]
+        del roots[c1], roots[c2]
+
+        N = newick_nx.node[node]['N']
+        if N != newick_nx.node[c2]['N']:
+            cmd = "%s -en %f %i %f" % (cmd, t, roots[node], N)
+    return cmd, leafs
+
+def _to_newick(G, root):
+    parent = list(G.predecessors(root))
+    try:
+        edge_length = str(G[parent[0]][root]['branch_length'])
+    except IndexError:
+        edge_length = None
+    if not G[root]:
+        assert edge_length is not None
+        return root + ":" + edge_length
+    else:
+        children = list(G[root])
+        assert len(children) == 2
+        dta = [(_to_newick(G, child),) for child in children]
+        ret = "(%s,%s)" % (dta[0] + dta[1])
+        if edge_length:
+            ret += ":" + edge_length
+        return ret

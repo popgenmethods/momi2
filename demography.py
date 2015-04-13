@@ -10,31 +10,14 @@ import random
 
 class Demography(nx.DiGraph):
     @classmethod
-    def from_ms(cls, ms_cmd):
-        return cls(parse_ms.to_nx(ms_cmd))
+    def from_ms(cls, ms_cmd, leafs=None):
+        return cls(parse_ms.to_nx(ms_cmd, leafs=leafs))
 
     @classmethod
     def from_newick(cls, newick, default_lineages=None, default_N=1.0):
-        t = cls(_newick_to_nx(newick, default_lineages))
-        # add models to edges
-        for v0, v1, d in t.edges(data=True):
-            n_sub = t.n_lineages_subtended_by[v1]
-            nd = t.node_data[v1]
-            if 'model' not in nd or nd['model'] == "constant":
-                nd['model'] = ConstantTruncatedSizeHistory(
-                        N=nd.get('N', default_N),
-                        tau=d['branch_length'], 
-                        n_max=n_sub)
-            else:
-                raise Exception("Unsupported model type: %s" % nd['model'])
-        nd = t.node_data[t.root]
-        # FIXME: all possible size histories for root
-        nd['model'] = ConstantTruncatedSizeHistory(
-                N=nd.get('N', default_N),
-                n_max=t.n_lineages_subtended_by[t.root], 
-                tau=float("inf"))
-        return t
-
+        ms_cmd,leafs = parse_ms.from_newick(newick, default_lineages, default_N)
+        ret = cls.from_ms(ms_cmd, leafs=leafs)
+        return ret
 
     def __init__(self, *args, **kwargs):
         super(Demography, self).__init__(*args, **kwargs)
@@ -44,8 +27,8 @@ class Demography(nx.DiGraph):
         for v in self:
             if 'model_func' in nd[v] and 'model' not in nd[v]:
                 nd[v]['model'] = nd[v]['model_func'](self.n_lineages_subtended_by[v])
-#         if not all('model' in nd[k] for k in self):
-#             raise Exception("'model' attribute must be set for all nodes.")
+        if not all('model' in nd[k] for k in self):
+            raise Exception("'model' attribute must be set for all nodes.")
 
     @cached_property
     def event_tree(self):
@@ -113,8 +96,6 @@ class Demography(nx.DiGraph):
     def simulate_sfs(self, num_sims, theta=None, seed=None, additionalParams=""):
         return parse_ms.simulate_sfs(self, num_sims, theta, seed, additionalParams)
 
-    def to_newick(self):
-        return _to_newick(self, self.root)
 
 def normalizing_constant(demography):
     # to_directed() makes a deep-copy of the nx.DiGraph
@@ -146,68 +127,3 @@ def normalizing_constant(demography):
 
     ret -= sp.p(normalized=False)
     return ret
-
-
-'''newick stuff'''
-### TODO: delete newick stuff
-_field_factories = {
-    "N": float, "lineages": int, "ancestral": int, 
-    "derived": int, "model": str
-    }
-def _extract_momi_fields(comment):
-    for field in comment.split("&&"):
-        if field.startswith("momi:"):
-            attrs = field.split(":")
-            assert attrs[0] == "momi"
-            attrs = [a.split("=") for a in attrs[1:]]
-            attrdict = dict((a, _field_factories[a](b)) for a, b in attrs)
-            return attrdict
-    return {}
-
-def _newick_to_nx(newick, default_lineages=None):
-    newick = StringIO(newick)
-    phy = Phylo.read(newick, "newick")
-    phy.rooted = True
-    edges = []
-    nodes = []
-    node_data = {}
-    clades = [phy.root]
-    phy.root.name = phy.root.name or "root"
-    i = 0
-    while clades:
-        clade = clades.pop()
-        nd = _extract_momi_fields(clade.comment or "")
-        if 'lineages' not in nd and default_lineages is not None:
-            nd['lineages'] = default_lineages
-        nodes.append((clade.name, nd))
-        for c_clade in clade.clades:
-            clades += clade.clades
-            if c_clade.name is None:
-                c_clade.name = "node%d" % i
-                i += 1
-            ed = {'branch_length': c_clade.branch_length}
-            edges.append((clade.name, (c_clade.name), ed))
-    t = nx.DiGraph(data=edges)
-    t.add_nodes_from(nodes)
-    tn = dict(t.nodes(data=True))
-    for node in node_data:
-        tn[node].update(node_data[node])
-    return t
-
-def _to_newick(G, root):
-    parent = list(G.predecessors(root))
-    try:
-        edge_length = str(G[parent[0]][root]['branch_length'])
-    except IndexError:
-        edge_length = None
-    if not G[root]:
-        assert edge_length is not None
-        return root + ":" + edge_length
-    else:
-        children = list(G[root])
-        assert len(children) == 2
-        dta = [(_to_newick(G, child),) for child in children]
-        ret = "(%s,%s)" % (dta[0] + dta[1])
-        if edge_length:
-            ret += ":" + edge_length
-        return ret
