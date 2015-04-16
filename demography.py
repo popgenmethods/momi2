@@ -1,148 +1,90 @@
 import networkx as nx
-from Bio import Phylo
-from cStringIO import StringIO
 from cached_property import cached_property
-from size_history import ConstantTruncatedSizeHistory
-from sum_product import SumProduct
 from util import memoize_instance, memoize
 import scipy, scipy.misc, scipy.signal
 import numpy as np
 from sum_product import LabeledAxisArray, SumProduct
-
-class FrozenDict(object):
-    def __init__(self, dict):
-        self._dict = dict
-        self._frozen = frozenset(dict.iteritems())
-
-    def keys(self):
-        return self._dict.keys()
-    
-    def __getitem__(self, key):
-        return self._dict[key]
-
-    def __hash__(self):
-        return self._frozen.__hash__()
-
-    def __eq__(self, other):
-        return self._frozen == other._frozen
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-# only works for tree demographies
-# TODO: for more general demographies, build event tree first, then demo
-def getEventTree(demo):
-    eventDict = {}
-    eventEdges = []
-    # breadth first search
-    #for v in reversed([demo.root] + [v1 for v0,v1 in nx.bfs_edges(demo, demo.root)]):
-    for v in nx.dfs_postorder_nodes(demo, demo.root):
-        #assert len(demo.predecessors(v)) <= 1
-        in_edges,out_edges = demo.in_edges(v, data=True),demo.out_edges(v, data=True)
-
-        if len(out_edges) == 0:
-            e = FrozenDict({'type' : 'leaf', 'subpops' : (v,), 'newpops' : (v,)})
-            eventDict[v] = e
-
-        if len(out_edges) == 2:
-            childEvent1,childEvent2 = [eventDict[e[1]] for e in out_edges]
-            if childEvent1 != childEvent2:
-                subpops = set(list(childEvent1['subpops']) + list(childEvent2['subpops']))
-                for childPop in demo[v]:
-                    subpops.remove(childPop)
-                subpops.add(v)
-                e = FrozenDict({'type' : 'merge_clusters', 'subpops' : tuple(subpops), 'newpops' : (v,)})
-                # update the current event all vertices are pointing to
-                eventEdges += [(e,eventDict[c], {'childPop' : c}) for c in demo[v]]
-                for p in e['subpops']:
-                    eventDict[p] = e
-                #eventDict[v] = e
-            else:
-                childEvent = childEvent1
-                subpops = set(childEvent['subpops'])
-                for childPop in demo[v]:
-                    subpops.remove(childPop)
-                subpops.add(v)
-                e = FrozenDict({'type' : 'merge_subpops', 'subpops' : tuple(subpops), 'newpops' : (v,)})
-                eventEdges += [(e, childEvent)]
-                for p in e['subpops']:
-                    eventDict[p] = e
-
-        if len(in_edges) == 2:
-            # must be done after adding leaf/merge event for this node
-            childEvent = e
-            subpops = set(childEvent['subpops'])
-            subpops.remove(v)
-            newpops = frozenset(demo.predecessors(v))
-            for parent in newpops:
-                subpops.add(parent)
-            e = FrozenDict({'type' : 'admixture', 'subpops' : tuple(subpops), 'newpops' : tuple(newpops), 'childpop' : v})
-            for p in e['subpops']:
-                eventDict[p] = e
-            eventEdges += [(e,childEvent)]
-    ret = nx.DiGraph(eventEdges)
-    ret.demography = demo
-    ret.root = eventDict[demo.root]
-    return ret
-
-# for testing that merge_subpops works
-def replaceWithDummyMerge(eventTree):
-    old_nodes = [v for v in eventTree]
-    for v in old_nodes:
-        if v['type'] == 'merge_clusters':
-            c1,c2 = eventTree[v]
-            childEventSubpops = tuple(list(c1['subpops']) + list(c2['subpops']))
-
-            dummy_merge = FrozenDict({'type' : 'dummy_merge_clusters', 'subpops' : childEventSubpops, 'newpops' : ()})
-            merge_subpops = FrozenDict({'type' : 'merge_subpops', 'subpops' : v['subpops'], 'newpops' : v['newpops']})
-
-            eventTree.add_nodes_from([dummy_merge, merge_subpops])
-            eventTree.add_edge(merge_subpops, dummy_merge)
-
-            for c in eventTree[v]:
-                eventTree.add_edge(dummy_merge, c)
-
-            for parentEdge in eventTree.in_edges(v):
-                eventTree.add_edge(parentEdge[0], merge_subpops)
-                
-            eventTree.remove_node(v)
-            if v == eventTree.root:
-                eventTree.root = merge_subpops
-    for v in eventTree:
-        assert v['type'] != 'merge_clusters'
+import parse_ms
+import random
+import itertools
 
 class Demography(nx.DiGraph):
     @classmethod
+    def from_ms(cls, ms_cmd, leafs=None):
+        return cls(parse_ms.to_nx(ms_cmd, leafs=leafs))
+
+    @classmethod
     def from_newick(cls, newick, default_lineages=None, default_N=1.0):
-        t = cls(_newick_to_nx(newick, default_lineages))
-        # add models to edges
-        for v0, v1, d in t.edges(data=True):
-            n_sub = t.n_lineages_at_node[v1]
-            nd = t.node_data[v1]
-            if 'model' not in nd or nd['model'] == "constant":
-                nd['model'] = ConstantTruncatedSizeHistory(
-                        N=nd.get('N', default_N),
-                        tau=d['branch_length'], 
-                        n_max=n_sub)
-            else:
-                raise Exception("Unsupported model type: %s" % nd['model'])
-        nd = t.node_data[t.root]
-        # FIXME: all possible size histories for root
-        nd['model'] = ConstantTruncatedSizeHistory(
-                N=nd.get('N', default_N),
-                n_max=t.n_lineages_at_node[t.root], 
-                tau=float("inf"))
-        return t
+        ms_cmd,leafs = parse_ms.from_newick(newick, default_lineages, default_N)
+        ret = cls.from_ms(ms_cmd, leafs=leafs)
+        return ret
 
     def __init__(self, *args, **kwargs):
         super(Demography, self).__init__(*args, **kwargs)
         nd = self.node_data
         if not all('lineages' in nd[k] for k in self.leaves):
             raise Exception("'lineages' attribute must be set for each leaf node.")
-        # TODO: make event tree create the demography, instead of vice versa
-        self.eventTree = getEventTree(self)
-        #replaceWithDummyMerge(self.eventTree)
+        for v in self:
+            if 'model_func' in nd[v] and 'model' not in nd[v]:
+                nd[v]['model'] = nd[v]['model_func'](self.n_lineages_at_node[v])
+        if not all('model' in nd[k] for k in self):
+            raise Exception("'model' attribute must be set for all nodes.")
+
+    @cached_property
+    def eventTree(self):
+        eventEdgeList = []
+        currEvents = {l : (l,) for l in self.leaves}
+        eventDict = {e : {'subpops' : (l,), 'parent_pops' : (l,), 'child_pops' : {}} for l,e in currEvents.iteritems()}
         
+        for e in self.graph['events']:
+            # get the population edges forming the event
+            parent_pops, child_pops = map(set, zip(*e))
+            child_events = set([currEvents[c] for c in child_pops])
+            assert len(e) == 2 and len(parent_pops) + len(child_pops) == 3 and len(child_events) in (1,2)
+
+            sub_pops = set(itertools.chain(*[eventDict[c]['subpops'] for c in child_events]))
+            sub_pops.difference_update(child_pops)
+            sub_pops.update(parent_pops)
+
+            eventDict[e] = {'parent_pops' : tuple(parent_pops), 'subpops' : tuple(sub_pops), 'child_pops' : {c : currEvents[c] for c in child_pops}}
+            currEvents.update({p : e for p in sub_pops})
+            for p in child_pops:
+                del currEvents[p]
+            eventEdgeList += [(e, c) for c in child_events]
+        ret = nx.DiGraph(eventEdgeList)
+        for e in eventDict:
+            ret.add_node(e, **(eventDict[e]))
+
+        assert len(currEvents) == 1
+        root, = [v for k,v in currEvents.iteritems()]
+        ret.root = root
+
+        return ret
+    
+    @property
+    def event_root(self):
+        return self.eventTree.root
+
+    def event_type(self, event):
+        if len(event) == 1:
+            return 'leaf'
+        elif len(self.parent_pops(event)) == 2:
+            return 'admixture'
+        elif len(self.eventTree[event]) == 2:
+            return 'merge_clusters'
+        else:
+            return 'merge_subpops'
+
+    def sub_pops(self, event):
+        return self.eventTree.node[event]['subpops']
+
+    def parent_pops(self, event):
+        return self.eventTree.node[event]['parent_pops']
+
+    # returns dict of {childPop : childEvent}
+    def child_pops(self, event):
+        return self.eventTree.node[event]['child_pops']
+
     @cached_property
     def totalSfsSum(self):
         return normalizing_constant(self)
@@ -185,6 +127,19 @@ class Demography(nx.DiGraph):
     @cached_property
     def leaves_subtended_by(self):
         return {v: self.leaves & set(nx.dfs_preorder_nodes(self, v)) for v in self}
+
+    '''
+    Simulates the SFS from the demography.
+    If theta = None, uses total branch lengths for frequencies (ala fastsimcoal)
+
+    returns (sumFreqs,sumSqFreqs,nonzeroFreqs)
+    where
+    sumFreqs = sum of frequencies across all datasets
+    sumSqFreqs = sum of squared frequencies across all datasets
+    nonzeroFreqs = # of datasets where frequency was > 0
+    '''
+    def simulate_sfs(self, num_sims, theta=None, seed=None, additionalParams=""):
+        return parse_ms.simulate_sfs(self, num_sims, theta, seed, additionalParams)
 
     @memoize_instance
     def admixture_prob(self, admixture_node):
@@ -234,8 +189,6 @@ class Demography(nx.DiGraph):
         del self.n_derived_subtended_by #reset cache
         del self.node_data  #reset cache
 
-    def to_newick(self):
-        return _to_newick(self, self.root)
 
 @memoize
 def der_in_admixture_node(n_from_1, n_from_2, der_in_1, der_in_2):
@@ -258,70 +211,6 @@ def der_in_admixture_node(n_from_1, n_from_2, der_in_1, der_in_2):
     assert len(ret) == n_node+1
     return ret
 
-
-_field_factories = {
-    "N": float, "lineages": int, "ancestral": int, 
-    "derived": int, "model": str
-    }
-def _extract_momi_fields(comment):
-    for field in comment.split("&&"):
-        if field.startswith("momi:"):
-            attrs = field.split(":")
-            assert attrs[0] == "momi"
-            attrs = [a.split("=") for a in attrs[1:]]
-            attrdict = dict((a, _field_factories[a](b)) for a, b in attrs)
-            return attrdict
-    return {}
-
-def _newick_to_nx(newick, default_lineages=None):
-    newick = StringIO(newick)
-    phy = Phylo.read(newick, "newick")
-    phy.rooted = True
-    edges = []
-    nodes = []
-    node_data = {}
-    clades = [phy.root]
-    phy.root.name = phy.root.name or "root"
-    i = 0
-    while clades:
-        clade = clades.pop()
-        nd = _extract_momi_fields(clade.comment or "")
-        if 'lineages' not in nd and default_lineages is not None:
-            nd['lineages'] = default_lineages
-        nodes.append((clade.name, nd))
-        for c_clade in clade.clades:
-            clades += clade.clades
-            if c_clade.name is None:
-                c_clade.name = "node%d" % i
-                i += 1
-            ed = {'branch_length': c_clade.branch_length}
-            edges.append((clade.name, (c_clade.name), ed))
-    t = nx.DiGraph(data=edges)
-    t.add_nodes_from(nodes)
-    tn = dict(t.nodes(data=True))
-    for node in node_data:
-        tn[node].update(node_data[node])
-    return t
-
-def _to_newick(G, root):
-    parent = list(G.predecessors(root))
-    try:
-        edge_length = str(G[parent[0]][root]['branch_length'])
-    except IndexError:
-        edge_length = None
-    if not G[root]:
-        assert edge_length is not None
-        return root + ":" + edge_length
-    else:
-        children = list(G[root])
-        assert len(children) == 2
-        dta = [(_to_newick(G, child),) for child in children]
-        ret = "(%s,%s)" % (dta[0] + dta[1])
-        if edge_length:
-            ret += ":" + edge_length
-        return ret
-
-
 def normalizing_constant(demography):
     # to_directed() makes a deep-copy of the nx.DiGraph
     demography = Demography(demography.to_directed())
@@ -336,9 +225,9 @@ def normalizing_constant(demography):
     sp = SumProduct(demography)
 
     ret = 0.0
-    for event in sp.eventTree:
-        for newpop in event['newpops']:
-            labeledArray = LabeledAxisArray(sp.partial_likelihood_bottom(event), event['subpops'], copyArray=False)
+    for event in sp.G.eventTree:
+        for newpop in demography.parent_pops(event):
+            labeledArray = LabeledAxisArray(sp.partial_likelihood_bottom(event), demography.sub_pops(event), copyArray=False)
             # 1 - partial_likelihood_bottom is probability of at least one derived leaf lineage
             ret += ((1.0 - labeledArray.get_zeroth_vector(newpop)) * sp.truncated_sfs(newpop)).sum()
 

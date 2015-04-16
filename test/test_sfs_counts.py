@@ -4,10 +4,7 @@ import pytest
 import networkx as nx
 import random
 from sum_product import SumProduct
-from test_inference import run_scrm, sfs_p_value
-#scrm = sh.Command(os.environ["SCRM_PATH"])
 import numpy as np
-from collections import Counter
 import scipy, scipy.stats
 import itertools
 
@@ -19,207 +16,60 @@ num_scrm_samples = 1000
 #theta = .01
 #num_scrm_samples = 100000
 
-def expo_demo_func(n, tau, growth_rate, N_top, theta, rho=None, numLoci=None, smcLen = None):
+def admixture_cmd():
+    n = [2,2]
+
+    t = np.random.random(5) * 2.0 + 0.1
+    for i in range(1,len(t)):
+        t[i] += t[i-1]
+
+    p = np.random.random(2)
+
+    return "-I 2 %d %d -es %f 2 %f -es %f 2 %f -ej %f 4 3 -ej %f 3 1 -ej %f 2 1" % (n[0], n[1], t[0], p[0], t[1], p[1], t[2], t[3], t[4])
+
+
+def test_admixture():
+    check_sfs_counts(admixture_cmd())
+
+def test_exp_growth():
+    n = 10
+    tau = .01
+    growth_rate = random.uniform(-500,500)
+    N_top=random.uniform(0.1,10.0)
     N_bottom = N_top * np.exp(growth_rate * tau)
-    def expo_demo():
-        leaf_lins = {'a' : n}
-        leaf_pops = ('a',)
-        demo = nx.DiGraph([])
-        demo.add_node('a')
-        nd = dict(demo.nodes(data=True))
-        nd['a']['lineages'] = leaf_lins['a']
-        
-        demo = Demography(demo)
-        nd = demo.node_data['a']
-        nd['model'] = PiecewiseHistory([ExponentialTruncatedSizeHistory(n, theta/2. * tau, theta/2. * N_top, theta/2. * N_bottom),
-                                        ConstantTruncatedSizeHistory(n, float('inf'), theta/2. * N_top),
-                                        ])
 
-        scrm_args = [n, num_scrm_samples,
-                     '-t', theta * N_bottom,
-                     '-G', growth_rate * N_bottom * 2.0,
-                     '-eG', tau / N_bottom / 2.0, 0.0,
-                     ]
-        if rho is not None:
-            scrm_args += ['-r', rho * N_bottom, numLoci,
-                          '-l', smcLen]
-        return demo, scrm_args, leaf_lins, leaf_pops
-    return expo_demo
-
-def tree_demo_2():
-    leaf_lins = {'a' : 4, 'b': 4}
-
-    waitingTimes = np.random.random(1) * 2.0 + 0.1
-
-    absoluteTimes = np.array(waitingTimes)
-    for i in range(1,len(absoluteTimes)):
-        absoluteTimes[i] += absoluteTimes[i-1]
-
-    abJoin, = absoluteTimes
-
-    # events: a,b merge at time tau
-    eventList = [(('ab','a'), ('ab','b')), # a,b merge
-                 ]
-    demoEdgeList = []
-    for e1,e2 in eventList:
-        demoEdgeList += [e1,e2]
-    demo = nx.DiGraph(demoEdgeList)
-    nd = dict(demo.nodes(data=True))
-    nd['a']['lineages'] = leaf_lins['a']
-    nd['b']['lineages'] = leaf_lins['b']
-
-    popWaitTimes = {'a' : abJoin, 'b' : abJoin, # a,b join
-                    'ab' : float('inf'),
-                    }
-
-    demo = Demography(demo) 
-    for v in demo:
-        nd = demo.node_data[v]
-        n_sub = demo.n_lineages_at_node[v]
-        nd['model'] = ConstantTruncatedSizeHistory(N=1.0,
-                                                   tau= popWaitTimes[v],
-                                                   n_max=n_sub)    
-
-    scrm_args = [sum([v for k,v in leaf_lins.iteritems()]), 
-                 num_scrm_samples, 
-                 #'-t', theta, 
-                 '-T',
-                 '-I', 2, leaf_lins['a'], leaf_lins['b'], # 1=a, 2=b
-                 '-ej', abJoin/2.0, 2, 1, # 1=ab
-                 ]
-    leaf_pops = ('a','b')
-    return demo, scrm_args, leaf_lins, leaf_pops
-
-def tree_demo_4():
-    leaf_lins = {'a' : 2, 'b': 2, 'c' : 2, 'd' : 2}
-
-    waitingTimes = np.random.random(3) * 2.0 + 0.1
-
-    absoluteTimes = np.array(waitingTimes)
-    for i in range(1,len(absoluteTimes)):
-        absoluteTimes[i] += absoluteTimes[i-1]
-
-    abJoin,abcJoin,abcdJoin = absoluteTimes
-
-    # events: a,b merge at time tau
-    eventList = [(('ab','a'), ('ab','b')), # a,b merge
-                 (('abc','ab'), ('abc','c')), # ab,c merge
-                 (('abcd','abc'), ('abcd','d')), # abc,d merge
-                 ]
-    demoEdgeList = []
-    for e1,e2 in eventList:
-        demoEdgeList += [e1,e2]
-    demo = nx.DiGraph(demoEdgeList)
-    nd = dict(demo.nodes(data=True))
-    for k,v in leaf_lins.iteritems():
-        nd[k]['lineages'] = v
-
-    popWaitTimes = {'a' : abJoin, 'b' : abJoin, # a,b join
-                    'ab' : abcJoin - abJoin, 'c' : abcJoin, # ab,c join
-                    'abc' : abcdJoin - abcJoin, 'd' : abcdJoin, #abc,d join
-                    'abcd' : float('inf'),
-                    }
-
-    demo = Demography(demo) 
-    for v in demo:
-        nd = demo.node_data[v]
-        n_sub = demo.n_lineages_at_node[v]
-
-        nd['model'] = ConstantTruncatedSizeHistory(N=1.0,
-                                                   tau= popWaitTimes[v],
-                                                   n_max=n_sub)    
-
-    scrm_args = [sum([v for k,v in leaf_lins.iteritems()]), 
-                 num_scrm_samples, 
-                 #'-t', theta, 
-                 '-T',
-                 '-I', len(leaf_lins), leaf_lins['a'], leaf_lins['b'], leaf_lins['c'], leaf_lins['d'], # 1=a, 2=b, 3=c, 4=d
-                 '-ej', abJoin/2.0, 2, 1, # 1=ab
-                 '-ej', abcJoin/2.0, 3, 1, # 1 = abc
-                 '-ej', abcdJoin/2.0, 4, 1, #1 = abcd
-                 ]
-    leaf_pops = ('a','b','c','d')
-    return demo, scrm_args, leaf_lins, leaf_pops
-
-def admixture_demo():
-    leaf_lins = {'a' : 2, 'bcd': 2}
-
-    waitingTimes = np.random.random(5) * 2.0 + 0.1
-
-    absoluteTimes = np.array(waitingTimes)
-    for i in range(1,len(absoluteTimes)):
-        absoluteTimes[i] += absoluteTimes[i-1]
-
-    bcdSplit,bcSplit,bdJoin,abdJoin,abcdJoin = absoluteTimes
-
-    bcdProb, bcProb = np.random.random(2)
-
-    leaf_pops = ['a','bcd']
-    # events: ('bc','d'), ('b','c'), 'bd', 'abd', 'abcd'
-    eventList = [(('bc','bcd'), ('d','bcd')), # 'bcd' splits into 'bc','d'
-                 (('b','bc'), ('c','bc')), # 'bc' splits into 'b','c'
-                 (('bd','b'), ('bd','d')), # b,d coalesces into bd
-                 (('abd','bd'),('abd','a')), # a,bd coalesce into abd
-                 (('abcd','abd'),('abcd','c')), # abd,c coalesce into abcd
-                 ]
-    demoEdgeList = []
-    for e1,e2 in eventList:
-        demoEdgeList += [e1,e2]
-    demo = nx.DiGraph(demoEdgeList)
-    nd = dict(demo.nodes(data=True))
-    nd['a']['lineages'] = leaf_lins['a']
-    nd['bcd']['lineages'] = leaf_lins['bcd']
-    #bcdProb,bcProb = random.uniform(0,1), random.uniform(0,1)
-    nd['bcd']['splitprobs'] = {'bc' : bcdProb, 'd' : 1-bcdProb}
-    nd['bc']['splitprobs'] = {'b' : bcProb, 'c' : 1-bcProb}
-
-    popWaitTimes = {'bcd' : bcdSplit, # bcd splits
-                    'bc' : bcSplit - bcdSplit, #bc splits
-                    'b' : bdJoin - bcSplit, 'd' : bdJoin - bcdSplit, # b,d join
-                    'a' : abdJoin, 'bd' : abdJoin - bdJoin, # a,bd join
-                    'c' : abcdJoin - bcSplit, 'abd' : abcdJoin - abdJoin, #abd,c join
-                    'abcd' : float('inf'), #tmrca
-                    }
-
-    demo = Demography(demo) 
-    for v in demo:
-        nd = demo.node_data[v]
-        n_sub = demo.n_lineages_at_node[v]
-        nd['model'] = ConstantTruncatedSizeHistory(N=1.0,
-                                                   tau= popWaitTimes[v],
-                                                   n_max=n_sub)    
-
-    scrm_args = [sum([v for k,v in leaf_lins.iteritems()]), 
-                 num_scrm_samples, 
-                 #'-t', theta, 
-                 '-T',
-                 '-I', 2, leaf_lins['a'], leaf_lins['bcd'], # 1=a, 2=bcd
-                 '-es', bcdSplit/2.0, 2, bcdProb, # 1=a, 2=bc, 3=d
-                 '-es', bcSplit/2.0, 2, 1-bcProb, # 1=a, 2=c, 3=d, 4=b
-                 '-ej', bdJoin/2.0, 4, 3, # 1=a, 2=c, 3=bd
-                 '-ej', abdJoin/2.0, 3, 1, # 1=abd, 2=c
-                 '-ej', abcdJoin/2.0, 2, 1, # 1=abcd
-                 ]
-    leaf_pops = ('a','bcd')
-    return demo, scrm_args, leaf_lins, leaf_pops
-
-test_demos = [admixture_demo, 
-              tree_demo_2,
-              tree_demo_4,
-              expo_demo_func(n=10, tau=.01, growth_rate=random.uniform(-500,500), N_top=random.uniform(0.1,10.0), theta=random.uniform(0.1,10.0))]
-#test_demos = [expo_demo_func(n=10, tau=400.0 /2e4, growth_rate=150.0, N_top=1.0, theta=10000., rho=10000., numLoci=int(1e7), smcLen=int(1e4))] # test for Matthias
-#test_demos = [admixture_demo]
-#test_demos = [tree_demo_4]
-#test_demos = [tree_demo_2]
+    scrm_args = "-I 1 %d -G %f -eN %f %f" % (n, growth_rate * N_bottom * 2.0, tau / N_bottom / 2.0, N_top / N_bottom)
+    
+    check_sfs_counts(scrm_args)
 
 
-@pytest.mark.parametrize("demo_func", test_demos)
-def test_sfs_counts(demo_func):
-    demo, scrm_args, leaf_lins, leaf_pops = demo_func()
+def test_tree_demo_2():
+    n = [4,4]
+    scrm_args = "-I %d %s -ej %f 2 1" % (len(n), " ".join(map(str,n)), 2 * np.random.random() + 0.1)
+    check_sfs_counts(scrm_args)
 
-    scrm_args += ['-seed', random.randint(0,999999999)]
+def test_tree_demo_4():
+    n = [2,2,2,2]
 
-    empirical_sfs,sqCounts,nonzeroCounts = run_scrm(scrm_args, tuple([leaf_lins[v] for v in leaf_pops]))
+    times = np.random.random(len(n)-1) * 2.0 + 0.1
+    for i in range(1,len(times)):
+        times[i] += times[i-1]
+
+    scrm_args = "-I %d %s -ej %f 2 1 -ej %f 3 1 -ej %f 4 1" % (len(n), " ".join(map(str,n)), times[0], times[1], times[2])
+    check_sfs_counts(scrm_args)
+
+
+def check_sfs_counts(scrm_args):
+    demo = Demography.from_ms(scrm_args)
+    leaf_lins = {l : demo.n_lineages_at_node[l] for l in demo.leaves}
+    leaf_pops = sorted(list(leaf_lins.keys()))
+
+#     scrm_args = scrm_args.split()
+    #scrm_args += ['-seed', random.randint(0,999999999)]
+
+    #empirical_sfs,sqCounts,nonzeroCounts = run_scrm(scrm_args, tuple([leaf_lins[v] for v in leaf_pops]))
+    #empirical_sfs,sqCounts,nonzeroCounts = run_scrm(demo, num_scrm_samples)
+    empirical_sfs,sqCounts,nonzeroCounts = demo.simulate_sfs(num_scrm_samples)
     
     theoretical_sfs = {}
     ranges = [range(leaf_lins[v]+1) for v in leaf_pops]
@@ -245,3 +95,42 @@ def test_sfs_counts(demo_func):
     #configs = sorted(empirical_sfs.keys())
     #assert scipy.stats.chisquare(sfsArray(empirical_sfs), sfsArray(theoretical_sfs))[1] >= .05
     #assert theoretical_sfs == empirical_sfs
+
+# approximate empirical_sfs - theoretical_sfs / sd by standard normal
+# use theta=2.0 if simulating trees instead of mutations
+def sfs_p_value(nonzeroCounts, empirical_sfs, squaredCounts, theoretical_sfs, runs, theta=2.0, minSamples=25):
+    configs = theoretical_sfs.keys()
+    # throw away all the entries with too few observations (they will not be very Gaussian)
+    configs = [x for x in configs if nonzeroCounts[x] > minSamples]
+    def sfsArray(sfs):
+        return np.array([sfs[x] for x in configs])
+    
+    empirical_sfs = sfsArray(empirical_sfs)
+    squaredCounts = sfsArray(squaredCounts)
+    theoretical_sfs = sfsArray(theoretical_sfs)
+    nonzeroCounts = sfsArray(nonzeroCounts)
+
+    means = empirical_sfs / float(runs)
+    sqMeans = squaredCounts / float(runs)
+    bias = means - theta / 2.0 * theoretical_sfs
+    # estimated variance = empirical variance + bias^2
+    variances = sqMeans - np.square(means) + np.square(bias)
+    variances *= runs / float(runs-1)
+
+    # observed counts are Gaussian by CLT
+    # empirical_mean - theoretical mean / estimated variance ~ t distribution with df runs-1
+    t_vals = bias / np.sqrt(variances) * np.sqrt(runs)
+
+    # get the p-values
+    abs_t_vals = np.abs(t_vals)
+    p_vals = 2.0 * scipy.stats.t.sf(abs_t_vals, df=runs-1)
+    # print some stuff
+    print("# configs, p-values, empirical-sfs, theoretical-sfs, nonzeroCounts")
+    toPrint = np.array([configs, p_vals, empirical_sfs, theoretical_sfs * theta / 2.0 * runs, nonzeroCounts]).transpose()
+    toPrint = toPrint[toPrint[:,1].argsort()[::-1]] # reverse-sort by p-vals
+    #toPrint = toPrint[toPrint[:,0].argsort()] # sort by config
+    print(toPrint)
+    
+    # p-values should be uniformly distributed
+    # so then the min p-value should be beta distributed
+    return scipy.stats.beta.cdf(np.min(p_vals), 1, len(p_vals))

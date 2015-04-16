@@ -96,12 +96,12 @@ class SumProduct(object):
     def __init__(self, demography):
         self.G = demography
         # TODO: make eventTree contain the demography rather than vice versa
-        self.eventTree = self.G.eventTree
+        #self.eventTree = self.G.eventTree
         # assert self.n_derived_leafs(tree) > 0 and self.n_derived_leafs(tree) < self.n_leaf_lins(tree)
         
     def p(self, normalized = False):
         '''Return joint SFS entry for the demography'''
-        ret = self.joint_sfs(self.eventTree.root)
+        ret = self.joint_sfs(self.G.event_root)
         if normalized:
             ret /= self.G.totalSfsSum
         return ret
@@ -131,7 +131,7 @@ class SumProduct(object):
         note n_top is fixed in Moran model, so P(n_top)=1
         '''       
         #return self.G.node_data[pop]['model'].transition_prob(bottom_likelihood)
-        ret = LabeledAxisArray(self.partial_likelihood_bottom(event), event['subpops'])
+        ret = LabeledAxisArray(self.partial_likelihood_bottom(event), self.G.sub_pops(event))
         for pop in popList:
             ret.apply_along_axis(pop, lambda x: self.G.node_data[pop]['model'].transition_prob(x))
         return ret.array
@@ -143,90 +143,80 @@ class SumProduct(object):
         note n_bottom is fixed in Moran model, so P(n_bottom)=1
         '''
         #if self.G.is_leaf(node):
-        if event['type'] == 'leaf':
-            leafpop, = event['newpops']
+        if self.G.event_type(event) == 'leaf':
+            leafpop, = self.G.parent_pops(event)
             return self.leaf_likelihood_bottom(leafpop)
-        elif event['type'] == 'admixture':
-            childpop = event['childpop']
-            p1,p2 = event['newpops']
+        elif self.G.event_type(event) == 'admixture':
+            childpop, = self.G.child_pops(event).keys()
+            p1,p2 = self.G.parent_pops(event)
 
-            childEvent, = self.eventTree[event]
+            childEvent, = self.G.eventTree[event]
             childTopLik = self.partial_likelihood_top(childEvent, frozenset([childpop]))
             
-            ret = LabeledAxisArray(childTopLik, childEvent['subpops'])
+            ret = LabeledAxisArray(childTopLik, self.G.sub_pops(childEvent))
             ret = ret.tensor_multiply(self.G.admixture_prob(childpop), childpop)
-            ret.reorder_axes(event['subpops']) # make sure axes are in correct order
+            ret.reorder_axes(self.G.sub_pops(event)) # make sure axes are in correct order
             return ret.array
-        elif event['type'] == 'merge_subpops':
-            newpop, = event['newpops']
+        elif self.G.event_type(event) == 'merge_subpops':
+            newpop, = self.G.parent_pops(event)
             childPops = self.G[newpop]
-            childEvent, = self.eventTree[event]
+            childEvent, = self.G.eventTree[event]
             childTopLik = self.partial_likelihood_top(childEvent, frozenset(childPops))
             
             c1,c2 = childPops
-            ret = LabeledAxisArray(childTopLik, childEvent['subpops'])
+            ret = LabeledAxisArray(childTopLik, self.G.sub_pops(childEvent))
             for c in c1,c2:
                 ret.multiply_along_axis(c, self.combinatorial_factors(c))
             ret.sum_axes((c1,c2), newpop)
             ret.divide_along_axis(newpop, self.combinatorial_factors(newpop))
             # make sure axis labels are correctly ordered
-            ret.reorder_axes(event['subpops'])
+            ret.reorder_axes(self.G.sub_pops(event))
             return ret.array
-        elif event['type'] == 'dummy_merge_clusters':
-            c1,c2 = self.eventTree[event]
-            array = np.multiply.outer(*[self.partial_likelihood_bottom(c) for c in c1,c2])
-            labels = list(c1['subpops']) + list(c2['subpops'])
-            ret = LabeledAxisArray(array, labels, copyArray=False)
-            # make sure array dimensions has correct ordering
-            ret.reorder_axes(event['subpops'])
-            return ret.array
-        elif event['type'] == 'merge_clusters':
-            newpop, = event['newpops']
+        elif self.G.event_type(event) == 'merge_clusters':
+            newpop, = self.G.parent_pops(event)
             liks = []
-            for parEvent, childEvent, edgeInfo in self.eventTree.edges([event], data=True):
-                assert parEvent is event
-                childPop = edgeInfo['childPop']
+            for childPop, childEvent in self.G.child_pops(event).iteritems():
                 childTopLik = self.partial_likelihood_top(childEvent, frozenset([childPop]))
-                childTopLik = LabeledAxisArray(childTopLik, childEvent['subpops'])
+                childTopLik = LabeledAxisArray(childTopLik, self.G.sub_pops(childEvent))
                 childTopLik.multiply_along_axis(childPop, self.combinatorial_factors(childPop))
                 # make childTopLik have same axisLabels as the array toReturn
                 childTopLik.relabel_axis(childPop, newpop)
-                childTopLik.expand_labels(event['subpops'])
+                childTopLik.expand_labels(self.G.sub_pops(event))
                 liks.append(childTopLik.array)
-            ret = LabeledAxisArray(scipy.signal.fftconvolve(*liks), event['subpops'], copyArray=False)
+            ret = LabeledAxisArray(scipy.signal.fftconvolve(*liks), self.G.sub_pops(event), copyArray=False)
             ret.divide_along_axis(newpop, self.combinatorial_factors(newpop))
             return ret.array
         else:
-            raise Exception("Event type %s not yet implemented" % event['type'])
+            raise Exception("Event type %s not yet implemented" % self.G.event_type(event))
        
     @memoize_instance
     def joint_sfs(self, event):
         '''The joint SFS entry for the configuration under this node'''
         # if no derived leafs, return 0
-        if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in event['subpops']):
+        if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in self.G.sub_pops(event)):
             return 0.0
         
         ret = 0.0
-        for newpop in event['newpops']:
+        for newpop in self.G.parent_pops(event):
             # term for mutation occurring at the newpop
-            labeledArray = LabeledAxisArray(self.partial_likelihood_bottom(event), event['subpops'], copyArray=False)
+            labeledArray = LabeledAxisArray(self.partial_likelihood_bottom(event), self.G.sub_pops(event), copyArray=False)
             ret += (labeledArray.get_zeroth_vector(newpop) * self.truncated_sfs(newpop)).sum()
 
         #if self.G.is_leaf(node):
-        if event['type'] == 'leaf':
+        if self.G.event_type(event) == 'leaf':
             return ret
         # add on terms for mutation occurring below this node
         # if no derived leafs on right, add on term from the left
-        elif event['type'] in ['merge_clusters', 'dummy_merge_clusters']:
-            c1, c2 = self.eventTree[event]
+        elif self.G.event_type(event) == 'merge_clusters':
+            c1, c2 = self.G.eventTree[event]
             for child, other_child in ((c1, c2), (c2, c1)):
                 #if self.G.n_derived_subtended_by[child] == 0:
-                if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in child['subpops']):
+                if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in self.G.sub_pops(child)):
                     ret += self.joint_sfs(other_child)
             return ret
-        elif event['type'] == 'merge_subpops' or event['type'] == 'admixture':
-            childEvent, = self.eventTree[event]
+        elif self.G.event_type(event) == 'merge_subpops' or self.G.event_type(event) == 'admixture':
+            childEvent, = self.G.eventTree[event]
             ret += self.joint_sfs(childEvent)
             return ret
         else:
-            raise Exception("Event type %s not yet implemented" % event['type'])
+            raise Exception("Event type %s not yet implemented" % self.G.event_type(event))
