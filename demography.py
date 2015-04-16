@@ -1,12 +1,10 @@
 import networkx as nx
-from Bio import Phylo
-from cStringIO import StringIO
 from cached_property import cached_property
-from size_history import ConstantTruncatedSizeHistory
 from sum_product import SumProduct
 import parse_ms
 
 import random
+import itertools
 
 class Demography(nx.DiGraph):
     @classmethod
@@ -31,9 +29,30 @@ class Demography(nx.DiGraph):
             raise Exception("'model' attribute must be set for all nodes.")
 
     @cached_property
-    def event_tree(self):
-        ## TODO: turn self['events'] into a tree (via nx.DiGraph)
-        return self['events']
+    def eventTree(self):
+        eventEdgeList = []
+        currEvents = {l : (l,) for l in self.leaves}
+        eventDict = {e : {'subpops' : (l,), 'newpops' : (l,)} for l,e in currEvents.iteritems()}
+        
+        for e in self['events']:
+            # get the population edges forming the event
+            parent_pops, child_pops = map(set, zip(*e))
+            child_events = set([currEvents[c] for c in child_pops])
+            assert len(e) == 2 and len(parent_pops) + len(child_pops) == 3 and len(child_events) in (1,2)
+
+            sub_pops = set(itertools.chain(*[eventDict[c]['subpops'] for c in child_events]))
+            sub_pops.difference_update(child_pops)
+            sub_pops.update(parent_pops)
+
+            currEvents.update({p : e for p in sub_pops})
+            for p in child_pops:
+                del currEvents[p]
+            eventDict[e] = {'newpops' : tuple(parent_pops), 'subpops' : tuple(sub_pops)}
+            eventEdgeList += [(e, c) for c in child_events]
+        ret = nx.DiGraph(eventEdgeList)
+        for e in eventDict:
+            ret.add_node(e, **(eventDict[e]))
+        return ret
 
     @cached_property
     def totalSfsSum(self):

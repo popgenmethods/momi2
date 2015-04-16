@@ -37,7 +37,6 @@ def to_nx(ms_cmd, leafs=None):
 
     # now parse the ms cmd, store results in kwargs
     kwargs = {'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd,'leafs':leafs}
-    ## TODO: convert roots to [None] (will be useful for adding pops with -es)
     for cmd in cmd_list:
         if cmd[0] not in valid_params:
             raise NotImplementedError("-%s not implemented" % cmd[0])
@@ -47,17 +46,20 @@ def to_nx(ms_cmd, leafs=None):
     # return nx.DiGraph from parsed ms cmd
     return _nx_from_parsed_ms(**kwargs)
 
-valid_params = set(["G","I","n","g","eG","eg","eN","en","ej"])
+valid_params = set(["G","I","n","g","eG","eg","eN","en","ej","es"])
 
 
 def _nx_from_parsed_ms(events, edges, nodes, roots, cmd, **kwargs):
     #print cmd
     assert nodes
+    roots = [r for _,r in roots.iteritems() if r is not None]
+
     if len(roots) != 1:
         raise IOError(("Must have a single root population", cmd))
     
-    root, = list(roots.iteritems())
-    _,node = root
+    #root, = list(roots.iteritems())
+    #_,node = root
+    node, = roots
 
     if 'alpha' in nodes[node]['sizes'][-1] and nodes[node]['sizes'][-1]['alpha'] is not None:
         raise IOError(("Root ancestral population must not have growth parameter",cmd))
@@ -69,6 +71,28 @@ def _nx_from_parsed_ms(events, edges, nodes, roots, cmd, **kwargs):
         #ret.node[v].update(nodes[v])
     return ret
 
+def _es(t,i,p, events, nodes, roots, edges, cmd, **kwargs):
+    t,p = map(float, (t,p))
+
+    child = roots[i]
+    set_model(nodes[child], t, cmd)
+
+    parents = (child + "a", child + "b")
+    assert all([par not in nodes for par in parents])
+
+    nodes[child]['splitprobs'] = {par : prob for par,prob in zip(parents, [p,1-p])}
+
+    prev = nodes[child]['sizes'][-1]
+    nodes[parents[0]] = {'sizes':[{'t':t,'N':prev['N_top'], 'alpha':prev['alpha']}]}
+    nodes[parents[1]] = {'sizes':[{'t':t,'N':1.0, 'alpha':None}]}
+
+    new_edges = tuple([(par, child) for par in parents])
+    events.append( new_edges )
+    edges += list(new_edges)
+
+    roots[i] = parents[0]
+    roots[str(len(roots)+1)] = parents[1]
+
 def _ej(t,i,j, events, nodes, roots, edges, cmd, **kwargs):
     t = float(t)
 
@@ -77,8 +101,8 @@ def _ej(t,i,j, events, nodes, roots, edges, cmd, **kwargs):
         set_model(nodes[roots[k]], t, cmd)
 
     new_pop = "(%s,%s)" % (roots[i],roots[j])
-    events.append( [(new_pop,roots[i]),
-                    (new_pop,roots[j])]  )
+    events.append( ((new_pop,roots[i]),
+                    (new_pop,roots[j]))  )
 
     assert new_pop not in nodes
     prev = nodes[roots[j]]['sizes'][-1]
@@ -87,7 +111,8 @@ def _ej(t,i,j, events, nodes, roots, edges, cmd, **kwargs):
     edges += [(new_pop, roots[i]), (new_pop, roots[j])]
 
     roots[j] = new_pop
-    del roots[i]
+    #del roots[i]
+    roots[i] = None
 
 def _en(t,i,N, nodes, roots, **kwargs):
     t,N = map(float, [t,N])
