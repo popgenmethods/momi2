@@ -1,9 +1,9 @@
 Timing demography -I 2 10 10 -ej 1.0 2 1
-Precomputation: 0.120385 seconds
-0.056199 seconds per site (33 sites in 1.854571 seconds)
+Precomputation: 0.010234 seconds
+0.000681 seconds per site (32 sites in 0.021777 seconds)
 Timing demography -I 4 10 10 10 10 -ej .4 4 3 -ej 1.0 3 2 -ej 2.0 2 1
-Precomputation: 0.620331 seconds
-0.292381 seconds per site (50 sites in 14.619056 seconds)
+Precomputation: 0.035156 seconds
+0.001986 seconds per site (50 sites in 0.099277 seconds)
 Timing demography -I 10 10 10 10 10 10 10 10 10 10 10 -ej 0.100000 10 9 -ej 0.200000 9 8 -ej 0.300000 8 7 -ej 0.400000 7 6 -ej 0.500000 6 5 -ej 0.600000 5 4 -ej 0.700000 4 3 -ej 0.800000 3 2 -ej 0.900000 2 1
-Precomputation: 1.812652 seconds
-0.720574 seconds per site (50 sites in 36.028692 seconds)
+Precomputation: 0.403273 seconds
+0.012025 seconds per site (50 sites in 0.601258 seconds)
