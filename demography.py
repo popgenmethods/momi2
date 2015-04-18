@@ -8,8 +8,8 @@ import itertools
 
 class Demography(nx.DiGraph):
     @classmethod
-    def from_ms(cls, ms_cmd, leafs=None):
-        return cls(parse_ms.to_nx(ms_cmd, leafs=leafs))
+    def from_ms(cls, ms_cmd, *params, **kwargs):
+        return cls(parse_ms.to_nx(ms_cmd, *params, **kwargs))
 
     @classmethod
     def from_newick(cls, newick, default_lineages=None, default_N=1.0):
