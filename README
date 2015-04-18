@@ -8,6 +8,14 @@ compare:
 3. first order derivatives
 4. second order derivatives
 
+
+***
+write some example optimization code using scipy.basinhopping and a simple ms demography
+
+***
+for parse ms, let -es specificy the label of the new population
+this will be required to avoid confusion over population labels when fitting times of events
+
 ***
 compare which version of expm_multiply is faster (with and without derivatives)
 
@@ -42,3 +50,31 @@ allow for iteration over adarray objects (useful for passing in *array to demogr
 
 ***
 be consistent with leaves vs leafs (leaves is demography property, leafs is argument to parse_ms)
+
+***
+clean up from_newick, to_newick in demography.py
+
+Either:
+get rid of it entirely
+or
+change it to use from_ms
+or
+implement to_ms, so Demography.simulate_sfs() can work for newick demos
+
+***
+for simulate_sfs, make theta=None work when -r is set
+(right now it counts up the total branch length, but doesn't know
+how to deal with multiple trees)
+
+***
+replace cached_property module (v1.0.0 not compatible with using nx.DiGraph)
+***
+make state of derived counts, a property of SumProduct, instead of Demography
+***
+don't make n_max a field of size_history;
+instead have etjj and sfs take n as a parameter, and return
+the appropriate vector
+***
+make exponential size history work with growth rate 0
+***
+add option to simulate from ms instead of scrm
