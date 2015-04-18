@@ -36,3 +36,9 @@ instead of having sum_product have to convert to an array everytime
 
 ***
 Make functional size history work with autodifferentiation! Right now assumes it's a constant function always
+
+***
+allow for iteration over adarray objects (useful for passing in *array to demography.from_ms)
+
+***
+be consistent with leaves vs leafs (leaves is demography property, leafs is argument to parse_ms)

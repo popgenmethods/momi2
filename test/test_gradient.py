@@ -77,41 +77,28 @@ def test_simple_3():
 
 def simple_two_pop_demo(x, n_lins):
     assert len(x) == 4
-    assert list(sorted(n_lins.keys())) == ['a','b']
-
-    demo = nx.DiGraph([('ab','a'), ('ab','b')])
-    nd = dict(demo.nodes(data=True))
-    nd['a']['lineages'] = n_lins['a']
-    nd['b']['lineages'] = n_lins['b']
-    
-    demo = Demography(demo)
-    nd = demo.node_data
-    nd['a']['model'] = ConstantTruncatedSizeHistory(N=exp(x[1]), tau=exp(x[0]), n_max = n_lins['a'])
-    nd['b']['model'] = ConstantTruncatedSizeHistory(N=exp(x[2]), tau=exp(x[0]), n_max = n_lins['b'])
-    nd['ab']['model'] = ConstantTruncatedSizeHistory(N=exp(x[3]), tau=float('inf'),
-                                                     n_max = n_lins['a'] + n_lins['b'])
-    return demo
+    leafs = sorted(n_lins.keys())
+    counts = [n_lins[l] for l in leafs]
+    return Demography.from_ms("-I %d %s -n 1 $1 -n 2 $2 -ej $0 2 1 -eN $0 $3" % (len(n_lins), " ".join(map(str, counts))),
+                              *(map(exp, x)),
+                              leafs=leafs)
 
 def piecewise_constant_demo(x, n_lins):
     assert len(x) % 2 == 1
     assert n_lins.keys() == ['a']
     n = n_lins['a']
 
-    pieces = []
+    cmd = "-I 1 %d -n 1 $0" % n
+    args = [exp(x[0])]
+    prev_time = 0.0
+    var = 1
     for i in range(int((len(x)-1)/2)):
-        pieces.append(ConstantTruncatedSizeHistory(n, exp(x[2*i]), exp(x[2*i+1])))
-    pieces.append(ConstantTruncatedSizeHistory(n, float('inf'), exp(x[-1])))
-    sizes = PiecewiseHistory(pieces)
-
-    demo = nx.DiGraph([])
-    demo.add_node('a')
-    nd = dict(demo.nodes(data=True))
-    nd['a']['lineages'] = n_lins['a']
-    demo = Demography(demo)
-    nd = demo.node_data['a']
-    nd['model'] = sizes
-
-    return demo
+        cmd += " -eN $%d $%d" % (var, var+1)
+        var += 2
+        prev_time = exp(x[2*i+1]) + prev_time
+        N = exp(x[2*i+2])
+        args += [prev_time, N]
+    return Demography.from_ms(cmd, leafs=['a'], *args)
 
 
 def sfs_func(demo_func, n_lins, normalized=True):
@@ -145,26 +132,9 @@ def test_piecewise_constant_p(n, epochs, normalized):
     n_lins = {'a' : n}
 
     x = np.random.normal(size=2*epochs - 1)
-    #x = np.zeros(2*epochs-1)
     f = sfs_func(piecewise_constant_demo, n_lins, normalized=normalized)
 
     check_gradient(f,x)
-
-
-# def normalizing_constant_func(demo_func, n_lins):
-#     def f(x):
-#         demo = demo_func(x, n_lins)
-#         return demo.totalSfsSum
-#     return f
-# @pytest.mark.parametrize("n,epochs", 
-#                          ((5,5),))
-# def test_piecewise_constant_normalizing(n, epochs):
-#     n_lins = {'a' : n}
-
-#     x = np.random.normal(size=2*epochs - 1)
-#     f = normalizing_constant_func(piecewise_constant_demo, n_lins)
-
-#     check_gradient(f,x)
 
 @pytest.mark.parametrize("n1,n2,normalized", 
                          ((random.randint(1,10),random.randint(1,10),norm) for norm in (False,True)))
@@ -177,49 +147,46 @@ def test_simple_two_pop(n1,n2,normalized):
     check_gradient(f,x)
 
 
-def simple_five_pop_demo(x, epochs_per_pop, n_lins):
+def simple_five_pop_demo(x, n_lins):
     # number of edges is 2n-1
-    total_epochs = epochs_per_pop * (2*len(n_lins)-1)
-    assert len(x) == 2 * total_epochs + 1 # a size and a time for each epoch, plus a final size
-    assert list(sorted(n_lins.keys())) == ['a','b','c','d','e']
-
-    demo = nx.DiGraph([('ab','a'), ('ab','b'),
-                       ('cd','c'), ('cd','d'),
-                       ('cde','cd'), ('cde','e'),
-                       ('abcde','ab'),('abcde','cde')])
-    nd = dict(demo.nodes(data=True))
-    for v in ('a','b','c','d','e'):
-        nd[v]['lineages'] = n_lins[v]
-        nd[v]['lineages'] = n_lins[v]
+    leafs = sorted(n_lins.keys())
+    counts = [n_lins[l] for l in leafs]
     
-    demo = Demography(demo)
-    nd = demo.node_data
-    pops = sorted(nd.keys())
-    i = 0
-    for v in pops:
-        pieces = []
-        for j in range(epochs_per_pop):
-            pieces.append(ConstantTruncatedSizeHistory(N=exp(x[i]), tau=exp(x[i+1]), n_max = demo.n_lineages_subtended_by[v]))
-            i += 2
-        if v == 'abcde':
-            pieces.append(ConstantTruncatedSizeHistory(N=exp(x[i]), tau=float('inf'), n_max = demo.n_lineages_subtended_by[v]))
-            i += 1
-        nd[v]['model'] = PiecewiseHistory(pieces)
-    return demo
+    cmd = ["-I 5 %s" % (" ".join(map(str, counts))),
+           "-en $0 5 $15",
+           "-en $1 4 $16",
+           "-en $2 3 $17",
+           "-en $3 2 $18",
+           "-en $4 1 $19",
+           "-ej $5 5 4 -en $5 4 $20",
+           "-en $6 3 $21",
+           "-en $7 2 $22",
+           "-en $8 1 $23",
+           "-ej $9 4 3 -en $9 3 $24",
+           "-en $10 2 $25",
+           "-en $11 1 $26",
+           "-ej $12 3 2 -en $12 2 $27",
+           "-en $13 1 $28",
+           "-ej $14 2 1 -en $14 1 $29"]
+
+    cmd = " ".join(cmd)
+
+    assert len(x) == 30
+    args = map(exp, x)
+    for i in range(1,15):
+        args[i] = args[i] + args[i-1]
+
+    return Demography.from_ms(cmd, leafs=leafs, *args)   
 
 
-@pytest.mark.parametrize("n1,n2,n3,n4,n5,e,normalized", 
-                         ((random.randint(1,5),random.randint(1,5),random.randint(1,5),random.randint(1,5),random.randint(1,5),3,norm) for norm in (False,True)))
-def test_simple_five_pop(n1,n2,n3,n4,n5,e,normalized):
+@pytest.mark.parametrize("n1,n2,n3,n4,n5,normalized", 
+                         ((random.randint(1,5),random.randint(1,5),random.randint(1,5),random.randint(1,5),random.randint(1,5),norm) for norm in (False,True)))
+def test_simple_five_pop(n1,n2,n3,n4,n5,normalized):
     n_lins = {'a' : n1, 'b' : n2, 'c' : n3, 'd' : n4, 'e' : n5}
 
-    epochs_per_pop=e
-    total_epochs = epochs_per_pop * (2*len(n_lins)-1)
-    x_len = 2 * total_epochs + 1 # a size and a time for each epoch, plus a final size
-
-    x = np.random.normal(size=x_len)
+    x = np.random.normal(size=30)
     def demo_func(y,n_lins):
-        return simple_five_pop_demo(y,epochs_per_pop,n_lins)
+        return simple_five_pop_demo(x,n_lins)
     f = sfs_func(demo_func, n_lins, normalized=normalized)
     
     check_gradient(f,x)
