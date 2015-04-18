@@ -13,16 +13,20 @@ import itertools
 from collections import Counter
 
 '''Construct networkx DiGraph from ms command'''
-def to_nx(ms_cmd, leafs=None):
+def to_nx(ms_cmd, *params, **kwargs):
+    ## make sure kwargs has a "leafs" field, with default of None
+    kwargs['leafs'] = kwargs.pop('leafs',None)
+
+    def toFloat(var):
+        if var[0] == "$":
+            return params[int(var[1:])]
+        return float(var)
+
     ms_cmd = ms_cmd.strip()
     if not ms_cmd.startswith("-I "):
         raise IOError(("Must start cmd with -I", ms_cmd))
 
-    # if ms_cmd = "-I 2 1 2 -G -.3 -ej 1.0 2 1"
-    # then make cmd_list = [[I,2,1,2],[G,-.3],[ej,1.0,2,1]]
     cmd_list = []
-#     curr_args = []
-#     cmd_list.append(curr_args)
 
     for arg in ms_cmd.split():
         if arg[0] == '-' and arg[1].isalpha():
@@ -30,13 +34,14 @@ def to_nx(ms_cmd, leafs=None):
             cmd_list.append(curr_args)
         else:
             curr_args.append(arg)
-
-    #n,_ = map(int, cmd_list[0])
-    #cmd_list = cmd_list[1:]
     assert cmd_list[0][0] == 'I'
 
+    # replace variables in the ms cmd string
+    for i in range(len(params)):
+        ms_cmd = ms_cmd.replace("$" + str(i), str(float(params[i])))
+
     # now parse the ms cmd, store results in kwargs
-    kwargs = {'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd,'leafs':leafs}
+    kwargs.update({'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd,'toFloat':toFloat})
     for cmd in cmd_list:
         if cmd[0] not in valid_params:
             raise NotImplementedError("-%s not implemented" % cmd[0])
@@ -71,8 +76,8 @@ def _nx_from_parsed_ms(events, edges, nodes, roots, cmd, **kwargs):
         #ret.node[v].update(nodes[v])
     return ret
 
-def _es(t,i,p, events, nodes, roots, edges, cmd, **kwargs):
-    t,p = map(float, (t,p))
+def _es(t,i,p, events, nodes, roots, edges, cmd, toFloat, **kwargs):
+    t,p = map(toFloat, (t,p))
 
     child = roots[i]
     set_model(nodes[child], t, cmd)
@@ -93,8 +98,8 @@ def _es(t,i,p, events, nodes, roots, edges, cmd, **kwargs):
     roots[i] = parents[0]
     roots[str(len(roots)+1)] = parents[1]
 
-def _ej(t,i,j, events, nodes, roots, edges, cmd, **kwargs):
-    t = float(t)
+def _ej(t,i,j, events, nodes, roots, edges, cmd, toFloat, **kwargs):
+    t = toFloat(t)
 
     for k in i,j:
         # sets the TruncatedSizeHistory, and N_top and alpha for all epochs
@@ -114,8 +119,8 @@ def _ej(t,i,j, events, nodes, roots, edges, cmd, **kwargs):
     #del roots[i]
     roots[i] = None
 
-def _en(t,i,N, nodes, roots, **kwargs):
-    t,N = map(float, [t,N])
+def _en(t,i,N, nodes, roots, toFloat, **kwargs):
+    t,N = map(toFloat, [t,N])
     nodes[roots[i]]['sizes'].append({'t':t,'N':N,'alpha':None})
 
 def _eN(t,N, roots, **kwargs):
@@ -123,8 +128,8 @@ def _eN(t,N, roots, **kwargs):
     for i in roots:
         _en(t, i, N, roots=roots, **kwargs)
 
-def _eg(t,i,alpha, roots, nodes, **kwargs):
-    t,alpha = map(float, [t,alpha])
+def _eg(t,i,alpha, roots, nodes, toFloat, **kwargs):
+    t,alpha = map(toFloat, [t,alpha])
     nodes[roots[i]]['sizes'].append({'t':t,'alpha':alpha})
 
 def _eG(t,alpha, roots, **kwargs):
@@ -132,23 +137,23 @@ def _eG(t,alpha, roots, **kwargs):
     for i in roots:
         _eg(t,i,alpha, roots=roots, **kwargs)
 
-def _n(i,N, nodes, events, edges, roots, **kwargs):
+def _n(i,N, nodes, events, edges, roots, toFloat, **kwargs):
     assert roots
     if events:
         raise IOError(("-n should be called before any demographic changes", kwargs['cmd']))
     assert not edges and len(nodes) == len(roots)
     i = roots[i]
     assert len(nodes[i]['sizes']) == 1
-    nodes[i]['sizes'][0]['N'] = float(N)
+    nodes[i]['sizes'][0]['N'] = toFloat(N)
 
-def _g(i,alpha, nodes, events, edges, roots, **kwargs):
+def _g(i,alpha, nodes, events, edges, roots, toFloat, **kwargs):
     assert roots
     if events:
         raise IOError(("-g,-G should be called before any demographic changes", kwargs['cmd']))
     assert not edges and len(nodes) == len(roots)
     i = roots[i]
     assert len(nodes[i]['sizes']) == 1
-    nodes[i]['sizes'][0]['alpha'] = float(alpha)
+    nodes[i]['sizes'][0]['alpha'] = toFloat(alpha)
 
 def _G(rate, roots, nodes, **kwargs):
     assert roots

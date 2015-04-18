@@ -19,10 +19,12 @@ def test_joint_sfs_inference():
     t1= t0 + random.uniform(.5,5.0)
     num_runs = 10000
 
-    def scrm_cmd(join_time):
-        return "-I 3 1 1 1 -ej %f 1 2 -ej %f 2 3" % (join_time / 2. * N0, t1 / 2. * N0)
+    def get_demo(join_time):
+        return Demography.from_ms("-I 3 1 1 1 -ej $0 1 2 -ej $1 2 3",
+                                  join_time / 2. * N0,
+                                  t1 / 2. * N0)
 
-    true_demo = Demography.from_ms(scrm_cmd(t0))
+    true_demo = get_demo(t0)
 
     jsfs,sqCounts,nonzero = true_demo.simulate_sfs(num_runs, theta=theta)
     totalSnps = sum([v for k,v in jsfs.items()])
@@ -31,7 +33,7 @@ def test_joint_sfs_inference():
     pprint(dict(jsfs))
     print(t0,t1)
     def f(join_time):
-        demo = Demography.from_ms(scrm_cmd(join_time))
+        demo = get_demo(join_time)
         lambd = theta / 2.0 * num_runs * demo.totalSfsSum
         # poisson probability for total # snps is e^-lambd * lambd^totalSnps / totalSnps!
         ret = lambd + logFactorialTotalSnps - totalSnps * math.log(lambd)
