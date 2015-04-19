@@ -54,26 +54,9 @@ def test_joint_sfs_inference():
     totalSnps = sum([v for k,v in jsfs.items()])
     logFactorialTotalSnps = sum([math.log(x) for x in range(1,totalSnps)])
 
-    totalSnps = sum(array([v for k,v in jsfs.items()]))
-
     print(t0,t1)
     def f(join_time):
-        demo = get_demo(join_time)
-        lambd = demo.totalSfsSum * theta / 2.0 * num_runs
-        # poisson probability for total # snps is e^-lambd * lambd^totalSnps / totalSnps!
-        ret = lambd - totalSnps * admath.log(lambd)
-        for states, weight in sorted(jsfs.items()):
-            st = {a: {'derived': b, 'ancestral': 1 - b} for a, b in zip("123", states)}
-            demo.update_state(st)
-            #true_demo.update_state(st)
-            #weight = SumProduct(true_demo).p(normalized=True)
-            sp = SumProduct(demo)
-            #print(weight, states, sp.p(normalized=True))
-            ret -= admath.log(sp.p(normalized=True)) * weight
-            #ret -= weight * math.log(sp.p())
-        print ret
-        return ret
-    #f(t0)
+        return -get_demo(join_time).log_likelihood_prf(theta * num_runs, jsfs)
     #res = scipy.optimize.fminbound(f, 0, t1, xtol=.01)
     x0 = random.uniform(0,t1)
     #res = scipy.optimize.minimize(f, x0, bounds=((0,t1),), method='L-BFGS-B')

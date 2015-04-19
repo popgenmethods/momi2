@@ -72,6 +72,8 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
     '''Constant size population truncated to time tau.'''
     def __init__(self, n_max, tau, N):
         super(ConstantTruncatedSizeHistory, self).__init__(n_max, tau)
+        if N <= 0.0:
+            raise Exception("N must be positive")
         self.N = array(N)
 
     @cached_property
@@ -93,11 +95,7 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
         integral of 1/haploidN(t) from 0 to tau.
         used for Moran model transitions
         '''
-        try:
-            return self.tau / self.N
-        except:
-            ## here if N is ADF and tau is not
-            return (self.N**-1) * self.tau
+        return self.tau / self.N
 
     def __str__(self):
         return "(ConstantPopSize: N=%f, tau=%f)" % (self.N, self.tau)

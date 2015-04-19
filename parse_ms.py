@@ -190,7 +190,12 @@ def set_model(node_data, end_time, cmd):
     N, alpha = sizes[0]['N'], sizes[0]['alpha']
     for i in range(len(sizes) - 1):
         # ms times are rescaled by 0.5
-        sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t']) * 2.0
+        if sizes[i+1]['t'] < float('inf'):
+            sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t']) * 2.0
+        else:
+            # autodiff arithmetic can go bad when multiplying by infinity
+            assert not sizes[i+1]['t']._lc
+            sizes[i]['tau'] = array(float('inf'))
 
         if 'N' not in sizes[i]:
             sizes[i]['N'] = N
@@ -212,7 +217,8 @@ def set_model(node_data, end_time, cmd):
         pieces = []
         for size in sizes:
             #print size
-            if size['alpha'] is not None:
+            ### TODO: make ExpHist work for tau > 0.0!
+            if size['alpha'] is not None and size['tau'] > 0.0:
                 pieces.append(ExpHist(n_max=n_max, tau=size['tau'], N_top=size['N_top'], N_bottom=size['N']))
             else:
                 pieces.append(ConstHist(n_max=n_max, tau=size['tau'], N=size['N']))

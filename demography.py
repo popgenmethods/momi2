@@ -2,6 +2,7 @@ import networkx as nx
 from cached_property import cached_property
 from sum_product import SumProduct
 from adarray import array
+from adarray.ad.admath import log
 import parse_ms
 
 import random
@@ -115,6 +116,19 @@ class Demography(nx.DiGraph):
     '''
     def simulate_sfs(self, num_sims, theta=None, seed=None, additionalParams=""):
         return parse_ms.simulate_sfs(self, num_sims, theta, seed, additionalParams)
+
+    # returns log likelihood under a Poisson random field model
+    # (with sites ordered, individuals unordered)
+    def log_likelihood_prf(self, theta, sfs):
+        ret = -self.totalSfsSum * theta / 2.0
+
+        leaves = sorted(self.leaves)
+        for states, weight in sorted(sfs.items()):
+            st = {a: {'derived': b, 'ancestral': self.n_lineages_subtended_by[a] - b} for a, b in zip(leaves, states)}
+            self.update_state(st)
+            sp = SumProduct(self)
+            ret += log(sp.p(normalized=False) * theta) * weight
+        return ret
 
 
 def normalizing_constant(demography):
