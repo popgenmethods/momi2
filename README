@@ -1,15 +1,6 @@
 TODO:
 
 ***
-do some speed testing, to see how much autodifferentiation slows stuff down
-compare:
-1. previous implementation (before adarray)
-2. constant case (no derivatives)
-3. first order derivatives
-4. second order derivatives
-
-
-***
 write some example optimization code using scipy.basinhopping and a simple ms demography
 
 ***
@@ -78,3 +69,15 @@ the appropriate vector
 make exponential size history work with growth rate 0
 ***
 add option to simulate from ms instead of scrm
+
+***
+test timing of second order derivatives
+improve syntax for using second order derivatives
+
+***
+test in what regime expm_multiply is better than eigenvalue
+internally decide which one to use based on the regime
+
+***
+test in what regime fft_convolve is better than convolve
+internally decide which one to use based on the regime
