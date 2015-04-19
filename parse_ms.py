@@ -217,7 +217,7 @@ def set_model(node_data, end_time, cmd):
         pieces = []
         for size in sizes:
             #print size
-            ### TODO: make ExpHist work for tau > 0.0!
+            ### TODO: make ExpHist work for tau == 0.0!
             if size['alpha'] is not None and size['tau'] > 0.0:
                 pieces.append(ExpHist(n_max=n_max, tau=size['tau'], N_top=size['N_top'], N_bottom=size['N']))
             else:

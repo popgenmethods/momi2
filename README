@@ -1,14 +1,17 @@
 TODO:
 
 ***
-write some example optimization code using scipy.basinhopping and a simple ms demography
+sometimes return negative numbers for very unlikely datasets
+investigate how to fix this
 
 ***
-raise Exception when population size N = 0.0 ever (this can sometimes cause 0/0 problems if tau is also 0, and the minimizer may sometime propose it)
-
+merge admixture branch into autodiff branch
 
 ***
 fix catastrophic cancellation in exponential growth
+***
+make exponential size history work with growth rate 0, and also tau=0.
+Fix parse_ms TODO: for tau==0.0 case
 
 ***
 for parse ms, let -es specificy the label of the new population
@@ -72,9 +75,7 @@ make state of derived counts, a property of SumProduct, instead of Demography
 don't make n_max a field of size_history;
 instead have etjj and sfs take n as a parameter, and return
 the appropriate vector
-***
-make exponential size history work with growth rate 0, and also tau=0.
-Fix parse_ms TODO: for tau==0.0 case
+
 ***
 add option to simulate from ms instead of scrm
 
@@ -101,6 +102,3 @@ store sumCounts, sumSqCounts, nonzeroCounts in a single object?
 ***
 try autograd package for automatic differentiation
 
-***
-sometimes return negative numbers for very unlikely datasets
-investigate how to fix this
