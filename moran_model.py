@@ -22,7 +22,6 @@ def moran_eigensystem(n):
 def moran_action(t, v):
     n = len(v) - 1
     P, d, Pinv = moran_eigensystem(n)
-    ## WARNING: t can be an ADF, so keep it on the left
     D = diag(exp(t * d))
     # TODO: this can be optimized using np.einsum()
     return dot(P, dot(D, dot(Pinv,v)))
@@ -36,3 +35,4 @@ def _old_moran_action(t, v):
     return _old_moran_action_func(n)(t,v)
 #     M = rate_matrix(n)
 #     return expm_multiply(t * M, v)
+

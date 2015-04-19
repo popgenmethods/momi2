@@ -4,11 +4,26 @@ TODO:
 sometimes return negative numbers for very unlikely datasets
 investigate how to fix this
 
+this is likely happening in the matrix exponential.
+perhaps, the eigenvalue method has catastrophic cancellation for scaled_time very small.
+try comparing expm_multiply and eigenvalue method for different ranges of scaled_time
+
 ***
 merge admixture branch into autodiff branch
 
 ***
-fix catastrophic cancellation in exponential growth
+fix overflow errors in exponential growth
+
+to do this, use the fact that
+exp(x) * exp1(x) (ie exp(x) * expi(-x))
+is approximately equal to 1/x when x is large
+(see wikipedia)
+
+better yet, can express everything in terms of
+exp(1/x) * exp1(1/x) * x
+which is approximately 1 when x is very small
+(this further allows us to have a growth rate of 0.0 and not fail)!
+
 ***
 make exponential size history work with growth rate 0, and also tau=0.
 Fix parse_ms TODO: for tau==0.0 case
