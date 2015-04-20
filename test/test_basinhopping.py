@@ -33,7 +33,7 @@ def simple_human_demo(n,
                               africa_split,
                               bottleneck, ancestral_size)
 
-def test_simple_human_demo():
+def check_simple_human_demo():
     #n = [10] * 3
     n = [5] * 3
     theta = 2.0
@@ -82,4 +82,4 @@ def test_simple_human_demo():
     assert error < .05
 
 if __name__ == "__main__":
-    test_simple_human_demo()
+    check_simple_human_demo()

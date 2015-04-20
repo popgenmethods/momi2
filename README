@@ -1,6 +1,11 @@
 TODO:
 
 ***
+subclass ndarray, and replace rmul,radd, etc for this subclass!!!!
+
+this will allow arbitrary left,right multiplication etc, and clean up the code a lot! and also allow us to use arbitrary scipy functions, e.g. in the FunctionalTruncatedHistory
+
+***
 sometimes return negative numbers for very unlikely datasets
 investigate how to fix this
 
