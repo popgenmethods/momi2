@@ -21,6 +21,7 @@ class SumProduct(object):
         ret = self.joint_sfs(self.G.root)
         if normalized:
             ret /= self.G.totalSfsSum
+        assert ret >= 0.0
         return ret
 
     @memoize_instance
@@ -39,7 +40,10 @@ class SumProduct(object):
     def truncated_sfs(self, node):
         n_node = self.G.n_lineages_subtended_by[node]
         sfs = array([self.G.node_data[node]['model'].freq(n_derived, n_node) for n_derived in range(n_node + 1)])
-        sfs[sfs == float("inf")] = 0.0
+        if self.G.node_data[node]['model'].tau == float('inf'):
+            assert node == self.G.root
+            sfs[-1] = 0.0
+        #sfs[sfs == float("inf")] = 0.0
         return sfs
 
     @memoize_instance
@@ -49,7 +53,9 @@ class SumProduct(object):
         note n_top is fixed in Moran model, so P(n_top)=1
         '''       
         bottom_likelihood = self.partial_likelihood_bottom(bottom)       
-        return self.G.node_data[bottom]['model'].transition_prob(bottom_likelihood)
+        ret = self.G.node_data[bottom]['model'].transition_prob(bottom_likelihood)
+        assert np.all(ret >= 0.0)
+        return ret
 
     @memoize_instance
     def partial_likelihood_bottom(self, node):
@@ -63,7 +69,9 @@ class SumProduct(object):
                 for child in self.G[node]]
         #return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(node)
         #return np.convolve(*liks) / self.combinatorial_factors(node)
-        return fftconvolve(*liks) / self.combinatorial_factors(node)
+        ret = fftconvolve(*liks) / self.combinatorial_factors(node)
+        assert np.all(ret >= 0.0)
+        return ret
        
     @memoize_instance
     def joint_sfs(self, node):
@@ -76,6 +84,7 @@ class SumProduct(object):
         ret = (self.partial_likelihood_bottom(node) * self.truncated_sfs(node)).sum()
         
         if self.G.is_leaf(node):
+            assert ret >= 0.0
             return ret
         
         # add on terms for mutation occurring below this node
@@ -84,5 +93,6 @@ class SumProduct(object):
         for child, other_child in ((c1, c2), (c2, c1)):
             if self.G.n_derived_subtended_by[child] == 0:
                 ret += self.joint_sfs(other_child)
+        assert ret >= 0.0
         return ret
 

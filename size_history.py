@@ -1,6 +1,6 @@
 from __future__ import division
 from util import EPSILON, memoize
-from adarray import sum, array
+from adarray import sum, array, truncate
 from adarray.ad.admath import exp, log, expm1, expi
 from cached_property import cached_property
 import numpy as np
@@ -57,14 +57,21 @@ class TruncatedSizeHistory(object):
 #         # check accuracy
 #         assert self.tau == ret[(1, 1)] or abs(log(self.tau / ret[(1, 1)])) < EPSILON, \
 #                 "%.16f, %.16f"  % (self.tau, ret[(1, 1)])
+        for _,v in ret.iteritems():
+            ## TODO: vectorize this!
+            truncate(v, level=min(1e-16, float(self.tau)*1e-15))
+        assert all([v >= 0.0 for _,v in ret.iteritems()])
         return ret
 
     def _before_tmrca(self, partial_sfs):
-        ret = self.tau - sum([partial_sfs[(b, self.n_max)] * b / self.n_max
+        return self.tau - sum([partial_sfs[(b, self.n_max)] * b / self.n_max
                                for b in range(1, self.n_max)])
-        return ret
+
 
     def transition_prob(self, v):
+        if self.scaled_time == 0.0:
+            ### TODO: make deep copy
+            return v
         return moran_model.moran_action(self.scaled_time, v)
 
 
@@ -86,8 +93,10 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
 
         scaled_time = denom * self.tau
         num = -expm1(-scaled_time) # equals 1 - exp(-scaledTime)
-        assert np.all([num.x >= 0.0, num.x <= 1.0, num.x <= scaled_time]), "numerator=%s, scaledTime=%s" % (str(num), str(scaled_time))
-        return num / denom
+        ret = num / denom
+        epsilon = 1e-15*float(self.tau)
+        assert np.all(ret[:-1] - ret[1:] >= -epsilon) and np.all(ret >= -epsilon) and np.all(ret <= self.tau + epsilon)
+        return ret
     
     @cached_property
     def scaled_time(self):

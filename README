@@ -1,17 +1,33 @@
 TODO:
 
 ***
+Try expokit stuff in expokit branch
+
+***
+copy assertions in ConstantTruncatedSizeHistory.etjj to other etjj
+
+***
+truncate() call in size_history.py is a little ugly, vectorize it and such
+(see TODO)
+
+***
+switched to using non-FFT convolve, fix numerical errors with FFT convolve and switch back to it
+
+***
+Two sources of numerical error:
+
+1) FFT convolution: when vector has a 0.0 sometimes small negative numbers result
+however, in our case the 0.0 is always at the beginning or end of vector
+so can make FFT convolution more robust by truncating ends as necessary
+
+2) matrix exponential when t is very small, and v has 0s in it
+seems like the scipy.sparse.linalg.expm_multiply might be more robust in this case
+investigate the timing too
+
+***
 subclass ndarray, and replace rmul,radd, etc for this subclass!!!!
 
 this will allow arbitrary left,right multiplication etc, and clean up the code a lot! and also allow us to use arbitrary scipy functions, e.g. in the FunctionalTruncatedHistory
-
-***
-sometimes return negative numbers for very unlikely datasets
-investigate how to fix this
-
-this is likely happening in the matrix exponential.
-perhaps, the eigenvalue method has catastrophic cancellation for scaled_time very small.
-try comparing expm_multiply and eigenvalue method for different ranges of scaled_time
 
 ***
 merge admixture branch into autodiff branch
@@ -122,3 +138,8 @@ store sumCounts, sumSqCounts, nonzeroCounts in a single object?
 ***
 try autograd package for automatic differentiation
 
+***
+in size_history fix TODO (make deep copy)
+
+***
+change everything to be in ms units

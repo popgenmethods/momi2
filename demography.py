@@ -7,6 +7,7 @@ import parse_ms
 
 import random
 import itertools
+import scipy
 
 class Demography(nx.DiGraph):
     @classmethod
@@ -118,7 +119,6 @@ class Demography(nx.DiGraph):
         return parse_ms.simulate_sfs(self, num_sims, theta, seed, additionalParams)
 
     # returns log likelihood under a Poisson random field model
-    # (with sites ordered, individuals unordered)
     def log_likelihood_prf(self, theta, sfs):
         ret = -self.totalSfsSum * theta / 2.0
 
@@ -127,7 +127,9 @@ class Demography(nx.DiGraph):
             st = {a: {'derived': b, 'ancestral': self.n_lineages_subtended_by[a] - b} for a, b in zip(leaves, states)}
             self.update_state(st)
             sp = SumProduct(self)
-            ret += log(sp.p(normalized=False) * theta) * weight
+            ret += log(sp.p(normalized=False) * theta / 2.0) * weight - scipy.special.gammaln(weight+1)
+        #assert ret < 0.0 and ret > -float('inf')
+        assert ret < 0.0
         return ret
 
 
@@ -175,4 +177,5 @@ def normalizing_constant(demography):
     ## TODO: remove this, make state a property of SumProduct instead of Demography
     if prev_state is not None:
         demography.update_state(prev_state)
+    assert ret > 0.0
     return ret

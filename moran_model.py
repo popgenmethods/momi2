@@ -20,11 +20,17 @@ def moran_eigensystem(n):
     return P, d, np.linalg.inv(P)
 
 def moran_action(t, v):
+    assert np.all(v >= 0.0)
     n = len(v) - 1
     P, d, Pinv = moran_eigensystem(n)
     D = diag(exp(t * d))
     # TODO: this can be optimized using np.einsum()
-    return dot(P, dot(D, dot(Pinv,v)))
+    ret = dot(P, dot(D, dot(Pinv,v)))
+    if np.all(ret >= 0.0):
+        return ret
+    else:
+        ## slower but more accurate
+        return _old_moran_action(t,v)
 
 @memoize
 def _old_moran_action_func(n):

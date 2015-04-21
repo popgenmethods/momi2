@@ -5,6 +5,7 @@ from size_history import ExponentialTruncatedSizeHistory as ExpHist
 from size_history import ConstantTruncatedSizeHistory as ConstHist
 from size_history import PiecewiseHistory
 
+from numpy import isnan
 from adarray import array
 from adarray.ad.admath import exp
 
@@ -20,8 +21,13 @@ def to_nx(ms_cmd, *params, **kwargs):
 
     def toFloat(var):
         if var[0] == "$":
-            return array(params[int(var[1:])])
-        return array(float(var))
+            ret = array(params[int(var[1:])])
+        else:
+            ret = array(float(var))
+        if isnan(ret.x):
+            raise Exception("nan in %s,%s" % (ms_cmd))
+        return ret
+                           
 
     ms_cmd = ms_cmd.strip()
     if not ms_cmd.startswith("-I "):
