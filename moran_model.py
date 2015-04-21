@@ -1,9 +1,11 @@
-import numpy as np
+#import numpy as np
 from util import memoize
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
-from adarray import dot, diag, ad_expm_multiply
-from adarray.ad.admath import exp
+import autograd.numpy as np
+from autograd.numpy import dot, diag, exp
+#from adarray.ad.admath import exp
+
 
 @memoize
 def rate_matrix(n, sparse_format="csr"):
@@ -20,25 +22,24 @@ def moran_eigensystem(n):
     return P, d, np.linalg.inv(P)
 
 def moran_action(t, v):
-    assert np.all(v >= 0.0)
-    n = len(v) - 1
+    n = v.shape[0] - 1
     P, d, Pinv = moran_eigensystem(n)
     D = diag(exp(t * d))
     # TODO: this can be optimized using np.einsum()
     ret = dot(P, dot(D, dot(Pinv,v)))
-    if np.all(ret >= 0.0):
-        return ret
-    else:
-        ## slower but more accurate
-        return _old_moran_action(t,v)
+    return ret
 
-@memoize
-def _old_moran_action_func(n):
-    return ad_expm_multiply(rate_matrix(n))
+    ##TODO: add this checks back in
+    #assert np.all(v >= 0.0)
+#     if np.all(ret >= 0.0):
+#         return ret
+#     else:
+#         ## slower but more accurate
+#         return _old_moran_action(t,v)
 
 def _old_moran_action(t, v):
     n = len(v) - 1
-    return _old_moran_action_func(n)(t,v)
+    return expm_multiply(rate_matrix(n)*t,v)
 #     M = rate_matrix(n)
 #     return expm_multiply(t * M, v)
 

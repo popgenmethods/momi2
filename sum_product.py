@@ -1,7 +1,11 @@
-from __future__ import print_function, division
-import scipy.misc, scipy.signal
-import numpy as np
-from adarray import array, fftconvolve
+#from __future__ import print_function, division
+import scipy.misc
+#import scipy.signal
+#import numpy as np
+#from adarray import array, fftconvolve
+import autograd.numpy as np
+from autograd.numpy import sum
+from autograd.scipy.signal import convolve
 
 from util import memoize_instance, memoize
 
@@ -21,7 +25,7 @@ class SumProduct(object):
         ret = self.joint_sfs(self.G.root)
         if normalized:
             ret /= self.G.totalSfsSum
-        assert ret >= 0.0
+        #assert ret >= 0.0
         return ret
 
     @memoize_instance
@@ -29,7 +33,7 @@ class SumProduct(object):
         n_node = self.G.node_data[leaf]['lineages']
         ret = np.zeros(n_node + 1)
         ret[self.G.node_data[leaf]['derived']] = 1.0
-        return array(ret)
+        return ret
 
     def combinatorial_factors(self, node):
         n_node = self.G.n_lineages_subtended_by[node]
@@ -39,12 +43,12 @@ class SumProduct(object):
     @memoize_instance
     def truncated_sfs(self, node):
         n_node = self.G.n_lineages_subtended_by[node]
-        sfs = array([self.G.node_data[node]['model'].freq(n_derived, n_node) for n_derived in range(n_node + 1)])
+        sfs = [self.G.node_data[node]['model'].freq(n_derived, n_node) for n_derived in range(n_node + 1)]
         if self.G.node_data[node]['model'].tau == float('inf'):
             assert node == self.G.root
             sfs[-1] = 0.0
         #sfs[sfs == float("inf")] = 0.0
-        return sfs
+        return np.array(sfs)
 
     @memoize_instance
     def partial_likelihood_top(self, top, bottom):
@@ -54,7 +58,7 @@ class SumProduct(object):
         '''       
         bottom_likelihood = self.partial_likelihood_bottom(bottom)       
         ret = self.G.node_data[bottom]['model'].transition_prob(bottom_likelihood)
-        assert np.all(ret >= 0.0)
+        #assert np.all(ret >= 0.0)
         return ret
 
     @memoize_instance
@@ -69,8 +73,10 @@ class SumProduct(object):
                 for child in self.G[node]]
         #return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(node)
         #return np.convolve(*liks) / self.combinatorial_factors(node)
-        ret = fftconvolve(*liks) / self.combinatorial_factors(node)
-        assert np.all(ret >= 0.0)
+
+        ### TODO: switch to using fft convolve!
+        ret = convolve(*liks) / self.combinatorial_factors(node)
+        #assert np.all(ret >= 0.0)
         return ret
        
     @memoize_instance
@@ -81,10 +87,10 @@ class SumProduct(object):
             return 0.0
                
         # term for mutation occurring at this node
-        ret = (self.partial_likelihood_bottom(node) * self.truncated_sfs(node)).sum()
+        ret = sum(self.partial_likelihood_bottom(node) * self.truncated_sfs(node))
         
         if self.G.is_leaf(node):
-            assert ret >= 0.0
+            #assert ret >= 0.0
             return ret
         
         # add on terms for mutation occurring below this node
@@ -93,6 +99,6 @@ class SumProduct(object):
         for child, other_child in ((c1, c2), (c2, c1)):
             if self.G.n_derived_subtended_by[child] == 0:
                 ret += self.joint_sfs(other_child)
-        assert ret >= 0.0
+        #assert ret >= 0.0
         return ret
 

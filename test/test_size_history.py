@@ -3,7 +3,7 @@ import util
 import numpy as np
 from scipy.misc import comb as binom
 import random
-from adarray import array
+#from adarray import array
 
 def q(n, b):
     return sum([k / binom(k, 2) * binom(n - b - 1, k - 2) / binom(n - 1, k - 1) for k in range(2, n + 1)])
@@ -23,5 +23,5 @@ def test_functional_sfs_matches_constant():
     n_max = 100
     hist1 = size_history.ConstantTruncatedSizeHistory(n_max, tau, N)
     hist2 = size_history.FunctionalTruncatedSizeHistory(n_max, tau, lambda t: 1. / N)
-    assert np.allclose(hist1.etjj.x, array(hist2.etjj).x)
-    assert np.allclose(hist1.scaled_time.x, hist2.scaled_time)
+    assert np.allclose(hist1.etjj, hist2.etjj)
+    assert np.allclose(hist1.scaled_time, hist2.scaled_time)

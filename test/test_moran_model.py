@@ -2,7 +2,9 @@ from __future__ import division
 import numpy as np
 import moran_model
 import pytest
-from adarray import adnumber
+from autograd import grad
+from autograd.numpy import dot
+import numdifftools as nd
 
 def test_rate_matrix():
     n = 4
@@ -17,21 +19,33 @@ def test_rate_matrix():
 @pytest.mark.parametrize("n,t", 
         ((n, t) for n in (5, 10, 50, 100, 250) 
             for t in (0.01, 0.1, 1.0, 10.0, 100.0) if n * t < 100))
-def test_eig_vs_expm(n, t, ad_order2):
+def test_eig_vs_expm(n, t):
     print(n, t)
     
     v = np.random.random(n + 1)
 
-    x,y,z = adnumber([1,1,1])
+    x,y,z = 1.0,2.0,3.0
 
     t = x**2 * y**3 * z**4 * t
 
     v = x**3 * y**2 * z**3 * v
 
+    #w1 = moran_model._old_moran_action(t,v)    
     w1 = moran_model.moran_action(t, v)
-    w2 = moran_model._old_moran_action(t, v)
-    assert np.allclose(w1.x, w2.x)
+    #w2 = moran_model._old_moran_action(t, v) ## this is slow!
+    w2 = moran_model.moran_action(t,v)
 
-    assert np.max(np.log(np.array(w1.gradient([x,y,z])) / np.array(w2.gradient([x,y,z])))) < 1e-8
+    assert np.allclose(w1, w2)
+    
+    def mma(y):
+        return dot(moran_model.moran_action(t,y), y)
+    mmagrad = grad(mma)
+    mmaegrad = nd.Jacobian(mma)
+    assert np.max(np.log(np.array(mmagrad(v)) / np.array(mmaegrad(v)))) < 1e-8
 
-    assert np.max(np.log(np.array(w1.hessian([x,y,z])) / np.array(w2.hessian([x,y,z])))) < 1e-6
+    ## hessian vector product
+    mmahess_dot_y = grad(lambda x: dot(mmagrad(x),x))
+    mmahess_dot_y_e = nd.Jacobian(lambda x: dot(mmagrad(x),x))
+
+    #mmagrad_dot_y(v)
+    assert np.max(np.log(mmahess_dot_y(v) / mmahess_dot_y_e(v))) < 1e-6

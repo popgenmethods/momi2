@@ -1,9 +1,9 @@
-from __future__ import division
+#from __future__ import division
 from util import EPSILON, memoize
-from adarray import sum, array, truncate
-from adarray.ad.admath import exp, log, expm1, expi
+import autograd.numpy as np
+from autograd.numpy import sum, exp, log, expm1
+#from adarray.ad.admath import expi
 from cached_property import cached_property
-import numpy as np
 import scipy.integrate
 from scipy.special import comb as binom
 
@@ -16,7 +16,7 @@ def W(n, b, j):
     elif j == 3:
         return 30.0 * (n - 2 * b) / float(n + 1) / float(n + 2)
     else:
-        jj = j - 2
+        jj = float(j - 2)
         ret = W(n, b, jj) * -(1 + jj) * (3 + 2 * jj) * (n - jj) / jj / (2 * jj - 1) / (n + jj + 1)
         ret += W(n, b, jj + 1) * (3 + 2 * jj) * (n - 2 * b) / jj / (n + jj + 1)
         return ret
@@ -24,7 +24,7 @@ def W(n, b, j):
 class TruncatedSizeHistory(object):
     def __init__(self, n_max, tau):
         self.n_max = n_max
-        self.tau = array(tau)
+        self.tau = tau
 
     def freq(self, n_derived, n):
         if n_derived == 0:
@@ -57,14 +57,15 @@ class TruncatedSizeHistory(object):
 #         # check accuracy
 #         assert self.tau == ret[(1, 1)] or abs(log(self.tau / ret[(1, 1)])) < EPSILON, \
 #                 "%.16f, %.16f"  % (self.tau, ret[(1, 1)])
-        for _,v in ret.iteritems():
-            ## TODO: vectorize this!
-            truncate(v, level=min(1e-16, float(self.tau)*1e-15))
-        assert all([v >= 0.0 for _,v in ret.iteritems()])
+
+        ## TODO: add non-negativity checks back!!
+#         for _,v in ret.iteritems():
+#             truncate(v, level=min(1e-16, float(self.tau)*1e-15))
+#         assert all([v >= 0.0 for _,v in ret.iteritems()])
         return ret
 
     def _before_tmrca(self, partial_sfs):
-        return self.tau - sum([partial_sfs[(b, self.n_max)] * b / self.n_max
+        return self.tau - sum([partial_sfs[(b, self.n_max)] * b / float(self.n_max)
                                for b in range(1, self.n_max)])
 
 
@@ -81,21 +82,22 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
         super(ConstantTruncatedSizeHistory, self).__init__(n_max, tau)
         if N <= 0.0:
             raise Exception("N must be positive")
-        self.N = array(N)
+        self.N = N
 
     @cached_property
     def etjj(self):
         j = np.arange(2, self.n_max + 1)
 
-        denom = array(binom(j, 2)) / self.N
+        denom = binom(j, 2) / self.N
         if self.tau == float('inf'):
-            return array(1.0) / denom
+            return 1.0 / denom
 
         scaled_time = denom * self.tau
         num = -expm1(-scaled_time) # equals 1 - exp(-scaledTime)
         ret = num / denom
-        epsilon = 1e-15*float(self.tau)
-        assert np.all(ret[:-1] - ret[1:] >= -epsilon) and np.all(ret >= -epsilon) and np.all(ret <= self.tau + epsilon)
+        ## TODO: add back assertion!
+        #epsilon = 1e-15*float(self.tau)
+        #assert np.all(ret[:-1] - ret[1:] >= -epsilon) and np.all(ret >= -epsilon) and np.all(ret <= self.tau + epsilon)
         return ret
     
     @cached_property
@@ -112,14 +114,14 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
 class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
     def __init__(self, n_max, tau, N_top, N_bottom):
         super(ExponentialTruncatedSizeHistory, self).__init__(n_max, tau)
-        self.N_top, self.N_bottom = array(N_top), array(N_bottom)
+        self.N_top, self.N_bottom = N_top, N_bottom
         # N_bottom = N_top * exp(tau * growth_rate)
         self.growth_rate = log(self.N_bottom / self.N_top) / self.tau
 
     @cached_property
     def etjj(self):
         j = np.arange(2, self.n_max+1)
-        jChoose2 = array(scipy.misc.comb(j,2))
+        jChoose2 = scipy.misc.comb(j,2)
 
         ret = expi(- jChoose2 / self.N_bottom * exp(self.growth_rate * self.tau) / self.growth_rate)
         ret = ret - expi(- jChoose2 / self.N_bottom / self.growth_rate)
@@ -137,7 +139,7 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
         integral of 1/haploidN(t) from 0 to tau.
         used for Moran model transitions
         '''
-        return array(1.0) / self.growth_rate / self.N_bottom * expm1(self.growth_rate * self.tau)
+        return 1.0 / self.growth_rate / self.N_bottom * expm1(self.growth_rate * self.tau)
 
 class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
     '''Size history parameterized by an arbitrary function f.'''
@@ -149,7 +151,7 @@ class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
         '''
         super(FunctionalTruncatedSizeHistory, self).__init__(n_max, tau)
         self._f = f
-        raise NotImplementedError("Not yet implemented for autodifferentiation")
+        #raise NotImplementedError("Not yet implemented for autodifferentiation")
 
     def _R(self, t):
         return scipy.integrate.quad(self._f, 0, t)[0]
@@ -187,8 +189,8 @@ class PiecewiseHistory(TruncatedSizeHistory):
         j = np.arange(2, self.n_max+1)
         jChoose2 = scipy.misc.comb(j,2)
 
-        ret = array(np.zeros(len(j)))
-        noCoalProb = array(np.ones(len(j)))
+        ret = np.zeros(len(j))
+        noCoalProb = np.ones(len(j))
         for pop in self.pieces:
             ret = ret + noCoalProb * pop.etjj
             if pop.scaled_time != float('inf'):

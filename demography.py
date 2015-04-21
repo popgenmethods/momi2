@@ -1,8 +1,10 @@
 import networkx as nx
 from cached_property import cached_property
 from sum_product import SumProduct
-from adarray import array
-from adarray.ad.admath import log
+#from adarray import array
+#from adarray.ad.admath import log
+
+from autograd.numpy import log
 import parse_ms
 
 import random
@@ -156,10 +158,10 @@ def normalizing_constant(demography):
     # now create the Sum-Product
     sp = SumProduct(demography)
 
-    ret = array(0.0)
+    ret = 0.0
     for node in demography:
         # 1 - partial_likelihood_bottom is probability of at least one derived leaf lineage
-        ret = ret + ((array(1.0) - sp.partial_likelihood_bottom(node)) * sp.truncated_sfs(node)).sum()
+        ret = ret + ((1.0 - sp.partial_likelihood_bottom(node)) * sp.truncated_sfs(node)).sum()
 
     # subtract off the term for all alleles derived
     state = {}

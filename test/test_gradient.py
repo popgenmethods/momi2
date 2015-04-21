@@ -1,14 +1,18 @@
-from __future__ import division
+#from __future__ import division
 import pytest
-from adarray import gh, adnumber, outer, array, sum
-from adarray.ad.admath import exp,log
-import numpy as np
+#from adarray import gh, adnumber, outer, array, sum
+#from adarray.ad.admath import exp,log
+#import numpy as np
+import autograd.numpy as np
+from autograd.numpy import outer, sum, exp, log
+from autograd import grad
+
 from size_history import ConstantTruncatedSizeHistory, PiecewiseHistory
 import networkx as nx
 from demography import Demography, normalizing_constant
 import random
 from sum_product import SumProduct
-import math
+#import math
 from numdifftools import Gradient, Hessian
 
 EPS=1e-8
@@ -25,10 +29,10 @@ def num_grad(f,x,eps=EPS):
 def num_hess(f,x,eps=EPS):
     def g(y):
         return num_grad(f,y,eps)
-    return num_grad(g,x,math.sqrt(eps))
+    return num_grad(g,x,np.sqrt(eps))
     #return num_grad(g,x,eps)
 
-def log_within(x, y, eps=1e-2, trunc=1e-12):
+def log_within(x, y, eps=1e-2, trunc=1e-10):
     approx_zero = np.logical_or(np.abs(x) < trunc, np.abs(y) < trunc)
     not_zero = np.logical_not(approx_zero)
     if np.any(not_zero):
@@ -37,9 +41,13 @@ def log_within(x, y, eps=1e-2, trunc=1e-12):
         assert np.max(np.abs(x[approx_zero])) < trunc and np.max(np.abs(y[approx_zero])) < trunc
 
 def check_gradient(f, x):
-    xd = np.asarray(adnumber(x))
+    #xd = np.asarray(x)
+    xd = x
     fxd = f(xd)
-    grad1 = np.asarray(fxd.gradient(xd))
+
+    g = grad(f)
+    #grad1 = np.asarray(fxd.gradient(xd))
+    grad1 = g(xd)
 
     #grad2 = num_grad(f, x)
     grad2 = Gradient(f)(x)
@@ -59,24 +67,24 @@ def check_gradient(f, x):
 
 def test_simple():
     def f(x):
-        x = array(x)
+        #x = array(x)
         return sum(outer(x,x))
     check_gradient(f, np.random.normal(size=10))
 
 def test_simple_2():
     def f(x):
-        x = array(x)
-        return sum(array(1.0) / outer(x,x))
+        #x = array(x)
+        return sum(np.divide(1.0 , outer(x,x)))
     check_gradient(f, np.random.normal(size=10))
 
 def test_simple_3():
     def f(x):
         #return sum(x/x)
-        return sum(x) / sum(x)
+        return np.divide(sum(x) , sum(x))
     check_gradient(f, np.random.normal(size=10))
 
 def simple_two_pop_demo(x, n_lins):
-    assert len(x) == 4
+    #assert len(x) == 4
     leafs = sorted(n_lins.keys())
     counts = [n_lins[l] for l in leafs]
     return Demography.from_ms("-I %d %s -n 1 $1 -n 2 $2 -ej $0 2 1 -eN $0 $3" % (len(n_lins), " ".join(map(str, counts))),
@@ -84,7 +92,7 @@ def simple_two_pop_demo(x, n_lins):
                               leafs=leafs)
 
 def piecewise_constant_demo(x, n_lins):
-    assert len(x) % 2 == 1
+    assert x.shape[0] % 2 == 1
     assert n_lins.keys() == ['a']
     n = n_lins['a']
 
@@ -92,7 +100,7 @@ def piecewise_constant_demo(x, n_lins):
     args = [exp(x[0])]
     prev_time = 0.0
     var = 1
-    for i in range(int((len(x)-1)/2)):
+    for i in range(int((x.shape[0]-1)/2)):
         cmd += " -eN $%d $%d" % (var, var+1)
         var += 2
         prev_time = exp(x[2*i+1]) + prev_time

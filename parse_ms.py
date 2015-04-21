@@ -5,9 +5,10 @@ from size_history import ExponentialTruncatedSizeHistory as ExpHist
 from size_history import ConstantTruncatedSizeHistory as ConstHist
 from size_history import PiecewiseHistory
 
-from numpy import isnan
-from adarray import array
-from adarray.ad.admath import exp
+#from numpy import isnan
+#from adarray import array
+#from adarray.ad.admath import exp
+from autograd.numpy import isnan, exp
 
 import newick
 import sh, os, random
@@ -21,10 +22,10 @@ def to_nx(ms_cmd, *params, **kwargs):
 
     def toFloat(var):
         if var[0] == "$":
-            ret = array(params[int(var[1:])])
+            ret = params[int(var[1:])]
         else:
-            ret = array(float(var))
-        if isnan(ret.x):
+            ret = float(var)
+        if isnan(ret):
             raise Exception("nan in %s,%s" % (ms_cmd))
         return ret
                            
@@ -44,8 +45,12 @@ def to_nx(ms_cmd, *params, **kwargs):
     assert cmd_list[0][0] == 'I'
 
     # replace variables in the ms cmd string
-    for i in range(len(params)):
-        ms_cmd = ms_cmd.replace("$" + str(i), str(float(params[i])))
+    ### TODO: fix this try/except! it's needed in general, but breaks for autograd
+    try:
+        for i in range(len(params)):
+            ms_cmd = ms_cmd.replace("$" + str(i), str(float(params[i])))
+    except:
+        pass
 
     # now parse the ms cmd, store results in kwargs
     kwargs.update({'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd,'toFloat':toFloat})
@@ -96,7 +101,7 @@ def _es(t,i,p, events, nodes, roots, edges, cmd, toFloat, **kwargs):
 
     prev = nodes[child]['sizes'][-1]
     nodes[parents[0]] = {'sizes':[{'t':t,'N':prev['N_top'], 'alpha':prev['alpha']}]}
-    nodes[parents[1]] = {'sizes':[{'t':t,'N':array(1.0), 'alpha':None}]}
+    nodes[parents[1]] = {'sizes':[{'t':t,'N':1.0, 'alpha':None}]}
 
     new_edges = tuple([(par, child) for par in parents])
     events.append( new_edges )
@@ -184,7 +189,7 @@ def _I(*args, **kwargs):
             leaf_name = kwargs['leafs'][i]
         else:
             leaf_name = str(i+1)
-        kwargs['nodes'][leaf_name] = {'sizes':[{'t':0.0,'N':array(1.0),'alpha':None}],'lineages':lins_per_pop[i]}
+        kwargs['nodes'][leaf_name] = {'sizes':[{'t':0.0,'N':1.0,'alpha':None}],'lineages':lins_per_pop[i]}
         kwargs['roots'][str(i+1)] = leaf_name
 
 def set_model(node_data, end_time, cmd):
@@ -195,13 +200,15 @@ def set_model(node_data, end_time, cmd):
 
     N, alpha = sizes[0]['N'], sizes[0]['alpha']
     for i in range(len(sizes) - 1):
-        # ms times are rescaled by 0.5
-        if sizes[i+1]['t'] < float('inf'):
-            sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t']) * 2.0
-        else:
-            # autodiff arithmetic can go bad when multiplying by infinity
-            assert not sizes[i+1]['t']._lc
-            sizes[i]['tau'] = array(float('inf'))
+#         # ms times are rescaled by 0.5
+#         if sizes[i+1]['t'] < float('inf'):
+#             sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t']) * 2.0
+#         else:
+#             # autodiff arithmetic can go bad when multiplying by infinity
+#             assert not sizes[i+1]['t']._lc
+#             sizes[i]['tau'] = float('inf')
+
+        sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t']) * 2.0
 
         if 'N' not in sizes[i]:
             sizes[i]['N'] = N
