@@ -1,39 +1,57 @@
 
-
+=======================
 Timing demography -I 2 10 10 -ej 1.0 2 1
 
-No autodiff
+1 variables
+Computing SFS
+Precomputation: 0.008768 seconds
+0.000591 seconds per site (34 sites in 0.020083 seconds)
+0.028903 total seconds
 
-Precomputation: 0.007611 seconds
-0.000663 seconds per site (33 sites in 0.021878 seconds)
+Computing gradient
+Precomputation: 0.008782 seconds
+0.001360 seconds per site (34 sites in 0.046239 seconds)
+0.088208 total seconds
 
-Autodiff (1 variables)
+Computing Hessian-vector product
+Precomputation: 0.009788 seconds
+0.002539 seconds per site (34 sites in 0.086312 seconds)
+0.207333 total seconds
 
-Precomputation: 0.008062 seconds
-0.001148 seconds per site (33 sites in 0.037876 seconds)
-
-
+=======================
 Timing demography -I 4 10 10 10 10 -ej 0.4 4 3 -ej 1.0 3 2 -ej 2.0 2 1
 
-No autodiff
+3 variables
+Computing SFS
+Precomputation: 0.025090 seconds
+0.001589 seconds per site (50 sites in 0.079425 seconds)
+0.104592 total seconds
 
-Precomputation: 0.021716 seconds
-0.001563 seconds per site (50 sites in 0.078144 seconds)
+Computing gradient
+Precomputation: 0.027807 seconds
+0.004463 seconds per site (50 sites in 0.223130 seconds)
+0.432443 total seconds
 
-Autodiff (3 variables)
+Computing Hessian-vector product
+Precomputation: 0.035739 seconds
+0.007030 seconds per site (50 sites in 0.351488 seconds)
+1.440004 total seconds
 
-Precomputation: 0.026748 seconds
-0.004286 seconds per site (50 sites in 0.214277 seconds)
-
-
+=======================
 Timing demography -I 10 10 10 10 10 10 10 10 10 10 10 -ej 0.1 1 2 -ej 0.2 2 3 -ej 0.3 3 4 -ej 0.4 4 5 -ej 0.5 5 6 -ej 0.6 6 7 -ej 0.7 7 8 -ej 0.8 8 9 -ej 0.9 9 10
 
-No autodiff
+9 variables
+Computing SFS
+Precomputation: 0.263828 seconds
+0.004679 seconds per site (50 sites in 0.233929 seconds)
+0.498035 total seconds
 
-Precomputation: 0.195914 seconds
-0.004411 seconds per site (50 sites in 0.220552 seconds)
+Computing gradient
+Precomputation: 0.154246 seconds
+0.016841 seconds per site (50 sites in 0.842027 seconds)
+1.576111 total seconds
 
-Autodiff (9 variables)
-
-Precomputation: 0.152139 seconds
-0.023484 seconds per site (50 sites in 1.174193 seconds)
+Computing Hessian-vector product
+Precomputation: 0.192371 seconds
+0.021190 seconds per site (50 sites in 1.059502 seconds)
+4.731580 total seconds

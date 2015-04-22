@@ -1,30 +1,54 @@
-from __future__ import division
 from demography import Demography
 from sum_product import SumProduct
 import time
-import numpy
-from adarray.ad import adnumber
+#import numpy
+#import autograd.numpy as np
+from autograd import grad
+from autograd.numpy import dot, array
 
 import sys
 sys.stdout = open('timetest.txt','w')
 
 def check_time(demofunc, data, *x):
-    # precompute
-    start = time.time()
-    #demo = Demography.from_ms(cmd)
-    demo = demofunc(*x)
-    demo.totalSfsSum
-    end = time.time()
-    print "Precomputation: %f seconds" % (end - start)
-
     # do data
     data = data[:50]
+    def func(y):
+        # precompute
+        start = time.time()
+        demo = demofunc(*y)
+        ret = -demo.totalSfsSum
+        end = time.time()
+        print "Precomputation: %f seconds" % (end - start)
+       
+        start = time.time()
+        for states in data:
+            demo.update_state(states)
+            ret += SumProduct(demo).p()
+        end = time.time()
+        print "%f seconds per site (%d sites in %f seconds)" % ( (end-start) / float(len(data)), len(data), end-start)
+        return ret
+
+    print "Computing SFS"
+    x = array(x)
     start = time.time()
-    for states in data:
-        demo.update_state(states)
-        p = SumProduct(demo).p()
-    end = time.time()
-    print "%f seconds per site (%d sites in %f seconds)" % ( (end-start) / len(data), len(data), end-start)
+    func(x)
+    end=time.time()
+    print "%f total seconds" % (end-start)
+
+    print "\nComputing gradient"
+    g = grad(func)
+    start = time.time()
+    g(x)
+    end=time.time()
+    print "%f total seconds" % (end-start)
+
+    print "\nComputing Hessian-vector product"
+    gdot = lambda x,y: dot(y,g(x))
+    hp = grad(gdot)
+    start = time.time()
+    hp(x,x)
+    end=time.time()
+    print "%f total seconds" % (end-start)
 
 def check_demo_time(demofunc, *x):
     demo = demofunc(*x)
@@ -37,13 +61,8 @@ def check_demo_time(demofunc, *x):
             state[pop] = {'derived' : key[i], 'ancestral' : demo.n_lineages_subtended_by[pop] - key[i]}
         data.append(state)
 
-    print "\n\nTiming demography %s\n" % demo.graph['cmd']
-
-    print "No autodiff\n"
-    check_time(demofunc, data, *x)
-
-    print "\nAutodiff (%d variables)\n" % len(x)
-    x = map(adnumber,x)
+    print "\n=======================\nTiming demography %s\n" % demo.graph['cmd']
+    print "%d variables" % len(x)
     check_time(demofunc, data, *x)
 
 
