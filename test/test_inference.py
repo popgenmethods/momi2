@@ -1,4 +1,3 @@
-from __future__ import division
 import sh
 import os
 import scipy.optimize
@@ -6,9 +5,10 @@ import math
 import re
 from pprint import pprint
 import random
-import numpy as np
+import autograd.numpy as np
 import newick
-from adarray import gh, adnumber, admath, array, sum
+from autograd.numpy import sum
+from autograd import grad
 import networkx as nx
 from size_history import ConstantTruncatedSizeHistory
 
@@ -56,18 +56,14 @@ def test_joint_sfs_inference():
 
     print(t0,t1)
     def f(join_time):
-        return -get_demo(join_time).log_likelihood_prf(theta * num_runs, jsfs)
-    #res = scipy.optimize.fminbound(f, 0, t1, xtol=.01)
-    x0 = random.uniform(0,t1)
-    #res = scipy.optimize.minimize(f, x0, bounds=((0,t1),), method='L-BFGS-B')
-    #assert res == t0
-    grad, hess = gh(f)
-    #res = scipy.optimize.minimize(f, x0, method='L-BFGS-B', jac=grad, bounds=((0,t1),), options={'ftol': 1e-8, 'disp': False})
-    res = scipy.optimize.minimize(f, x0, method='L-BFGS-B', jac=grad, bounds=((0,t1),))
+        assert join_time.shape == (1,)
+        return -get_demo(join_time[0]).log_likelihood_prf(theta * num_runs, jsfs)
+
+    x0 = np.array([random.uniform(0,t1)])
+    g = grad(f)
+    res = scipy.optimize.minimize(f, x0, method='L-BFGS-B', jac=g, bounds=((0,t1),))
     print res.jac
     assert abs(res.x - t0) / t0 < .05
-#    print (res, t0, t1)
-#    print(res.x, t0, t1)
 
 if __name__ == "__main__":
     test_joint_sfs_inference()

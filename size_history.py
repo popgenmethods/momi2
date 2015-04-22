@@ -143,7 +143,6 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
 
 class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
     '''Size history parameterized by an arbitrary function f.'''
-    # TODO: make this work for autodifferentiation (by swapping integral with derivative?)    
     def __init__(self, n_max, tau, f):
         '''Initialize the model. For t > 0, f(t) >= is the instantaneous
         rate of coalescence (i.e., the inverse of the population size).
@@ -151,7 +150,6 @@ class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
         '''
         super(FunctionalTruncatedSizeHistory, self).__init__(n_max, tau)
         self._f = f
-        #raise NotImplementedError("Not yet implemented for autodifferentiation")
 
     def _R(self, t):
         return scipy.integrate.quad(self._f, 0, t)[0]

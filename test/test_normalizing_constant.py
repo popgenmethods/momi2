@@ -3,9 +3,7 @@ import random
 import itertools
 import networkx as nx
 from sum_product import SumProduct
-from size_history import ConstantTruncatedSizeHistory
-import math
-from adarray import admath
+from autograd.numpy import log
 
 def random_tree_demo(num_leaf_pops, lins_per_pop):
     cmd = "-I %d %s" % (num_leaf_pops, " ".join([str(lins_per_pop)] * num_leaf_pops))
@@ -47,5 +45,5 @@ def test_tree_demo_normalization():
 
         totalSum = SumProduct(demo).p(normalized=True) + totalSum
 
-    assert abs(admath.log(totalSum / 1.0)) < 1e-12    
+    assert abs(log(totalSum / 1.0)) < 1e-12    
     #assert totalSum == 1.0
