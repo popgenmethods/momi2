@@ -102,7 +102,7 @@ def check_simple_human_demo():
     inferred_x = minimize(f, init_x, jac=g,hessp=hp,method='newton-cg')
 
     print inferred_x
-    error = max(abs(true_x - inferred_x.x) / true_x)
+    error = max(abs((true_x - inferred_x.x) / true_x))
     print true_x, "\n", inferred_x.x
     print error
     assert error < .05

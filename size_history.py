@@ -2,10 +2,11 @@
 from util import EPSILON, memoize
 import autograd.numpy as np
 from autograd.numpy import sum, exp, log, expm1
-#from adarray.ad.admath import expi
+from autograd.core import primitive
 from cached_property import cached_property
 import scipy.integrate
 from scipy.special import comb as binom
+from scipy.special import expi
 
 import moran_model
 
@@ -111,7 +112,61 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
     def __str__(self):
         return "(ConstantPopSize: N=%f, tau=%f)" % (self.N, self.tau)
 
+'''
+Returns
+-expi(-1/x) * exp(1/x) / x
+'''
+## TODO: this is only primitive because autograd doesn't support proper indexing, but supposedly autograd will implement this at some point. Then we can make scipy.special.expi primitive instead, which will make things cleaner and more general.
+@primitive
+def transformed_expi(x):
+    ser = np.abs(x) < 1./45.
+    nser = np.logical_not(ser)
+    ret = x + 0.
+    ret[ser] = transformed_expi_series(x[ser])
+    ret[nser] = transformed_expi_naive(x[nser])
+    return ret
+
+def transformed_expi_grad(ans,x):
+    is_zero = np.all(x == 0.0)
+    ## autograd currently doesn't support indexing, so all vector entries must be entirely in one case or the other
+    assert is_zero or np.all(x != 0.0)
+    if is_zero:
+        return lambda g: -1. * g
+    else:
+        return lambda g: g * (-1./x**2) * (-1. + ans + ans*x) 
+transformed_expi.defgrad(transformed_expi_grad)
+
+def transformed_expi_series(x):
+    c_n, ret = 1., 1.
+    for n in range(1,11):
+        c_n = -c_n * x * n
+        ret = ret + c_n
+    return ret
+
+def transformed_expi_naive(x):
+    return -expi(-1.0/x) * exp(1.0/x) / x
+
+'''
+returns (e^x-1)/x, for scalar x. works for x=0.
+Taylor series is 1 + x/2! + x^2/3! + ...
+'''
+def expm1d(x):
+    if x == 0.0:
+        return expm1d_taylor(x)
+    return expm1(x)/x
+## used for higher order derivatives at x=0
+def expm1d_taylor(x):
+    c_n, ret = 1.,1.
+    for n in range(2,11):
+        c_n = c_n * x / float(n)
+        ret = ret + c_n
+    return ret
+    
+
 class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
+    ## some computations here are done in a seemingly roundabout way,
+    ## to ensure that growth_rate=0.0 works
+    ## TODO: tau == inf not yet tested (maybe just use tau=1e200 instead)
     def __init__(self, n_max, tau, N_top, N_bottom):
         super(ExponentialTruncatedSizeHistory, self).__init__(n_max, tau)
         self.N_top, self.N_bottom = N_top, N_bottom
@@ -123,13 +178,15 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
         j = np.arange(2, self.n_max+1)
         jChoose2 = scipy.misc.comb(j,2)
 
-        ret = expi(- jChoose2 / self.N_bottom * exp(self.growth_rate * self.tau) / self.growth_rate)
-        ret = ret - expi(- jChoose2 / self.N_bottom / self.growth_rate)
-        ret = ret * (exp(jChoose2 / self.growth_rate / self.N_bottom) / self.growth_rate )
+        pow0, pow1 = self.N_bottom/jChoose2 , self.growth_rate*self.tau
+        ret = -transformed_expi(pow0 * self.growth_rate / exp(pow1))
+        ret = ret * exp(-expm1d(pow1) * self.tau / pow0 - pow1)
+        ret = ret + transformed_expi(pow0 * self.growth_rate)
+        ret = ret * pow0
 
-        assert np.all(np.ediff1d(ret.x) <= 0) # ret should be decreasing
-        assert np.all(ret.x >= 0)
-        assert np.all(ret.x <= self.tau)
+        assert np.all(ret[1:] - ret[:-1] <= 0) # ret should be decreasing
+        assert np.all(ret >= 0)
+        assert np.all(ret <= self.tau)
 
         return ret
 
@@ -139,7 +196,7 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
         integral of 1/haploidN(t) from 0 to tau.
         used for Moran model transitions
         '''
-        return 1.0 / self.growth_rate / self.N_bottom * expm1(self.growth_rate * self.tau)
+        return expm1d(self.growth_rate * self.tau) * self.tau / self.N_bottom
 
 class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
     '''Size history parameterized by an arbitrary function f.'''

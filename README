@@ -1,6 +1,19 @@
 TODO:
 
 ***
+implement expm_multiply for autograd branch
+
+***
+Change exponential size history to take in alpha
+(this way we won't have as many overflow issues if N_top = 0 or inf)
+
+Also make it so that, if -eg 0.0, (and not -eg $0 with $0==0.0),
+create a ConstantSize always.
+
+Make tau=inf, tau=0 work for ExpHist
+or, assert that tau < inf for any Exponential history
+
+***
 Test if autodifferentiation works for functional size history
 
 ***
@@ -35,18 +48,6 @@ this will allow arbitrary left,right multiplication etc, and clean up the code a
 ***
 merge admixture branch into autodiff branch
 
-***
-fix overflow errors in exponential growth
-
-to do this, use the fact that
-exp(x) * exp1(x) (ie exp(x) * expi(-x))
-is approximately equal to 1/x when x is large
-(see wikipedia)
-
-better yet, can express everything in terms of
-exp(1/x) * exp1(1/x) * x
-which is approximately 1 when x is very small
-(this further allows us to have a growth rate of 0.0 and not fail)!
 
 ***
 make exponential size history work with growth rate 0, and also tau=0.
@@ -59,24 +60,6 @@ this will be required to avoid confusion over population labels when fitting tim
 ***
 compare which version of expm_multiply is faster (with and without derivatives)
 
-****
-in adarray, make __pow__ work for arrays, for at least some cases
-(e.g. if raising an array to a constant power -- having x**-1 would be nice)
-in adarray, implement logical_or, logical_and
-in adarray, implement allclose
-
-after above changes, do cleanup in size_history, removing array() and num.x calls where possible
-also do cleanup in test_size_history with np.allclose
-
-***
-make adarray be able to merge back into original project easily
-
-to do this, instead of using ADF class, change ADF to be abstract superclass
-old-ad ADF becomes ADScalar
-my new ADF becomes ADArray
-whenever ADF arithmetic returns something, it calls self.getAD(result) to make
-the result be of appropriate type, where ADScalar and ADArray each return their own
-getAD
 
 ***
 make size_history store the SFS as an array,
@@ -86,20 +69,10 @@ instead of having sum_product have to convert to an array everytime
 Make functional size history work with autodifferentiation! Right now assumes it's a constant function always
 
 ***
-allow for iteration over adarray objects (useful for passing in *array to demography.from_ms)
-
-***
 be consistent with leaves vs leafs (leaves is demography property, leafs is argument to parse_ms)
 
 ***
-clean up from_newick, to_newick in demography.py
-
-Either:
-get rid of it entirely
-or
-change it to use from_ms
-or
-implement to_ms, so Demography.simulate_sfs() can work for newick demos
+get rid of from_newick, to_newick in parse_ms?
 
 ***
 for simulate_sfs, make theta=None work when -r is set
@@ -119,10 +92,6 @@ the appropriate vector
 add option to simulate from ms instead of scrm
 
 ***
-test timing of second order derivatives
-improve syntax for using second order derivatives
-
-***
 test in what regime expm_multiply is better than eigenvalue
 internally decide which one to use based on the regime
 
@@ -138,8 +107,6 @@ improve the syntax for SFS.
 use dictionary for state instead of tuple? (downside: won't be hashable)
 store sumCounts, sumSqCounts, nonzeroCounts in a single object?
 
-***
-try autograd package for automatic differentiation
 
 ***
 in size_history fix TODO (make deep copy)

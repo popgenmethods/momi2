@@ -8,7 +8,7 @@ from size_history import PiecewiseHistory
 #from numpy import isnan
 #from adarray import array
 #from adarray.ad.admath import exp
-from autograd.numpy import isnan, exp
+from autograd.numpy import isnan, exp,min
 
 import newick
 import sh, os, random
@@ -235,6 +235,9 @@ def set_model(node_data, end_time, cmd):
                 pieces.append(ExpHist(n_max=n_max, tau=size['tau'], N_top=size['N_top'], N_bottom=size['N']))
             else:
                 pieces.append(ConstHist(n_max=n_max, tau=size['tau'], N=size['N']))
+#                 if size['tau'] == float('inf'):
+#                     size['tau'] = 1e200
+#                 pieces.append(ExpHist(n_max=n_max, tau=size['tau'], N_bottom=size['N'], N_top=size['N_top']))
         assert len(pieces) > 0
         if len(pieces) == 0:
             return pieces[0]

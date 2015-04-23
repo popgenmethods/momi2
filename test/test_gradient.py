@@ -1,8 +1,5 @@
 #from __future__ import division
 import pytest
-#from adarray import gh, adnumber, outer, array, sum
-#from adarray.ad.admath import exp,log
-#import numpy as np
 import autograd.numpy as np
 from autograd.numpy import outer, sum, exp, log
 from autograd import grad
@@ -41,29 +38,23 @@ def log_within(x, y, eps=1e-2, trunc=1e-10):
         assert np.max(np.abs(x[approx_zero])) < trunc and np.max(np.abs(y[approx_zero])) < trunc
 
 def check_gradient(f, x):
-    #xd = np.asarray(x)
-    xd = x
-    fxd = f(xd)
+    print x, "\n", f(x)
 
     g = grad(f)
-    #grad1 = np.asarray(fxd.gradient(xd))
-    grad1 = g(xd)
-
-    #grad2 = num_grad(f, x)
+    grad1 = g(x)
     grad2 = Gradient(f)(x)
-
-    print x, "\n", f(x)
 
     print "gradient1\n", grad1, "\ngradient2\n", grad2
     log_within(grad1,grad2)
 
-    # note: numerical hessian can be numerically unstable!
-#     hess1 = np.asarray(map(np.asarray, fxd.hessian(xd)))
-# #     hess2 = num_hess(f,x)
-#     hess2 = Hessian(f)(x)
+    ## check Hessian vector product
+    ## comented out cuz slow
+#     y = np.random.normal(size=x.shape)
+#     gdot = lambda u : np.dot(g(u), y)
+#     hess1, hess2 = grad(gdot)(x), Gradient(gdot)(x)
+#     print "hess1\n",hess1,"\nhess2\n",hess2
+#     log_within(hess1,hess2, eps=1e-1, trunc=1e-5)
 
-#     print "hessian1\n", hess1,"\nhessian2\n",hess2,"\nhessian_diff\n", hess1-hess2
-#     log_within(hess1,hess2,trunc=1e-7)
 
 def test_simple():
     def f(x):
@@ -133,6 +124,22 @@ def sfs_func(demo_func, n_lins, normalized=True):
             #ret = log(ret) - log(demo.totalSfsSum)
         return ret
     return f
+
+@pytest.mark.parametrize("log_tau,growth_rate,log_N_bottom", 
+                         ((-random.expovariate(1),g,random.gauss(0,1))
+                          for g in (random.uniform(-100,100), 
+                                    random.uniform(-.01,.01), 0.0)))
+def test_exp_growth(log_tau, growth_rate, log_N_bottom):
+    n_lins = {'1':10}
+    def demo_func(x, n_lins):
+        t,g,N = x
+        t,N = exp(t),exp(N)
+        return Demography.from_ms("-I 1 %d -G $0 -eN $1 $2" % n_lins['1'],
+                                  g,t,N)        
+    f = sfs_func(demo_func, n_lins, normalized=True)
+    x=np.array([log_tau,growth_rate,log_N_bottom])
+
+    check_gradient(f,x)
 
 @pytest.mark.parametrize("n,epochs,normalized", 
                          ((random.randint(2,10),random.randint(1,10),norm) for norm in (False,True)))
