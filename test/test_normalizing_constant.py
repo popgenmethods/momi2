@@ -4,8 +4,8 @@ import itertools
 import networkx as nx
 from sum_product import SumProduct
 from autograd.numpy import log
-from size_history import ConstantTruncatedSizeHistory
-from test_sfs_counts import admixture_cmd
+import autograd.numpy as np
+from test_sfs_counts import simple_admixture_demo
 
 def random_tree_demo(num_leaf_pops, lins_per_pop):
     cmd = "-I %d %s" % (num_leaf_pops, " ".join([str(lins_per_pop)] * num_leaf_pops))
@@ -51,8 +51,10 @@ def test_tree_demo_normalization():
     #assert totalSum == 1.0
 
 def test_admixture_demo_normalization():
-    args = admixture_cmd()
-    demo = Demography.from_ms(args)
+    #args = admixture_cmd()
+    #demo = Demography.from_ms(args)
+    demo = simple_admixture_demo(np.random.normal(size=7), {'1':2,'2':2})
+
 
     leaf_pops = list(demo.leaves)
     leaf_lins = {l : demo.n_lineages_at_node[l] for l in leaf_pops}
