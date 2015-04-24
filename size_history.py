@@ -71,8 +71,7 @@ class TruncatedSizeHistory(object):
 
     def transition_prob(self, v, axis=0):
         if self.scaled_time == 0.0:
-            ### TODO: make deep copy
-            return v
+            return v + 0.0 # return copy of v
         return moran_model.moran_action(self.scaled_time, v, axis=axis)
 
 
