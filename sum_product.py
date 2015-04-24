@@ -27,10 +27,14 @@ class LabeledAxisArray(object):
         self.swap_axis(a0, 0)
         self.swap_axis(a1, 1)
 
-        new_array = np.zeros([self.array.shape[0] + self.array.shape[1] - 1] + list(self.array.shape[2:]))
+        ## TODO: avoid for loops, maybe with einsum?
+        #new_array = np.zeros([self.array.shape[0] + self.array.shape[1] - 1] + list(self.array.shape[2:]))
+        new_array = [0.0 for _ in range(self.array.shape[0] + self.array.shape[1] - 1)]
         for i in range(self.array.shape[0]):
             for j in range(self.array.shape[1]):
-                new_array[i+j,...] += self.array[i,j,...]
+                new_array[i+j] = new_array[i+j] + self.array[i,j,...]
+                #new_array[i+j,...] += self.array[i,j,...]
+        new_array = np.array(new_array)
 
         new_axes = bd.bidict()
         new_axes[new_label] = 0
@@ -39,12 +43,18 @@ class LabeledAxisArray(object):
         self.array = new_array
         self.axes = new_axes
     
+    ## TODO: get rid of this function
     def swap_axis(self, axis, new_pos):
         swapped_axis = self.axes[:new_pos]
         old_pos = self.axes[axis:]
         self.axes.forceput(axis, new_pos)
         self.axes.forceput(swapped_axis, old_pos)
-        self.array = self.array.swapaxes(old_pos, new_pos)
+        if old_pos > new_pos:
+            old_pos,new_pos = new_pos,old_pos
+        if old_pos != new_pos:
+            self.array = np.transpose(self.array, range(old_pos) + [new_pos] + range(old_pos+1, new_pos) + [old_pos] + range(new_pos+1, len(self.axes)))
+        #self.array = np.swapaxes(self.array, old_pos, new_pos)
+        #self.array = self.array.swapaxes(old_pos, new_pos)
 
     # returns array[0,...,0,:,0,...,0] with : at specified axis
     def get_zeroth_vector(self, axisLabel):
@@ -96,7 +106,7 @@ class LabeledAxisArray(object):
     def reorder_axes(self, new_order):
         assert len(new_order) == len(self.axes)
         label_permutation = [self.axes[l] for l in new_order]
-        self.array = self.array.transpose(label_permutation)
+        self.array = np.transpose(self.array, label_permutation)
         self.axes = {x : i for i,x in enumerate(new_order)}
 
 class SumProduct(object):
