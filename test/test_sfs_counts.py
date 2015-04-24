@@ -4,7 +4,7 @@ import pytest
 import networkx as nx
 import random
 from sum_product import SumProduct
-import numpy as np
+import autograd.numpy as np
 import scipy, scipy.stats
 import itertools
 
@@ -15,6 +15,19 @@ num_scrm_samples = 1000
 #num_scrm_samples = 10
 #theta = .01
 #num_scrm_samples = 100000
+
+
+def simple_admixture_demo(x, n_lins):
+    t = np.cumsum(np.exp(x[:5]))
+    #for i in range(1,len(t)):
+    #    t[i] += t[i-1]
+    p = 1.0 / (1.0 + np.exp(x[5:]))
+    return Demography.from_ms("-I 2 %d %d -es $0 2 $1 -es $2 2 $3 -ej $4 4 3 -ej $5 3 1 -ej $6 2 1" % (n_lins['1'], n_lins['2']), 
+                              t[0], p[0], t[1], p[1], t[2], t[3], t[4])
+
+def test_admixture():
+    n = {'1':2,'2':2}
+    check_sfs_counts(simple_admixture_demo(np.random.normal(size=7),n))
 
 def test_exp_growth():
     n = 10
@@ -49,8 +62,7 @@ def test_tree_demo_4():
 
 
 def check_sfs_counts(demo):
-#    demo = Demography.from_ms(scrm_args)
-    leaf_lins = {l : demo.n_lineages_subtended_by[l] for l in demo.leaves}
+    leaf_lins = {l : demo.n_lineages_at_node[l] for l in demo.leaves}
     leaf_pops = sorted(list(leaf_lins.keys()))
 
     empirical_sfs,sqCounts,nonzeroCounts = demo.simulate_sfs(num_scrm_samples)

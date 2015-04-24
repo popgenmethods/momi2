@@ -1,7 +1,10 @@
 TODO:
 
 ***
-implement expm_multiply for autograd branch
+check if memoize, memoize_instance play nicely with autograd
+
+***
+implement fftconvolve,expm_multiply for autograd branch
 
 ***
 Change exponential size history to take in alpha

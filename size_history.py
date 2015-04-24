@@ -6,8 +6,7 @@ from autograd.core import primitive
 from cached_property import cached_property
 import scipy.integrate
 from scipy.special import comb as binom
-from scipy.special import expi
-
+import scipy.special
 import moran_model
 
 @memoize
@@ -70,11 +69,11 @@ class TruncatedSizeHistory(object):
                                for b in range(1, self.n_max)])
 
 
-    def transition_prob(self, v):
+    def transition_prob(self, v, axis=0):
         if self.scaled_time == 0.0:
             ### TODO: make deep copy
             return v
-        return moran_model.moran_action(self.scaled_time, v)
+        return moran_model.moran_action(self.scaled_time, v, axis=axis)
 
 
 class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
@@ -115,26 +114,26 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
 '''
 Returns
 -expi(-1/x) * exp(1/x) / x
+for x s.t. abs(x) is decreasing
 '''
-## TODO: this is only primitive because autograd doesn't support proper indexing, but supposedly autograd will implement this at some point. Then we can make scipy.special.expi primitive instead, which will make things cleaner and more general.
-@primitive
 def transformed_expi(x):
-    ser = np.abs(x) < 1./45.
+    abs_x = np.abs(x)
+    # TODO: remove this assertion/assumption, whenever autograd implements np.__set__
+    assert np.all(abs_x[:-1] >= abs_x[1:])
+    ser = abs_x < 1./45.
     nser = np.logical_not(ser)
-    ret = x + 0.
-    ret[ser] = transformed_expi_series(x[ser])
-    ret[nser] = transformed_expi_naive(x[nser])
-    return ret
 
-def transformed_expi_grad(ans,x):
-    is_zero = np.all(x == 0.0)
-    ## autograd currently doesn't support indexing, so all vector entries must be entirely in one case or the other
-    assert is_zero or np.all(x != 0.0)
-    if is_zero:
-        return lambda g: -1. * g
-    else:
-        return lambda g: g * (-1./x**2) * (-1. + ans + ans*x) 
-transformed_expi.defgrad(transformed_expi_grad)
+    return np.concatenate((transformed_expi_series(x[ser]), transformed_expi_naive(x[nser])))
+
+# def transformed_expi_grad(ans,x):
+#     is_zero = np.all(x == 0.0)
+#     ## autograd currently doesn't support indexing, so all vector entries must be entirely in one case or the other
+#     assert is_zero or np.all(x != 0.0)
+#     if is_zero:
+#         return lambda g: -1. * g
+#     else:
+#         return lambda g: g * (-1./x**2) * (-1. + ans + ans*x) 
+# transformed_expi.defgrad(transformed_expi_grad)
 
 def transformed_expi_series(x):
     c_n, ret = 1., 1.
@@ -145,6 +144,11 @@ def transformed_expi_series(x):
 
 def transformed_expi_naive(x):
     return -expi(-1.0/x) * exp(1.0/x) / x
+
+@primitive
+def expi(x):
+    return scipy.special.expi(x)
+expi.defgrad(lambda ans,x: lambda g: g * exp(x) / x)
 
 '''
 returns (e^x-1)/x, for scalar x. works for x=0.

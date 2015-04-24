@@ -1,5 +1,6 @@
 from demography import Demography
 import pytest
+import networkx as nx
 
 @pytest.fixture
 def demo():
@@ -11,7 +12,7 @@ def demo():
 
 
 def test_from_newick(demo):
-    assert demo.n_lineages_subtended_by[demo.root] == 18
+    assert demo.n_lineages_at_node[demo.root] == 18
 
 def test_update_state(demo):
     demo.update_state({'a': {'derived': 5, 'ancestral': 5},

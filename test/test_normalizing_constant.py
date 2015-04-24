@@ -4,6 +4,8 @@ import itertools
 import networkx as nx
 from sum_product import SumProduct
 from autograd.numpy import log
+from size_history import ConstantTruncatedSizeHistory
+from test_sfs_counts import admixture_cmd
 
 def random_tree_demo(num_leaf_pops, lins_per_pop):
     cmd = "-I %d %s" % (num_leaf_pops, " ".join([str(lins_per_pop)] * num_leaf_pops))
@@ -28,7 +30,7 @@ def test_tree_demo_normalization():
     random.seed(seed)
 
     demo = random_tree_demo(num_leaf_pops, lins_per_pop)
-    print(demo)
+    #print(demo)
     #print(demo.to_newick())
     
     leaves = sorted(list(demo.leaves))
@@ -44,6 +46,31 @@ def test_tree_demo_normalization():
         demo.update_state(state)
 
         totalSum = SumProduct(demo).p(normalized=True) + totalSum
+
+    assert abs(log(totalSum / 1.0)) < 1e-12    
+    #assert totalSum == 1.0
+
+def test_admixture_demo_normalization():
+    args = admixture_cmd()
+    demo = Demography.from_ms(args)
+
+    leaf_pops = list(demo.leaves)
+    leaf_lins = {l : demo.n_lineages_at_node[l] for l in leaf_pops}
+
+    ranges = [range(leaf_lins[pop]+1) for pop in leaf_pops]
+
+    totalSum = 0.0
+    totalLins = sum([v for k,v in leaf_lins.iteritems()])
+    for n_derived in itertools.product(*ranges):
+        if sum(n_derived) == 0 or sum(n_derived) == totalLins:
+            continue #skip monomorphic sites
+        state = {}
+        for i in range(len(leaf_pops)):
+            n_lins = leaf_lins[leaf_pops[i]]
+            state[leaf_pops[i]] = {'derived' : n_derived[i], 'ancestral' : n_lins - n_derived[i]}
+        demo.update_state(state)
+
+        totalSum += SumProduct(demo).p(normalized=True)
 
     assert abs(log(totalSum / 1.0)) < 1e-12    
     #assert totalSum == 1.0

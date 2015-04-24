@@ -11,6 +11,7 @@ import random
 from sum_product import SumProduct
 #import math
 from numdifftools import Gradient, Hessian
+from test_sfs_counts import simple_admixture_demo
 
 EPS=1e-8
 
@@ -49,11 +50,11 @@ def check_gradient(f, x):
 
     ## check Hessian vector product
     ## comented out cuz slow
-#     y = np.random.normal(size=x.shape)
-#     gdot = lambda u : np.dot(g(u), y)
-#     hess1, hess2 = grad(gdot)(x), Gradient(gdot)(x)
-#     print "hess1\n",hess1,"\nhess2\n",hess2
-#     log_within(hess1,hess2, eps=1e-1, trunc=1e-5)
+    y = np.random.normal(size=x.shape)
+    gdot = lambda u : np.dot(g(u), y)
+    hess1, hess2 = grad(gdot)(x), Gradient(gdot)(x)
+    print "hess1\n",hess1,"\nhess2\n",hess2
+    log_within(hess1,hess2, eps=1e-1, trunc=1e-5)
 
 
 def test_simple():
@@ -124,6 +125,12 @@ def sfs_func(demo_func, n_lins, normalized=True):
             #ret = log(ret) - log(demo.totalSfsSum)
         return ret
     return f
+
+def test_admixture():
+    n_lins = {'1':2,'2':2}
+    f = sfs_func(simple_admixture_demo, n_lins, normalized=True)
+    x = np.random.normal(size=7)
+    check_gradient(f,x)
 
 @pytest.mark.parametrize("log_tau,growth_rate,log_N_bottom", 
                          ((-random.expovariate(1),g,random.gauss(0,1))

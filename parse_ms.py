@@ -251,7 +251,7 @@ def simulate_sfs(demo, num_sims, theta=None, seed=None, additionalParams=""):
     if any([(x in additionalParams) for x in "-t","-T","seed"]):
         raise IOError("additionalParams should not contain -t,-T,-seed,-seeds")
 
-    lins_per_pop = [demo.n_lineages_subtended_by[l] for l in sorted(demo.leaves)]
+    lins_per_pop = [demo.n_lineages_at_node[l] for l in sorted(demo.leaves)]
     n = sum(lins_per_pop)
     pops_by_lin = []
     for pop in range(len(lins_per_pop)):
