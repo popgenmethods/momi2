@@ -1,6 +1,16 @@
 TODO:
 
 ***
+fix
+  File "/Users/jackkamm/Dropbox/research/momi/parse_ms.py", line 29, in toFloat
+    raise Exception("nan in %s,%s" % (ms_cmd))
+TypeError: not enough arguments for format string
+
+***
+add back numerical stability assertions, etc.
+(things seem a little more unstable right now in the gradient descent)
+
+***
 check if memoize, memoize_instance play nicely with autograd
 
 ***
