@@ -59,8 +59,6 @@ class TruncatedSizeHistory(object):
 #                 "%.16f, %.16f"  % (self.tau, ret[(1, 1)])
 
         ## TODO: add non-negativity checks back!!
-#         for _,v in ret.iteritems():
-#             truncate(v, level=min(1e-16, float(self.tau)*1e-15))
 #         assert all([v >= 0.0 for _,v in ret.iteritems()])
         return ret
 

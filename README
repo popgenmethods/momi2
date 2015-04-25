@@ -6,15 +6,18 @@ fix
     raise Exception("nan in %s,%s" % (ms_cmd))
 TypeError: not enough arguments for format string
 
+
+***
+merge some of my_functions into autograd package with pull request
+
+
 ***
 add back numerical stability assertions, etc.
 (things seem a little more unstable right now in the gradient descent)
 
-***
-check if memoize, memoize_instance play nicely with autograd
 
 ***
-implement fftconvolve,expm_multiply for autograd branch
+implement expm_multiply for autograd branch
 
 ***
 Change exponential size history to take in alpha
@@ -35,12 +38,7 @@ Try expokit stuff in expokit branch
 ***
 copy assertions in ConstantTruncatedSizeHistory.etjj to other etjj
 
-***
-truncate() call in size_history.py is a little ugly, vectorize it and such
-(see TODO)
 
-***
-switched to using non-FFT convolve, fix numerical errors with FFT convolve and switch back to it
 
 ***
 Two sources of numerical error:
@@ -58,8 +56,6 @@ subclass ndarray, and replace rmul,radd, etc for this subclass!!!!
 
 this will allow arbitrary left,right multiplication etc, and clean up the code a lot! and also allow us to use arbitrary scipy functions, e.g. in the FunctionalTruncatedHistory
 
-***
-merge admixture branch into autodiff branch
 
 
 ***
