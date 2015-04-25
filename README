@@ -1,6 +1,21 @@
 TODO:
 
 ***
+make SumProduct entirely tensorized!!!
+so "dataset" is an axis, and each index along this axis is a separate configuration
+
+this will make the reverse-order differentiation maximally efficient
+
+***
+get rid of LabeledAxisArray,
+
+instead just pass
+(tensor, {pop: idx})
+
+tensor is of probabilities, with 0th index=dataset
+
+
+***
 fix
   File "/Users/jackkamm/Dropbox/research/momi/parse_ms.py", line 29, in toFloat
     raise Exception("nan in %s,%s" % (ms_cmd))
