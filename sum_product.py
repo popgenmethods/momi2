@@ -1,9 +1,8 @@
 import autograd.numpy as np
 from autograd.numpy import sum
-from autograd.scipy.signal import convolve
 import scipy.misc
 import bidict as bd
-from util import memoize_instance, memoize
+from util import memoize_instance, memoize, fftconvolve, my_trace
 
 class LabeledAxisArray(object):
     def __init__(self, array, axisLabels, copyArray=True):
@@ -22,19 +21,14 @@ class LabeledAxisArray(object):
         return LabeledAxisArray(new_array, new_axes, copyArray=False)
 
     def sum_axes(self, old_axes, new_label):
-        #a0,a1 = (self.axes[l] for l in old_axes)
         a0,a1 = old_axes
         self.swap_axis(a0, 0)
         self.swap_axis(a1, 1)
 
-        ## TODO: avoid for loops, maybe with einsum?
-        #new_array = np.zeros([self.array.shape[0] + self.array.shape[1] - 1] + list(self.array.shape[2:]))
-        new_array = [0.0 for _ in range(self.array.shape[0] + self.array.shape[1] - 1)]
-        for i in range(self.array.shape[0]):
-            for j in range(self.array.shape[1]):
-                new_array[i+j] = new_array[i+j] + self.array[i,j,...]
-                #new_array[i+j,...] += self.array[i,j,...]
-        new_array = np.array(new_array)
+        # sum the antidiagonals of the first two axes
+        new_array = self.array[::-1,...]
+        new_array = np.array([my_trace(new_array,offset=k) 
+                              for k in range(-new_array.shape[0]+1,new_array.shape[1])])
 
         new_axes = bd.bidict()
         new_axes[new_label] = 0
@@ -206,7 +200,7 @@ class SumProduct(object):
                 childTopLik.relabel_axis(childPop, newpop)
                 childTopLik.expand_labels(self.G.sub_pops(event))
                 liks.append(childTopLik.array)
-            ret = LabeledAxisArray(convolve(*liks), self.G.sub_pops(event), copyArray=False)
+            ret = LabeledAxisArray(fftconvolve(*liks), self.G.sub_pops(event), copyArray=False)
             ret.divide_along_axis(newpop, self.combinatorial_factors(newpop))
             return ret.array
         else:

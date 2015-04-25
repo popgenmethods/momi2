@@ -1,8 +1,8 @@
 import networkx as nx
 from cached_property import cached_property
 from autograd.numpy import log
-from util import memoize_instance, memoize
-import scipy, scipy.misc, scipy.signal
+from util import memoize_instance, memoize, fftconvolve, my_einsum
+import scipy, scipy.misc
 import autograd.numpy as np
 from sum_product import LabeledAxisArray, SumProduct
 
@@ -163,19 +163,14 @@ class Demography(nx.DiGraph):
         prob1,prob2 = nd['splitprobs'][parent1], nd['splitprobs'][parent2]
         assert prob1 + prob2 == 1.0
 
-        # dimensions are [child_derived, parent1_derived, parent2_derived]
-        # FIXME: replace for loops with vectorized operations!
-        #ret = np.zeros((n_node+1, n_node+1, n_node+1))
-        ret = [[[0.0 for _ in range(n_node+1)] for _ in range(n_node+1)] for _ in range(n_node+1)]
-        # iterate over entries of ret
-        for child_der in range(n_node+1):
-            for par1_der in range(n_node+1):
-                for par2_der in range(n_node+1):
-                    # iterate over number of lineages inherited from parent 1
-                    for n_from_1 in range(n_node+1):
-                        n_from_2 = n_node - n_from_1
-                        ret[child_der][par1_der][par2_der] += scipy.misc.comb(n_node, n_from_1) * (prob1**n_from_1) * (prob2**n_from_2) * der_in_admixture_node(n_from_1, n_from_2, par1_der, par2_der)[child_der]
-        return LabeledAxisArray(np.array(ret), [admixture_node, parent1, parent2], copyArray=False)
+        n_from_1 = np.arange(n_node+1)
+        n_from_2 = n_node - n_from_1
+        binom_coeffs = (prob1**n_from_1) * (prob2**n_from_2) * scipy.misc.comb(n_node, n_from_1)
+        ret = my_einsum(der_in_admixture_node(n_node), range(4),
+                        binom_coeffs, [0],
+                        [1,2,3])
+        assert ret.shape == tuple([n_node+1] * 3)
+        return LabeledAxisArray(ret, [admixture_node, parent1, parent2], copyArray=False)
 
     def is_leaf(self, node):
         return node in self.leaves
@@ -207,27 +202,22 @@ class Demography(nx.DiGraph):
         assert ret < 0.0
         return ret
 
-
 @memoize
-def der_in_admixture_node(n_from_1, n_from_2, der_in_1, der_in_2):
+def der_in_admixture_node(n_node):
     '''
-    Given admixture node inherits n_from_1, n_from_2 lineages in parents1,2
-    and parents1,2 have der_in_1, der_in_2 derived alleles
-    returns array giving probability that admixture node has der_in_child derived alleles
+    returns 4d-array, [n_from_parent1, der_in_child, der_in_parent1, der_in_parent2]
     '''
-    n_node = n_from_1 + n_from_2
-    to_convolve = []
-    for n_from_parent, der_in_parent in (n_from_1, der_in_1), (n_from_2, der_in_2):
-        anc_in_parent = n_node - der_in_parent
+    # axis0=n_from_parent, axis1=der_from_parent, axis2=der_in_parent
+    der_in_parent = np.tile(np.arange(n_node+1), (n_node+1,n_node+1,1))
+    n_from_parent = np.transpose(der_in_parent, [2,0,1])
+    der_from_parent = np.transpose(der_in_parent, [0,2,1])
+    
+    anc_in_parent = n_node - der_in_parent
+    anc_from_parent = n_from_parent - der_from_parent
+    
+    x = scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent)
 
-        der_from_parent = np.arange(n_from_parent+1)
-        anc_from_parent = n_from_parent - der_from_parent
-
-        to_convolve.append(scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent))
-
-    ret = scipy.signal.fftconvolve(*to_convolve)
-    assert len(ret) == n_node+1
-    return ret
+    return fftconvolve(x[:,:,:,np.newaxis], x[::-1,:,np.newaxis,:], axes=[1,2,3])[:,:(n_node+1),:,:]
 
 
 def normalizing_constant(demography):
