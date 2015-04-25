@@ -66,6 +66,12 @@ class memoize_instance(object):
         return res
 
 @primitive
+def swapaxes(a, axis1, axis2):
+    return np.swapaxes(a, axis1, axis2)
+swapaxes.defgrad(lambda ans,a,axis1,axis2:
+                     lambda g: swapaxes(g, axis1,axis2))
+
+@primitive
 def my_trace(a, offset):
     return np.trace(a, offset)
 my_trace.defgrad(lambda ans,a,offset:
@@ -79,18 +85,19 @@ def my_einsum(*args):
     '''
     assumes format einsum(op0, sublist0, op1, sublist1, ..., sublistout),
     NOT format einsum(subscripts, *operands)
-    TODO: replace with autograd einsum when implemented
     '''
+    assert len(args) % 2 == 1
     return np.einsum(*args)
 def make_einsum_grad(argnum, ans, *args):
     if argnum % 2 == 1:
-        return lambda g: 0.0
+        raise Exception()
     grad_args = list(args)
     grad_args[-1] = args[argnum+1]
     grad_args[argnum+1] = args[-1]
     def grad(g):
-        grad_args[argnum] = g
-        return my_einsum(*grad_args)
+       curr_args = list(grad_args)
+       curr_args[argnum] = g
+       return my_einsum(*curr_args)
     return grad
 my_einsum.gradmaker = make_einsum_grad
 
@@ -122,12 +129,12 @@ def fftconvolve(in1, in2, axes=None):
 def my_fftn(x, s, axes):
     '''
     autograd fftn currently broken for arguments s,axes
-    TODO: submit this to autograd package, remove this function here
     '''
     return fftn(x,s,axes)
 def fftngrad(ans,x,s,axes):
-    fslice = tuple(slice(0,int(sz)) for sz in x.shape)
-    return lambda g: my_fftn(g,s,axes)[fslice]
+    gslice = tuple(slice(0,int(sz)) for sz in x.shape)
+    g_s = tuple(map(max, zip(x.shape, ans.shape)))
+    return lambda g: my_fftn(g,g_s,axes)[gslice]
 my_fftn.defgrad(fftngrad)
 
 

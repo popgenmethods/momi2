@@ -1,11 +1,9 @@
-#import numpy as np
 from util import memoize, my_einsum
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
 import autograd.numpy as np
 from autograd.numpy import dot, diag, exp, tensordot
 from autograd.core import primitive
-#from adarray.ad.admath import exp
 
 @memoize
 def rate_matrix(n, sparse_format="csr"):
@@ -37,4 +35,3 @@ def moran_action(t, v, axis=0):
 def _old_moran_action(t, v):
     n = len(v) - 1
     return expm_multiply(rate_matrix(n)*t,v)
-

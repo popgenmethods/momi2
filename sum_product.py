@@ -2,7 +2,7 @@ import autograd.numpy as np
 from autograd.numpy import sum
 import scipy.misc
 import bidict as bd
-from util import memoize_instance, memoize, fftconvolve, my_trace
+from util import memoize_instance, memoize, fftconvolve, my_trace, swapaxes, my_einsum
 
 class LabeledAxisArray(object):
     def __init__(self, array, axisLabels, copyArray=True):
@@ -43,12 +43,7 @@ class LabeledAxisArray(object):
         old_pos = self.axes[axis:]
         self.axes.forceput(axis, new_pos)
         self.axes.forceput(swapped_axis, old_pos)
-        if old_pos > new_pos:
-            old_pos,new_pos = new_pos,old_pos
-        if old_pos != new_pos:
-            self.array = np.transpose(self.array, range(old_pos) + [new_pos] + range(old_pos+1, new_pos) + [old_pos] + range(new_pos+1, len(self.axes)))
-        #self.array = np.swapaxes(self.array, old_pos, new_pos)
-        #self.array = self.array.swapaxes(old_pos, new_pos)
+        self.array = swapaxes(self.array, old_pos, new_pos)
 
     # returns array[0,...,0,:,0,...,0] with : at specified axis
     def get_zeroth_vector(self, axisLabel):
@@ -57,31 +52,15 @@ class LabeledAxisArray(object):
         idx[axis] = slice(self.array.shape[axis])
         return self.array[idx]
 
-    def apply_along_axis(self, axisLabel, func):
-        # this might be slow (like a for loop)
-        self.array = np.apply_along_axis(func, self.axes[axisLabel], self.array)
-
     def multiply_along_axis(self, axisLabel, vec):
-        self.array = self.array * vec[[slice(None)] + [np.newaxis]*(len(self.axes) - self.axes[axisLabel]-1)]
-#         tmpView = np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)
-#         tmpView *= vec
-        #self.array = tmpView * vec
-        #self.array = np.swapaxes(tmpView * vec, self.axes[axisLabel], len(self.array.shape)-1)
+        inds = range(len(self.axes))
+        self.array = my_einsum(self.array, inds, vec, [self.axes[axisLabel]], inds)
 
     def divide_along_axis(self, axisLabel, vec):
-        self.array = self.array / vec[[slice(None)] + [np.newaxis]*(len(self.axes) - self.axes[axisLabel]-1)]
-#          tmpView = np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-1)
-#          tmpView /= vec
-#         #self.array = tmpView / vec
-#         self.array = np.swapaxes(tmpView / vec, self.axes[axisLabel], len(self.array.shape)-1)
+        self.multiply_along_axis(axisLabel, 1.0/vec)
 
     def apply_transition(self, axisLabel, transition):
         self.array = transition(self.array, axis=self.axes[axisLabel])
-#         if len(self.array.shape) >= 2:
-#             tmpView = np.swapaxes(self.array, self.axes[axisLabel], len(self.array.shape)-2)
-#             self.array = np.swapaxes(transition(tmpView), self.axes[axisLabel], len(self.array.shape)-2)
-#         else:
-#             self.array = transition(self.array)
 
     def relabel_axis(self, old_label, new_label):
         self.axes[new_label] = self.axes[old_label]
@@ -101,7 +80,7 @@ class LabeledAxisArray(object):
         assert len(new_order) == len(self.axes)
         label_permutation = [self.axes[l] for l in new_order]
         self.array = np.transpose(self.array, label_permutation)
-        self.axes = {x : i for i,x in enumerate(new_order)}
+        self.axes = bd.bidict({x : i for i,x in enumerate(new_order)})
 
 class SumProduct(object):
     ''' 
@@ -150,7 +129,6 @@ class SumProduct(object):
         '''       
         ret = LabeledAxisArray(self.partial_likelihood_bottom(event), self.G.sub_pops(event))
         for pop in popList:
-            #ret.apply_along_axis(pop, lambda x: self.G.node_data[pop]['model'].transition_prob(x))
             ret.apply_transition(pop, self.G.node_data[pop]['model'].transition_prob)
         return ret.array
 
