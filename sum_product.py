@@ -2,22 +2,7 @@ import autograd.numpy as np
 from autograd.numpy import sum
 import scipy.misc
 import bidict as bd
-from util import memoize_instance, memoize, my_trace, swapaxes, my_einsum, fft_einsum
-
-def sum_antidiagonals(arr, labels, axis0, axis1, new_axis):
-    assert axis0 != axis1
-    idx0,idx1 = labels.index(axis0), labels.index(axis1)
-
-    ret = swapaxes(swapaxes(arr, idx0, 0), idx1, 1)[::-1,...]
-    ret = np.array([my_trace(ret,offset=k) 
-                    for k in range(-ret.shape[0]+1,ret.shape[1])])    
-
-    labels = list(labels)
-    labels[idx0],labels[idx1] = labels[0],labels[1]
-    labels = [new_axis] + labels[2:]
-   
-    return ret,labels
-
+from util import memoize_instance, memoize, my_trace, swapaxes, my_einsum, fft_einsum, sum_antidiagonals
 
 class SumProduct(object):
     ''' 
@@ -30,7 +15,8 @@ class SumProduct(object):
         
     def p(self, normalized = False):
         '''Return joint SFS entry for the demography'''
-        ret = self.joint_sfs(self.G.event_root)
+        #ret = self.joint_sfs(self.G.event_root)
+        _,ret = self.partial_likelihood(self.G.event_root)
         if normalized:
             ret = ret / self.G.totalSfsSum
         return ret
@@ -64,104 +50,101 @@ class SumProduct(object):
         i.e. = P(n_top) P(x | n_derived_top, n_ancestral_top)
         note n_top is fixed in Moran model, so P(n_top)=1
         '''       
-        ret = self.partial_likelihood_bottom(event)
+        lik,sfs = self.partial_likelihood(event)
         for pop in popList:
-            ret = self.G.node_data[pop]['model'].transition_prob(ret,
+            lik = self.G.node_data[pop]['model'].transition_prob(lik,
                                                                  self.G.sub_pops(event).index(pop))
-        return ret
+        return lik,sfs
 
     @memoize_instance
-    def partial_likelihood_bottom(self, event):
-        '''Partial likelihood of data under Moran model, given alleles at bottom of node
-        i.e. = P(n_bottom) P(x | n_derived_bottom, n_ancestral_bottom)
-        note n_bottom is fixed in Moran model, so P(n_bottom)=1
-        '''
-        if self.G.event_type(event) == 'leaf':
-            leafpop, = self.G.parent_pops(event)
-            return self.leaf_likelihood_bottom(leafpop)
-        elif self.G.event_type(event) == 'admixture':
-            childpop, = self.G.child_pops(event).keys()
-            p1,p2 = self.G.parent_pops(event)
-
-            childEvent, = self.G.eventTree[event]
-            childTopLik = self.partial_likelihood_top(childEvent, frozenset([childpop]))
-            
-            admixture_prob, admixture_idxs = self.G.admixture_prob(childpop)
-            return my_einsum(childTopLik, self.G.sub_pops(childEvent),
-                             admixture_prob, admixture_idxs,
-                             self.G.sub_pops(event))
-        elif self.G.event_type(event) == 'merge_subpops':
-            newpop, = self.G.parent_pops(event)
-            childPops = self.G[newpop]
-            childEvent, = self.G.eventTree[event]
-
-            ret = self.partial_likelihood_top(childEvent, frozenset(childPops))
-            
-            c1,c2 = childPops
-            below_subpops = self.G.sub_pops(childEvent)
-            for c in c1,c2:
-                ret = my_einsum(ret, below_subpops,
-                                self.combinatorial_factors(c), [c],
-                                below_subpops)
-            ret,idxs = sum_antidiagonals(ret, below_subpops, c1, c2, newpop)
-            return my_einsum(ret, idxs,
-                             1.0/self.combinatorial_factors(newpop), [newpop],
-                             self.G.sub_pops(event))
-        elif self.G.event_type(event) == 'merge_clusters':
-            newpop, = self.G.parent_pops(event)
-            child_liks = []
-            child_sub_pops = []
-            for childPop, childEvent in self.G.child_pops(event).iteritems():
-                ## TODO: remove frozenset here (and elsewhere) after removing memoization
-                childTopLik = self.partial_likelihood_top(childEvent, frozenset([childPop]))
-                sub_pops = [newpop if x == childPop else x for x in self.G.sub_pops(childEvent)]
-                child_sub_pops.append(sub_pops)
-                childTopLik = my_einsum(childTopLik, sub_pops,
-                                        self.combinatorial_factors(childPop), [newpop],
-                                        sub_pops)
-                child_liks.append(childTopLik)
-            sub_pops = self.G.sub_pops(event)
-            ret = fft_einsum(child_liks[0], child_sub_pops[0],
-                             child_liks[1], child_sub_pops[1],
-                             sub_pops,
-                             [newpop])
-            ret = my_einsum(ret, sub_pops,
-                            1.0/self.combinatorial_factors(newpop), [newpop],
-                            sub_pops)
-            return ret
-        else:
-            raise Exception("Event type %s not yet implemented" % self.G.event_type(event))
-       
-    @memoize_instance
-    def joint_sfs(self, event):
-        '''The joint SFS entry for the configuration under this node'''
-        event_subpops = self.G.sub_pops(event)
-        # if no derived leafs, return 0
-        if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in event_subpops):
-            return 0.0
+    def partial_likelihood(self, event):
+        lik_fun = eval("_%s_likelihood" % self.G.event_type(event))
+        lik,sfs = lik_fun(self, event)
         
-        ret = 0.0
-        bottom_likelihood = self.partial_likelihood_bottom(event)
+        # add on sfs entry at this event
+        event_subpops = self.G.sub_pops(event)
         for newpop in self.G.parent_pops(event):
             # term for mutation occurring at the newpop
             newpop_idx = event_subpops.index(newpop)
-            idx = [0] * bottom_likelihood.ndim
-            idx[newpop_idx] = slice(bottom_likelihood.shape[newpop_idx])
-            ret = ret + np.sum(bottom_likelihood[idx] * self.truncated_sfs(newpop))
+            idx = [0] * lik.ndim
+            idx[newpop_idx] = slice(lik.shape[newpop_idx])
+            sfs = sfs + np.sum(lik[idx] * self.truncated_sfs(newpop))
 
-        if self.G.event_type(event) == 'leaf':
-            return ret
-        # add on terms for mutation occurring below this node
-        # if no derived leafs on right, add on term from the left
-        elif self.G.event_type(event) == 'merge_clusters':
-            c1, c2 = self.G.eventTree[event]
-            for child, other_child in ((c1, c2), (c2, c1)):
-                if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in self.G.sub_pops(child)):
-                    ret += self.joint_sfs(other_child)
-            return ret
-        elif self.G.event_type(event) == 'merge_subpops' or self.G.event_type(event) == 'admixture':
-            childEvent, = self.G.eventTree[event]
-            ret += self.joint_sfs(childEvent)
-            return ret
-        else:
-            raise Exception("Event type %s not yet implemented" % self.G.event_type(event))
+        return lik,sfs
+
+
+def _leaf_likelihood(sp, event):
+    leaf, = sp.G.parent_pops(event)
+    n_node = sp.G.node_data[leaf]['lineages']
+    lik = np.zeros(n_node + 1)
+    lik[sp.G.node_data[leaf]['derived']] = 1.0
+    return lik,0.0
+    #return ret
+
+def _admixture_likelihood(sp, event):
+    child_pop, = sp.G.child_pops(event).keys()
+    p1,p2 = sp.G.parent_pops(event)
+
+    child_event, = sp.G.eventTree[event]
+    ## TODO: remove frozenset
+    lik,sfs = sp.partial_likelihood_top(child_event, frozenset([child_pop]))
+
+    admixture_prob, admixture_idxs = sp.G.admixture_prob(child_pop)
+    lik = my_einsum(lik, sp.G.sub_pops(child_event),
+                    admixture_prob, admixture_idxs,
+                    sp.G.sub_pops(event))
+
+    return lik,sfs
+
+def _merge_subpops_likelihood(sp, event):
+    newpop, = sp.G.parent_pops(event)
+    child_pops = sp.G[newpop]
+    child_event, = sp.G.eventTree[event]
+
+    lik,sfs = sp.partial_likelihood_top(child_event, frozenset(child_pops))
+
+    c1,c2 = child_pops
+    below_subpops = sp.G.sub_pops(child_event)
+    for c in c1,c2:
+        lik = my_einsum(lik, below_subpops,
+                        sp.combinatorial_factors(c), [c],
+                        below_subpops)
+    lik,idxs = sum_antidiagonals(lik, below_subpops, c1, c2, newpop)
+    lik = my_einsum(lik, idxs,
+                    1.0/sp.combinatorial_factors(newpop), [newpop],
+                    sp.G.sub_pops(event))
+
+    return lik,sfs
+
+def _merge_clusters_likelihood(sp, event):
+    newpop, = sp.G.parent_pops(event)
+    child_liks = []
+    child_sub_pops = []
+
+    for child_pop, child_event in sp.G.child_pops(event).iteritems():
+        ## TODO: remove frozenset here (and elsewhere) after removing memoization
+        lik,sfs = sp.partial_likelihood_top(child_event, frozenset([child_pop]))
+
+        sub_pops = [newpop if x == child_pop else x for x in sp.G.sub_pops(child_event)]
+        child_sub_pops.append(sub_pops)
+        lik = my_einsum(lik, sub_pops,
+                        sp.combinatorial_factors(child_pop), [newpop],
+                        sub_pops)
+
+        child_liks.append((lik,sfs))
+
+    child_liks,child_sfs = zip(*child_liks)
+    sub_pops = sp.G.sub_pops(event)
+
+    lik = fft_einsum(child_liks[0], child_sub_pops[0],
+                     child_liks[1], child_sub_pops[1],
+                     sub_pops,
+                     [newpop])
+    lik = my_einsum(lik, sub_pops,
+                    1.0/sp.combinatorial_factors(newpop), [newpop],
+                    sub_pops)
+    
+    sfs = 0.0
+    for freq, other_lik in zip(child_sfs, child_liks[::-1]):
+        sfs = sfs + freq * np.squeeze(other_lik[ [slice(1)] * other_lik.ndim])
+    return lik, sfs

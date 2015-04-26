@@ -1,5 +1,16 @@
 TODO:
 
+***
+make a single function
+
+sfs
+
+which takes in:
+data, ms_cmd, theta, params
+
+returns:
+sfs, normalization constant
+
 
 ***
 in sum_product, turn event names into functions, access them using following dictionary:

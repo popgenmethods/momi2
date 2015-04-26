@@ -247,7 +247,7 @@ def normalizing_constant(demography):
 
     ret = 0.0
     for event in sp.G.eventTree:
-        bottom_likelihood = sp.partial_likelihood_bottom(event)
+        bottom_likelihood,_ = sp.partial_likelihood(event)
         event_subpops = demography.sub_pops(event)
         for newpop in demography.parent_pops(event):
             newpop_idx = event_subpops.index(newpop)

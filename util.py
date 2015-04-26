@@ -111,6 +111,21 @@ def make_einsum_grad(argnum, ans, *args):
     return grad
 my_einsum.gradmaker = make_einsum_grad
 
+def sum_antidiagonals(arr, labels, axis0, axis1, new_axis):
+    assert axis0 != axis1
+    idx0,idx1 = labels.index(axis0), labels.index(axis1)
+
+    ret = swapaxes(swapaxes(arr, idx0, 0), idx1, 1)[::-1,...]
+    ret = np.array([my_trace(ret,offset=k) 
+                    for k in range(-ret.shape[0]+1,ret.shape[1])])    
+
+    labels = list(labels)
+    labels[idx0],labels[idx1] = labels[0],labels[1]
+    labels = [new_axis] + labels[2:]
+   
+    return ret,labels
+
+
 # like einsum, but for labels in fft_labels, does multiplication in fourier domain
 # (i.e. does convolution instead of multiplication for fft_labels)
 def fft_einsum(in1, labels1, in2, labels2, out_labels, fft_labels):
