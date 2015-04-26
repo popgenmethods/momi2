@@ -1,5 +1,37 @@
 TODO:
 
+
+***
+in sum_product, turn event names into functions, access them using following dictionary:
+{"merge_subpops" : merge_subpops_likelihood, "merge_clusters" : merge_clusters_likelihood, "admixture" : admixture_likelihood}
+
+(could also use "eval" but it might be too hard to parse)
+(or could use a function to retrieve the function...)
+
+***
+
+Treat partial_likelihood,sfs together as a polynomial
+
+Tensorize
+
+***
+represent partial_likelihood,sfs as a first-order polynomial
+(partial_likelihood=0th order term for all idxs, sfs=1st order term for 0th idx (no derived allele now))
+
+this allows doing tensor arithmetic "all the way down"
+because
+
+upper_sfs[:] = partial_likelihood[:,0] * lower_sfs[:] + einsum("ij,j", partial_likelihood, truncated_sfs)
+
+(maybe prepend truncated_sfs with a 0 for convenience)
+
+***
+rewrite sum_product in functional style, using tensors instead of for loops, remove @memoize_instance
+
+keep size_history, demography in object style
+
+but make sfs functional style?
+
 ***
 make SumProduct entirely tensorized!!!
 so "dataset" is an axis, and each index along this axis is a separate configuration

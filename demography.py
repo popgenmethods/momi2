@@ -1,10 +1,10 @@
 import networkx as nx
 from cached_property import cached_property
 from autograd.numpy import log
-from util import memoize_instance, memoize, fftconvolve, my_einsum
+from util import memoize_instance, memoize, my_einsum, fft_einsum
 import scipy, scipy.misc
 import autograd.numpy as np
-from sum_product import LabeledAxisArray, SumProduct
+from sum_product import SumProduct
 
 import parse_ms
 import random
@@ -147,7 +147,7 @@ class Demography(nx.DiGraph):
     @memoize_instance
     def admixture_prob(self, admixture_node):
         '''
-        Returns LabeledAxisArray with dimensions [child_der, par1_der, par2_der]
+        Returns ndarray with dimensions [child_der, par1_der, par2_der]
 
         child_der: # derived alleles in admixture_node
         par1_der, par2_der: # derived alleles in parent1, parent2 of admixture_node
@@ -170,7 +170,7 @@ class Demography(nx.DiGraph):
                         binom_coeffs, [0],
                         [1,2,3])
         assert ret.shape == tuple([n_node+1] * 3)
-        return LabeledAxisArray(ret, [admixture_node, parent1, parent2], copyArray=False)
+        return ret, [admixture_node, parent1, parent2]
 
     def is_leaf(self, node):
         return node in self.leaves
@@ -217,7 +217,9 @@ def der_in_admixture_node(n_node):
     
     x = scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent)
 
-    return fftconvolve(x[:,:,:,np.newaxis], x[::-1,:,np.newaxis,:], axes=[1,2,3])[:,:(n_node+1),:,:]
+    return fft_einsum(x, [0, 1, 2],
+                      x[::-1,...], [0, 1, 3],
+                      [0,1,2,3], [1])[:,:(n_node+1),:,:]
 
 
 def normalizing_constant(demography):
@@ -245,10 +247,14 @@ def normalizing_constant(demography):
 
     ret = 0.0
     for event in sp.G.eventTree:
+        bottom_likelihood = sp.partial_likelihood_bottom(event)
+        event_subpops = demography.sub_pops(event)
         for newpop in demography.parent_pops(event):
-            labeledArray = LabeledAxisArray(sp.partial_likelihood_bottom(event), demography.sub_pops(event), copyArray=False)
+            newpop_idx = event_subpops.index(newpop)
+            idx = [0] * bottom_likelihood.ndim
+            idx[newpop_idx] = slice(bottom_likelihood.shape[newpop_idx])
             # 1 - partial_likelihood_bottom is probability of at least one derived leaf lineage
-            ret += ((1.0 - labeledArray.get_zeroth_vector(newpop)) * sp.truncated_sfs(newpop)).sum()
+            ret = ret + np.sum((1.0 - bottom_likelihood[idx]) * sp.truncated_sfs(newpop))
 
     # subtract off the term for all alleles derived
     state = {}

@@ -2,85 +2,22 @@ import autograd.numpy as np
 from autograd.numpy import sum
 import scipy.misc
 import bidict as bd
-from util import memoize_instance, memoize, fftconvolve, my_trace, swapaxes, my_einsum
+from util import memoize_instance, memoize, my_trace, swapaxes, my_einsum, fft_einsum
 
-class LabeledAxisArray(object):
-    def __init__(self, array, axisLabels, copyArray=True):
-        self.array = array
-        if copyArray:
-            self.array = self.array + 0
-        self.axes = bd.bidict({x : i for i,x in enumerate(axisLabels)})
-        assert len(self.axes) == len(axisLabels) # assert no repeats
-        assert len(self.axes) == len(self.array.shape)
+def sum_antidiagonals(arr, labels, axis0, axis1, new_axis):
+    assert axis0 != axis1
+    idx0,idx1 = labels.index(axis0), labels.index(axis1)
 
-    def tensor_multiply(self, other, axis):
-        new_array = np.tensordot(self.array, other.array, [[self.axes[axis]], [other.axes[axis]]])
-        new_axes = []
-        for old in self, other:
-            new_axes += [old.axes[:i] for i in range(len(old.axes)) if old.axes[:i] != axis]
-        return LabeledAxisArray(new_array, new_axes, copyArray=False)
+    ret = swapaxes(swapaxes(arr, idx0, 0), idx1, 1)[::-1,...]
+    ret = np.array([my_trace(ret,offset=k) 
+                    for k in range(-ret.shape[0]+1,ret.shape[1])])    
 
-    def sum_axes(self, old_axes, new_label):
-        a0,a1 = old_axes
-        self.swap_axis(a0, 0)
-        self.swap_axis(a1, 1)
+    labels = list(labels)
+    labels[idx0],labels[idx1] = labels[0],labels[1]
+    labels = [new_axis] + labels[2:]
+   
+    return ret,labels
 
-        # sum the antidiagonals of the first two axes
-        new_array = self.array[::-1,...]
-        new_array = np.array([my_trace(new_array,offset=k) 
-                              for k in range(-new_array.shape[0]+1,new_array.shape[1])])
-
-        new_axes = bd.bidict()
-        new_axes[new_label] = 0
-        for i in range(2,len(self.axes)):
-            new_axes[self.axes[:i]] = i-1
-        self.array = new_array
-        self.axes = new_axes
-    
-    ## TODO: get rid of this function
-    def swap_axis(self, axis, new_pos):
-        swapped_axis = self.axes[:new_pos]
-        old_pos = self.axes[axis:]
-        self.axes.forceput(axis, new_pos)
-        self.axes.forceput(swapped_axis, old_pos)
-        self.array = swapaxes(self.array, old_pos, new_pos)
-
-    # returns array[0,...,0,:,0,...,0] with : at specified axis
-    def get_zeroth_vector(self, axisLabel):
-        idx = [0] * len(self.axes)
-        axis = self.axes[axisLabel]
-        idx[axis] = slice(self.array.shape[axis])
-        return self.array[idx]
-
-    def multiply_along_axis(self, axisLabel, vec):
-        inds = range(len(self.axes))
-        self.array = my_einsum(self.array, inds, vec, [self.axes[axisLabel]], inds)
-
-    def divide_along_axis(self, axisLabel, vec):
-        self.multiply_along_axis(axisLabel, 1.0/vec)
-
-    def apply_transition(self, axisLabel, transition):
-        self.array = transition(self.array, axis=self.axes[axisLabel])
-
-    def relabel_axis(self, old_label, new_label):
-        self.axes[new_label] = self.axes[old_label]
-        # del self.axes[old_label]
-
-    def expand_labels(self, new_labels):
-        added_labels = [x for x in new_labels if x not in self.axes]
-        # new_labels should contain all the old_labels
-        assert len(new_labels) == len(added_labels) + len(self.axes)
-        self.array = self.array[[slice(None)] * len(self.array.shape) + [np.newaxis] * len(added_labels)]
-        #self.array.resize(list(self.array.shape) + [1] * len(added_labels))
-        for l in added_labels:
-            self.axes[l] = len(self.axes)
-        self.reorder_axes(new_labels)
-
-    def reorder_axes(self, new_order):
-        assert len(new_order) == len(self.axes)
-        label_permutation = [self.axes[l] for l in new_order]
-        self.array = np.transpose(self.array, label_permutation)
-        self.axes = bd.bidict({x : i for i,x in enumerate(new_order)})
 
 class SumProduct(object):
     ''' 
@@ -127,10 +64,11 @@ class SumProduct(object):
         i.e. = P(n_top) P(x | n_derived_top, n_ancestral_top)
         note n_top is fixed in Moran model, so P(n_top)=1
         '''       
-        ret = LabeledAxisArray(self.partial_likelihood_bottom(event), self.G.sub_pops(event))
+        ret = self.partial_likelihood_bottom(event)
         for pop in popList:
-            ret.apply_transition(pop, self.G.node_data[pop]['model'].transition_prob)
-        return ret.array
+            ret = self.G.node_data[pop]['model'].transition_prob(ret,
+                                                                 self.G.sub_pops(event).index(pop))
+        return ret
 
     @memoize_instance
     def partial_likelihood_bottom(self, event):
@@ -148,56 +86,69 @@ class SumProduct(object):
             childEvent, = self.G.eventTree[event]
             childTopLik = self.partial_likelihood_top(childEvent, frozenset([childpop]))
             
-            ret = LabeledAxisArray(childTopLik, self.G.sub_pops(childEvent))
-            ret = ret.tensor_multiply(self.G.admixture_prob(childpop), childpop)
-            ret.reorder_axes(self.G.sub_pops(event)) # make sure axes are in correct order
-            return ret.array
+            admixture_prob, admixture_idxs = self.G.admixture_prob(childpop)
+            return my_einsum(childTopLik, self.G.sub_pops(childEvent),
+                             admixture_prob, admixture_idxs,
+                             self.G.sub_pops(event))
         elif self.G.event_type(event) == 'merge_subpops':
             newpop, = self.G.parent_pops(event)
             childPops = self.G[newpop]
             childEvent, = self.G.eventTree[event]
-            childTopLik = self.partial_likelihood_top(childEvent, frozenset(childPops))
+
+            ret = self.partial_likelihood_top(childEvent, frozenset(childPops))
             
             c1,c2 = childPops
-            ret = LabeledAxisArray(childTopLik, self.G.sub_pops(childEvent))
+            below_subpops = self.G.sub_pops(childEvent)
             for c in c1,c2:
-                ret.multiply_along_axis(c, self.combinatorial_factors(c))
-            ret.sum_axes((c1,c2), newpop)
-            ret.divide_along_axis(newpop, self.combinatorial_factors(newpop))
-            # make sure axis labels are correctly ordered
-            ret.reorder_axes(self.G.sub_pops(event))
-            return ret.array
+                ret = my_einsum(ret, below_subpops,
+                                self.combinatorial_factors(c), [c],
+                                below_subpops)
+            ret,idxs = sum_antidiagonals(ret, below_subpops, c1, c2, newpop)
+            return my_einsum(ret, idxs,
+                             1.0/self.combinatorial_factors(newpop), [newpop],
+                             self.G.sub_pops(event))
         elif self.G.event_type(event) == 'merge_clusters':
             newpop, = self.G.parent_pops(event)
-            liks = []
+            child_liks = []
+            child_sub_pops = []
             for childPop, childEvent in self.G.child_pops(event).iteritems():
+                ## TODO: remove frozenset here (and elsewhere) after removing memoization
                 childTopLik = self.partial_likelihood_top(childEvent, frozenset([childPop]))
-                childTopLik = LabeledAxisArray(childTopLik, self.G.sub_pops(childEvent))
-                childTopLik.multiply_along_axis(childPop, self.combinatorial_factors(childPop))
-                # make childTopLik have same axisLabels as the array toReturn
-                childTopLik.relabel_axis(childPop, newpop)
-                childTopLik.expand_labels(self.G.sub_pops(event))
-                liks.append(childTopLik.array)
-            ret = LabeledAxisArray(fftconvolve(*liks), self.G.sub_pops(event), copyArray=False)
-            ret.divide_along_axis(newpop, self.combinatorial_factors(newpop))
-            return ret.array
+                sub_pops = [newpop if x == childPop else x for x in self.G.sub_pops(childEvent)]
+                child_sub_pops.append(sub_pops)
+                childTopLik = my_einsum(childTopLik, sub_pops,
+                                        self.combinatorial_factors(childPop), [newpop],
+                                        sub_pops)
+                child_liks.append(childTopLik)
+            sub_pops = self.G.sub_pops(event)
+            ret = fft_einsum(child_liks[0], child_sub_pops[0],
+                             child_liks[1], child_sub_pops[1],
+                             sub_pops,
+                             [newpop])
+            ret = my_einsum(ret, sub_pops,
+                            1.0/self.combinatorial_factors(newpop), [newpop],
+                            sub_pops)
+            return ret
         else:
             raise Exception("Event type %s not yet implemented" % self.G.event_type(event))
        
     @memoize_instance
     def joint_sfs(self, event):
         '''The joint SFS entry for the configuration under this node'''
+        event_subpops = self.G.sub_pops(event)
         # if no derived leafs, return 0
-        if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in self.G.sub_pops(event)):
+        if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in event_subpops):
             return 0.0
         
         ret = 0.0
+        bottom_likelihood = self.partial_likelihood_bottom(event)
         for newpop in self.G.parent_pops(event):
             # term for mutation occurring at the newpop
-            labeledArray = LabeledAxisArray(self.partial_likelihood_bottom(event), self.G.sub_pops(event), copyArray=False)
-            ret += (labeledArray.get_zeroth_vector(newpop) * self.truncated_sfs(newpop)).sum()
+            newpop_idx = event_subpops.index(newpop)
+            idx = [0] * bottom_likelihood.ndim
+            idx[newpop_idx] = slice(bottom_likelihood.shape[newpop_idx])
+            ret = ret + np.sum(bottom_likelihood[idx] * self.truncated_sfs(newpop))
 
-        #if self.G.is_leaf(node):
         if self.G.event_type(event) == 'leaf':
             return ret
         # add on terms for mutation occurring below this node
@@ -205,7 +156,6 @@ class SumProduct(object):
         elif self.G.event_type(event) == 'merge_clusters':
             c1, c2 = self.G.eventTree[event]
             for child, other_child in ((c1, c2), (c2, c1)):
-                #if self.G.n_derived_subtended_by[child] == 0:
                 if all(self.G.n_derived_subtended_by[subpop] == 0 for subpop in self.G.sub_pops(child)):
                     ret += self.joint_sfs(other_child)
             return ret

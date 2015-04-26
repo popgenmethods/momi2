@@ -87,6 +87,16 @@ def my_einsum(*args):
     NOT format einsum(subscripts, *operands)
     '''
     assert len(args) % 2 == 1
+
+    args, enum_args = list(args), list(enumerate(args))
+    # convert the index arguments to have integer type
+    idx_argnum,idx_lists = zip(*(enum_args[1::2] + [enum_args[-1]]))
+    idx_lists = map(list, idx_lists)
+    idx_to_int = {idx: i for i,idx in enumerate(set(sum(idx_lists, [])))}
+
+    for argnum,idxs in zip(idx_argnum,idx_lists):
+        args[argnum] = [idx_to_int[i] for i in idxs]
+    
     return np.einsum(*args)
 def make_einsum_grad(argnum, ans, *args):
     if argnum % 2 == 1:
@@ -101,30 +111,27 @@ def make_einsum_grad(argnum, ans, *args):
     return grad
 my_einsum.gradmaker = make_einsum_grad
 
-def fftconvolve(in1, in2, axes=None):
-    """
-    Mostly copied from scipy.signal, but with axes argument added
-    """
-    assert len(in1.shape) == len(in2.shape)
-    if axes is None:
-        axes = np.arange(len(in1.shape))
+# like einsum, but for labels in fft_labels, does multiplication in fourier domain
+# (i.e. does convolution instead of multiplication for fft_labels)
+def fft_einsum(in1, labels1, in2, labels2, out_labels, fft_labels):
+    assert all([l in labels1 and l in labels2 for l in fft_labels])
 
-    ## get output shape along axes to be convolved
-    in_shapes = [np.array(arr.shape) for arr in in1,in2]
-    shape = in_shapes[0][axes] + in_shapes[1][axes] -1
-    for s in in_shapes:
-        s[axes] = shape
-    assert np.all(in_shapes[0] == in_shapes[1])
+    labels = out_labels,labels1,labels2
+    fft_idx = []
+    for lab in labels:
+        fft_idx.append(np.array([lab.index(l) for l in fft_labels]))
     
-    # Speed up FFT by padding to optimal size for FFTPACK
-    fshape = [_next_regular(int(d)) for d in shape]
-    # slices for output array
-    fslice = tuple([slice(0, int(sz)) for sz in in_shapes[0]])
-    
-    ret = ifftn(my_fftn(in1, fshape, axes) * my_fftn(in2, fshape, axes), axes=axes)[fslice]
-    ret = np.real(ret)
-    return ret
+    fft_shapes = np.array(in1.shape)[fft_idx[1]] + np.array(in2.shape)[fft_idx[2]] - 1
+    fshape = np.array([_next_regular(int(d)) for d in fft_shapes])
 
+    out_slice = np.array([slice(None)] * len(out_labels))
+    out_slice[fft_idx[0]] = np.array([slice(s) for s in fft_shapes])
+    
+    ret = my_einsum(my_fftn(in1, fshape, fft_idx[1]), labels1,
+                    my_fftn(in2, fshape, fft_idx[2]), labels2,
+                    out_labels)
+    return np.real(ifftn(ret, axes=fft_idx[0])[list(out_slice)])
+                    
 @primitive
 def my_fftn(x, s, axes):
     '''
@@ -133,7 +140,7 @@ def my_fftn(x, s, axes):
     return fftn(x,s,axes)
 def fftngrad(ans,x,s,axes):
     gslice = tuple(slice(0,int(sz)) for sz in x.shape)
-    g_s = tuple(map(max, zip(x.shape, ans.shape)))
+    g_s = tuple(np.array(map(max, zip(x.shape, ans.shape)))[axes])
     return lambda g: my_fftn(g,g_s,axes)[gslice]
 my_fftn.defgrad(fftngrad)
 
