@@ -119,8 +119,10 @@ def sum_antidiagonals(arr, labels, axis0, axis1, new_axis):
     ret = np.array([my_trace(ret,offset=k) 
                     for k in range(-ret.shape[0]+1,ret.shape[1])])    
 
+    # swap labels
     labels = list(labels)
-    labels[idx0],labels[idx1] = labels[0],labels[1]
+    for i,idx in list(enumerate((idx0,idx1))):
+        labels[i],labels[idx] = labels[idx],labels[i]
     labels = [new_axis] + labels[2:]
    
     return ret,labels

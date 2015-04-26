@@ -4,7 +4,7 @@ from autograd.numpy import log
 from util import memoize_instance, memoize, my_einsum, fft_einsum
 import scipy, scipy.misc
 import autograd.numpy as np
-from sum_product import SumProduct
+from sum_product import SumProduct, _lik_axes
 
 import parse_ms
 import random
@@ -122,10 +122,10 @@ class Demography(nx.DiGraph):
                 n_lin_dict[v] = sum([n_lin_dict[c] for c in self[v]])
         return n_lin_dict
 
-    @cached_property
-    def n_derived_subtended_by(self):
-        nd = self.node_data
-        return {v: sum(nd[l]['derived'] for l in self.leaves_subtended_by[v]) for v in self}
+#     @cached_property
+#     def n_derived_subtended_by(self):
+#         nd = self.node_data
+#         return {v: sum(nd[l]['derived'] for l in self.leaves_subtended_by[v]) for v in self}
 
     @cached_property
     def leaves_subtended_by(self):
@@ -180,24 +180,41 @@ class Demography(nx.DiGraph):
         for node in state:
             ndn = nd[node]
             ndn.update(state[node])
-            if ndn['lineages'] != ndn['derived'] + ndn['ancestral']:
+            if np.any(ndn['lineages'] != ndn['derived'] + ndn['ancestral']):
                 raise Exception("derived + ancestral must add to lineages at node %s" % node)
         # Invalidate the caches which depend on node state
         # FIXME: breaks for version 1.0.0 of cached_property module!
-        self.n_derived_subtended_by # make sure cache exists
-        del self.n_derived_subtended_by #reset cache
-        del self.node_data  #reset cache
+#         self.n_derived_subtended_by # make sure cache exists
+#         del self.n_derived_subtended_by #reset cache
+#         del self.node_data  #reset cache
+
+    def sfs_entries(self, sfs, normalized=False):
+        leaves = sorted(self.leaves)
+        st = {a: {'derived' : [], 'ancestral' : []} for a in leaves}
+        for states in sfs:
+            for a, b in zip(leaves, states):
+                st[a]['derived'].append(b)
+                st[a]['ancestral'].append(self.n_lineages_at_node[a] - b)
+        for a in leaves:
+            st[a]['derived'],st[a]['ancestral'] = map(lambda x: np.array(st[a][x]),
+                                                      ['derived','ancestral'])
+        self.update_state(st)
+        sp = SumProduct(self)
+        return sp.p(normalized=normalized)
 
     # returns log likelihood under a Poisson random field model
     def log_likelihood_prf(self, theta, sfs):
-        ret = -self.totalSfsSum * theta / 2.0
+        #ret = -self.totalSfsSum * theta / 2.0
+            #st = {a: {'derived': b, 'ancestral': self.n_lineages_at_node[a] - b} for a, b in zip(leaves, states)}
+            #self.update_state(st)
+            #sp = SumProduct(self)
+            #ret += log(sp.p(normalized=False) * theta / 2.0) * weight - scipy.special.gammaln(weight+1)
 
-        leaves = sorted(self.leaves)
-        for states, weight in sorted(sfs.items()):
-            st = {a: {'derived': b, 'ancestral': self.n_lineages_at_node[a] - b} for a, b in zip(leaves, states)}
-            self.update_state(st)
-            sp = SumProduct(self)
-            ret += log(sp.p(normalized=False) * theta / 2.0) * weight - scipy.special.gammaln(weight+1)
+        sfs,w = zip(*sorted(sfs.iteritems()))
+        w = np.array(w)
+
+        ret = -self.totalSfsSum * theta / 2.0 + np.sum(log(self.sfs_entries(sfs) * theta / 2.0) * w - scipy.special.gammaln(w+1))
+
         #assert ret < 0.0 and ret > -float('inf')
         assert ret < 0.0
         return ret
@@ -248,13 +265,19 @@ def normalizing_constant(demography):
     ret = 0.0
     for event in sp.G.eventTree:
         bottom_likelihood,_ = sp.partial_likelihood(event)
-        event_subpops = demography.sub_pops(event)
+        #event_subpops = demography.sub_pops(event)
         for newpop in demography.parent_pops(event):
-            newpop_idx = event_subpops.index(newpop)
+            newpop_idx = _lik_axes(sp.G,event).index(newpop)
             idx = [0] * bottom_likelihood.ndim
-            idx[newpop_idx] = slice(bottom_likelihood.shape[newpop_idx])
+            idx[0], idx[newpop_idx] = slice(None), slice(None)
+#             newpop_idx = event_subpops.index(newpop)
+#             idx = [0] * bottom_likelihood.ndim
+#             idx[newpop_idx] = slice(bottom_likelihood.shape[newpop_idx])
             # 1 - partial_likelihood_bottom is probability of at least one derived leaf lineage
-            ret = ret + np.sum((1.0 - bottom_likelihood[idx]) * sp.truncated_sfs(newpop))
+            #ret = ret + np.sum((1.0 - bottom_likelihood[idx]) * sp.truncated_sfs(newpop))
+            ret = ret + my_einsum(1.0-bottom_likelihood[idx], ['',newpop],
+                                  sp.truncated_sfs(newpop), [newpop],
+                                  [''])
 
     # subtract off the term for all alleles derived
     state = {}
@@ -273,4 +296,4 @@ def normalizing_constant(demography):
     if prev_state is not None:
         demography.update_state(prev_state)
     assert ret > 0.0
-    return ret
+    return np.squeeze(ret)
