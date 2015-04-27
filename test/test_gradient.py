@@ -117,13 +117,7 @@ def sfs_func(demo_func, n_lins, normalized=True):
     print states
     def f(x):
         demo = demo_func(x, n_lins)
-        demo.update_state(states)
-        return SumProduct(demo).p(normalized=normalized)
-        #ret = SumProduct(demo).p(normalized=False)
-        #if normalized:
-            #ret = ret / demo.totalSfsSum
-            #ret = log(ret) - log(demo.totalSfsSum)
-        return ret
+        return SumProduct(demo, states).p(normalized=normalized)
     return f
 
 def test_admixture():

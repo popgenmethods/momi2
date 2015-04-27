@@ -14,14 +14,14 @@ def demo():
 def test_from_newick(demo):
     assert demo.n_lineages_at_node[demo.root] == 18
 
-def test_update_state(demo):
-    demo.update_state({'a': {'derived': 5, 'ancestral': 5},
-                       'b': {'derived': 8, 'ancestral': 0}})
-    # Partial updates are allowed
-    demo.update_state({'a': {'derived': 5, 'ancestral': 5}})
-    with pytest.raises(Exception):
-        demo.update_state({'a': {'derived': 5, 'ancestral': 5},
-                           'b': {'derived': 4, 'ancestral': 0}})
+# def test_update_state(demo):
+#     demo.update_state({'a': {'derived': 5, 'ancestral': 5},
+#                        'b': {'derived': 8, 'ancestral': 0}})
+#     # Partial updates are allowed
+#     demo.update_state({'a': {'derived': 5, 'ancestral': 5}})
+#     with pytest.raises(Exception):
+#         demo.update_state({'a': {'derived': 5, 'ancestral': 5},
+#                            'b': {'derived': 4, 'ancestral': 0}})
 
 def test_unsupported_model():
     test_newick = """

@@ -14,12 +14,12 @@ def demo():
          b:1[&&momi:model=constant:N=1.0:lineages=8]):3[&&momi:model=constant:N=10.0];
     """
     demo = Demography.from_newick(test_newick)
-    demo.update_state({'a': {'derived': 5, 'ancestral': 5},
-                       'b': {'derived': 8, 'ancestral': 0}})
     return demo
 
 def test_sfs(demo):
-    sp = SumProduct(demo)
+    st = {'a': {'derived': 5, 'ancestral': 5},
+          'b': {'derived': 8, 'ancestral': 0}}
+    sp = SumProduct(demo, st)
     sp.p()
 
 def demo_generator(fn=TEST_CASES):
@@ -31,12 +31,12 @@ def demo_generator(fn=TEST_CASES):
             dl = node_states.values()[0]['lineages']
             # N0 = 20000 in generate data due to haploid/diploid thing
             dm = Demography.from_newick(newick, default_lineages=dl, default_N=20000.)
-            dm.update_state(node_states)
-            yield dm, ret
+            #dm.update_state(node_states)
+            yield dm, node_states, ret
 
-@pytest.mark.parametrize("demo,ret", demo_generator())
-def test_generated_cases(demo, ret):
-    sp = SumProduct(demo)
+@pytest.mark.parametrize("demo,node_states,ret", demo_generator())
+def test_generated_cases(demo, node_states, ret):
+    sp = SumProduct(demo, node_states)
     p = sp.p()
     assert abs(p - ret) / ret < 1e-4
 

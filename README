@@ -6,7 +6,7 @@ next steps:
 2) pass in data to sum_product
 3) remove update_state method from demography
 4) clean up a bit
-
+5) remove tmp_make_data in sum_product
 
 
 ***
@@ -15,6 +15,9 @@ rewrite sum_product in functional style, remove @memoize_instance
 ***
 make it so that sfs_entries() always returns branch length
 
+
+***
+rename my_einsum to be einsum
 
 ***
 change everything to be in tensor format for data

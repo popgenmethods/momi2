@@ -43,9 +43,9 @@ def test_tree_demo_normalization():
         state = {}
         for i in range(len(leaves)):
             state[leaves[i]] = {'derived' : n_derived[i], 'ancestral' : lins_per_pop - n_derived[i]}
-        demo.update_state(state)
+        #demo.update_state(state)
 
-        totalSum = SumProduct(demo).p(normalized=True) + totalSum
+        totalSum = SumProduct(demo, state).p(normalized=True) + totalSum
 
     assert abs(log(totalSum / 1.0)) < 1e-12    
     #assert totalSum == 1.0
@@ -70,9 +70,9 @@ def test_admixture_demo_normalization():
         for i in range(len(leaf_pops)):
             n_lins = leaf_lins[leaf_pops[i]]
             state[leaf_pops[i]] = {'derived' : n_derived[i], 'ancestral' : n_lins - n_derived[i]}
-        demo.update_state(state)
+        #demo.update_state(state)
 
-        totalSum += SumProduct(demo).p(normalized=True)
+        totalSum += SumProduct(demo, state).p(normalized=True)
 
     assert abs(log(totalSum / 1.0)) < 1e-12    
     #assert totalSum == 1.0

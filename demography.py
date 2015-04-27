@@ -175,19 +175,6 @@ class Demography(nx.DiGraph):
     def is_leaf(self, node):
         return node in self.leaves
 
-    def update_state(self, state):
-        nd = self.node_data
-        for node in state:
-            ndn = nd[node]
-            ndn.update(state[node])
-            if np.any(ndn['lineages'] != ndn['derived'] + ndn['ancestral']):
-                raise Exception("derived + ancestral must add to lineages at node %s" % node)
-        # Invalidate the caches which depend on node state
-        # FIXME: breaks for version 1.0.0 of cached_property module!
-#         self.n_derived_subtended_by # make sure cache exists
-#         del self.n_derived_subtended_by #reset cache
-#         del self.node_data  #reset cache
-
     def sfs_entries(self, sfs, normalized=False, ret_branch_len=False):
         leaves = sorted(self.leaves)
         st = {a: {'derived' : [], 'ancestral' : []} for a in leaves}
@@ -198,8 +185,8 @@ class Demography(nx.DiGraph):
         for a in leaves:
             st[a]['derived'],st[a]['ancestral'] = map(lambda x: np.array(st[a][x]),
                                                       ['derived','ancestral'])
-        self.update_state(st)
-        sp = SumProduct(self)
+        #self.update_state(st)
+        sp = SumProduct(self, st)
         return sp.p(normalized=normalized, ret_branch_len=ret_branch_len)
 
     # returns log likelihood under a Poisson random field model

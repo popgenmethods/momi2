@@ -71,18 +71,6 @@ def check_sfs_counts(demo):
     ranges = [range(leaf_lins[v]+1) for v in leaf_pops]
     total_lins = sum([leaf_lins[v] for v in leaf_pops])
     config_list = sorted(empirical_sfs.keys())
-#     for sfs_entry in empirical_sfs:
-#     #for sfs_entry in itertools.product(*ranges):
-#         sfs_entry = tuple(sfs_entry)
-#         if sum(sfs_entry) == 0 or sum(sfs_entry) == total_lins:
-#             continue # skip polymorphic sites
-#         state = {leaf_pops[i] : {'derived' : sfs_entry[i]} for i in range(len(sfs_entry))}
-#         for v in state:
-#             state[v].update({'ancestral' : leaf_lins[v] - state[v]['derived']})
-#         demo.update_state(state)
-#         theoretical_sfs[sfs_entry] = SumProduct(demo).p()
-        #theoretical_sfs[sfs_entry] = SumProduct(demo).p() * float(num_scrm_samples) * theta / 2.0
-    #p_val = sfs_p_value(empirical_sfs, sqCounts, theoretical_sfs, num_scrm_samples, theta)
 
     sfs_vals = demo.sfs_entries(config_list)
     theoretical_sfs = {k:v for k,v in zip(config_list, sfs_vals)}
