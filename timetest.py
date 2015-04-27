@@ -12,15 +12,10 @@ sys.stdout = open('timetest.txt','w')
 def check_time(demofunc, data, *x):
     # do data
     data = data[:50]
-    def func(y):
-        # precompute
+    def func(y):      
         start = time.time()
-        demo = demofunc(*y)
-        ret = -demo.totalSfsSum
-        end = time.time()
-        print "Precomputation: %f seconds" % (end - start)
-       
-        start = time.time()
+        ## TODO: use tensor format instead of for loop
+        assert False
         for states in data:
             demo.update_state(states)
             ret += SumProduct(demo).p()

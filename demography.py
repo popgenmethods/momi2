@@ -88,9 +88,9 @@ class Demography(nx.DiGraph):
     def child_pops(self, event):
         return self.eventTree.node[event]['child_pops']
 
-    @cached_property
-    def totalSfsSum(self):
-        return normalizing_constant(self)
+#     @cached_property
+#     def totalSfsSum(self):
+#         return normalizing_constant(self)
 
     @cached_property
     def root(self):
@@ -188,7 +188,7 @@ class Demography(nx.DiGraph):
 #         del self.n_derived_subtended_by #reset cache
 #         del self.node_data  #reset cache
 
-    def sfs_entries(self, sfs, normalized=False):
+    def sfs_entries(self, sfs, normalized=False, ret_branch_len=False):
         leaves = sorted(self.leaves)
         st = {a: {'derived' : [], 'ancestral' : []} for a in leaves}
         for states in sfs:
@@ -200,7 +200,7 @@ class Demography(nx.DiGraph):
                                                       ['derived','ancestral'])
         self.update_state(st)
         sp = SumProduct(self)
-        return sp.p(normalized=normalized)
+        return sp.p(normalized=normalized, ret_branch_len=ret_branch_len)
 
     # returns log likelihood under a Poisson random field model
     def log_likelihood_prf(self, theta, sfs):
@@ -213,7 +213,10 @@ class Demography(nx.DiGraph):
         sfs,w = zip(*sorted(sfs.iteritems()))
         w = np.array(w)
 
-        ret = -self.totalSfsSum * theta / 2.0 + np.sum(log(self.sfs_entries(sfs) * theta / 2.0) * w - scipy.special.gammaln(w+1))
+        sfs_vals, branch_len = self.sfs_entries(sfs, ret_branch_len=True)
+
+        #ret = -self.totalSfsSum * theta / 2.0 + np.sum(log(self.sfs_entries(sfs) * theta / 2.0) * w - scipy.special.gammaln(w+1))
+        ret = -branch_len * theta / 2.0 + np.sum(log(sfs_vals * theta / 2.0) * w - scipy.special.gammaln(w+1))
 
         #assert ret < 0.0 and ret > -float('inf')
         assert ret < 0.0
@@ -237,63 +240,3 @@ def der_in_admixture_node(n_node):
     return fft_einsum(x, [0, 1, 2],
                       x[::-1,...], [0, 1, 3],
                       [0,1,2,3], [1])[:,:(n_node+1),:,:]
-
-
-def normalizing_constant(demography):
-    # get the previous state
-    ## TODO: remove this, make state a property of SumProduct instead of Demography
-    try:
-        prev_state = {}
-        for v in demography.leaves:
-            nd = demography.node_data[v]
-            prev_state[v] = {'ancestral' : nd['ancestral'], 'derived' : nd['derived']}
-    except:
-        prev_state = None
-
-    # to_directed() makes a deep-copy of the nx.DiGraph
-    #demography = Demography(demography.to_directed())
-    # set all alleles to be of ancestral type
-    state = {}
-    for v in demography.leaves:
-        state[v] = {}
-        state[v]['derived'] = 0
-        state[v]['ancestral'] = demography.node_data[v]['lineages']
-    demography.update_state(state)
-    # now create the Sum-Product
-    sp = SumProduct(demography)
-
-    ret = 0.0
-    for event in sp.G.eventTree:
-        bottom_likelihood,_ = sp.partial_likelihood(event)
-        #event_subpops = demography.sub_pops(event)
-        for newpop in demography.parent_pops(event):
-            newpop_idx = _lik_axes(sp.G,event).index(newpop)
-            idx = [0] * bottom_likelihood.ndim
-            idx[0], idx[newpop_idx] = slice(None), slice(None)
-#             newpop_idx = event_subpops.index(newpop)
-#             idx = [0] * bottom_likelihood.ndim
-#             idx[newpop_idx] = slice(bottom_likelihood.shape[newpop_idx])
-            # 1 - partial_likelihood_bottom is probability of at least one derived leaf lineage
-            #ret = ret + np.sum((1.0 - bottom_likelihood[idx]) * sp.truncated_sfs(newpop))
-            ret = ret + my_einsum(1.0-bottom_likelihood[idx], ['',newpop],
-                                  sp.truncated_sfs(newpop), [newpop],
-                                  [''])
-
-    # subtract off the term for all alleles derived
-    state = {}
-    for v in demography.leaves:
-        state[v] = {}
-        state[v]['derived'] = demography.node_data[v]['lineages']
-        state[v]['ancestral'] = 0
-    demography.update_state(state)
-    # now create the Sum-Product
-    sp = SumProduct(demography)
-
-    ret = ret - sp.p(normalized=False)
-
-    ## now reset the state
-    ## TODO: remove this, make state a property of SumProduct instead of Demography
-    if prev_state is not None:
-        demography.update_state(prev_state)
-    assert ret > 0.0
-    return np.squeeze(ret)

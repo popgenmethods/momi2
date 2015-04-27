@@ -1,16 +1,29 @@
 TODO:
 
-***
-make test_sfs_counts use the tensorized version of SumProduct
-(to see if it is working properly)
+next steps:
+
+1) make sum_product functional instead of objective
+2) pass in data to sum_product
+3) remove update_state method from demography
+4) clean up a bit
+
+
 
 ***
-move normalizing constants into sum_product
-(for maximum brevity and efficiency)
+rewrite sum_product in functional style, remove @memoize_instance
+
+***
+make it so that sfs_entries() always returns branch length
+
+
+***
+change everything to be in tensor format for data
+(don't use SumProduct.p(), use sfs_entries() instead)
 
 ***
 change input format of data
 also don't have demography store it anymore
+(REMOVE demograph.update_state)
 
 ***
 make a single function
@@ -30,24 +43,6 @@ fft along the two dimensions
 taking ifft of diagonal
 
 
-***
-in sum_product, turn event names into functions, access them using following dictionary:
-{"merge_subpops" : merge_subpops_likelihood, "merge_clusters" : merge_clusters_likelihood, "admixture" : admixture_likelihood}
-
-(could also use "eval" but it might be too hard to parse)
-(or could use a function to retrieve the function...)
-
-***
-
-Tensorize
-
-
-***
-rewrite sum_product in functional style, using tensors instead of for loops, remove @memoize_instance
-
-keep size_history, demography in object style
-
-but make sfs functional style?
 
 ***
 make SumProduct entirely tensorized!!!
@@ -115,11 +110,6 @@ so can make FFT convolution more robust by truncating ends as necessary
 seems like the scipy.sparse.linalg.expm_multiply might be more robust in this case
 investigate the timing too
 
-***
-subclass ndarray, and replace rmul,radd, etc for this subclass!!!!
-
-this will allow arbitrary left,right multiplication etc, and clean up the code a lot! and also allow us to use arbitrary scipy functions, e.g. in the FunctionalTruncatedHistory
-
 
 
 ***
@@ -168,9 +158,6 @@ add option to simulate from ms instead of scrm
 test in what regime expm_multiply is better than eigenvalue
 internally decide which one to use based on the regime
 
-***
-test in what regime fft_convolve is better than convolve
-internally decide which one to use based on the regime
 
 ***
 rename SumProduct.p()

@@ -6,7 +6,7 @@ from autograd import grad
 
 from size_history import ConstantTruncatedSizeHistory, PiecewiseHistory
 import networkx as nx
-from demography import Demography, normalizing_constant
+from demography import Demography
 import random
 from sum_product import SumProduct
 #import math
@@ -118,10 +118,10 @@ def sfs_func(demo_func, n_lins, normalized=True):
     def f(x):
         demo = demo_func(x, n_lins)
         demo.update_state(states)
-        #return SumProduct(demo).p(normalized=normalized)
-        ret = SumProduct(demo).p(normalized=False)
-        if normalized:
-            ret = ret / demo.totalSfsSum
+        return SumProduct(demo).p(normalized=normalized)
+        #ret = SumProduct(demo).p(normalized=False)
+        #if normalized:
+            #ret = ret / demo.totalSfsSum
             #ret = log(ret) - log(demo.totalSfsSum)
         return ret
     return f
@@ -129,6 +129,7 @@ def sfs_func(demo_func, n_lins, normalized=True):
 def test_admixture():
     n_lins = {'1':2,'2':2}
     f = sfs_func(simple_admixture_demo, n_lins, normalized=True)
+    #f = sfs_func(simple_admixture_demo, n_lins, normalized=False)
     x = np.random.normal(size=7)
     check_gradient(f,x)
 
