@@ -3,7 +3,7 @@ import scipy.misc
 from util import memoize_instance, memoize, my_trace, swapaxes, my_einsum, fft_einsum, sum_antidiagonals
 
 ## TODO: move this into __init__ ?
-def compute_sfs(demography, config_list, normalized = False, ret_branch_len=False):
+def compute_sfs(demography, config_list):
     '''Return joint SFS entry for the demography'''
     data = np.array(config_list, ndmin=2)
     if data.ndim != 2 or data.shape[1] != len(demography.leaves):
@@ -12,14 +12,8 @@ def compute_sfs(demography, config_list, normalized = False, ret_branch_len=Fals
     _,ret,branch_len = partial_likelihood(data, demography, demography.event_root)
     branch_len = branch_len - ret[1]
     # first two indices correspond to all ancestral and all derived
-    ret = ret[2:]
-    if normalized:
-        ret = ret / branch_len
-    ret = np.squeeze(ret)
-    if ret_branch_len:
-        return ret, branch_len
-    else:
-        return ret
+    return np.squeeze(ret[2:]), branch_len
+
 
 ## TODO: make this a property of the demography, instead of the sum_product
 def truncated_sfs(G, node):

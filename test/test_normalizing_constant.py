@@ -21,6 +21,19 @@ def random_tree_demo(num_leaf_pops, lins_per_pop):
         cmd += " -en %f %d %f" % (t, j, random.expovariate(1.0))
     return Demography.from_ms(cmd)
 
+def check_demo_normalization(demo):
+    leaves = sorted(list(demo.leaves))
+    ranges = [range(demo.n_lineages_at_node[l]+1) for l in demo.leaves]
+
+    #totalSum = 0.0
+    config_list = []
+    for n_derived in itertools.product(*ranges):
+        if sum(n_derived) == 0 or sum(n_derived) == sum(map(lambda x: len(x) - 1, ranges)):
+            continue #skip monomorphic sites
+        config_list.append(n_derived)
+    sfs, branch_len = compute_sfs(demo, config_list)
+    assert abs(log(np.sum(sfs) / branch_len)) < 1e-12
+
 def test_tree_demo_normalization():
     lins_per_pop=2
     num_leaf_pops=3
@@ -30,37 +43,9 @@ def test_tree_demo_normalization():
     random.seed(seed)
 
     demo = random_tree_demo(num_leaf_pops, lins_per_pop)
-    #print(demo)
-    #print(demo.to_newick())
-    
-    leaves = sorted(list(demo.leaves))
-
-    ranges = [range(lins_per_pop+1)] * num_leaf_pops
-    totalSum = 0.0
-    for n_derived in itertools.product(*ranges):
-        if sum(n_derived) == 0 or sum(n_derived) == num_leaf_pops * lins_per_pop:
-            continue #skip monomorphic sites
-        totalSum = compute_sfs(demo, [n_derived], normalized=True) + totalSum
-    assert abs(log(totalSum / 1.0)) < 1e-12    
-    #assert totalSum == 1.0
+    check_demo_normalization(demo)
 
 def test_admixture_demo_normalization():
-    #args = admixture_cmd()
-    #demo = Demography.from_ms(args)
     demo = simple_admixture_demo(np.random.normal(size=7), {'1':2,'2':2})
 
-
-    leaf_pops = list(demo.leaves)
-    leaf_lins = {l : demo.n_lineages_at_node[l] for l in leaf_pops}
-
-    ranges = [range(leaf_lins[pop]+1) for pop in leaf_pops]
-
-    totalSum = 0.0
-    totalLins = sum([v for k,v in leaf_lins.iteritems()])
-    for n_derived in itertools.product(*ranges):
-        if sum(n_derived) == 0 or sum(n_derived) == totalLins:
-            continue #skip monomorphic sites
-        totalSum += compute_sfs(demo, [n_derived], normalized=True)
-
-    assert abs(log(totalSum / 1.0)) < 1e-12    
-    #assert totalSum == 1.0
+    check_demo_normalization(demo)

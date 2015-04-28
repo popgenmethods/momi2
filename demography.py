@@ -172,7 +172,7 @@ class Demography(nx.DiGraph):
         sfs,w = zip(*sorted(sfs.iteritems()))
         w = np.array(w)
 
-        sfs_vals, branch_len = compute_sfs(self, sfs, ret_branch_len=True)
+        sfs_vals, branch_len = compute_sfs(self, sfs)
         ret = -branch_len * theta / 2.0 + np.sum(log(sfs_vals * theta / 2.0) * w - scipy.special.gammaln(w+1))
 
         assert ret < 0.0

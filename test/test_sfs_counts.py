@@ -72,8 +72,7 @@ def check_sfs_counts(demo):
     total_lins = sum([leaf_lins[v] for v in leaf_pops])
     config_list = sorted(empirical_sfs.keys())
 
-    #sfs_vals = demo.sfs_entries(config_list)
-    sfs_vals = compute_sfs(demo, config_list)
+    sfs_vals,_ = compute_sfs(demo, config_list)
     theoretical_sfs = {k:v for k,v in zip(config_list, sfs_vals)}
 
     p_val = sfs_p_value(nonzeroCounts, empirical_sfs, sqCounts, theoretical_sfs, num_scrm_samples)

@@ -37,7 +37,7 @@ def demo_generator(fn=TEST_CASES):
 
 @pytest.mark.parametrize("demo,data,ret", demo_generator())
 def test_generated_cases(demo, data, ret):
-    p = compute_sfs(demo, data)
+    p, branch_len = compute_sfs(demo, data)
     assert abs(p - ret) / ret < 1e-4
 
 def convert_states(G, node_states):
