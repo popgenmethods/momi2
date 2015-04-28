@@ -3,47 +3,62 @@ TODO:
 next steps:
 
 ***
-put things into __init__
-
-
-***
 have compute_sfs, log_likelihood_prf,
 take in a ms_cmd,
 instead of a demography
 
+***
+make math_functions.py,
+with functions from util.py and size_history.py
+
+rename my_einsum to be einsum
 
 ***
-remove @memoize_instance?
+clean up size_history
 
 ***
-make it so that sfs_entries() always returns branch length
+don't make n_max a field of size_history;
+instead have etjj and sfs take n as a parameter, and return
+the appropriate vector
+
+***
+make size_history store the SFS as an array,
+instead of having sum_product have to convert to an array everytime
+
+get rid of truncated_sfs in sum_product?
+
+***
+Change exponential size history to take in alpha
+(this way we won't have as many overflow issues if N_top = 0 or inf)
+
+Also make it so that, if -eg 0.0, (and not -eg $0 with $0==0.0),
+create a ConstantSize always.
+
+Make tau=inf, tau=0 work for ExpHist
+or, assert that tau < inf for any Exponential history
+
+***
+make exponential size history work with growth rate 0, and also tau=0.
+Fix parse_ms TODO: for tau==0.0 case
+
+***
+copy assertions in ConstantTruncatedSizeHistory.etjj to other etjj
+
+***
+in size_history fix TODO (make deep copy)
+
+***
+Make autodifferentiation work for functional size history
+allow functional size history to be passed in with ms style cmd
+
+in the meantime, comment it out, or have it raise an exception...
+
+***
+put things into __init__
 
 
 ***
 find minimal example test case for autograd issue #24
-
-
-***
-rename my_einsum to be einsum
-
-move into math_functions.py?
-
-***
-make a single function
-
-sfs
-
-which takes in:
-data, ms_cmd, theta, params
-
-returns:
-sfs, normalization constant
-
-***
-
-is summing the antidiagonals equivalent to doing:
-fft along the two dimensions
-taking ifft of diagonal
 
 
 ***
@@ -58,25 +73,9 @@ add back numerical stability assertions, etc.
 ***
 reimplement expm_multiply (need derivative)
 
-***
-Change exponential size history to take in alpha
-(this way we won't have as many overflow issues if N_top = 0 or inf)
-
-Also make it so that, if -eg 0.0, (and not -eg $0 with $0==0.0),
-create a ConstantSize always.
-
-Make tau=inf, tau=0 work for ExpHist
-or, assert that tau < inf for any Exponential history
-
-***
-Test if autodifferentiation works for functional size history
 
 ***
 Try expokit stuff in expokit branch
-
-***
-copy assertions in ConstantTruncatedSizeHistory.etjj to other etjj
-
 
 
 ***
@@ -93,10 +92,6 @@ investigate the timing too
 
 
 ***
-make exponential size history work with growth rate 0, and also tau=0.
-Fix parse_ms TODO: for tau==0.0 case
-
-***
 for parse ms, let -es specificy the label of the new population
 this will be required to avoid confusion over population labels when fitting times of events
 
@@ -104,9 +99,6 @@ this will be required to avoid confusion over population labels when fitting tim
 compare which version of expm_multiply is faster (with and without derivatives)
 
 
-***
-make size_history store the SFS as an array,
-instead of having sum_product have to convert to an array everytime
 
 ***
 Make functional size history work with autodifferentiation! Right now assumes it's a constant function always
@@ -124,12 +116,7 @@ how to deal with multiple trees)
 
 ***
 replace cached_property module (v1.0.0 not compatible with using nx.DiGraph)
-***
-make state of derived counts, a property of SumProduct, instead of Demography
-***
-don't make n_max a field of size_history;
-instead have etjj and sfs take n as a parameter, and return
-the appropriate vector
+
 
 ***
 add option to simulate from ms instead of scrm
@@ -138,18 +125,12 @@ add option to simulate from ms instead of scrm
 test in what regime expm_multiply is better than eigenvalue
 internally decide which one to use based on the regime
 
-
 ***
-rename SumProduct.p()
-
-***
-improve the syntax for SFS.
-use dictionary for state instead of tuple? (downside: won't be hashable)
 store sumCounts, sumSqCounts, nonzeroCounts in a single object?
-
-
-***
-in size_history fix TODO (make deep copy)
 
 ***
 change everything to be in ms units
+
+***
+remove @memoize_instance?
+
