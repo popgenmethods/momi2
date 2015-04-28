@@ -1,9 +1,6 @@
 from __future__ import division
 import pytest
 import scipy.optimize
-from ad import gh, adnumber
-from ad.admath import log, exp
-from size_history import ConstantTruncatedSizeHistory, PiecewiseHistory
 import numpy as np
 from numpy import array as arr
 import random

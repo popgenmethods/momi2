@@ -1,13 +1,8 @@
 import networkx as nx
 from cStringIO import StringIO
 from Bio import Phylo
-from size_history import ExponentialTruncatedSizeHistory as ExpHist
-from size_history import ConstantTruncatedSizeHistory as ConstHist
-from size_history import PiecewiseHistory
+from size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 
-#from numpy import isnan
-#from adarray import array
-#from adarray.ad.admath import exp
 from autograd.numpy import isnan, exp,min
 
 import newick
@@ -223,9 +218,9 @@ def set_model(node_data, end_time, cmd):
     for size in sizes:
         ### TODO: make ExpHist work for tau == 0.0!
         if size['alpha'] is not None and size['tau'] > 0.0:
-            pieces.append(ExpHist(tau=size['tau'], growth_rate=size['alpha'], N_bottom=size['N']))
+            pieces.append(ExponentialHistory(tau=size['tau'], growth_rate=size['alpha'], N_bottom=size['N']))
         else:
-            pieces.append(ConstHist(tau=size['tau'], N=size['N']))
+            pieces.append(ConstantHistory(tau=size['tau'], N=size['N']))
     assert len(pieces) > 0
     if len(pieces) == 0:
         node_data['model'] = pieces[0]

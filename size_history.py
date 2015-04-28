@@ -8,7 +8,7 @@ import scipy.integrate
 from scipy.special import comb as binom
 import moran_model
 
-class TruncatedSizeHistory(object):
+class SizeHistory(object):
     def __init__(self, tau):
         self.tau = tau
 
@@ -31,10 +31,10 @@ class TruncatedSizeHistory(object):
         return moran_model.moran_action(self.scaled_time, v, axis=axis)
 
 
-class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
+class ConstantHistory(SizeHistory):
     '''Constant size population truncated to time tau.'''
     def __init__(self, tau, N):
-        super(ConstantTruncatedSizeHistory, self).__init__(tau)
+        super(ConstantHistory, self).__init__(tau)
         if N <= 0.0:
             raise Exception("N must be positive")
         self.N = N
@@ -66,17 +66,14 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
         return "(ConstantPopSize: N=%f, tau=%f)" % (self.N, self.tau)
    
 
-class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
+class ExponentialHistory(SizeHistory):
     ## some computations here are done in a seemingly roundabout way,
     ## to ensure that growth_rate=0.0 works
     ## TODO: tau == inf not yet tested (maybe just use tau=1e200 instead)
     def __init__(self, tau, growth_rate, N_bottom):
-        super(ExponentialTruncatedSizeHistory, self).__init__(tau)
+        super(ExponentialHistory, self).__init__(tau)
         self.N_bottom, self.growth_rate = N_bottom, growth_rate
         self.N_top = N_bottom * exp(-tau * growth_rate)
-        #self.N_top, self.N_bottom = N_top, N_bottom
-        # N_bottom = N_top * exp(tau * growth_rate)
-        #self.growth_rate = log(self.N_bottom / self.N_top) / self.tau
 
     def etjj(self, n):
         j = np.arange(2, n+1)
@@ -102,14 +99,14 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
         '''
         return expm1d(self.growth_rate * self.tau) * self.tau / self.N_bottom
 
-class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
+class FunctionalHistory(SizeHistory):
     '''Size history parameterized by an arbitrary function f.'''
     def __init__(self, tau, f):
         '''Initialize the model. For t > 0, f(t) >= is the instantaneous
         rate of coalescence (i.e., the inverse of the population size).
         f should accept and return vectors of times.
         '''
-        super(FunctionalTruncatedSizeHistory, self).__init__(tau)
+        super(FunctionalHistory, self).__init__(tau)
         self._f = f
 
     def _R(self, t):
@@ -134,7 +131,7 @@ class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
         return self._R(self.tau)
 
 
-class PiecewiseHistory(TruncatedSizeHistory):
+class PiecewiseHistory(SizeHistory):
     def __init__(self, pieces):
         tau = sum([p.tau for p in pieces])
         super(PiecewiseHistory, self).__init__(tau)

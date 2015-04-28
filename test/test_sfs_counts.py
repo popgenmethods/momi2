@@ -1,4 +1,3 @@
-from size_history import ConstantTruncatedSizeHistory, PiecewiseHistory, ExponentialTruncatedSizeHistory
 from demography import Demography
 from sum_product import compute_sfs
 import pytest

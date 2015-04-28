@@ -10,7 +10,6 @@ import newick
 from autograd.numpy import sum
 from autograd import grad
 import networkx as nx
-from size_history import ConstantTruncatedSizeHistory
 
 from sum_product import compute_sfs, log_likelihood_prf
 from demography import Demography

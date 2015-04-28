@@ -4,7 +4,6 @@ import autograd.numpy as np
 from autograd.numpy import outer, sum, exp, log
 from autograd import grad
 
-from size_history import ConstantTruncatedSizeHistory, PiecewiseHistory
 import networkx as nx
 from demography import Demography
 import random
