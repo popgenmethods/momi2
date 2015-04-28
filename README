@@ -3,6 +3,12 @@ TODO:
 next steps:
 
 ***
+replace cached_property module (v1.0.0 not compatible with using nx.DiGraph)
+
+***
+be consistent with leaves vs leafs (leaves is demography property, leafs is argument to parse_ms)
+
+***
 remove all TODO (grep for it)
 
 ***
@@ -16,22 +22,19 @@ tau = inf in ExponentialHistory currently disabled because it breaks automatic d
 
 
 ***
-uncomment assertions in size_history, sum_product
-copy assertions in ConstantTruncatedSizeHistory.etjj to other etjj
-
-
-
-***
 have parse_ms call constructor of Demography instead of nx?
 OR
 move stuff from parse_ms into demography.py, have it be called
 from constructor of Demography?
+
+also, move parse_ms sfs stuff into sum_product?
 
 ***
 Make autodifferentiation work for functional size history
 allow functional size history to be passed in with ms style cmd
 
 in the meantime, comment it out, or have it raise an exception...
+(perhaps by having it call autograd.scipy, which should hopefully crash...)
 
 ***
 put things into __init__
@@ -46,21 +49,23 @@ merge some of my_functions into autograd package with pull request
 
 
 ***
-add back numerical stability assertions, etc.
-(things seem a little more unstable right now in the gradient descent)
 
-
-***
 reimplement expm_multiply (need derivative)
 
+compare which version of expm_multiply is faster (with and without derivatives)
+in what regime is each faster?
 
-***
 Try expokit stuff in expokit branch
 
 
 ***
-Two sources of numerical error:
+add back numerical stability assertions, etc.
+(things seem a little more unstable right now in the gradient descent)
 
+uncomment assertions in size_history, sum_product
+copy assertions in ConstantTruncatedSizeHistory.etjj to other etjj
+
+Two sources of numerical error:
 1) FFT convolution: when vector has a 0.0 sometimes small negative numbers result
 however, in our case the 0.0 is always at the beginning or end of vector
 so can make FFT convolution more robust by truncating ends as necessary
@@ -70,21 +75,10 @@ seems like the scipy.sparse.linalg.expm_multiply might be more robust in this ca
 investigate the timing too
 
 
-
 ***
 for parse ms, let -es specificy the label of the new population
 this will be required to avoid confusion over population labels when fitting times of events
 
-***
-compare which version of expm_multiply is faster (with and without derivatives)
-
-
-
-***
-Make functional size history work with autodifferentiation! Right now assumes it's a constant function always
-
-***
-be consistent with leaves vs leafs (leaves is demography property, leafs is argument to parse_ms)
 
 ***
 get rid of from_newick, to_newick in parse_ms?
@@ -94,16 +88,10 @@ for simulate_sfs, make theta=None work when -r is set
 (right now it counts up the total branch length, but doesn't know
 how to deal with multiple trees)
 
-***
-replace cached_property module (v1.0.0 not compatible with using nx.DiGraph)
-
 
 ***
 add option to simulate from ms instead of scrm
 
-***
-test in what regime expm_multiply is better than eigenvalue
-internally decide which one to use based on the regime
 
 ***
 store sumCounts, sumSqCounts, nonzeroCounts in a single object?
