@@ -2,15 +2,14 @@ TODO:
 
 next steps:
 
-1) make sum_product functional instead of objective
-2) pass in data to sum_product
-3) remove update_state method from demography
-4) clean up a bit
-5) remove tmp_make_data in sum_product
+***
+have compute_sfs, log_likelihood_prf,
+take in a ms_cmd,
+instead of a demography
 
 
 ***
-rewrite sum_product in functional style, remove @memoize_instance
+remove @memoize_instance?
 
 ***
 make it so that sfs_entries() always returns branch length

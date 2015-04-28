@@ -2,7 +2,21 @@ import autograd.numpy as np
 import scipy.misc
 from util import memoize_instance, memoize, my_trace, swapaxes, my_einsum, fft_einsum, sum_antidiagonals
 
+## TODO: move this into __init__?
+## TODO: have this take in an ms_cmd instead of demo
+# returns log likelihood under a Poisson random field model
+def log_likelihood_prf(demo, theta, sfs):
+    sfs,w = zip(*sorted(sfs.iteritems()))
+    w = np.array(w)
+
+    sfs_vals, branch_len = compute_sfs(demo, sfs)
+    ret = -branch_len * theta / 2.0 + np.sum(np.log(sfs_vals * theta / 2.0) * w - scipy.special.gammaln(w+1))
+
+    assert ret < 0.0
+    return ret
+
 ## TODO: move this into __init__ ?
+## TODO: have this take in an ms_cmd instead of a demo
 def compute_sfs(demography, config_list):
     '''Return joint SFS entry for the demography'''
     data = np.array(config_list, ndmin=2)
@@ -11,6 +25,7 @@ def compute_sfs(demography, config_list):
 
     _,ret,branch_len = partial_likelihood(data, demography, demography.event_root)
     branch_len = branch_len - ret[1]
+
     # first two indices correspond to all ancestral and all derived
     return np.squeeze(ret[2:]), branch_len
 

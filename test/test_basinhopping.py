@@ -1,4 +1,5 @@
 from demography import Demography
+from sum_product import log_likelihood_prf
 from scipy.optimize import basinhopping, minimize
 #from adarray.ad.admath import log,exp
 #import numpy as np
@@ -70,7 +71,7 @@ def check_simple_human_demo():
         #x = map(adnumber,x)
 
         params[:p] = x
-        ret = -simple_human_demo(n, *params).log_likelihood_prf(theta * num_sims, sfs)
+        ret = -log_likelihood_prf(simple_human_demo(n, *params), theta * num_sims, sfs)
         return ret
         #return np.asarray(ret)
         #return np.asarray(ret.x), np.asarray(ret.gradient(x)), np.asarray(ret.hessian(x))

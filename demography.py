@@ -1,6 +1,5 @@
 import networkx as nx
 from cached_property import cached_property
-from autograd.numpy import log
 from util import memoize_instance, memoize, my_einsum, fft_einsum
 import scipy, scipy.misc
 import autograd.numpy as np
@@ -17,6 +16,7 @@ class Demography(nx.DiGraph):
     def from_ms(cls, ms_cmd, *params, **kwargs):
         return cls(parse_ms.to_nx(ms_cmd, *params, **kwargs))
 
+    ## TODO: remove this method
     @classmethod
     def from_newick(cls, newick, default_lineages=None, default_N=1.0):
         ms_cmd,leafs = parse_ms.from_newick(newick, default_lineages, default_N)
@@ -89,10 +89,6 @@ class Demography(nx.DiGraph):
     def child_pops(self, event):
         return self.eventTree.node[event]['child_pops']
 
-#     @cached_property
-#     def totalSfsSum(self):
-#         return normalizing_constant(self)
-
     @cached_property
     def root(self):
         nds = [node for node, deg in self.in_degree().items() if deg == 0]
@@ -164,19 +160,9 @@ class Demography(nx.DiGraph):
         assert ret.shape == tuple([n_node+1] * 3)
         return ret, [admixture_node, parent1, parent2]
 
+    ## TODO: is this method used?
     def is_leaf(self, node):
         return node in self.leaves
-
-    # returns log likelihood under a Poisson random field model
-    def log_likelihood_prf(self, theta, sfs):
-        sfs,w = zip(*sorted(sfs.iteritems()))
-        w = np.array(w)
-
-        sfs_vals, branch_len = compute_sfs(self, sfs)
-        ret = -branch_len * theta / 2.0 + np.sum(log(sfs_vals * theta / 2.0) * w - scipy.special.gammaln(w+1))
-
-        assert ret < 0.0
-        return ret
 
 @memoize
 def der_in_admixture_node(n_node):

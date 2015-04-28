@@ -12,7 +12,7 @@ from autograd import grad
 import networkx as nx
 from size_history import ConstantTruncatedSizeHistory
 
-from sum_product import compute_sfs
+from sum_product import compute_sfs, log_likelihood_prf
 from demography import Demography
 
 
@@ -37,7 +37,7 @@ def test_joint_sfs_inference():
     print(t0,t1)
     def f(join_time):
         assert join_time.shape == (1,)
-        return -get_demo(join_time[0]).log_likelihood_prf(theta * num_runs, jsfs)
+        return -log_likelihood_prf(get_demo(join_time[0]), theta * num_runs, jsfs)
 
     x0 = np.array([random.uniform(0,t1)])
     g = grad(f)
