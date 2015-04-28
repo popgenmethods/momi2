@@ -3,6 +3,10 @@ TODO:
 next steps:
 
 ***
+put things into __init__
+
+
+***
 have compute_sfs, log_likelihood_prf,
 take in a ms_cmd,
 instead of a demography
@@ -22,14 +26,7 @@ find minimal example test case for autograd issue #24
 ***
 rename my_einsum to be einsum
 
-***
-change everything to be in tensor format for data
-(don't use SumProduct.p(), use sfs_entries() instead)
-
-***
-change input format of data
-also don't have demography store it anymore
-(REMOVE demograph.update_state)
+move into math_functions.py?
 
 ***
 make a single function
@@ -49,29 +46,6 @@ fft along the two dimensions
 taking ifft of diagonal
 
 
-
-***
-make SumProduct entirely tensorized!!!
-so "dataset" is an axis, and each index along this axis is a separate configuration
-
-this will make the reverse-order differentiation maximally efficient
-
-***
-get rid of LabeledAxisArray,
-
-instead just pass
-(tensor, {pop: idx})
-
-tensor is of probabilities, with 0th index=dataset
-
-
-***
-fix
-  File "/Users/jackkamm/Dropbox/research/momi/parse_ms.py", line 29, in toFloat
-    raise Exception("nan in %s,%s" % (ms_cmd))
-TypeError: not enough arguments for format string
-
-
 ***
 merge some of my_functions into autograd package with pull request
 
@@ -82,7 +56,7 @@ add back numerical stability assertions, etc.
 
 
 ***
-implement expm_multiply for autograd branch
+reimplement expm_multiply (need derivative)
 
 ***
 Change exponential size history to take in alpha

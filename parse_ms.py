@@ -26,7 +26,7 @@ def to_nx(ms_cmd, *params, **kwargs):
         else:
             ret = float(var)
         if isnan(ret):
-            raise Exception("nan in %s,%s" % (ms_cmd))
+            raise Exception("nan in %s" % (ms_cmd))
         return ret
                            
 
