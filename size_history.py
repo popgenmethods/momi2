@@ -1,4 +1,4 @@
-#from __future__ import division
+from __future__ import division
 from util import EPSILON, memoize
 import autograd.numpy as np
 from autograd.numpy import sum, exp, log, expm1
@@ -8,18 +8,6 @@ import scipy.integrate
 from scipy.special import comb as binom
 import scipy.special
 import moran_model
-
-@memoize
-def W(n, b, j):
-    if j == 2:
-        return 6.0 / float(n + 1)
-    elif j == 3:
-        return 30.0 * (n - 2 * b) / float(n + 1) / float(n + 2)
-    else:
-        jj = float(j - 2)
-        ret = W(n, b, jj) * -(1 + jj) * (3 + 2 * jj) * (n - jj) / jj / (2 * jj - 1) / (n + jj + 1)
-        ret += W(n, b, jj + 1) * (3 + 2 * jj) * (n - 2 * b) / jj / (n + jj + 1)
-        return ret
 
 class TruncatedSizeHistory(object):
     def __init__(self, n_max, tau):
@@ -37,33 +25,18 @@ class TruncatedSizeHistory(object):
             return {(1, 1): self.tau}
         ret = {}
         # compute the SFS for n_max via Polanski and Kimmel
-        ww = np.zeros([self.n_max - 1, self.n_max - 1])
-        for i in range(2, self.n_max + 1):
-            for j in range(1, self.n_max):
-                ww[i - 2, j - 1] = W(self.n_max, j, i)
-        bv = (self.etjj[:, None] * ww).sum(axis=0) ## Keep ADF object on the left
+
+        bv = np.sum(self.etjj[:, None] * Wmatrix(self.n_max), axis=0)
         ret = dict(((b, self.n_max), v) for b, v in enumerate(bv, 1))
         # compute entry for monomorphic site
         ret[(self.n_max, self.n_max)] = self._before_tmrca(ret)
-
-        # use recurrence to compute SFS for n < maxSampleSize
-        ### TODO: these SFS entries aren't currently necessary, though perhaps we will
-        ### need them in the future.
-#         for n in range(self.n_max - 1, 0, -1):
-#             for k in range(1, n + 1):
-#                 ret[(k, n)] = (ret[(k + 1, n + 1)] * (k + 1) / (n + 1) + 
-#                         ret[(k, n + 1)] * (n + 1 - k) / (n + 1))
-
-#         # check accuracy
-#         assert self.tau == ret[(1, 1)] or abs(log(self.tau / ret[(1, 1)])) < EPSILON, \
-#                 "%.16f, %.16f"  % (self.tau, ret[(1, 1)])
 
         ## TODO: add non-negativity checks back!!
 #         assert all([v >= 0.0 for _,v in ret.iteritems()])
         return ret
 
     def _before_tmrca(self, partial_sfs):
-        return self.tau - sum([partial_sfs[(b, self.n_max)] * b / float(self.n_max)
+        return self.tau - sum([partial_sfs[(b, self.n_max)] * b / self.n_max
                                for b in range(1, self.n_max)])
 
 
@@ -206,3 +179,40 @@ class PiecewiseHistory(TruncatedSizeHistory):
         if self.tau == float('inf'):
             return self.tau
         return sum([pop.scaled_time for pop in self.pieces])
+
+
+@memoize
+def W(n, b, j):
+    if j == 2:
+        return 6.0 / (n + 1)
+    elif j == 3:
+        return 30.0 * (n - 2 * b) / (n + 1) / (n + 2)
+    else:
+        jj = j - 2
+        ret = W(n, b, jj) * -(1 + jj) * (3 + 2 * jj) * (n - jj) / jj / (2 * jj - 1) / (n + jj + 1)
+        ret += W(n, b, jj + 1) * (3 + 2 * jj) * (n - 2 * b) / jj / (n + jj + 1)
+        return ret
+
+@memoize
+def Wmatrix(n):
+    ww = np.zeros([n - 1, n - 1])
+    for i in range(2, n + 1):
+        for j in range(1, n):
+            ww[i - 2, j - 1] = W(n, j, i)
+    return ww
+
+# given vector [sfs{n,1},...,sfs{n,n}],
+# returns (n-1)x(n-1) matrix whose (ij) entry is sfs{i,j}
+def sfs_recurrence(sfs, tau):
+    n_max = len(sfs)
+    ret = np.zeros((n_max+1,n_max+1))
+    ret[1:,n_max] = sfs
+
+    for n in range(n_max - 1, 0, -1):
+        for k in range(1, n + 1):
+            ret[(k, n)] = (ret[(k + 1, n + 1)] * (k + 1) / (n + 1) + 
+                    ret[(k, n + 1)] * (n + 1 - k) / (n + 1))
+
+    # check accuracy
+    assert tau == ret[(1, 1)] or abs(log(tau / ret[(1, 1)])) < EPSILON
+    return ret[1:,1:]
