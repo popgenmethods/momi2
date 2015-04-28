@@ -223,7 +223,7 @@ def set_model(node_data, end_time, cmd):
     for size in sizes:
         ### TODO: make ExpHist work for tau == 0.0!
         if size['alpha'] is not None and size['tau'] > 0.0:
-            pieces.append(ExpHist(tau=size['tau'], N_top=size['N_top'], N_bottom=size['N']))
+            pieces.append(ExpHist(tau=size['tau'], growth_rate=size['alpha'], N_bottom=size['N']))
         else:
             pieces.append(ConstHist(tau=size['tau'], N=size['N']))
     assert len(pieces) > 0

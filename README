@@ -11,21 +11,6 @@ instead of a demography
 clean up size_history
 
 ***
-make size_history store the SFS as an array,
-instead of having sum_product have to convert to an array everytime
-
-get rid of truncated_sfs in sum_product?
-
-***
-have parse_ms call constructor of Demography instead of nx?
-OR
-move stuff from parse_ms into demography.py, have it be called
-from constructor of Demography?
-
-***
-Change exponential size history to take in alpha
-(this way we won't have as many overflow issues if N_top = 0 or inf)
-
 Also make it so that, if -eg 0.0, (and not -eg $0 with $0==0.0),
 create a ConstantSize always.
 
@@ -37,10 +22,16 @@ make exponential size history work with growth rate 0, and also tau=0.
 Fix parse_ms TODO: for tau==0.0 case
 
 ***
+uncomment assertions in size_history, sum_product
 copy assertions in ConstantTruncatedSizeHistory.etjj to other etjj
 
+
+
 ***
-in size_history fix TODO (make deep copy)
+have parse_ms call constructor of Demography instead of nx?
+OR
+move stuff from parse_ms into demography.py, have it be called
+from constructor of Demography?
 
 ***
 Make autodifferentiation work for functional size history

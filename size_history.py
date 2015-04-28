@@ -70,11 +70,13 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
     ## some computations here are done in a seemingly roundabout way,
     ## to ensure that growth_rate=0.0 works
     ## TODO: tau == inf not yet tested (maybe just use tau=1e200 instead)
-    def __init__(self, tau, N_top, N_bottom):
+    def __init__(self, tau, growth_rate, N_bottom):
         super(ExponentialTruncatedSizeHistory, self).__init__(tau)
-        self.N_top, self.N_bottom = N_top, N_bottom
+        self.N_bottom, self.growth_rate = N_bottom, growth_rate
+        self.N_top = N_bottom * exp(-tau * growth_rate)
+        #self.N_top, self.N_bottom = N_top, N_bottom
         # N_bottom = N_top * exp(tau * growth_rate)
-        self.growth_rate = log(self.N_bottom / self.N_top) / self.tau
+        #self.growth_rate = log(self.N_bottom / self.N_top) / self.tau
 
     def etjj(self, n):
         j = np.arange(2, n+1)
