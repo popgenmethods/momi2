@@ -31,18 +31,6 @@ def compute_sfs(demography, config_list):
     return np.squeeze(ret[2:]), branch_len
 
 
-## TODO: make this a property of the demography, instead of the sum_product
-def truncated_sfs(G, node):
-    n_node = G.n_lineages_at_node[node]
-
-    sfs = [G.node_data[node]['model'].freq(n_derived, n_node) for n_derived in range(n_node + 1)]
-    if G.node_data[node]['model'].tau == float('inf'):
-        assert node == G.root
-        sfs[-1] = 0.0
-    #sfs[sfs == float("inf")] = 0.0
-    return np.array(sfs)
-
-
 def partial_likelihood_top(data, G, event, popList):
     ''' Partial likelihood of data at top of node, i.e.
     i.e. = P(n_top) P(x | n_derived_top, n_ancestral_top)
@@ -66,7 +54,7 @@ def partial_likelihood(data, G, event):
         idx = [0] * lik.ndim
         idx[0], idx[newpop_idx] = slice(None), slice(None)
 
-        sub_lik, trunc_sfs = lik[idx], truncated_sfs(G, newpop)
+        sub_lik, trunc_sfs = lik[idx], G.truncated_sfs(newpop)
         sfs = sfs + einsum2(sub_lik, ['',newpop],
                             trunc_sfs, [newpop],
                             [''])

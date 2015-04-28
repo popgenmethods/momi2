@@ -175,11 +175,11 @@ def simple_five_pop_demo(x, n_lins):
     counts = [n_lins[l] for l in leafs]
     
     cmd = ["-I 5 %s" % (" ".join(map(str, counts))),
-           "-en $0 5 $15",
-           "-en $1 4 $16",
-           "-en $2 3 $17",
-           "-en $3 2 $18",
-           "-en $4 1 $19",
+           "-eg $0 5 $15",
+           "-eg $1 4 $16",
+           "-eg $2 3 $17",
+           "-eg $3 2 $18",
+           "-eg $4 1 $19",
            "-ej $5 5 4 -en $5 4 $20",
            "-en $6 3 $21",
            "-en $7 2 $22",

@@ -6,7 +6,6 @@ from math_functions import transformed_expi, expm1d
 from cached_property import cached_property
 import scipy.integrate
 from scipy.special import comb as binom
-import scipy.special
 import moran_model
 
 class TruncatedSizeHistory(object):
@@ -14,31 +13,19 @@ class TruncatedSizeHistory(object):
         self.n_max = n_max
         self.tau = tau
 
-    def freq(self, n_derived, n):
-        if n_derived == 0:
-            return 0.0
-        return self.sfs[(n_derived, n)]
-
     @cached_property
     def sfs(self):
-        if self.n_max == 1:
-            return {(1, 1): self.tau}
-        ret = {}
-        # compute the SFS for n_max via Polanski and Kimmel
+        ret = np.sum(self.etjj[:, None] * Wmatrix(self.n_max), axis=0)
 
-        bv = np.sum(self.etjj[:, None] * Wmatrix(self.n_max), axis=0)
-        ret = dict(((b, self.n_max), v) for b, v in enumerate(bv, 1))
-        # compute entry for monomorphic site
-        ret[(self.n_max, self.n_max)] = self._before_tmrca(ret)
-
-        ## TODO: add non-negativity checks back!!
+        before_tmrca = self.tau - np.sum(ret * np.arange(1, self.n_max) / self.n_max)
+        # ignore branch length above untruncated TMRCA
+        if self.tau == float('inf'):
+            before_tmrca = 0.0
+        
+        ret = np.concatenate((np.array([0.0]), ret, np.array([before_tmrca])))
+        ## TODO: uncomment assertion
 #         assert all([v >= 0.0 for _,v in ret.iteritems()])
         return ret
-
-    def _before_tmrca(self, partial_sfs):
-        return self.tau - sum([partial_sfs[(b, self.n_max)] * b / self.n_max
-                               for b in range(1, self.n_max)])
-
 
     def transition_prob(self, v, axis=0):
         if self.scaled_time == 0.0:
@@ -95,7 +82,7 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
     @cached_property
     def etjj(self):
         j = np.arange(2, self.n_max+1)
-        jChoose2 = scipy.misc.comb(j,2)
+        jChoose2 = binom(j,2)
 
         pow0, pow1 = self.N_bottom/jChoose2 , self.growth_rate*self.tau
         ret = -transformed_expi(pow0 * self.growth_rate / exp(pow1))
@@ -161,7 +148,7 @@ class PiecewiseHistory(TruncatedSizeHistory):
     @cached_property
     def etjj(self):
         j = np.arange(2, self.n_max+1)
-        jChoose2 = scipy.misc.comb(j,2)
+        jChoose2 = binom(j,2)
 
         ret = np.zeros(len(j))
         noCoalProb = np.ones(len(j))

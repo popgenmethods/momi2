@@ -104,6 +104,9 @@ class Demography(nx.DiGraph):
     def leaves(self):
         return set([k for k, v in self.out_degree().items() if v == 0])
 
+    def truncated_sfs(self, node):
+        return self.node_data[node]['model'].sfs
+
     @cached_property
     def n_lineages_at_node(self):
         '''Due to admixture events, # lineages at node >= # lineages at leafs'''
