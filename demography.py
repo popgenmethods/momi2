@@ -1,6 +1,7 @@
 import networkx as nx
 from cached_property import cached_property
-from util import memoize_instance, memoize, my_einsum, fft_einsum
+from util import memoize_instance, memoize
+from math_functions import einsum2, fft_einsum
 import scipy, scipy.misc
 import autograd.numpy as np
 
@@ -154,9 +155,9 @@ class Demography(nx.DiGraph):
         n_from_1 = np.arange(n_node+1)
         n_from_2 = n_node - n_from_1
         binom_coeffs = (prob1**n_from_1) * (prob2**n_from_2) * scipy.misc.comb(n_node, n_from_1)
-        ret = my_einsum(der_in_admixture_node(n_node), range(4),
-                        binom_coeffs, [0],
-                        [1,2,3])
+        ret = einsum2(der_in_admixture_node(n_node), range(4),
+                      binom_coeffs, [0],
+                      [1,2,3])
         assert ret.shape == tuple([n_node+1] * 3)
         return ret, [admixture_node, parent1, parent2]
 

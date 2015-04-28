@@ -8,12 +8,6 @@ take in a ms_cmd,
 instead of a demography
 
 ***
-make math_functions.py,
-with functions from util.py and size_history.py
-
-rename my_einsum to be einsum
-
-***
 clean up size_history
 
 ***
@@ -26,6 +20,9 @@ make size_history store the SFS as an array,
 instead of having sum_product have to convert to an array everytime
 
 get rid of truncated_sfs in sum_product?
+
+***
+have parse_ms construct the size_history
 
 ***
 Change exponential size history to take in alpha

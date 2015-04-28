@@ -2,7 +2,7 @@
 from util import EPSILON, memoize
 import autograd.numpy as np
 from autograd.numpy import sum, exp, log, expm1
-from autograd.core import primitive
+from math_functions import transformed_expi, expm1d
 from cached_property import cached_property
 import scipy.integrate
 from scipy.special import comb as binom
@@ -107,62 +107,7 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
 
     def __str__(self):
         return "(ConstantPopSize: N=%f, tau=%f)" % (self.N, self.tau)
-
-'''
-Returns
--expi(-1/x) * exp(1/x) / x
-for x s.t. abs(x) is decreasing
-'''
-def transformed_expi(x):
-    abs_x = np.abs(x)
-    # TODO: remove this assertion/assumption, whenever autograd implements np.__set__
-    assert np.all(abs_x[:-1] >= abs_x[1:])
-    ser = abs_x < 1./45.
-    nser = np.logical_not(ser)
-
-    return np.concatenate((transformed_expi_series(x[ser]), transformed_expi_naive(x[nser])))
-
-# def transformed_expi_grad(ans,x):
-#     is_zero = np.all(x == 0.0)
-#     ## autograd currently doesn't support indexing, so all vector entries must be entirely in one case or the other
-#     assert is_zero or np.all(x != 0.0)
-#     if is_zero:
-#         return lambda g: -1. * g
-#     else:
-#         return lambda g: g * (-1./x**2) * (-1. + ans + ans*x) 
-# transformed_expi.defgrad(transformed_expi_grad)
-
-def transformed_expi_series(x):
-    c_n, ret = 1., 1.
-    for n in range(1,11):
-        c_n = -c_n * x * n
-        ret = ret + c_n
-    return ret
-
-def transformed_expi_naive(x):
-    return -expi(-1.0/x) * exp(1.0/x) / x
-
-@primitive
-def expi(x):
-    return scipy.special.expi(x)
-expi.defgrad(lambda ans,x: lambda g: g * exp(x) / x)
-
-'''
-returns (e^x-1)/x, for scalar x. works for x=0.
-Taylor series is 1 + x/2! + x^2/3! + ...
-'''
-def expm1d(x):
-    if x == 0.0:
-        return expm1d_taylor(x)
-    return expm1(x)/x
-## used for higher order derivatives at x=0
-def expm1d_taylor(x):
-    c_n, ret = 1.,1.
-    for n in range(2,11):
-        c_n = c_n * x / float(n)
-        ret = ret + c_n
-    return ret
-    
+   
 
 class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
     ## some computations here are done in a seemingly roundabout way,

@@ -1,4 +1,5 @@
-from util import memoize, my_einsum
+from util import memoize
+from math_functions import einsum2
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
 import autograd.numpy as np
@@ -27,7 +28,7 @@ def moran_action(t, v, axis=0):
     vlen,output_dim = len(v.shape), range(len(v.shape))
     output_dim[axis] = vlen
     ## seems more efficient to have PDPinv be a single arg, rather than 3 args
-    ret = my_einsum(v, range(vlen), dot(P,dot(D,Pinv)), [vlen,axis], output_dim)
+    ret = einsum2(v, range(vlen), dot(P,dot(D,Pinv)), [vlen,axis], output_dim)
     assert ret.shape == v.shape
     return ret
 

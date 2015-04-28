@@ -1,6 +1,7 @@
 import autograd.numpy as np
 import scipy.misc
-from util import memoize_instance, memoize, my_trace, swapaxes, my_einsum, fft_einsum, sum_antidiagonals
+from util import memoize_instance, memoize
+from math_functions import einsum2, fft_einsum, sum_antidiagonals
 
 ## TODO: move this into __init__?
 ## TODO: have this take in an ms_cmd instead of demo
@@ -66,9 +67,9 @@ def partial_likelihood(data, G, event):
         idx[0], idx[newpop_idx] = slice(None), slice(None)
 
         sub_lik, trunc_sfs = lik[idx], truncated_sfs(G, newpop)
-        sfs = sfs + my_einsum(sub_lik, ['',newpop],
-                              trunc_sfs, [newpop],
-                              [''])
+        sfs = sfs + einsum2(sub_lik, ['',newpop],
+                            trunc_sfs, [newpop],
+                            [''])
         branch_len = branch_len + np.dot(1.0 - sub_lik[0,:] , trunc_sfs)
     return lik,sfs,branch_len
 
@@ -109,9 +110,9 @@ def _admixture_likelihood(data, G, event):
     lik,sfs,branch_len = partial_likelihood_top(data, G, child_event, [child_pop])
 
     admixture_prob, admixture_idxs = G.admixture_prob(child_pop)
-    lik = my_einsum(lik, _lik_axes(G, child_event),
-                    admixture_prob, admixture_idxs,
-                    _lik_axes(G, event))
+    lik = einsum2(lik, _lik_axes(G, child_event),
+                  admixture_prob, admixture_idxs,
+                  _lik_axes(G, event))
 
     return lik,sfs,branch_len
 
@@ -125,15 +126,15 @@ def _merge_subpops_likelihood(data, G, event):
     c1,c2 = child_pops
     child_axes = _lik_axes(G, child_event)
     for c in c1,c2:
-        lik = my_einsum(lik, child_axes,
-                        combinatorial_factors(G, c), [c],
-                        child_axes)
+        lik = einsum2(lik, child_axes,
+                      combinatorial_factors(G, c), [c],
+                      child_axes)
     lik,axes = sum_antidiagonals(lik, child_axes, c1, c2, newpop)
 
     assert set(axes) == set(_lik_axes(G,event))
-    lik = my_einsum(lik, axes,
-                    1.0/combinatorial_factors(G, newpop), [newpop],
-                    _lik_axes(G, event))
+    lik = einsum2(lik, axes,
+                  1.0/combinatorial_factors(G, newpop), [newpop],
+                  _lik_axes(G, event))
 
     return lik,sfs,branch_len
 
@@ -149,9 +150,9 @@ def _merge_clusters_likelihood(data, G, event):
 
         axes = [newpop if x == child_pop else x for x in _lik_axes(G, child_event)]
         child_axes.append(axes)
-        lik = my_einsum(lik, axes,
-                        combinatorial_factors(G, child_pop), [newpop],
-                        axes)
+        lik = einsum2(lik, axes,
+                      combinatorial_factors(G, child_pop), [newpop],
+                      axes)
 
         child_liks.append((lik,sfs))
 
@@ -162,9 +163,9 @@ def _merge_clusters_likelihood(data, G, event):
                      child_liks[1], child_axes[1],
                      axes,
                      [newpop])
-    lik = my_einsum(lik, axes,
-                    1.0/combinatorial_factors(G, newpop), [newpop],
-                    axes)
+    lik = einsum2(lik, axes,
+                  1.0/combinatorial_factors(G, newpop), [newpop],
+                  axes)
     
     sfs = 0.0
     for freq, other_lik in zip(child_sfs, child_liks[::-1]):
