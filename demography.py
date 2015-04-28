@@ -26,14 +26,6 @@ class Demography(nx.DiGraph):
 
     def __init__(self, *args, **kwargs):
         super(Demography, self).__init__(*args, **kwargs)
-        nd = self.node_data
-        if not all('lineages' in nd[k] for k in self.leaves):
-            raise Exception("'lineages' attribute must be set for each leaf node.")
-        for v in self:
-            if 'model_func' in nd[v] and 'model' not in nd[v]:
-                nd[v]['model'] = nd[v]['model_func'](self.n_lineages_at_node[v])
-        if not all('model' in nd[k] for k in self):
-            raise Exception("'model' attribute must be set for all nodes.")
 
     @cached_property
     def eventTree(self):
@@ -105,7 +97,8 @@ class Demography(nx.DiGraph):
         return set([k for k, v in self.out_degree().items() if v == 0])
 
     def truncated_sfs(self, node):
-        return self.node_data[node]['model'].sfs
+        #return self.node_data[node]['model'].sfs
+        return self.node_data[node]['model'].sfs(self.n_lineages_at_node[node])
 
     @cached_property
     def n_lineages_at_node(self):

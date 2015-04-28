@@ -9,15 +9,13 @@ from scipy.special import comb as binom
 import moran_model
 
 class TruncatedSizeHistory(object):
-    def __init__(self, n_max, tau):
-        self.n_max = n_max
+    def __init__(self, tau):
         self.tau = tau
 
-    @cached_property
-    def sfs(self):
-        ret = np.sum(self.etjj[:, None] * Wmatrix(self.n_max), axis=0)
+    def sfs(self, n):
+        ret = np.sum(self.etjj(n)[:, None] * Wmatrix(n), axis=0)
 
-        before_tmrca = self.tau - np.sum(ret * np.arange(1, self.n_max) / self.n_max)
+        before_tmrca = self.tau - np.sum(ret * np.arange(1, n) / n)
         # ignore branch length above untruncated TMRCA
         if self.tau == float('inf'):
             before_tmrca = 0.0
@@ -35,15 +33,14 @@ class TruncatedSizeHistory(object):
 
 class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
     '''Constant size population truncated to time tau.'''
-    def __init__(self, n_max, tau, N):
-        super(ConstantTruncatedSizeHistory, self).__init__(n_max, tau)
+    def __init__(self, tau, N):
+        super(ConstantTruncatedSizeHistory, self).__init__(tau)
         if N <= 0.0:
             raise Exception("N must be positive")
         self.N = N
 
-    @cached_property
-    def etjj(self):
-        j = np.arange(2, self.n_max + 1)
+    def etjj(self, n):
+        j = np.arange(2, n + 1)
 
         denom = binom(j, 2) / self.N
         if self.tau == float('inf'):
@@ -52,7 +49,7 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
         scaled_time = denom * self.tau
         num = -expm1(-scaled_time) # equals 1 - exp(-scaledTime)
         ret = num / denom
-        ## TODO: add back assertion!
+        ## TODO: uncomment assertion
         #epsilon = 1e-15*float(self.tau)
         #assert np.all(ret[:-1] - ret[1:] >= -epsilon) and np.all(ret >= -epsilon) and np.all(ret <= self.tau + epsilon)
         return ret
@@ -73,15 +70,14 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
     ## some computations here are done in a seemingly roundabout way,
     ## to ensure that growth_rate=0.0 works
     ## TODO: tau == inf not yet tested (maybe just use tau=1e200 instead)
-    def __init__(self, n_max, tau, N_top, N_bottom):
-        super(ExponentialTruncatedSizeHistory, self).__init__(n_max, tau)
+    def __init__(self, tau, N_top, N_bottom):
+        super(ExponentialTruncatedSizeHistory, self).__init__(tau)
         self.N_top, self.N_bottom = N_top, N_bottom
         # N_bottom = N_top * exp(tau * growth_rate)
         self.growth_rate = log(self.N_bottom / self.N_top) / self.tau
 
-    @cached_property
-    def etjj(self):
-        j = np.arange(2, self.n_max+1)
+    def etjj(self, n):
+        j = np.arange(2, n+1)
         jChoose2 = binom(j,2)
 
         pow0, pow1 = self.N_bottom/jChoose2 , self.growth_rate*self.tau
@@ -106,23 +102,22 @@ class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
 
 class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
     '''Size history parameterized by an arbitrary function f.'''
-    def __init__(self, n_max, tau, f):
+    def __init__(self, tau, f):
         '''Initialize the model. For t > 0, f(t) >= is the instantaneous
         rate of coalescence (i.e., the inverse of the population size).
         f should accept and return vectors of times.
         '''
-        super(FunctionalTruncatedSizeHistory, self).__init__(n_max, tau)
+        super(FunctionalTruncatedSizeHistory, self).__init__(tau)
         self._f = f
 
     def _R(self, t):
         return scipy.integrate.quad(self._f, 0, t)[0]
 
-    @cached_property
-    def etjj(self):
+    def etjj(self, n):
         ret = []
-        # TODO: if this is too slow for large n_max, it could be sped up
+        # TODO: if this is too slow for large n, it could be sped up
         # by using vectorized integration (a la scipy.integrate.simps)
-        for j in range(2, self.n_max + 1):
+        for j in range(2, n + 1):
             j2 = binom(j, 2)
             # tau * P(Tjj > tau)
             r1 = self.tau * exp(-j2 * self.scaled_time)
@@ -139,23 +134,19 @@ class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
 
 class PiecewiseHistory(TruncatedSizeHistory):
     def __init__(self, pieces):
-        n_max = pieces[0].n_max
-        assert all([p.n_max == n_max for p in pieces])
         tau = sum([p.tau for p in pieces])
-        super(PiecewiseHistory, self).__init__(n_max, tau)
+        super(PiecewiseHistory, self).__init__(tau)
         self.pieces = pieces
 
-    @cached_property
-    def etjj(self):
-        j = np.arange(2, self.n_max+1)
+    def etjj(self, n):
+        j = np.arange(2, n+1)
         jChoose2 = binom(j,2)
 
         ret = np.zeros(len(j))
         noCoalProb = np.ones(len(j))
         for pop in self.pieces:
-            ret = ret + noCoalProb * pop.etjj
+            ret = ret + noCoalProb * pop.etjj(n)
             if pop.scaled_time != float('inf'):
-                ## WARNING: autodifferentiate will break if jChoose2 * pop.scaled_time (the reverse order)
                 noCoalProb = noCoalProb * exp(- pop.scaled_time * jChoose2)
             else:
                 assert pop is self.pieces[-1]

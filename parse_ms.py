@@ -198,16 +198,9 @@ def set_model(node_data, end_time, cmd):
     # add a dummy epoch with the end time
     sizes.append({'t': end_time})
 
+    # do some processing
     N, alpha = sizes[0]['N'], sizes[0]['alpha']
     for i in range(len(sizes) - 1):
-#         # ms times are rescaled by 0.5
-#         if sizes[i+1]['t'] < float('inf'):
-#             sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t']) * 2.0
-#         else:
-#             # autodiff arithmetic can go bad when multiplying by infinity
-#             assert not sizes[i+1]['t']._lc
-#             sizes[i]['tau'] = float('inf')
-
         sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t']) * 2.0
 
         if 'N' not in sizes[i]:
@@ -225,25 +218,19 @@ def set_model(node_data, end_time, cmd):
             raise IOError(("Negative time or population size. (Were events specified in correct order?", cmd))
     sizes.pop() # remove the final dummy epoch
 
-    # construct function that returns size history from number of lineages
-    def model_func(n_max):
-        pieces = []
-        for size in sizes:
-            #print size
-            ### TODO: make ExpHist work for tau == 0.0!
-            if size['alpha'] is not None and size['tau'] > 0.0:
-                pieces.append(ExpHist(n_max=n_max, tau=size['tau'], N_top=size['N_top'], N_bottom=size['N']))
-            else:
-                pieces.append(ConstHist(n_max=n_max, tau=size['tau'], N=size['N']))
-#                 if size['tau'] == float('inf'):
-#                     size['tau'] = 1e200
-#                 pieces.append(ExpHist(n_max=n_max, tau=size['tau'], N_bottom=size['N'], N_top=size['N_top']))
-        assert len(pieces) > 0
-        if len(pieces) == 0:
-            return pieces[0]
-        return PiecewiseHistory(pieces)
-    # now store the size history function
-    node_data['model_func'] = model_func
+    ## now make the size histories
+    pieces = []
+    for size in sizes:
+        ### TODO: make ExpHist work for tau == 0.0!
+        if size['alpha'] is not None and size['tau'] > 0.0:
+            pieces.append(ExpHist(tau=size['tau'], N_top=size['N_top'], N_bottom=size['N']))
+        else:
+            pieces.append(ConstHist(tau=size['tau'], N=size['N']))
+    assert len(pieces) > 0
+    if len(pieces) == 0:
+        node_data['model'] = pieces[0]
+    else:
+        node_data['model'] = PiecewiseHistory(pieces)
 
 
 '''Simulate SFS from Demography'''

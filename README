@@ -11,18 +11,16 @@ instead of a demography
 clean up size_history
 
 ***
-don't make n_max a field of size_history;
-instead have etjj and sfs take n as a parameter, and return
-the appropriate vector
-
-***
 make size_history store the SFS as an array,
 instead of having sum_product have to convert to an array everytime
 
 get rid of truncated_sfs in sum_product?
 
 ***
-have parse_ms construct the size_history
+have parse_ms call constructor of Demography instead of nx?
+OR
+move stuff from parse_ms into demography.py, have it be called
+from constructor of Demography?
 
 ***
 Change exponential size history to take in alpha
