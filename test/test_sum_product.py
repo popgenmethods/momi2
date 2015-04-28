@@ -1,6 +1,6 @@
 from __future__ import division
 import pytest
-from sum_product import SumProduct
+from sum_product import compute_sfs
 from demography import Demography
 from util import H, grouper
 
@@ -19,8 +19,9 @@ def demo():
 def test_sfs(demo):
     st = {'a': {'derived': 5, 'ancestral': 5},
           'b': {'derived': 8, 'ancestral': 0}}
-    sp = SumProduct(demo, st)
-    sp.p()
+    compute_sfs(demo,convert_states(demo,st))
+#     sp = SumProduct(demo, st)
+#     sp.p()
 
 def demo_generator(fn=TEST_CASES):
     with open(fn, "rt") as f:
@@ -32,15 +33,19 @@ def demo_generator(fn=TEST_CASES):
             # N0 = 20000 in generate data due to haploid/diploid thing
             dm = Demography.from_newick(newick, default_lineages=dl, default_N=20000.)
             #dm.update_state(node_states)
-            yield dm, node_states, ret
+            yield dm, convert_states(dm,node_states), ret
 
-@pytest.mark.parametrize("demo,node_states,ret", demo_generator())
-def test_generated_cases(demo, node_states, ret):
-    sp = SumProduct(demo, node_states)
-    p = sp.p()
+@pytest.mark.parametrize("demo,data,ret", demo_generator())
+def test_generated_cases(demo, data, ret):
+    p = compute_sfs(demo, data)
     assert abs(p - ret) / ret < 1e-4
 
+def convert_states(G, node_states):
+    ret = []
+    for leaf in sorted(G.leaves):
+        ret.append(node_states[leaf]['derived'])
+    return [ret]
+    
 if __name__=="__main__":
-    for dm, ret in demo_generator("test_cases.txt"):
-        sp = SumProduct(dm)
-        print("Me: %f\tTest case: %f" % (sp.p(), ret))
+    for dm, data, ret in demo_generator("test_cases.txt"):
+        print("Me: %f\tTest case: %f" % (compute_sfs(dm, data), ret))

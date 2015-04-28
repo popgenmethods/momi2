@@ -17,6 +17,10 @@ make it so that sfs_entries() always returns branch length
 
 
 ***
+find minimal example test case for autograd issue #24
+
+
+***
 rename my_einsum to be einsum
 
 ***

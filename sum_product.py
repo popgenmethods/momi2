@@ -2,40 +2,24 @@ import autograd.numpy as np
 import scipy.misc
 from util import memoize_instance, memoize, my_trace, swapaxes, my_einsum, fft_einsum, sum_antidiagonals
 
-class SumProduct(object):
-    ''' 
-    compute joint SFS entry via a sum-product like algorithm,
-    using Moran model to do transitions up the tree,
-    and using Polanski Kimmel to compute frequency of mutations at each node in tree
-    '''
-    def __init__(self, demography, states):
-        self.G = demography
-        self.data = tmp_make_data(self.G, states)
-        
-    def p(self, normalized = False, ret_branch_len=False):
-        '''Return joint SFS entry for the demography'''
-        #data = tmp_make_data(self.G)
-        data = self.data
+## TODO: move this into __init__ ?
+def compute_sfs(demography, config_list, normalized = False, ret_branch_len=False):
+    '''Return joint SFS entry for the demography'''
+    data = np.array(config_list, ndmin=2)
+    if data.ndim != 2 or data.shape[1] != len(demography.leaves):
+        raise IOError("Invalid config_list. config_list should either be a list of k-tuples or a 2d array with k columns, where k is the number of leaf populations.")
 
-        _,ret,branch_len = partial_likelihood(data, self.G, self.G.event_root)
-        branch_len = branch_len - ret[1]
-        # first two indices correspond to all ancestral and all derived
-        ret = ret[2:]
-        if normalized:
-            ret = ret / branch_len
-        ret = np.squeeze(ret)
-        if ret_branch_len:
-            return ret, branch_len
-        else:
-            return ret
-
-## TODO: remove this function!
-def tmp_make_data(G, states):
-    ret = []
-    for leaf in sorted(G.leaves):
-        ret.append(np.array(states[leaf]['derived'],ndmin=1))
-        #ret.append(np.array(G.node_data[leaf]['derived'],ndmin=1))
-    return np.transpose(np.array(ret, ndmin=2))
+    _,ret,branch_len = partial_likelihood(data, demography, demography.event_root)
+    branch_len = branch_len - ret[1]
+    # first two indices correspond to all ancestral and all derived
+    ret = ret[2:]
+    if normalized:
+        ret = ret / branch_len
+    ret = np.squeeze(ret)
+    if ret_branch_len:
+        return ret, branch_len
+    else:
+        return ret
 
 ## TODO: make this a property of the demography, instead of the sum_product
 def truncated_sfs(G, node):

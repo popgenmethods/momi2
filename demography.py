@@ -4,7 +4,8 @@ from autograd.numpy import log
 from util import memoize_instance, memoize, my_einsum, fft_einsum
 import scipy, scipy.misc
 import autograd.numpy as np
-from sum_product import SumProduct, _lik_axes
+
+from sum_product import compute_sfs
 
 import parse_ms
 import random
@@ -106,10 +107,6 @@ class Demography(nx.DiGraph):
     def leaves(self):
         return set([k for k, v in self.out_degree().items() if v == 0])
 
-#     @cached_property
-#     def n_lineages_subtended_by(self):
-#         nd = self.node_data
-#         return {v: sum(nd[l]['lineages'] for l in self.leaves_subtended_by[v]) for v in self}
     @cached_property
     def n_lineages_at_node(self):
         '''Due to admixture events, # lineages at node >= # lineages at leafs'''
@@ -121,11 +118,6 @@ class Demography(nx.DiGraph):
             else:
                 n_lin_dict[v] = sum([n_lin_dict[c] for c in self[v]])
         return n_lin_dict
-
-#     @cached_property
-#     def n_derived_subtended_by(self):
-#         nd = self.node_data
-#         return {v: sum(nd[l]['derived'] for l in self.leaves_subtended_by[v]) for v in self}
 
     @cached_property
     def leaves_subtended_by(self):
@@ -175,37 +167,14 @@ class Demography(nx.DiGraph):
     def is_leaf(self, node):
         return node in self.leaves
 
-    def sfs_entries(self, sfs, normalized=False, ret_branch_len=False):
-        leaves = sorted(self.leaves)
-        st = {a: {'derived' : [], 'ancestral' : []} for a in leaves}
-        for states in sfs:
-            for a, b in zip(leaves, states):
-                st[a]['derived'].append(b)
-                st[a]['ancestral'].append(self.n_lineages_at_node[a] - b)
-        for a in leaves:
-            st[a]['derived'],st[a]['ancestral'] = map(lambda x: np.array(st[a][x]),
-                                                      ['derived','ancestral'])
-        #self.update_state(st)
-        sp = SumProduct(self, st)
-        return sp.p(normalized=normalized, ret_branch_len=ret_branch_len)
-
     # returns log likelihood under a Poisson random field model
     def log_likelihood_prf(self, theta, sfs):
-        #ret = -self.totalSfsSum * theta / 2.0
-            #st = {a: {'derived': b, 'ancestral': self.n_lineages_at_node[a] - b} for a, b in zip(leaves, states)}
-            #self.update_state(st)
-            #sp = SumProduct(self)
-            #ret += log(sp.p(normalized=False) * theta / 2.0) * weight - scipy.special.gammaln(weight+1)
-
         sfs,w = zip(*sorted(sfs.iteritems()))
         w = np.array(w)
 
-        sfs_vals, branch_len = self.sfs_entries(sfs, ret_branch_len=True)
-
-        #ret = -self.totalSfsSum * theta / 2.0 + np.sum(log(self.sfs_entries(sfs) * theta / 2.0) * w - scipy.special.gammaln(w+1))
+        sfs_vals, branch_len = compute_sfs(self, sfs, ret_branch_len=True)
         ret = -branch_len * theta / 2.0 + np.sum(log(sfs_vals * theta / 2.0) * w - scipy.special.gammaln(w+1))
 
-        #assert ret < 0.0 and ret > -float('inf')
         assert ret < 0.0
         return ret
 

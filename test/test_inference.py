@@ -12,29 +12,9 @@ from autograd import grad
 import networkx as nx
 from size_history import ConstantTruncatedSizeHistory
 
-from sum_product import SumProduct
+from sum_product import compute_sfs
 from demography import Demography
 
-
-def get_exact_jsfs(demo, theta=2.0):
-    leafs = sorted(list(demo.leaves))
-    n_ders = [range(demo.node_data[l]['lineages']+1) for l in leafs]
-    total_n = sum([demo.node_data[l]['lineages'] for l in leafs])
-    jsfs = {}
-    for comb in itertools.product(*n_ders):
-        assert len(comb) == len(leafs)
-        state = {}
-        total_der = 0
-        for l,n_d in zip(leafs,comb):
-            total_der += n_d
-            state[l] = {'derived' : n_d, 'ancestral' : demo.node_data[l]['lineages'] - n_d}
-        if total_der == 0 or total_der == total_n:
-            continue
-        demo.update_state(state)
-        weight = SumProduct(demo).p(normalized=False) * theta / 2.0
-        state = tuple([state[l]['derived'] for l in leafs])
-        jsfs[state] = weight
-    return jsfs
 
 def test_joint_sfs_inference():
     N0=1.0

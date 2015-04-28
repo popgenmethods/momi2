@@ -8,7 +8,7 @@ from size_history import ConstantTruncatedSizeHistory, PiecewiseHistory
 import networkx as nx
 from demography import Demography
 import random
-from sum_product import SumProduct
+from sum_product import compute_sfs
 #import math
 from numdifftools import Gradient, Hessian
 from test_sfs_counts import simple_admixture_demo
@@ -107,17 +107,20 @@ def sfs_func(demo_func, n_lins, normalized=True):
     total_der = 0
     while total_der == 0 or total_der == n:
         total_der = 0
-        states = {}
-        for pop,n_pop in n_lins.items():
+        #states = {}
+        states = []
+        for pop,n_pop in sorted(n_lins.items()):
             n_der = random.randint(0,n_pop)
             assert n_der >= 0 and n_der <= n_pop
             total_der += n_der
-            states[pop] = {'ancestral' : n_pop - n_der, 'derived' : n_der}
+            #states[pop] = {'ancestral' : n_pop - n_der, 'derived' : n_der}
+            states.append(n_der)
     
     print states
     def f(x):
         demo = demo_func(x, n_lins)
-        return SumProduct(demo, states).p(normalized=normalized)
+        #return SumProduct(demo, states).p(normalized=normalized)
+        return compute_sfs(demo,states, normalized=normalized)
     return f
 
 def test_admixture():

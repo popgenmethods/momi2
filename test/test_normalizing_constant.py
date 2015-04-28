@@ -2,7 +2,7 @@ from demography import Demography
 import random
 import itertools
 import networkx as nx
-from sum_product import SumProduct
+from sum_product import compute_sfs
 from autograd.numpy import log
 import autograd.numpy as np
 from test_sfs_counts import simple_admixture_demo
@@ -40,13 +40,7 @@ def test_tree_demo_normalization():
     for n_derived in itertools.product(*ranges):
         if sum(n_derived) == 0 or sum(n_derived) == num_leaf_pops * lins_per_pop:
             continue #skip monomorphic sites
-        state = {}
-        for i in range(len(leaves)):
-            state[leaves[i]] = {'derived' : n_derived[i], 'ancestral' : lins_per_pop - n_derived[i]}
-        #demo.update_state(state)
-
-        totalSum = SumProduct(demo, state).p(normalized=True) + totalSum
-
+        totalSum = compute_sfs(demo, [n_derived], normalized=True) + totalSum
     assert abs(log(totalSum / 1.0)) < 1e-12    
     #assert totalSum == 1.0
 
@@ -66,13 +60,7 @@ def test_admixture_demo_normalization():
     for n_derived in itertools.product(*ranges):
         if sum(n_derived) == 0 or sum(n_derived) == totalLins:
             continue #skip monomorphic sites
-        state = {}
-        for i in range(len(leaf_pops)):
-            n_lins = leaf_lins[leaf_pops[i]]
-            state[leaf_pops[i]] = {'derived' : n_derived[i], 'ancestral' : n_lins - n_derived[i]}
-        #demo.update_state(state)
-
-        totalSum += SumProduct(demo, state).p(normalized=True)
+        totalSum += compute_sfs(demo, [n_derived], normalized=True)
 
     assert abs(log(totalSum / 1.0)) < 1e-12    
     #assert totalSum == 1.0
