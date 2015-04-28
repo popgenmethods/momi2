@@ -3,23 +3,17 @@ TODO:
 next steps:
 
 ***
+remove all TODO (grep for it)
+
+***
 have compute_sfs, log_likelihood_prf,
 take in a ms_cmd,
 instead of a demography
 
-***
-clean up size_history
 
 ***
-Also make it so that, if -eg 0.0, (and not -eg $0 with $0==0.0),
-create a ConstantSize always.
+tau = inf in ExponentialHistory currently disabled because it breaks automatic differentiation
 
-Make tau=inf, tau=0 work for ExpHist
-or, assert that tau < inf for any Exponential history
-
-***
-make exponential size history work with growth rate 0, and also tau=0.
-Fix parse_ms TODO: for tau==0.0 case
 
 ***
 uncomment assertions in size_history, sum_product
@@ -120,3 +114,5 @@ change everything to be in ms units
 ***
 remove @memoize_instance?
 
+***
+add back from __future__ import division

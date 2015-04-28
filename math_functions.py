@@ -91,7 +91,7 @@ def transformed_expi(x):
     ## TODO: using ret[ser], ret[nser] as above is more general,
     ##    but not yet compatible with autograd (tho it is a planned future feature)
     assert np.all(abs_x[:-1] >= abs_x[1:])
-    return np.concatenate((transformed_expi_series(x[ser]), transformed_expi_naive(x[nser])))
+    return np.concatenate((transformed_expi_naive(x[nser]), transformed_expi_series(x[ser])))
 
 def transformed_expi_series(x):
     c_n, ret = 1., 1.
@@ -115,8 +115,10 @@ Taylor series is 1 + x/2! + x^2/3! + ...
 def expm1d(x):
     if x == 0.0:
         return expm1d_taylor(x)
+    elif x == float('inf'):
+        return float('inf')
     return np.expm1(x)/x
-## used for higher order derivatives at x=0
+## used for higher order derivatives at x=0 and x=inf
 def expm1d_taylor(x):
     c_n, ret = 1.,1.
     for n in range(2,11):

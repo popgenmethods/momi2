@@ -67,19 +67,20 @@ class ConstantHistory(SizeHistory):
    
 
 class ExponentialHistory(SizeHistory):
-    ## some computations here are done in a seemingly roundabout way,
-    ## to ensure that growth_rate=0.0 works
-    ## TODO: tau == inf not yet tested (maybe just use tau=1e200 instead)
     def __init__(self, tau, growth_rate, N_bottom):
+        if tau == float('inf'):
+            ## TODO: make tau=inf work with automatic differentiation
+            raise Exception("Exponential growth in final epoch not implemented. Try setting final growth rate to the constant 0.0, i.e. -eG t 0.0. Setting final growth rate to a variable (-eG t $0) will break, even if the variable equals 0.0.")
         super(ExponentialHistory, self).__init__(tau)
         self.N_bottom, self.growth_rate = N_bottom, growth_rate
-        self.N_top = N_bottom * exp(-tau * growth_rate)
+        self.total_growth = tau * growth_rate
+        self.N_top = N_bottom * exp(-self.total_growth)
 
     def etjj(self, n):
         j = np.arange(2, n+1)
         jChoose2 = binom(j,2)
 
-        pow0, pow1 = self.N_bottom/jChoose2 , self.growth_rate*self.tau
+        pow0, pow1 = self.N_bottom/jChoose2 , self.total_growth
         ret = -transformed_expi(pow0 * self.growth_rate / exp(pow1))
         ret = ret * exp(-expm1d(pow1) * self.tau / pow0 - pow1)
         ret = ret + transformed_expi(pow0 * self.growth_rate)
@@ -97,7 +98,7 @@ class ExponentialHistory(SizeHistory):
         integral of 1/haploidN(t) from 0 to tau.
         used for Moran model transitions
         '''
-        return expm1d(self.growth_rate * self.tau) * self.tau / self.N_bottom
+        return expm1d(self.total_growth) * self.tau / self.N_bottom
 
 class FunctionalHistory(SizeHistory):
     '''Size history parameterized by an arbitrary function f.'''

@@ -1,4 +1,4 @@
-#from __future__ import division
+from __future__ import division
 import pytest
 import autograd.numpy as np
 from autograd.numpy import outer, sum, exp, log
@@ -40,9 +40,12 @@ def log_within(x, y, eps=1e-2, trunc=1e-10):
 def check_gradient(f, x):
     print x, "\n", f(x)
 
-    g = grad(f)
-    grad1 = g(x)
+    print "# grad2"
     grad2 = Gradient(f)(x)
+    print "# building grad1"
+    g = grad(f)
+    print "# computing grad1"
+    grad1 = g(x)
 
     print "gradient1\n", grad1, "\ngradient2\n", grad2
     log_within(grad1,grad2)
@@ -118,6 +121,7 @@ def sfs_func(demo_func, n_lins, normalized=True):
     print states
     def f(x):
         demo = demo_func(x, n_lins)
+        #print demo.graph['cmd']
         sfs, branch_len = compute_sfs(demo,states)
         if normalized:
             return sfs/branch_len
@@ -131,21 +135,24 @@ def test_admixture():
     x = np.random.normal(size=7)
     check_gradient(f,x)
 
-@pytest.mark.parametrize("log_tau,growth_rate,log_N_bottom", 
+@pytest.mark.parametrize("log_tau,growth_rate,end_growth_rate", 
                          ((-random.expovariate(1),g,random.gauss(0,1))
-                          for g in (random.uniform(-100,100), 
+                          for g in (random.uniform(-10,10), 
                                     random.uniform(-.01,.01), 0.0)))
-def test_exp_growth(log_tau, growth_rate, log_N_bottom):
+def test_exp_growth(log_tau, growth_rate, end_growth_rate):
     n_lins = {'1':10}
     def demo_func(x, n_lins):
-        t,g,N = x
-        t,N = exp(t),exp(N)
-        return Demography.from_ms("-I 1 %d -G $0 -eN $1 $2" % n_lins['1'],
-                                  g,t,N)        
+        t,g,g2 = x
+        #t = exp(t)
+        #t,g2 = exp(t), np.max((0.0,g2))
+        t,g2 = exp(t), exp(g2)
+        return Demography.from_ms("-I 1 %d -G $0 -eG $1 $2 -eG $3 0.0" % n_lins['1'],
+                                  g,t,g2,3*t)
     f = sfs_func(demo_func, n_lins, normalized=True)
-    x=np.array([log_tau,growth_rate,log_N_bottom])
+    x=np.array([log_tau,growth_rate,end_growth_rate])
 
     check_gradient(f,x)
+    #assert False
 
 @pytest.mark.parametrize("n,epochs,normalized", 
                          ((random.randint(2,10),random.randint(1,10),norm) for norm in (False,True)))
@@ -188,7 +195,7 @@ def simple_five_pop_demo(x, n_lins):
            "-en $11 1 $26",
            "-ej $12 3 2 -en $12 2 $27",
            "-en $13 1 $28",
-           "-ej $14 2 1 -en $14 1 $29"]
+           "-ej $14 2 1 -eN $14 $29"]
 
     cmd = " ".join(cmd)
 

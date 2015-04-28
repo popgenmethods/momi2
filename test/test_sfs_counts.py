@@ -30,15 +30,12 @@ def test_admixture():
 
 def test_exp_growth():
     n = 10
+    growth_rate = random.uniform(-50,50)
+    N_bottom = random.uniform(0.1,10.0)
     tau = .01
-    growth_rate = random.uniform(-500,500)
-    N_top=random.uniform(0.1,10.0)
-    N_bottom = N_top * np.exp(growth_rate * tau)
-   
-    demo = Demography.from_ms("-I 1 %d -G $0 -eN $1 $2" % n,
-                              growth_rate * N_bottom * 2.0,
-                              tau / N_bottom / 2.0,
-                              N_top / N_bottom)
+    demo = Demography.from_ms("-I 1 %d -G $0 -eG $1 0.0" % n,
+                              growth_rate,
+                              tau)
     check_sfs_counts(demo)
 
 
@@ -61,6 +58,7 @@ def test_tree_demo_4():
 
 
 def check_sfs_counts(demo):
+    print demo.graph['cmd']
     leaf_lins = {l : demo.n_lineages_at_node[l] for l in demo.leaves}
     leaf_pops = sorted(list(leaf_lins.keys()))
 

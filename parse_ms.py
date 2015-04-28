@@ -73,8 +73,8 @@ def _nx_from_parsed_ms(events, edges, nodes, roots, cmd, toFloat, **kwargs):
     #_,node = root
     node, = roots
 
-    if 'alpha' in nodes[node]['sizes'][-1] and nodes[node]['sizes'][-1]['alpha'] is not None:
-        raise IOError(("Root ancestral population must not have growth parameter",cmd))
+    #if 'alpha' in nodes[node]['sizes'][-1] and nodes[node]['sizes'][-1]['alpha'] is not None:
+    #    raise IOError(("Root ancestral population must not have growth parameter",cmd))
     set_model(nodes[node], toFloat('inf'), cmd)
 
     ret = nx.DiGraph(edges, cmd=cmd, events=events)
@@ -137,7 +137,11 @@ def _eN(t,N, roots, **kwargs):
              _en(t, i, N, roots=roots, **kwargs)
 
 def _eg(t,i,alpha, roots, nodes, toFloat, **kwargs):
-    t,alpha = map(toFloat, [t,alpha])
+    if toFloat(alpha) == 0.0 and alpha[0] != "$":
+        alpha = None
+    else:
+        alpha = toFloat(alpha)
+    t = toFloat(t)
     nodes[roots[i]]['sizes'].append({'t':t,'alpha':alpha})
 
 def _eG(t,alpha, roots, **kwargs):
@@ -162,7 +166,11 @@ def _g(i,alpha, nodes, events, edges, roots, toFloat, **kwargs):
     assert not edges and len(nodes) == len(roots)
     i = roots[i]
     assert len(nodes[i]['sizes']) == 1
-    nodes[i]['sizes'][0]['alpha'] = toFloat(alpha)
+    if toFloat(alpha) == 0.0 and alpha[0] != "$":
+        alpha = None
+    else:
+        alpha = toFloat(alpha)
+    nodes[i]['sizes'][0]['alpha'] = alpha
 
 def _G(rate, roots, nodes, **kwargs):
     assert roots
@@ -195,6 +203,7 @@ def set_model(node_data, end_time, cmd):
 
     # do some processing
     N, alpha = sizes[0]['N'], sizes[0]['alpha']
+    pieces = []
     for i in range(len(sizes) - 1):
         sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t']) * 2.0
 
@@ -206,21 +215,17 @@ def set_model(node_data, end_time, cmd):
         N = sizes[i]['N']
 
         if alpha is not None:
-            N = N * exp(-alpha * tau / 2.0)
+            pieces.append(ExponentialHistory(tau=tau, growth_rate=alpha/2.0, N_bottom=N))
+            N = pieces[-1].N_top
+        else:
+            pieces.append(ConstantHistory(tau=tau, N=N))
+
         sizes[i]['N_top'] = N
 
         if not all([sizes[i][x] >= 0.0 for x in 'tau','N','N_top']):
             raise IOError(("Negative time or population size. (Were events specified in correct order?", cmd))
     sizes.pop() # remove the final dummy epoch
 
-    ## now make the size histories
-    pieces = []
-    for size in sizes:
-        ### TODO: make ExpHist work for tau == 0.0!
-        if size['alpha'] is not None and size['tau'] > 0.0:
-            pieces.append(ExponentialHistory(tau=size['tau'], growth_rate=size['alpha'], N_bottom=size['N']))
-        else:
-            pieces.append(ConstantHistory(tau=size['tau'], N=size['N']))
     assert len(pieces) > 0
     if len(pieces) == 0:
         node_data['model'] = pieces[0]
