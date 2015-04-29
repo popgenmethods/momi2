@@ -19,7 +19,7 @@ def demo():
 def test_sfs(demo):
     st = {'a': {'derived': 5, 'ancestral': 5},
           'b': {'derived': 8, 'ancestral': 0}}
-    compute_sfs(demo,convert_states(demo,st))
+    compute_sfs(demo,convert_states(st))
 #     sp = SumProduct(demo, st)
 #     sp.p()
 
@@ -33,16 +33,17 @@ def demo_generator(fn=TEST_CASES):
             # N0 = 20000 in generate data due to haploid/diploid thing
             dm = Demography.from_newick(newick, default_lineages=dl, default_N=20000.)
             #dm.update_state(node_states)
-            yield dm, convert_states(dm,node_states), ret
+            yield dm, convert_states(node_states), ret
 
 @pytest.mark.parametrize("demo,data,ret", demo_generator())
 def test_generated_cases(demo, data, ret):
     p, branch_len = compute_sfs(demo, data)
     assert abs(p - ret) / ret < 1e-4
 
-def convert_states(G, node_states):
+def convert_states(node_states):
     ret = []
-    for leaf in sorted(G.leaves):
+    leaves = sorted(node_states.keys())
+    for leaf in leaves:
         ret.append(node_states[leaf]['derived'])
     return [ret]
     

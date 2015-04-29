@@ -2,10 +2,6 @@ TODO:
 
 next steps:
 
-***
-be consistent with leaves vs leafs (leaves is demography property, leafs is argument to parse_ms)
-OR
-remove leafs argument from parse_ms altogether
 
 ***
 let pop indices in ms command also be variables

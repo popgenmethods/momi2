@@ -81,9 +81,7 @@ def simple_two_pop_demo(x, n_lins):
     #assert len(x) == 4
     leafs = sorted(n_lins.keys())
     counts = [n_lins[l] for l in leafs]
-    return Demography.from_ms("-I %d %s -n 1 $1 -n 2 $2 -ej $0 2 1 -eN $0 $3" % (len(n_lins), " ".join(map(str, counts))),
-                              *(map(exp, x)),
-                              leafs=leafs)
+    return Demography.from_ms("-I %d %s -n 1 $1 -n 2 $2 -ej $0 2 1 -eN $0 $3" % (len(n_lins), " ".join(map(str, counts))), *(map(exp, x)))
 
 def piecewise_constant_demo(x, n_lins):
     assert x.shape[0] % 2 == 1
@@ -100,7 +98,7 @@ def piecewise_constant_demo(x, n_lins):
         prev_time = exp(x[2*i+1]) + prev_time
         N = exp(x[2*i+2])
         args += [prev_time, N]
-    return Demography.from_ms(cmd, leafs=['a'], *args)
+    return Demography.from_ms(cmd, *args)
 
 
 def sfs_func(demo_func, n_lins, normalized=True):
@@ -204,7 +202,7 @@ def simple_five_pop_demo(x, n_lins):
     for i in range(1,15):
         args[i] = args[i] + args[i-1]
 
-    return Demography.from_ms(cmd, leafs=leafs, *args)   
+    return Demography.from_ms(cmd, *args)   
 
 
 @pytest.mark.parametrize("n1,n2,n3,n4,n5,normalized", 

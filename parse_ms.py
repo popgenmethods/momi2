@@ -11,10 +11,7 @@ import itertools
 from collections import Counter
 
 '''Construct networkx DiGraph from ms command'''
-def to_nx(ms_cmd, *params, **kwargs):
-    ## make sure kwargs has a "leafs" field, with default of None
-    kwargs['leafs'] = kwargs.pop('leafs',None)
-
+def to_nx(ms_cmd, *params):
     def toFloat(var):
         if var[0] == "$":
             ret = params[int(var[1:])]
@@ -48,7 +45,7 @@ def to_nx(ms_cmd, *params, **kwargs):
         pass
 
     # now parse the ms cmd, store results in kwargs
-    kwargs.update({'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd,'toFloat':toFloat})
+    kwargs = {'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd,'toFloat':toFloat}
     for cmd in cmd_list:
         if cmd[0] not in valid_params:
             raise NotImplementedError("-%s not implemented" % cmd[0])
@@ -62,34 +59,28 @@ valid_params = set(["G","I","n","g","eG","eg","eN","en","ej","es"])
 
 
 def _nx_from_parsed_ms(events, edges, nodes, roots, cmd, toFloat, **kwargs):
-    #print cmd
     assert nodes
     roots = [r for _,r in roots.iteritems() if r is not None]
 
     if len(roots) != 1:
         raise IOError(("Must have a single root population", cmd))
     
-    #root, = list(roots.iteritems())
-    #_,node = root
     node, = roots
-
-    #if 'alpha' in nodes[node]['sizes'][-1] and nodes[node]['sizes'][-1]['alpha'] is not None:
-    #    raise IOError(("Root ancestral population must not have growth parameter",cmd))
     set_model(nodes[node], toFloat('inf'), cmd)
 
     ret = nx.DiGraph(edges, cmd=cmd, events=events)
     for v in nodes:
         ret.add_node(v, **(nodes[v]))
-        #ret.node[v].update(nodes[v])
     return ret
 
 def _es(t,i,p, events, nodes, roots, edges, cmd, toFloat, **kwargs):
     t,p = map(toFloat, (t,p))
+    i = int(i)
 
     child = roots[i]
     set_model(nodes[child], t, cmd)
 
-    parents = (child + "a", child + "b")
+    parents = ((child,), len(roots)+1)
     assert all([par not in nodes for par in parents])
 
     nodes[child]['splitprobs'] = {par : prob for par,prob in zip(parents, [p,1-p])}
@@ -103,16 +94,17 @@ def _es(t,i,p, events, nodes, roots, edges, cmd, toFloat, **kwargs):
     edges += list(new_edges)
 
     roots[i] = parents[0]
-    roots[str(len(roots)+1)] = parents[1]
+    roots[len(roots)+1] = parents[1]
 
 def _ej(t,i,j, events, nodes, roots, edges, cmd, toFloat, **kwargs):
     t = toFloat(t)
+    i,j = map(int, [i,j])
 
     for k in i,j:
         # sets the TruncatedSizeHistory, and N_top and alpha for all epochs
         set_model(nodes[roots[k]], t, cmd)
 
-    new_pop = "(%s,%s)" % (roots[i],roots[j])
+    new_pop = (roots[i], roots[j])
     events.append( ((new_pop,roots[i]),
                     (new_pop,roots[j]))  )
 
@@ -128,6 +120,7 @@ def _ej(t,i,j, events, nodes, roots, edges, cmd, toFloat, **kwargs):
 
 def _en(t,i,N, nodes, roots, toFloat, **kwargs):
     t,N = map(toFloat, [t,N])
+    i = int(i)
     nodes[roots[i]]['sizes'].append({'t':t,'N':N,'alpha':None})
 
 def _eN(t,N, roots, **kwargs):
@@ -141,7 +134,7 @@ def _eg(t,i,alpha, roots, nodes, toFloat, **kwargs):
         alpha = None
     else:
         alpha = toFloat(alpha)
-    t = toFloat(t)
+    t,i = toFloat(t), int(i)
     nodes[roots[i]]['sizes'].append({'t':t,'alpha':alpha})
 
 def _eG(t,alpha, roots, **kwargs):
@@ -155,7 +148,7 @@ def _n(i,N, nodes, events, edges, roots, toFloat, **kwargs):
     if events:
         raise IOError(("-n should be called before any demographic changes", kwargs['cmd']))
     assert not edges and len(nodes) == len(roots)
-    i = roots[i]
+    i = roots[int(i)]
     assert len(nodes[i]['sizes']) == 1
     nodes[i]['sizes'][0]['N'] = toFloat(N)
 
@@ -164,7 +157,7 @@ def _g(i,alpha, nodes, events, edges, roots, toFloat, **kwargs):
     if events:
         raise IOError(("-g,-G should be called before any demographic changes", kwargs['cmd']))
     assert not edges and len(nodes) == len(roots)
-    i = roots[i]
+    i = roots[int(i)]
     assert len(nodes[i]['sizes']) == 1
     if toFloat(alpha) == 0.0 and alpha[0] != "$":
         alpha = None
@@ -188,12 +181,9 @@ def _I(*args, **kwargs):
         raise IOError(("Bad args for -I. Note continuous migration is not implemented.", kwargs['cmd']))
 
     for i in range(npop):
-        if kwargs['leafs']:
-            leaf_name = kwargs['leafs'][i]
-        else:
-            leaf_name = str(i+1)
+        leaf_name = i+1
         kwargs['nodes'][leaf_name] = {'sizes':[{'t':0.0,'N':1.0,'alpha':None}],'lineages':lins_per_pop[i]}
-        kwargs['roots'][str(i+1)] = leaf_name
+        kwargs['roots'][i+1] = leaf_name
 
 def set_model(node_data, end_time, cmd):
     # add 'model_func' to node_data, add information to node_data['sizes']
@@ -431,7 +421,7 @@ def _newick_nx_to_cmd(newick_nx, default_lins, default_N):
         N = newick_nx.node[node]['N']
         if N != newick_nx.node[c2]['N']:
             cmd = "%s -en %f %i %f" % (cmd, t, roots[node], N)
-    return cmd, leafs
+    return cmd
 
 def _to_newick(G, root):
     parent = list(G.predecessors(root))

@@ -13,14 +13,14 @@ import itertools
 
 class Demography(nx.DiGraph):
     @classmethod
-    def from_ms(cls, ms_cmd, *params, **kwargs):
-        return cls(parse_ms.to_nx(ms_cmd, *params, **kwargs))
+    def from_ms(cls, ms_cmd, *params):
+        return cls(parse_ms.to_nx(ms_cmd, *params))
 
     ## TODO: remove this method
     @classmethod
     def from_newick(cls, newick, default_lineages=None, default_N=1.0):
-        ms_cmd,leafs = parse_ms.from_newick(newick, default_lineages, default_N)
-        ret = cls.from_ms(ms_cmd, leafs=leafs)
+        ms_cmd = parse_ms.from_newick(newick, default_lineages, default_N)
+        ret = cls.from_ms(ms_cmd)
         return ret
 
     def __init__(self, *args, **kwargs):
