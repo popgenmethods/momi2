@@ -10,8 +10,11 @@ import sh, os, random
 import itertools
 from collections import Counter
 
-'''Construct networkx DiGraph from ms command'''
-def to_nx(ms_cmd, *params):
+'''
+Construct networkx DiGraph from ms command.
+Use demography.make_demography instead of calling this directly.
+'''
+def _to_nx(ms_cmd, *params):
     def toFloat(var):
         if var[0] == "$":
             ret = params[int(var[1:])]
@@ -340,7 +343,7 @@ def _extract_momi_fields(comment):
             return attrdict
     return {}
 
-def from_newick(newick, default_lins=None, default_N = 1.0):
+def _from_newick(newick, default_lins=None, default_N = 1.0):
     newick = StringIO(newick)
     phy = Phylo.read(newick, "newick")
     phy.rooted = True

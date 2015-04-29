@@ -1,4 +1,4 @@
-from demography import Demography
+from demography import make_demography
 from sum_product import compute_sfs
 import pytest
 import networkx as nx
@@ -21,8 +21,8 @@ def simple_admixture_demo(x, n_lins):
     #for i in range(1,len(t)):
     #    t[i] += t[i-1]
     p = 1.0 / (1.0 + np.exp(x[5:]))
-    return Demography.from_ms("-I 2 %d %d -es $0 2 $1 -es $2 2 $3 -ej $4 4 3 -ej $5 3 1 -ej $6 2 1" % (n_lins['1'], n_lins['2']), 
-                              t[0], p[0], t[1], p[1], t[2], t[3], t[4])
+    return make_demography("-I 2 %d %d -es $0 2 $1 -es $2 2 $3 -ej $4 4 3 -ej $5 3 1 -ej $6 2 1" % (n_lins['1'], n_lins['2']), 
+                           t[0], p[0], t[1], p[1], t[2], t[3], t[4])
 
 def test_admixture():
     n = {'1':2,'2':2}
@@ -33,16 +33,16 @@ def test_exp_growth():
     growth_rate = random.uniform(-50,50)
     N_bottom = random.uniform(0.1,10.0)
     tau = .01
-    demo = Demography.from_ms("-I 1 %d -G $0 -eG $1 0.0" % n,
-                              growth_rate,
-                              tau)
+    demo = make_demography("-I 1 %d -G $0 -eG $1 0.0" % n,
+                           growth_rate,
+                           tau)
     check_sfs_counts(demo)
 
 
 def test_tree_demo_2():
     n = [4,4]
-    demo = Demography.from_ms("-I %d %s -ej $0 2 1" % (len(n), " ".join(map(str,n))), 
-                              2 * np.random.random() + 0.1)
+    demo = make_demography("-I %d %s -ej $0 2 1" % (len(n), " ".join(map(str,n))), 
+                           2 * np.random.random() + 0.1)
     check_sfs_counts(demo)
 
 def test_tree_demo_4():
@@ -52,8 +52,7 @@ def test_tree_demo_4():
     for i in range(1,len(times)):
         times[i] += times[i-1]
 
-    demo = Demography.from_ms("-I %d %s -ej $0 2 1 -ej $1 3 1 -ej $2 4 1" % (len(n), " ".join(map(str,n))),
-                              *times)
+    demo = make_demography("-I %d %s -ej $0 2 1 -ej $1 3 1 -ej $2 4 1" % (len(n), " ".join(map(str,n))), *times)
     check_sfs_counts(demo)
 
 

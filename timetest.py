@@ -1,4 +1,4 @@
-from demography import Demography
+from demography import make_demography
 from sum_product import SumProduct
 import time
 #import numpy
@@ -62,11 +62,11 @@ def check_demo_time(demofunc, *x):
 
 
 def two_pop_demo(x):
-    return Demography.from_ms("-I 2 10 10 -ej $0 2 1", x)
+    return make_demography("-I 2 10 10 -ej $0 2 1", x)
 check_demo_time(two_pop_demo, 1.0)
 
 def four_pop_demo(t0,t1,t2):
-    return Demography.from_ms("-I 4 10 10 10 10 -ej $0 4 3 -ej $1 3 2 -ej $2 2 1",
+    return make_demography("-I 4 10 10 10 10 -ej $0 4 3 -ej $1 3 2 -ej $2 2 1",
                               t0,t1,t2)
 check_demo_time(four_pop_demo, 0.4, 1.0, 2.0)
 
@@ -74,5 +74,5 @@ def ten_pop_demo(*t):
     cmd10 = "-I 10 %s" % (" ".join(["10"]*10))
     for i in range(9):
         cmd10 += " -ej $%d %d %d" % (i, i+1, i+2)
-    return Demography.from_ms(cmd10, *t)
+    return make_demography(cmd10, *t)
 check_demo_time(ten_pop_demo, *[.1 * i for i in range(1,10)])

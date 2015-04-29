@@ -5,7 +5,7 @@ from autograd.numpy import outer, sum, exp, log
 from autograd import grad
 
 import networkx as nx
-from demography import Demography
+from demography import make_demography
 import random
 from sum_product import compute_sfs
 #import math
@@ -81,7 +81,7 @@ def simple_two_pop_demo(x, n_lins):
     #assert len(x) == 4
     leafs = sorted(n_lins.keys())
     counts = [n_lins[l] for l in leafs]
-    return Demography.from_ms("-I %d %s -n 1 $1 -n 2 $2 -ej $0 2 1 -eN $0 $3" % (len(n_lins), " ".join(map(str, counts))), *(map(exp, x)))
+    return make_demography("-I %d %s -n 1 $1 -n 2 $2 -ej $0 2 1 -eN $0 $3" % (len(n_lins), " ".join(map(str, counts))), *(map(exp, x)))
 
 def piecewise_constant_demo(x, n_lins):
     assert x.shape[0] % 2 == 1
@@ -98,7 +98,7 @@ def piecewise_constant_demo(x, n_lins):
         prev_time = exp(x[2*i+1]) + prev_time
         N = exp(x[2*i+2])
         args += [prev_time, N]
-    return Demography.from_ms(cmd, *args)
+    return make_demography(cmd, *args)
 
 
 def sfs_func(demo_func, n_lins, normalized=True):
@@ -144,8 +144,8 @@ def test_exp_growth(log_tau, growth_rate, end_growth_rate):
         #t = exp(t)
         #t,g2 = exp(t), np.max((0.0,g2))
         t,g2 = exp(t), exp(g2)
-        return Demography.from_ms("-I 1 %d -G $0 -eG $1 $2 -eG $3 0.0" % n_lins['1'],
-                                  g,t,g2,3*t)
+        return make_demography("-I 1 %d -G $0 -eG $1 $2 -eG $3 0.0" % n_lins['1'],
+                               g,t,g2,3*t)
     f = sfs_func(demo_func, n_lins, normalized=True)
     x=np.array([log_tau,growth_rate,end_growth_rate])
 
@@ -202,7 +202,7 @@ def simple_five_pop_demo(x, n_lins):
     for i in range(1,15):
         args[i] = args[i] + args[i-1]
 
-    return Demography.from_ms(cmd, *args)   
+    return make_demography(cmd, *args)   
 
 
 @pytest.mark.parametrize("n1,n2,n3,n4,n5,normalized", 

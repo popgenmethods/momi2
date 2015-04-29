@@ -2,12 +2,9 @@ TODO:
 
 next steps:
 
-
 ***
 let pop indices in ms command also be variables
 (so that it is easier to construct ms commands with splits)
-
-also change node label convention, so that new pops get the ms label
 
 create an example.py with a simple (no) exponential growth, and a 4 pop model with migration (where the pop labels might vary)
 
@@ -15,35 +12,17 @@ create an example.py with a simple (no) exponential growth, and a 4 pop model wi
 remove all TODO (grep for it)
 
 ***
-use Demography constructor, rather than
-Demography.from_ms
-
-also get rid of
-Demography.from_newick
-
-
-***
-tau = inf in ExponentialHistory currently disabled because it breaks automatic differentiation
-
-
-***
 Make autodifferentiation work for functional size history
 allow functional size history to be passed in with ms style cmd
-
-in the meantime, comment it out, or have it raise an exception...
-(perhaps by having it call autograd.scipy, which should hopefully crash...)
 
 ***
 put things into __init__
 
-
 ***
 find minimal example test case for autograd issue #24
 
-
 ***
 merge some of my_functions into autograd package with pull request
-
 
 ***
 
@@ -53,7 +32,6 @@ compare which version of expm_multiply is faster (with and without derivatives)
 in what regime is each faster?
 
 Try expokit stuff in expokit branch
-
 
 ***
 add back numerical stability assertions, etc.
@@ -71,24 +49,13 @@ so can make FFT convolution more robust by truncating ends as necessary
 seems like the scipy.sparse.linalg.expm_multiply might be more robust in this case
 investigate the timing too
 
-
-***
-for parse ms, let -es specificy the label of the new population
-this will be required to avoid confusion over population labels when fitting times of events
-
-
-***
-get rid of from_newick, to_newick in parse_ms?
-
 ***
 for simulate_sfs, make theta=None work when -r is set
 (right now it counts up the total branch length, but doesn't know
 how to deal with multiple trees)
 
-
 ***
 add option to simulate from ms instead of scrm
-
 
 ***
 store sumCounts, sumSqCounts, nonzeroCounts in a single object?
@@ -97,7 +64,11 @@ store sumCounts, sumSqCounts, nonzeroCounts in a single object?
 change everything to be in ms units
 
 ***
-remove @memoize_instance?
+add back from __future__ import division
 
 ***
-add back from __future__ import division
+get rid of Demography.from_newick
+get rid of from_newick, to_newick in parse_ms
+
+***
+tau = inf in ExponentialHistory currently disabled because it breaks automatic differentiation

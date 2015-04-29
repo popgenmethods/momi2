@@ -12,7 +12,7 @@ from autograd import grad
 import networkx as nx
 
 from sum_product import compute_sfs, log_likelihood_prf
-from demography import Demography
+from demography import make_demography
 
 
 def test_joint_sfs_inference():
@@ -23,9 +23,9 @@ def test_joint_sfs_inference():
     num_runs = 10000
 
     def get_demo(join_time):
-        return Demography.from_ms("-I 3 1 1 1 -ej $0 1 2 -ej $1 2 3",
-                                  join_time / 2. * N0,
-                                  t1 / 2. * N0)
+        return make_demography("-I 3 1 1 1 -ej $0 1 2 -ej $1 2 3",
+                               join_time / 2. * N0,
+                               t1 / 2. * N0)
 
     true_demo = get_demo(t0)
 

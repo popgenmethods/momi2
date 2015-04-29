@@ -1,10 +1,6 @@
-from demography import Demography
+from demography import make_demography
 from sum_product import log_likelihood_prf
 from scipy.optimize import basinhopping, minimize
-#from adarray.ad.admath import log,exp
-#import numpy as np
-#from adarray.ad import adnumber
-#from adarray import array, set_order
 import autograd.numpy as np
 from autograd.numpy import log,exp,dot
 from autograd import grad
@@ -33,13 +29,13 @@ def simple_human_demo(n,
     africa_split = eurasia_split + exp(t_africa_split_to_eurasia_split)
     bottleneck = africa_split + exp(t_bottleneck_to_africa_split)
 
-    return Demography.from_ms(demo_cmd,
-                              exp(africa_size),
-                              exp(eur_present_size),
-                              exp(asia_present_size),
-                              eurasia_split, exp(eurasia_size),
-                              africa_split,
-                              bottleneck, exp(ancestral_size))
+    return make_demography(demo_cmd,
+                           exp(africa_size),
+                           exp(eur_present_size),
+                           exp(asia_present_size),
+                           eurasia_split, exp(eurasia_size),
+                           africa_split,
+                           bottleneck, exp(ancestral_size))
 
 def check_simple_human_demo():
     #n = [10] * 3

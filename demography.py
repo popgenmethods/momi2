@@ -10,21 +10,22 @@ import parse_ms
 import random
 import itertools
 
+def make_demography(ms_cmd, *params):
+    return Demography(parse_ms._to_nx(ms_cmd, *params))
 
 class Demography(nx.DiGraph):
-    @classmethod
-    def from_ms(cls, ms_cmd, *params):
-        return cls(parse_ms.to_nx(ms_cmd, *params))
-
     ## TODO: remove this method
     @classmethod
     def from_newick(cls, newick, default_lineages=None, default_N=1.0):
-        ms_cmd = parse_ms.from_newick(newick, default_lineages, default_N)
-        ret = cls.from_ms(ms_cmd)
-        return ret
+        ms_cmd = parse_ms._from_newick(newick, default_lineages, default_N)
+        return make_demography(ms_cmd)
 
-    def __init__(self, *args, **kwargs):
-        super(Demography, self).__init__(*args, **kwargs)
+    def __init__(self, to_copy, *args, **kwargs):
+        '''
+        Input:
+        to_copy: either a Demography object, or networkx.DiGraph returned by parse_ms.to_nx()
+        '''
+        super(Demography, self).__init__(to_copy, *args, **kwargs)
         self.leaves = set([k for k, v in self.out_degree().items() if v == 0])
         self.event_tree = self.build_event_tree()
 

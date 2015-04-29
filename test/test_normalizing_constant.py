@@ -1,4 +1,4 @@
-from demography import Demography
+from demography import make_demography
 import random
 import itertools
 import networkx as nx
@@ -19,7 +19,7 @@ def random_tree_demo(num_leaf_pops, lins_per_pop):
         cmd += " -ej %f %d %d" % (t, i, j)
         roots.remove(i)
         cmd += " -en %f %d %f" % (t, j, random.expovariate(1.0))
-    return Demography.from_ms(cmd)
+    return make_demography(cmd)
 
 def check_demo_normalization(demo):
     leaves = sorted(list(demo.leaves))
