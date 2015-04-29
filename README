@@ -16,6 +16,8 @@ let pop indices in ms command also be variables
 
 also change node label convention, so that new pops get the ms label
 
+create an example.py with a simple (no) exponential growth, and a 4 pop model with migration (where the pop labels might vary)
+
 ***
 remove all TODO (grep for it)
 
