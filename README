@@ -7,6 +7,14 @@ replace cached_property module (v1.0.0 not compatible with using nx.DiGraph)
 
 ***
 be consistent with leaves vs leafs (leaves is demography property, leafs is argument to parse_ms)
+OR
+remove leafs argument from parse_ms altogether
+
+***
+let pop indices in ms command also be variables
+(so that it is easier to construct ms commands with splits)
+
+also change node label convention, so that new pops get the ms label
 
 ***
 remove all TODO (grep for it)
