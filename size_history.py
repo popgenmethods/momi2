@@ -3,14 +3,18 @@ from util import EPSILON, memoize
 import autograd.numpy as np
 from autograd.numpy import sum, exp, log, expm1
 from math_functions import transformed_expi, expm1d
-from cached_property import cached_property
 import scipy.integrate
 from scipy.special import comb as binom
 import moran_model
 
 class SizeHistory(object):
-    def __init__(self, tau):
+    def __init__(self, tau, scaled_time):
+        '''
+        tau = length of time interval
+        scaled_time = \int 1/N(t) dt, where N(t) = pop size at time t
+        '''
         self.tau = tau
+        self.scaled_time = scaled_time
 
     def sfs(self, n):
         ret = np.sum(self.etjj(n)[:, None] * Wmatrix(n), axis=0)
@@ -34,10 +38,10 @@ class SizeHistory(object):
 class ConstantHistory(SizeHistory):
     '''Constant size population truncated to time tau.'''
     def __init__(self, tau, N):
-        super(ConstantHistory, self).__init__(tau)
         if N <= 0.0:
             raise Exception("N must be positive")
         self.N = N
+        super(ConstantHistory, self).__init__(tau, tau / N)
 
     def etjj(self, n):
         j = np.arange(2, n + 1)
@@ -54,14 +58,6 @@ class ConstantHistory(SizeHistory):
         #assert np.all(ret[:-1] - ret[1:] >= -epsilon) and np.all(ret >= -epsilon) and np.all(ret <= self.tau + epsilon)
         return ret
     
-    @cached_property
-    def scaled_time(self):
-        '''
-        integral of 1/haploidN(t) from 0 to tau.
-        used for Moran model transitions
-        '''
-        return self.tau / self.N
-
     def __str__(self):
         return "(ConstantPopSize: N=%f, tau=%f)" % (self.N, self.tau)
    
@@ -71,10 +67,11 @@ class ExponentialHistory(SizeHistory):
         if tau == float('inf'):
             ## TODO: make tau=inf work with automatic differentiation
             raise Exception("Exponential growth in final epoch not implemented. Try setting final growth rate to the constant 0.0, i.e. -eG t 0.0. Setting final growth rate to a variable (-eG t $0) will break, even if the variable equals 0.0.")
-        super(ExponentialHistory, self).__init__(tau)
         self.N_bottom, self.growth_rate = N_bottom, growth_rate
         self.total_growth = tau * growth_rate
         self.N_top = N_bottom * exp(-self.total_growth)
+
+        super(ExponentialHistory, self).__init__(tau, expm1d(self.total_growth) * tau / self.N_bottom)
 
     def etjj(self, n):
         j = np.arange(2, n+1)
@@ -92,14 +89,6 @@ class ExponentialHistory(SizeHistory):
 
         return ret
 
-    @cached_property
-    def scaled_time(self):
-        '''
-        integral of 1/haploidN(t) from 0 to tau.
-        used for Moran model transitions
-        '''
-        return expm1d(self.total_growth) * self.tau / self.N_bottom
-
 class FunctionalHistory(SizeHistory):
     '''Size history parameterized by an arbitrary function f.'''
     def __init__(self, tau, f):
@@ -107,8 +96,8 @@ class FunctionalHistory(SizeHistory):
         rate of coalescence (i.e., the inverse of the population size).
         f should accept and return vectors of times.
         '''
-        super(FunctionalHistory, self).__init__(tau)
         self._f = f
+        super(FunctionalHistory, self).__init__(tau, self._R(tau))
 
     def _R(self, t):
         return scipy.integrate.quad(self._f, 0, t)[0]
@@ -127,16 +116,13 @@ class FunctionalHistory(SizeHistory):
             ret.append(r1 + j2 * r2)
         return ret
 
-    @cached_property
-    def scaled_time(self):
-        return self._R(self.tau)
 
 
 class PiecewiseHistory(SizeHistory):
     def __init__(self, pieces):
         tau = sum([p.tau for p in pieces])
-        super(PiecewiseHistory, self).__init__(tau)
         self.pieces = pieces
+        super(PiecewiseHistory, self).__init__(tau, sum([pop.scaled_time for pop in self.pieces]))
 
     def etjj(self, n):
         j = np.arange(2, n+1)
@@ -151,13 +137,6 @@ class PiecewiseHistory(SizeHistory):
             else:
                 assert pop is self.pieces[-1]
         return ret
-
-    @cached_property
-    def scaled_time(self):
-        if self.tau == float('inf'):
-            return self.tau
-        return sum([pop.scaled_time for pop in self.pieces])
-
 
 @memoize
 def W(n, b, j):

@@ -39,7 +39,7 @@ def partial_likelihood_top(data, G, event, popList):
     lik,sfs,branch_len = partial_likelihood(data, G, event)
     for pop in popList:
         idx = (_lik_axes(G, event)).index(pop)
-        lik = G.node_data[pop]['model'].transition_prob(lik,idx)
+        lik = G.apply_transition(pop, lik, idx)
     return lik,sfs,branch_len
 
 def partial_likelihood(data, G, event):
@@ -63,7 +63,7 @@ def partial_likelihood(data, G, event):
 
 
 def combinatorial_factors(G, node):
-    n_node = G.n_lineages_at_node[node]
+    n_node = G.n_lineages(node)
     return scipy.misc.comb(n_node, np.arange(n_node + 1))
 
 def _lik_axes(G, event):
@@ -78,7 +78,7 @@ def _lik_axes(G, event):
 
 def _leaf_likelihood(data, G, event):
     leaf, = G.parent_pops(event)
-    n_node = G.node_data[leaf]['lineages']
+    n_node = G.n_lineages(leaf)
 
     n_der = data[:,sorted(G.leaves).index(leaf)]
 
@@ -94,7 +94,7 @@ def _admixture_likelihood(data, G, event):
     child_pop, = G.child_pops(event).keys()
     p1,p2 = G.parent_pops(event)
 
-    child_event, = G.eventTree[event]
+    child_event, = G.event_tree[event]
     lik,sfs,branch_len = partial_likelihood_top(data, G, child_event, [child_pop])
 
     admixture_prob, admixture_idxs = G.admixture_prob(child_pop)
@@ -107,7 +107,7 @@ def _admixture_likelihood(data, G, event):
 def _merge_subpops_likelihood(data, G, event):
     newpop, = G.parent_pops(event)
     child_pops = G[newpop]
-    child_event, = G.eventTree[event]
+    child_event, = G.event_tree[event]
 
     lik,sfs,branch_len = partial_likelihood_top(data, G, child_event, child_pops)
 

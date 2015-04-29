@@ -1,5 +1,4 @@
 import networkx as nx
-from cached_property import cached_property
 from util import memoize_instance, memoize
 from math_functions import einsum2, fft_einsum
 import scipy, scipy.misc
@@ -26,9 +25,10 @@ class Demography(nx.DiGraph):
 
     def __init__(self, *args, **kwargs):
         super(Demography, self).__init__(*args, **kwargs)
+        self.leaves = set([k for k, v in self.out_degree().items() if v == 0])
+        self.event_tree = self.build_event_tree()
 
-    @cached_property
-    def eventTree(self):
+    def build_event_tree(self):
         eventEdgeList = []
         currEvents = {l : (l,) for l in self.leaves}
         eventDict = {e : {'subpops' : (l,), 'parent_pops' : (l,), 'child_pops' : {}} for l,e in currEvents.iteritems()}
@@ -60,61 +60,47 @@ class Demography(nx.DiGraph):
     
     @property
     def event_root(self):
-        return self.eventTree.root
+        return self.event_tree.root
 
     def event_type(self, event):
         if len(event) == 1:
             return 'leaf'
         elif len(self.parent_pops(event)) == 2:
             return 'admixture'
-        elif len(self.eventTree[event]) == 2:
+        elif len(self.event_tree[event]) == 2:
             return 'merge_clusters'
         else:
             return 'merge_subpops'
 
     def sub_pops(self, event):
-        return self.eventTree.node[event]['subpops']
+        return self.event_tree.node[event]['subpops']
 
     def parent_pops(self, event):
-        return self.eventTree.node[event]['parent_pops']
+        return self.event_tree.node[event]['parent_pops']
 
     # returns dict of {childPop : childEvent}
     def child_pops(self, event):
-        return self.eventTree.node[event]['child_pops']
+        return self.event_tree.node[event]['child_pops']
 
-    @cached_property
+    @property
     def root(self):
-        nds = [node for node, deg in self.in_degree().items() if deg == 0]
-        assert len(nds) == 1
-        return nds[0]
+        ret, = self.parent_pops(self.event_root)
+        return ret
     
-    @cached_property
-    def node_data(self):
-        return dict(self.nodes(data=True))
-
-    @cached_property
-    def leaves(self):
-        return set([k for k, v in self.out_degree().items() if v == 0])
-
     def truncated_sfs(self, node):
-        #return self.node_data[node]['model'].sfs
-        return self.node_data[node]['model'].sfs(self.n_lineages_at_node[node])
+        return self.node[node]['model'].sfs(self.n_lineages(node))
 
-    @cached_property
-    def n_lineages_at_node(self):
-        '''Due to admixture events, # lineages at node >= # lineages at leafs'''
-        nd = self.node_data
-        n_lin_dict = {}
-        for v in nx.dfs_postorder_nodes(self, self.root):
-            if self.is_leaf(v):
-                n_lin_dict[v] = nd[v]['lineages']
-            else:
-                n_lin_dict[v] = sum([n_lin_dict[c] for c in self[v]])
-        return n_lin_dict
+    def apply_transition(self, node, array, idx):
+        return self.node[node]['model'].transition_prob(array, idx)
 
-    @cached_property
-    def leaves_subtended_by(self):
-        return {v: self.leaves & set(nx.dfs_preorder_nodes(self, v)) for v in self}
+    @memoize_instance
+    def n_lineages(self, node):
+        if self.is_leaf(node):
+            return self.node[node]['lineages']
+        ret = 0
+        for child_node in self[node]:
+            ret = ret + self.n_lineages(child_node)
+        return ret
 
     '''
     Simulates the SFS from the demography.
@@ -139,11 +125,11 @@ class Demography(nx.DiGraph):
 
         returns probability of child_der given par1_der, par2_der
         '''
-        n_node = self.n_lineages_at_node[admixture_node]
+        n_node = self.n_lineages(admixture_node)
 
         # admixture node must have two parents
         edge1,edge2 = self.in_edges([admixture_node], data=True)
-        nd = self.node_data[admixture_node]
+        nd = self.node[admixture_node]
         parent1,parent2 = edge1[0], edge2[0]
         prob1,prob2 = nd['splitprobs'][parent1], nd['splitprobs'][parent2]
         assert prob1 + prob2 == 1.0

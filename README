@@ -3,9 +3,6 @@ TODO:
 next steps:
 
 ***
-replace cached_property module (v1.0.0 not compatible with using nx.DiGraph)
-
-***
 be consistent with leaves vs leafs (leaves is demography property, leafs is argument to parse_ms)
 OR
 remove leafs argument from parse_ms altogether
@@ -22,22 +19,16 @@ create an example.py with a simple (no) exponential growth, and a 4 pop model wi
 remove all TODO (grep for it)
 
 ***
-have compute_sfs, log_likelihood_prf,
-take in a ms_cmd,
-instead of a demography
+use Demography constructor, rather than
+Demography.from_ms
+
+also get rid of
+Demography.from_newick
 
 
 ***
 tau = inf in ExponentialHistory currently disabled because it breaks automatic differentiation
 
-
-***
-have parse_ms call constructor of Demography instead of nx?
-OR
-move stuff from parse_ms into demography.py, have it be called
-from constructor of Demography?
-
-also, move parse_ms sfs stuff into sum_product?
 
 ***
 Make autodifferentiation work for functional size history

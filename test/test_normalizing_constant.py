@@ -23,7 +23,7 @@ def random_tree_demo(num_leaf_pops, lins_per_pop):
 
 def check_demo_normalization(demo):
     leaves = sorted(list(demo.leaves))
-    ranges = [range(demo.n_lineages_at_node[l]+1) for l in demo.leaves]
+    ranges = [range(demo.n_lineages(l)+1) for l in demo.leaves]
 
     #totalSum = 0.0
     config_list = []

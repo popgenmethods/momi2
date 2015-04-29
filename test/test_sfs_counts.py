@@ -59,7 +59,7 @@ def test_tree_demo_4():
 
 def check_sfs_counts(demo):
     print demo.graph['cmd']
-    leaf_lins = {l : demo.n_lineages_at_node[l] for l in demo.leaves}
+    leaf_lins = {l : demo.n_lineages(l) for l in demo.leaves}
     leaf_pops = sorted(list(leaf_lins.keys()))
 
     empirical_sfs,sqCounts,nonzeroCounts = demo.simulate_sfs(num_scrm_samples)
