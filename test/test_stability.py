@@ -6,30 +6,37 @@ from numpy import exp
 
 def check_expm(t,v):
     print "\n========================\nTesting t=%g" % t
-    P,d,Pinv = moran_model.moran_eigensystem(len(v)-1)
-    print "exp eigenvalues = %s" % exp(t*d)
+    #P,d,Pinv = moran_model.moran_eigensystem(len(v)-1)
+    #print "exp eigenvalues = %s" % exp(t*d)
+
+    action0 = moran_model.moran_action_eigen
+    action1 = moran_model.moran_al_mohy_higham
 
     # precompute
-    moran_model.moran_action(t,v)
-    moran_model._old_moran_action(t,v)
+    action0(t,v)
+    action1(t,v)
 
     numtimes=10
 
     print "\nTesting eigenvalue expm"
     start = time.time()
     for i in range(numtimes):
-        x = moran_model.moran_action(t,v)
+        x = action0(t,v)
     end = time.time()
     print "%f seconds" % ((end - start)/numtimes)
-    print "%d entries < 0" % sum(x < 0)
+    print "%d entries < 0" % np.sum(x < 0)
+
+    #print x
 
     print "\nTesting al-mohy/higham expm"
     start = time.time()
     for i in range(numtimes):
-        x = moran_model._old_moran_action(t,v)
+        x = action1(t,v)
     end = time.time()
     print "%f seconds" % ((end - start)/numtimes)
-    print "%d entries < 0" % sum(x < 0)
+    print "%d entries < 0" % np.sum(x < 0)
+
+    #print x
 
 if __name__ == "__main__":
     #v = np.array([1.0] + [0.0]*100)
@@ -43,8 +50,16 @@ if __name__ == "__main__":
     #check_expm(1e-16,v)
     #check_expm(0.0,v)
 
-    v = np.array([1.0] + [0.0]*1000)
+    #v = np.array([1.0] + [0.0]*1000)
+    #v = np.array([[[1.0] + [0.0]*10]*10]*10)
+    #v = np.array([[[0.0] * 2 + [1.0] + [0.0]*2]*5]*10)
+    #print v.shape
+    #v = np.zeros((10,10,10))
+    #v = np.zeros(1000)
+    #v = np.zeros((100,5,2))
+    v = np.zeros((100,5,2))
+    v[5,...] = 1.0
     #check_expm(0.0,v)
-    #check_expm(1e-6,v)
+    check_expm(1e-6,v)
     #check_expm(1e-3,v)
-    check_expm(1e-1,v)
+    #check_expm(1e-1,v)
