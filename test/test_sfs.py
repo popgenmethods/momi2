@@ -36,13 +36,13 @@ def generate_sfs():
 
             n_lin = MODELS[m_name]['nlins']
             demo = MODELS[m_name]['demo'](np.array(params),n_lin)
-            sfs2,branch_len2 = map(lambda x: x/2.0, compute_sfs(demo, configs))
+            sfs2,branch_len2 = compute_sfs(demo, configs)
             yield m_name,sfs,sfs2,branch_len,branch_len2
 
 @pytest.mark.parametrize("m_name,sfs,sfs2,branch_len,branch_len2", generate_sfs())
 def test_generated_cases(m_name,sfs,sfs2,branch_len,branch_len2):
-    log_within( np.array(branch_len), np.array(branch_len2) )
-    log_within( sfs, sfs2)
+    log_within( np.array(branch_len), np.array(branch_len2) , eps=1e-6)
+    log_within( sfs, sfs2, eps=1e-6)
     
 
 if __name__=="__main__":
@@ -57,8 +57,7 @@ if __name__=="__main__":
                 sampled_sfs,_,_ = demo.simulate_sfs(10)
                 config_list = tuple(sorted(sampled_sfs.keys()))
                 
-                ## TODO: remove factor of 2.0
-                results[(m_name, tuple(x), config_list)] = map(lambda x: x/2.0, compute_sfs(demo, config_list))
+                results[(m_name, tuple(x), config_list)] = compute_sfs(demo, config_list)
         pickle.dump(results, open(PICKLE, "wb"))
     elif len(sys.argv) == 1:
         pass
