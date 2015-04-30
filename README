@@ -12,6 +12,9 @@ create an example.py with a simple (no) exponential growth, and a 4 pop model wi
 remove all TODO (grep for it)
 
 ***
+change sfs format in log_likelihood_prf to dictionary
+
+***
 Make autodifferentiation work for functional size history
 allow functional size history to be passed in with ms style cmd
 
@@ -23,31 +26,6 @@ find minimal example test case for autograd issue #24
 
 ***
 merge some of my_functions into autograd package with pull request
-
-***
-
-reimplement expm_multiply (need derivative)
-
-compare which version of expm_multiply is faster (with and without derivatives)
-in what regime is each faster?
-
-Try expokit stuff in expokit branch
-
-***
-add back numerical stability assertions, etc.
-(things seem a little more unstable right now in the gradient descent)
-
-uncomment assertions in size_history, sum_product
-copy assertions in ConstantTruncatedSizeHistory.etjj to other etjj
-
-Two sources of numerical error:
-1) FFT convolution: when vector has a 0.0 sometimes small negative numbers result
-however, in our case the 0.0 is always at the beginning or end of vector
-so can make FFT convolution more robust by truncating ends as necessary
-
-2) matrix exponential when t is very small, and v has 0s in it
-seems like the scipy.sparse.linalg.expm_multiply might be more robust in this case
-investigate the timing too
 
 ***
 for simulate_sfs, make theta=None work when -r is set

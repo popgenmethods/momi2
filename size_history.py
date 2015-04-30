@@ -1,5 +1,5 @@
 from __future__ import division
-from util import EPSILON, memoize, truncate0
+from util import memoize, truncate0
 import autograd.numpy as np
 from autograd.numpy import sum, exp, log, expm1
 from math_functions import transformed_expi, expm1d
@@ -28,7 +28,6 @@ class SizeHistory(object):
             before_tmrca = 0.0
         
         ret = np.concatenate((np.array([0.0]), ret, np.array([before_tmrca])))
-        #assert np.all(ret >= 0.0)
         ## deal with possible cancellation errors
         ret = truncate0(ret)
         return ret
@@ -57,9 +56,6 @@ class ConstantHistory(SizeHistory):
         scaled_time = denom * self.tau
         num = -expm1(-scaled_time) # equals 1 - exp(-scaledTime)
         ret = num / denom
-        ## TODO: uncomment assertion
-        #epsilon = 1e-15*float(self.tau)
-        #assert np.all(ret[:-1] - ret[1:] >= -epsilon) and np.all(ret >= -epsilon) and np.all(ret <= self.tau + epsilon)
         return ret
     
     def __str__(self):
@@ -87,40 +83,7 @@ class ExponentialHistory(SizeHistory):
         ret = ret + transformed_expi(pow0 * self.growth_rate)
         ret = ret * pow0
 
-        assert np.all(ret[1:] - ret[:-1] <= 0) # ret should be decreasing
-        assert np.all(ret >= 0)
-        assert np.all(ret <= self.tau)
-
         return ret
-
-class FunctionalHistory(SizeHistory):
-    '''Size history parameterized by an arbitrary function f.'''
-    def __init__(self, tau, f):
-        '''Initialize the model. For t > 0, f(t) >= is the instantaneous
-        rate of coalescence (i.e., the inverse of the population size).
-        f should accept and return vectors of times.
-        '''
-        self._f = f
-        super(FunctionalHistory, self).__init__(tau, self._R(tau))
-
-    def _R(self, t):
-        return scipy.integrate.quad(self._f, 0, t)[0]
-
-    def etjj(self, n):
-        ret = []
-        # TODO: if this is too slow for large n, it could be sped up
-        # by using vectorized integration (a la scipy.integrate.simps)
-        for j in range(2, n + 1):
-            j2 = binom(j, 2)
-            # tau * P(Tjj > tau)
-            r1 = self.tau * exp(-j2 * self.scaled_time)
-            def _int(t):
-                return t * self._f(t) * exp(-j2 * self._R(t))
-            r2 = scipy.integrate.quad(_int, 0, self.tau)[0]
-            ret.append(r1 + j2 * r2)
-        return ret
-
-
 
 class PiecewiseHistory(SizeHistory):
     def __init__(self, pieces):
@@ -175,5 +138,33 @@ def sfs_recurrence(sfs, tau):
                     ret[(k, n + 1)] * (n + 1 - k) / (n + 1))
 
     # check accuracy
-    assert tau == ret[(1, 1)] or abs(log(tau / ret[(1, 1)])) < EPSILON
+    assert tau == ret[(1, 1)] or abs(log(tau / ret[(1, 1)])) < 1e-14
     return ret[1:,1:]
+
+## TODO: add ms-style command line option for FunctionalHistory
+class FunctionalHistory(SizeHistory):
+    '''Size history parameterized by an arbitrary function f.'''
+    def __init__(self, tau, f):
+        '''Initialize the model. For t > 0, f(t) >= is the instantaneous
+        rate of coalescence (i.e., the inverse of the population size).
+        f should accept and return vectors of times.
+        '''
+        self._f = f
+        super(FunctionalHistory, self).__init__(tau, self._R(tau))
+
+    def _R(self, t):
+        return scipy.integrate.quad(self._f, 0, t)[0]
+
+    def etjj(self, n):
+        ret = []
+        # TODO: if this is too slow for large n, it could be sped up
+        # by using vectorized integration (a la scipy.integrate.simps)
+        for j in range(2, n + 1):
+            j2 = binom(j, 2)
+            # tau * P(Tjj > tau)
+            r1 = self.tau * exp(-j2 * self.scaled_time)
+            def _int(t):
+                return t * self._f(t) * exp(-j2 * self._R(t))
+            r2 = scipy.integrate.quad(_int, 0, self.tau)[0]
+            ret.append(r1 + j2 * r2)
+        return ret

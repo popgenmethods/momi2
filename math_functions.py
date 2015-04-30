@@ -88,8 +88,9 @@ def transformed_expi(x):
 #     ret[ser], ret[nser] = transformed_expi_series(x[ser]), transformed_expi_naive(x[nser])))
 #     return ret
 
-    ## TODO: using ret[ser], ret[nser] as above is more general,
-    ##    but not yet compatible with autograd (tho it is a planned future feature)
+    ## We use np.concatenate to combine.
+    ## would be better to use ret[ser] and ret[nser] as commented out above
+    ## but array assignment not yet supported by autograd (TODO)
     assert np.all(abs_x[:-1] >= abs_x[1:])
     return np.concatenate((transformed_expi_naive(x[nser]), transformed_expi_series(x[ser])))
 

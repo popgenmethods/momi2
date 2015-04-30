@@ -1,26 +1,12 @@
 import functools
 import autograd.numpy as np
 from functools import partial
-import itertools
 from autograd.core import primitive
-
-## TODO: who uses this function?
-def grouper(n, iterable, fillvalue=None):
-    "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
-    args = [iter(iterable)] * n
-    return itertools.izip_longest(fillvalue=fillvalue, *args)
-
-EPSILON = 1e-8
-
-## TODO: who uses this function?
-def H(n):
-    return (1. / np.arange(1, n + 1)).sum()
 
 def memoize(obj):
     cache = obj.cache = {}
     @functools.wraps(obj)
     def memoizer(*args, **kwargs):
-        # return obj(*args, **kwargs)
         if args not in cache:
             cache[args] = obj(*args, **kwargs)
         return cache[args]

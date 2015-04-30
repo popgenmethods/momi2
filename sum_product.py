@@ -3,10 +3,11 @@ import scipy.misc
 from util import memoize_instance, memoize, truncate0
 from math_functions import einsum2, fft_einsum, sum_antidiagonals
 
-## TODO: move this into __init__?
-## TODO: have this take in an ms_cmd instead of demo
-# returns log likelihood under a Poisson random field model
+## TODO: change sfs to be a dictionary of {config : count}
 def log_likelihood_prf(demo, theta, sfs):
+    '''
+    Return log likelihood under Poisson random field model
+    '''
     sfs,w = zip(*sorted(sfs.iteritems()))
     w = np.array(w)
 
@@ -16,8 +17,6 @@ def log_likelihood_prf(demo, theta, sfs):
     assert ret < 0.0
     return ret
 
-## TODO: move this into __init__ ?
-## TODO: have this take in an ms_cmd instead of a demo
 def compute_sfs(demography, config_list):
     '''Return joint SFS entry for the demography'''
     data = np.array(config_list, ndmin=2)

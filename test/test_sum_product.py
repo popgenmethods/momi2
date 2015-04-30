@@ -2,7 +2,7 @@ from __future__ import division
 import pytest
 from sum_product import compute_sfs
 from demography import Demography
-from util import H, grouper
+import itertools
 
 import os
 TEST_CASES = os.path.join(os.path.dirname(os.path.realpath(__file__)), "test_cases.txt")
@@ -46,6 +46,11 @@ def convert_states(node_states):
     for leaf in leaves:
         ret.append(node_states[leaf]['derived'])
     return [ret]
+
+def grouper(n, iterable, fillvalue=None):
+    "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
+    args = [iter(iterable)] * n
+    return itertools.izip_longest(fillvalue=fillvalue, *args)
     
 if __name__=="__main__":
     for dm, data, ret in demo_generator("test_cases.txt"):

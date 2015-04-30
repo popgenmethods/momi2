@@ -96,7 +96,7 @@ class Demography(nx.DiGraph):
 
     @memoize_instance
     def n_lineages(self, node):
-        if self.is_leaf(node):
+        if node in self.leaves:
             return self.node[node]['lineages']
         ret = 0
         for child_node in self[node]:
@@ -143,10 +143,6 @@ class Demography(nx.DiGraph):
                       [1,2,3])
         assert ret.shape == tuple([n_node+1] * 3)
         return ret, [admixture_node, parent1, parent2]
-
-    ## TODO: is this method used?
-    def is_leaf(self, node):
-        return node in self.leaves
 
 @memoize
 def der_in_admixture_node(n_node):
