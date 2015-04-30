@@ -42,7 +42,8 @@ def _to_nx(ms_cmd, *params):
     # replace variables in the ms cmd string
     ### TODO: fix this try/except! it's needed in general, but breaks for autograd
     try:
-        for i in range(len(params)):
+        ## MUST do this in reversed order, otherwise $26 will turn into ($2)6
+        for i in reversed(range(len(params))):
             ms_cmd = ms_cmd.replace("$" + str(i), str(float(params[i])))
     except:
         pass
