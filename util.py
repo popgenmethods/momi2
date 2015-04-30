@@ -2,6 +2,7 @@ import functools
 import autograd.numpy as np
 from functools import partial
 import itertools
+from autograd.core import primitive
 
 ## TODO: who uses this function?
 def grouper(n, iterable, fillvalue=None):
@@ -63,3 +64,11 @@ class memoize_instance(object):
         except KeyError:
             res = cache[key] = self.func(*args, **kw)
         return res
+
+@primitive
+def truncate0(x):
+    '''make sure everything in x is positive'''
+    assert max(-np.min(x),0.0) < 1e-15 * np.max(x)
+    x[x < -np.min(x)] = 0.0
+    return x
+truncate0.defgrad(lambda ans,x: lambda g: g)    

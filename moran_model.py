@@ -14,6 +14,15 @@ def rate_matrix(n, sparse_format="csr"):
     M = scipy.sparse.diags(diags, [1, 0, -1], (n + 1, n + 1), format=sparse_format)
     return M
 
+@primitive
+def moran_action(t,v, axis=0):
+    assert np.all(v >= 0.0) and t >= 0.0
+    ret = moran_action_eigen(t,v,axis)
+    if np.any(ret < 0.0):
+        ret = moran_al_mohy_higham(t,v,axis)
+        assert np.all(ret >= 0.0)
+    return ret
+
 @memoize
 def moran_eigensystem(n):
     M = np.asarray(rate_matrix(n).todense())
@@ -37,19 +46,20 @@ def moran_action_eigen(t, v, axis=0, transpose=False):
     assert ret.shape == v.shape
     return ret
 
-@primitive
+#@primitive
 def moran_al_mohy_higham(t, v, axis=0, transpose=False):
     return moran_apply(lambda M,x: expm_multiply(M*t,x), v, axis, transpose)
-moran_al_mohy_higham.defgrad(lambda ans,t,v,axis=0, transpose=False:
-                                 lambda g: einsum2(g, range(ans.ndim),
-                                                   moran_dot(ans,axis), range(ans.ndim), []))
-moran_al_mohy_higham.defgrad(lambda ans,t,v,axis=0, transpose=False:
-                                 lambda g: moran_al_mohy_higham(t, g, axis, not transpose), argnum=1)
 # moran_al_mohy_higham.defgrad(lambda ans,t,v,axis=0, transpose=False:
 #                                  lambda g: moran_action_eigen(t, g, axis, not transpose), argnum=1)
 
-moran_action = moran_action_eigen
+#moran_action = moran_action_eigen
 #moran_action = moran_al_mohy_higham
+moran_action.defgrad(lambda ans,t,v,axis=0:
+                         lambda g: einsum2(g, range(ans.ndim),
+                                           moran_dot(ans,axis), range(ans.ndim), []))
+moran_action.defgrad(lambda ans,t,v,axis=0:
+                         lambda g: moran_action_eigen(t, g, axis, transpose=True), argnum=1)
+
 
 @primitive
 def moran_dot(v, axis, transpose=False):

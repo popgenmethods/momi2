@@ -1,6 +1,6 @@
 import autograd.numpy as np
 import scipy.misc
-from util import memoize_instance, memoize
+from util import memoize_instance, memoize, truncate0
 from math_functions import einsum2, fft_einsum, sum_antidiagonals
 
 ## TODO: move this into __init__?
@@ -27,8 +27,10 @@ def compute_sfs(demography, config_list):
     _,ret,branch_len = partial_likelihood(data, demography, demography.event_root)
     branch_len = branch_len - ret[1]
 
-    # first two indices correspond to all ancestral and all derived
-    return np.squeeze(ret[2:]), branch_len
+    # first two indices correspond to the monomorphic states
+    ret = ret[2:]
+    assert branch_len >= 0.0 and np.all(ret >= 0.0) and np.all(ret <= branch_len)
+    return np.squeeze(ret), branch_len
 
 
 def partial_likelihood_top(data, G, event, popList):
@@ -40,6 +42,9 @@ def partial_likelihood_top(data, G, event, popList):
     for pop in popList:
         idx = (_lik_axes(G, event)).index(pop)
         lik = G.apply_transition(pop, lik, idx)
+
+    _check_positive(lik,sfs,branch_len)
+
     return lik,sfs,branch_len
 
 def partial_likelihood(data, G, event):
@@ -59,8 +64,13 @@ def partial_likelihood(data, G, event):
                             trunc_sfs, [newpop],
                             [''])
         branch_len = branch_len + np.dot(1.0 - sub_lik[0,:] , trunc_sfs)
+
+    _check_positive(lik,sfs,branch_len)
+
     return lik,sfs,branch_len
 
+def _check_positive(lik,sfs,branch_len):
+    assert np.all(lik >= 0.0) and np.all(sfs >= 0.0) and np.all(branch_len >= 0.0)    
 
 def combinatorial_factors(G, node):
     n_node = G.n_lineages(node)
@@ -151,10 +161,13 @@ def _merge_clusters_likelihood(data, G, event):
                      child_liks[1], child_axes[1],
                      axes,
                      [newpop])
+    # deal with very small negative numbers from fft
+    lik = truncate0(lik)
+
     lik = einsum2(lik, axes,
                   1.0/combinatorial_factors(G, newpop), [newpop],
                   axes)
-    
+
     sfs = 0.0
     for freq, other_lik in zip(child_sfs, child_liks[::-1]):
         sfs = sfs + freq * np.squeeze(other_lik[[slice(None)] + [0] * (other_lik.ndim-1)])

@@ -1,5 +1,5 @@
 import networkx as nx
-from util import memoize_instance, memoize
+from util import memoize_instance, memoize, truncate0
 from math_functions import einsum2, fft_einsum
 import scipy, scipy.misc
 import autograd.numpy as np
@@ -163,6 +163,8 @@ def der_in_admixture_node(n_node):
     
     x = scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent)
 
-    return fft_einsum(x, [0, 1, 2],
-                      x[::-1,...], [0, 1, 3],
-                      [0,1,2,3], [1])[:,:(n_node+1),:,:]
+    ret = fft_einsum(x, [0, 1, 2],
+                     x[::-1,...], [0, 1, 3],
+                     [0,1,2,3], [1])[:,:(n_node+1),:,:]
+    ret = truncate0(ret)
+    return ret

@@ -1,5 +1,5 @@
 from __future__ import division
-from util import EPSILON, memoize
+from util import EPSILON, memoize, truncate0
 import autograd.numpy as np
 from autograd.numpy import sum, exp, log, expm1
 from math_functions import transformed_expi, expm1d
@@ -17,7 +17,10 @@ class SizeHistory(object):
         self.scaled_time = scaled_time
 
     def sfs(self, n):
-        ret = np.sum(self.etjj(n)[:, None] * Wmatrix(n), axis=0)
+        Et_jj = self.etjj(n)
+        assert np.all(Et_jj[:-1] - Et_jj[1:] >= 0.0) and np.all(Et_jj >= 0.0) and np.all(Et_jj <= self.tau)
+
+        ret = np.sum(Et_jj[:, None] * Wmatrix(n), axis=0)
 
         before_tmrca = self.tau - np.sum(ret * np.arange(1, n) / n)
         # ignore branch length above untruncated TMRCA
@@ -25,8 +28,9 @@ class SizeHistory(object):
             before_tmrca = 0.0
         
         ret = np.concatenate((np.array([0.0]), ret, np.array([before_tmrca])))
-        ## TODO: uncomment assertion
-#         assert all([v >= 0.0 for _,v in ret.iteritems()])
+        #assert np.all(ret >= 0.0)
+        ## deal with possible cancellation errors
+        ret = truncate0(ret)
         return ret
 
     def transition_prob(self, v, axis=0):
