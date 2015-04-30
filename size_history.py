@@ -56,11 +56,7 @@ class ConstantHistory(SizeHistory):
         scaled_time = denom * self.tau
         num = -expm1(-scaled_time) # equals 1 - exp(-scaledTime)
         ret = num / denom
-        return ret
-    
-    def __str__(self):
-        return "(ConstantPopSize: N=%f, tau=%f)" % (self.N, self.tau)
-   
+        return ret  
 
 class ExponentialHistory(SizeHistory):
     def __init__(self, tau, growth_rate, N_bottom):

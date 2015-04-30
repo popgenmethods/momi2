@@ -10,15 +10,15 @@ def log_likelihood_prf(demo, theta, sfs_counts, EPSILON=0.0):
     demo: object returned by demography.make_demography
     theta: 2*mutation_rate
     sfs_counts: dictionary {config : counts}
-    EPSILON: a small number added onto SFS, to prevent taking log of 0
+    EPSILON: EPSILON/theta added onto SFS, to prevent taking log of 0
              default is 0. Try setting to a small positive number, 
-             e.g. 1e-30, if optimizer is failing due to log(0).
+             e.g. 1e-6, if optimizer is failing due to log(0).
     '''
     config_list,counts = zip(*sorted(sfs_counts.iteritems()))
     counts = np.array(counts)
 
     sfs_vals, branch_len = compute_sfs(demo, config_list)
-    sfs_vals = sfs_vals + EPSILON
+    sfs_vals = sfs_vals + EPSILON / theta
     ret = -branch_len * theta / 2.0 + np.sum(np.log(sfs_vals * theta / 2.0) * counts - scipy.special.gammaln(counts+1))
 
     assert ret < 0.0
