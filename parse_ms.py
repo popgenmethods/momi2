@@ -198,7 +198,8 @@ def set_model(node_data, end_time, cmd):
     N, alpha = sizes[0]['N'], sizes[0]['alpha']
     pieces = []
     for i in range(len(sizes) - 1):
-        sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t']) * 2.0
+        #sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t']) * 2.0
+        sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t'])
 
         if 'N' not in sizes[i]:
             sizes[i]['N'] = N
@@ -208,7 +209,8 @@ def set_model(node_data, end_time, cmd):
         N = sizes[i]['N']
 
         if alpha is not None:
-            pieces.append(ExponentialHistory(tau=tau, growth_rate=alpha/2.0, N_bottom=N))
+            #pieces.append(ExponentialHistory(tau=tau, growth_rate=alpha/2.0, N_bottom=N))
+            pieces.append(ExponentialHistory(tau=tau, growth_rate=alpha, N_bottom=N))
             N = pieces[-1].N_top
         else:
             pieces.append(ConstantHistory(tau=tau, N=N))
@@ -324,7 +326,8 @@ class NewickSfs(newick.tree.TreeVisitor):
         for leaf in dst.get_leaves_identifiers():
             dd[self.pops_by_lin[int(leaf)-1]] += 1
         # add length to the sfs entry. multiply by 2 cuz of ms format
-        self.sfs[tuple(dd)] += len * 2.0
+        #self.sfs[tuple(dd)] += len * 2.0
+        self.sfs[tuple(dd)] += len
 
 
 '''Construct ms cmd line from newick (for back compatibility)'''

@@ -10,8 +10,9 @@ import moran_model
 class SizeHistory(object):
     def __init__(self, tau, scaled_time):
         '''
-        tau = length of time interval
-        scaled_time = \int 1/N(t) dt, where N(t) = pop size at time t
+        tau = length of time interval (in ms units)
+        scaled_time = probability of 2 lineages coalescing within interval
+                    = \int 2/N(t) dt, where N(t) = pop size in ms units
         '''
         self.tau = tau
         self.scaled_time = scaled_time
@@ -44,19 +45,19 @@ class ConstantHistory(SizeHistory):
         if N <= 0.0:
             raise Exception("N must be positive")
         self.N = N
-        super(ConstantHistory, self).__init__(tau, tau / N)
+        super(ConstantHistory, self).__init__(tau, 2.0 * tau / N)
 
     def etjj(self, n):
         j = np.arange(2, n + 1)
 
-        denom = binom(j, 2) / self.N
+        denom = binom(j, 2) / self.N * 2.0
         if self.tau == float('inf'):
             return 1.0 / denom
 
         scaled_time = denom * self.tau
-        num = -expm1(-scaled_time) # equals 1 - exp(-scaledTime)
+        num = -expm1(-scaled_time) # equals 1 - exp(-scaled_time)
         ret = num / denom
-        return ret  
+        return ret
 
 class ExponentialHistory(SizeHistory):
     def __init__(self, tau, growth_rate, N_bottom):
@@ -67,13 +68,13 @@ class ExponentialHistory(SizeHistory):
         self.total_growth = tau * growth_rate
         self.N_top = N_bottom * exp(-self.total_growth)
 
-        super(ExponentialHistory, self).__init__(tau, expm1d(self.total_growth) * tau / self.N_bottom)
+        super(ExponentialHistory, self).__init__(tau, expm1d(self.total_growth) * tau / self.N_bottom * 2.0)
 
     def etjj(self, n):
         j = np.arange(2, n+1)
         jChoose2 = binom(j,2)
 
-        pow0, pow1 = self.N_bottom/jChoose2 , self.total_growth
+        pow0, pow1 = self.N_bottom/jChoose2/2.0 , self.total_growth
         ret = -transformed_expi(pow0 * self.growth_rate / exp(pow1))
         ret = ret * exp(-expm1d(pow1) * self.tau / pow0 - pow1)
         ret = ret + transformed_expi(pow0 * self.growth_rate)

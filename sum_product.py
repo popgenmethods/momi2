@@ -19,7 +19,8 @@ def log_likelihood_prf(demo, theta, sfs_counts, EPSILON=0.0):
 
     sfs_vals, branch_len = compute_sfs(demo, config_list)
     sfs_vals = sfs_vals + EPSILON / theta
-    ret = -branch_len * theta / 2.0 + np.sum(np.log(sfs_vals * theta / 2.0) * counts - scipy.special.gammaln(counts+1))
+    #ret = -branch_len * theta / 2.0 + np.sum(np.log(sfs_vals * theta / 2.0) * counts - scipy.special.gammaln(counts+1))
+    ret = -branch_len * theta + np.sum(np.log(sfs_vals * theta) * counts - scipy.special.gammaln(counts+1))
 
     assert ret < 0.0
     return ret

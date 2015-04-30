@@ -40,7 +40,7 @@ def simple_human_demo(n,
 def check_simple_human_demo():
     #n = [10] * 3
     n = [5] * 3
-    theta = 2.0
+    theta = 1.0
     num_sims = 10000
     #true_params = np.exp(np.random.normal(size=6))
     true_params = np.random.normal(size=6)
