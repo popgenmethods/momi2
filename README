@@ -22,6 +22,15 @@ To compute variances: treat each chromosome/sequence as an independent dataset
 Use theory of M/Z-estimators
 This also allows for using bootstrap estimation of variance
 
+To compute this efficiently use a hack: define a primitive function
+remove_gradient(x)
+that returns x, but whose gradient returns 0
+
+This allows to compute E[xdot * xdot] by computing hessian of
+E[x*x]/2.0 - (E[x_ * x] + E[x * x_]) / 2.0
+where
+x_ = remove_gradient(x)
+
 ***
 
 GPU support
