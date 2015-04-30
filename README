@@ -12,7 +12,10 @@ create an example.py with a simple (no) exponential growth, and a 4 pop model wi
 remove all TODO (grep for it)
 
 ***
-change sfs format in log_likelihood_prf to dictionary
+rename test_basinhopping. (turn it into example.py?)
+
+run it a bunch more, to figure out when it tries to get nan demographies
+(use Werror flag)
 
 ***
 Make autodifferentiation work for functional size history
@@ -37,6 +40,8 @@ add option to simulate from ms instead of scrm
 
 ***
 store sumCounts, sumSqCounts, nonzeroCounts in a single object?
+OR
+name it sfs_counts, sq_counts, nonzero_counts instead
 
 ***
 change everything to be in ms units

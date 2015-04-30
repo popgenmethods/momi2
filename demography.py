@@ -119,12 +119,8 @@ class Demography(nx.DiGraph):
     @memoize_instance
     def admixture_prob(self, admixture_node):
         '''
-        Returns ndarray with dimensions [child_der, par1_der, par2_der]
-
-        child_der: # derived alleles in admixture_node
-        par1_der, par2_der: # derived alleles in parent1, parent2 of admixture_node
-
-        returns probability of child_der given par1_der, par2_der
+        Array with dim [n_admixture_node+1, n_parent1_node+1, n_parent2_node+1],
+        giving probability of derived counts in child, given derived counts in parents
         '''
         n_node = self.n_lineages(admixture_node)
 
@@ -147,7 +143,8 @@ class Demography(nx.DiGraph):
 @memoize
 def der_in_admixture_node(n_node):
     '''
-    returns 4d-array, [n_from_parent1, der_in_child, der_in_parent1, der_in_parent2]
+    returns 4d-array, [n_from_parent1, der_in_child, der_in_parent1, der_in_parent2].
+    Used by Demography.admixture_prob
     '''
     # axis0=n_from_parent, axis1=der_from_parent, axis2=der_in_parent
     der_in_parent = np.tile(np.arange(n_node+1), (n_node+1,n_node+1,1))

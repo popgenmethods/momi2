@@ -226,7 +226,7 @@ def set_model(node_data, end_time, cmd):
         node_data['model'] = PiecewiseHistory(pieces)
 
 
-'''Simulate SFS from Demography'''
+'''Simulate SFS from Demography. Call from demography.simulate_sfs instead.'''
 def simulate_sfs(demo, num_sims, theta=None, seed=None, additionalParams=""):
     if any([(x in additionalParams) for x in "-t","-T","seed"]):
         raise IOError("additionalParams should not contain -t,-T,-seed,-seeds")

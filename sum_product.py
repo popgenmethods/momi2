@@ -3,25 +3,34 @@ import scipy.misc
 from util import memoize_instance, memoize, truncate0
 from math_functions import einsum2, fft_einsum, sum_antidiagonals
 
-## TODO: change sfs to be a dictionary of {config : count}
-def log_likelihood_prf(demo, theta, sfs):
+def log_likelihood_prf(demo, theta, sfs_counts):
     '''
-    Return log likelihood under Poisson random field model
-    '''
-    sfs,w = zip(*sorted(sfs.iteritems()))
-    w = np.array(w)
+    Return log likelihood under Poisson random field model.
 
-    sfs_vals, branch_len = compute_sfs(demo, sfs)
-    ret = -branch_len * theta / 2.0 + np.sum(np.log(sfs_vals * theta / 2.0) * w - scipy.special.gammaln(w+1))
+    demo: object returned by demography.make_demography
+    theta: 2*mutation_rate
+    sfs_counts: dictionary {config : counts}
+    '''
+    config_list,counts = zip(*sorted(sfs_counts.iteritems()))
+    counts = np.array(counts)
+
+    sfs_vals, branch_len = compute_sfs(demo, config_list)
+    ret = -branch_len * theta / 2.0 + np.sum(np.log(sfs_vals * theta / 2.0) * counts - scipy.special.gammaln(counts+1))
 
     assert ret < 0.0
     return ret
 
 def compute_sfs(demography, config_list):
-    '''Return joint SFS entry for the demography'''
+    '''
+    Return joint SFS entry for the demography.
+
+    demography: object returned by demography.make_demography
+    config_list: list of k-tuples of derived counts, 
+                 where k=number of leaf pops in demography
+    '''
     data = np.array(config_list, ndmin=2)
     if data.ndim != 2 or data.shape[1] != len(demography.leaves):
-        raise IOError("Invalid config_list. config_list should either be a list of k-tuples or a 2d array with k columns, where k is the number of leaf populations.")
+        raise IOError("Invalid config_list.")
 
     _,ret,branch_len = partial_likelihood(data, demography, demography.event_root)
     branch_len = branch_len - ret[1]
