@@ -3,6 +3,10 @@ TODO:
 next steps:
 
 ***
+get rid of all calls to eval!!!
+(it is not safe)
+
+***
 let pop indices in ms command also be variables
 (so that it is easier to construct ms commands with splits)
 

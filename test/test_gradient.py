@@ -133,20 +133,20 @@ def test_admixture():
     x = np.random.normal(size=7)
     check_gradient(f,x)
 
+def exp_growth_model(x, n_lins):
+    t,g,g2 = x
+    t,g2 = exp(t), exp(g2)
+    return make_demography("-I 1 %d -G $0 -eG $1 $2 -eG $3 0.0" % n_lins['1'],
+                           g,t,g2,3*t)
+
 @pytest.mark.parametrize("log_tau,growth_rate,end_growth_rate", 
                          ((-random.expovariate(1),g,random.gauss(0,1))
                           for g in (random.uniform(-10,10), 
                                     random.uniform(-.01,.01), 0.0)))
 def test_exp_growth(log_tau, growth_rate, end_growth_rate):
     n_lins = {'1':10}
-    def demo_func(x, n_lins):
-        t,g,g2 = x
-        #t = exp(t)
-        #t,g2 = exp(t), np.max((0.0,g2))
-        t,g2 = exp(t), exp(g2)
-        return make_demography("-I 1 %d -G $0 -eG $1 $2 -eG $3 0.0" % n_lins['1'],
-                               g,t,g2,3*t)
-    f = sfs_func(demo_func, n_lins, normalized=True)
+
+    f = sfs_func(exp_growth_model, n_lins, normalized=True)
     x=np.array([log_tau,growth_rate,end_growth_rate])
 
     check_gradient(f,x)
@@ -198,11 +198,17 @@ def simple_five_pop_demo(x, n_lins):
     cmd = " ".join(cmd)
 
     assert len(x) == 30
+    # make all params positive
     args = map(exp, x)
+    # allow negative growth rates
+    for i in range(15,20):
+        args[i] = log(args[i])
+    # make times increasing
     for i in range(1,15):
         args[i] = args[i] + args[i-1]
 
-    return make_demography(cmd, *args)   
+    demo = make_demography(cmd, *args)
+    return demo
 
 
 @pytest.mark.parametrize("n1,n2,n3,n4,n5,normalized", 
