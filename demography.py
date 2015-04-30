@@ -22,45 +22,59 @@ class Demography(nx.DiGraph):
 
     def __init__(self, to_copy, *args, **kwargs):
         '''
-        Input:
-        to_copy: either a Demography object, or networkx.DiGraph returned by parse_ms.to_nx()
+        to_copy: a networkx.DiGraph returned by parse_ms.to_nx(),
+                 or another Demography object
         '''
         super(Demography, self).__init__(to_copy, *args, **kwargs)
         self.leaves = set([k for k, v in self.out_degree().items() if v == 0])
-        self.event_tree = self.build_event_tree()
+        self.event_tree = build_event_tree(self)
 
-    def build_event_tree(self):
-        eventEdgeList = []
-        currEvents = {l : (l,) for l in self.leaves}
-        eventDict = {e : {'subpops' : (l,), 'parent_pops' : (l,), 'child_pops' : {}} for l,e in currEvents.iteritems()}
-        
-        for e in self.graph['events']:
-            # get the population edges forming the event
-            parent_pops, child_pops = map(set, zip(*e))
-            child_events = set([currEvents[c] for c in child_pops])
-            assert len(e) == 2 and len(parent_pops) + len(child_pops) == 3 and len(child_events) in (1,2)
+    @property
+    def ms_cmd(self):
+        '''The ms command line equivalent to this demography'''
+        return self.graph['cmd']
 
-            sub_pops = set(itertools.chain(*[eventDict[c]['subpops'] for c in child_events]))
-            sub_pops.difference_update(child_pops)
-            sub_pops.update(parent_pops)
+    def simulate_sfs(self, num_sims, theta=None, seed=None, additionalParams=""):
+        '''
+        Simulates the SFS from the demography. Requires $SCRM_PATH to be set.
+        (TODO: change to $MS_PATH)
+        If theta = None, uses total branch lengths for frequencies (ala fastsimcoal)
 
-            eventDict[e] = {'parent_pops' : tuple(parent_pops), 'subpops' : tuple(sub_pops), 'child_pops' : {c : currEvents[c] for c in child_pops}}
-            currEvents.update({p : e for p in sub_pops})
-            for p in child_pops:
-                del currEvents[p]
-            eventEdgeList += [(e, c) for c in child_events]
-        ret = nx.DiGraph(eventEdgeList)
-        for e in eventDict:
-            ret.add_node(e, **(eventDict[e]))
+        returns (sumFreqs,sumSqFreqs,nonzeroFreqs)
+        where
+        sumFreqs = sum of frequencies across all datasets
+        sumSqFreqs = sum of squared frequencies across all datasets
+        nonzeroFreqs = # of datasets where frequency was > 0
+        '''
+        return parse_ms.simulate_sfs(self, num_sims, theta, seed, additionalParams)
 
-        assert len(currEvents) == 1
-        root, = [v for k,v in currEvents.iteritems()]
-        ret.root = root
-
+    @memoize_instance
+    def n_lineages(self, node):
+        '''Number of lineages at Moran model at node.'''
+        if node in self.leaves:
+            return self.node[node]['lineages']
+        ret = 0
+        for child_node in self[node]:
+            ret = ret + self.n_lineages(child_node)
         return ret
-    
+
+    def truncated_sfs(self, node):
+        '''The truncated SFS at node.'''
+        return self.node[node]['model'].sfs(self.n_lineages(node))
+
+    def apply_transition(self, node, array, axis):
+        '''Apply Moran model transition at node to array along axis.'''
+        return self.node[node]['model'].transition_prob(array, axis)
+   
+    @property
+    def root(self):
+        '''The root (ancestral) population.'''
+        ret, = self.parent_pops(self.event_root)
+        return ret
+
     @property
     def event_root(self):
+        '''The root of the junction tree.'''
         return self.event_tree.root
 
     def event_type(self, event):
@@ -74,48 +88,24 @@ class Demography(nx.DiGraph):
             return 'merge_subpops'
 
     def sub_pops(self, event):
+        '''
+        The group of subpopulations corresponding to this event in the junction tree.
+        '''
         return self.event_tree.node[event]['subpops']
 
     def parent_pops(self, event):
+        '''The populations arising due to this event, backwards in time.'''
         return self.event_tree.node[event]['parent_pops']
 
-    # returns dict of {childPop : childEvent}
     def child_pops(self, event):
+        '''
+        Returns dict of 
+        {child_pop : child_event},
+        which gives populations arising from this event forward in time,
+        and the corresponding child events in the junction tree.
+        '''
         return self.event_tree.node[event]['child_pops']
-
-    @property
-    def root(self):
-        ret, = self.parent_pops(self.event_root)
-        return ret
-    
-    def truncated_sfs(self, node):
-        return self.node[node]['model'].sfs(self.n_lineages(node))
-
-    def apply_transition(self, node, array, idx):
-        return self.node[node]['model'].transition_prob(array, idx)
-
-    @memoize_instance
-    def n_lineages(self, node):
-        if node in self.leaves:
-            return self.node[node]['lineages']
-        ret = 0
-        for child_node in self[node]:
-            ret = ret + self.n_lineages(child_node)
-        return ret
-
-    '''
-    Simulates the SFS from the demography.
-    If theta = None, uses total branch lengths for frequencies (ala fastsimcoal)
-
-    returns (sumFreqs,sumSqFreqs,nonzeroFreqs)
-    where
-    sumFreqs = sum of frequencies across all datasets
-    sumSqFreqs = sum of squared frequencies across all datasets
-    nonzeroFreqs = # of datasets where frequency was > 0
-    '''
-    def simulate_sfs(self, num_sims, theta=None, seed=None, additionalParams=""):
-        return parse_ms.simulate_sfs(self, num_sims, theta, seed, additionalParams)
-
+   
     @memoize_instance
     def admixture_prob(self, admixture_node):
         '''
@@ -161,4 +151,34 @@ def der_in_admixture_node(n_node):
                      [0,1,2,3], [1])[:,:(n_node+1),:,:]
     # deal with small negative numbers from fft
     ret = truncate0(ret, axis=1)
+    return ret
+
+def build_event_tree(demo):
+    eventEdgeList = []
+    currEvents = {l : (l,) for l in demo.leaves}
+    eventDict = {e : {'subpops' : (l,), 'parent_pops' : (l,), 'child_pops' : {}} for l,e in currEvents.iteritems()}
+
+    for e in demo.graph['events']:
+        # get the population edges forming the event
+        parent_pops, child_pops = map(set, zip(*e))
+        child_events = set([currEvents[c] for c in child_pops])
+        assert len(e) == 2 and len(parent_pops) + len(child_pops) == 3 and len(child_events) in (1,2)
+
+        sub_pops = set(itertools.chain(*[eventDict[c]['subpops'] for c in child_events]))
+        sub_pops.difference_update(child_pops)
+        sub_pops.update(parent_pops)
+
+        eventDict[e] = {'parent_pops' : tuple(parent_pops), 'subpops' : tuple(sub_pops), 'child_pops' : {c : currEvents[c] for c in child_pops}}
+        currEvents.update({p : e for p in sub_pops})
+        for p in child_pops:
+            del currEvents[p]
+        eventEdgeList += [(e, c) for c in child_events]
+    ret = nx.DiGraph(eventEdgeList)
+    for e in eventDict:
+        ret.add_node(e, **(eventDict[e]))
+
+    assert len(currEvents) == 1
+    root, = [v for k,v in currEvents.iteritems()]
+    ret.root = root
+
     return ret

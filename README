@@ -8,10 +8,15 @@ let pop indices in ms command also be variables
 
 create an example.py with a simple (no) exponential growth, and a 4 pop model with migration (where the pop labels might vary)
 
-also, use new Hessian, Hessian_vector_product wrappers in autograd
+***
+use new Hessian, Hessian_vector_product wrappers in autograd
 
 ***
 remove all TODO (grep for it)
+
+***
+
+change SCRM_PATH to MS_PATH
 
 ***
 

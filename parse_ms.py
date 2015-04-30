@@ -239,7 +239,7 @@ def simulate_sfs(demo, num_sims, theta=None, seed=None, additionalParams=""):
             pops_by_lin.append(pop)
     assert len(pops_by_lin) == int(n)
 
-    scrm_args = demo.graph['cmd']
+    scrm_args = demo.ms_cmd
     if additionalParams:
         scrm_args = "%s %s" % (scrm_args, additionalParams)
 
