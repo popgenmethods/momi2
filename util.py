@@ -68,7 +68,7 @@ class memoize_instance(object):
 @primitive
 def truncate0(x):
     '''make sure everything in x is positive'''
-    assert max(-np.min(x),0.0) < 1e-15 * np.max(x)
+    assert max(-np.min(x),0.0) <= 1e-15 * np.max(x)
     x[x < -np.min(x)] = 0.0
     return x
 truncate0.defgrad(lambda ans,x: lambda g: g)    
