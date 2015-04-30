@@ -1,4 +1,4 @@
-from util import memoize
+from util import memoize, truncate0
 from math_functions import einsum2, swapaxes
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
@@ -11,10 +11,12 @@ def moran_action(t,v, axis=0):
     assert np.all(v >= 0.0) and t >= 0.0
     ## fast, but has cancellation errors for small t
     ret = moran_action_eigen(t,v,axis)
-    if np.any(ret < 0.0):
-        ## more accurate, and theoretically lower complexity, but slower in practice
-        ret = moran_al_mohy_higham(t,v,axis)
-        assert np.all(ret >= 0.0)
+    # deal with small negative numbers from cancellation
+    ret = truncate0(ret, axis=axis)
+#     if np.any(ret < 0.0):
+#         ## more accurate, and theoretically lower complexity, but slower in practice
+#         ret = moran_al_mohy_higham(t,v,axis)
+#         assert np.all(ret >= 0.0)
     return ret
 
 def moran_action_eigen(t, v, axis=0, transpose=False):

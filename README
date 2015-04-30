@@ -14,26 +14,17 @@ also, use new Hessian, Hessian_vector_product wrappers in autograd
 remove all TODO (grep for it)
 
 ***
-are SFS numerical checks too stringent?
-for some demographies end up with a lot of 0 entries
-(also note, a single 0 entry will destroy the log_likelihood_prf)
 
-perhaps using a row-wise truncate0 instead?
-(i kind of like the idea of the global truncate0 though...)
+test what parameter of EPSILON is needed for log_likelihood_prf
+(perhaps by starting out optimizer in very unlikely position)
 
-ALTERNATIVELY:
-when computing log_likelihood_prf, add 1e-30 to all sfs_entries
-(to prevent taking log of 0.0)
-(do this by having an EPSILON parameter in log_likelihood_prf, with default value of 0.0)
+also visually look how many 0s occur, and for what sorts of configs
 
 ***
 add an "ms_cmd" property to Demography
 
 ***
 rename test_basinhopping. (turn it into example.py?)
-
-run it a bunch more, to figure out when it tries to get nan demographies
-(use Werror flag)
 
 ***
 Make autodifferentiation work for functional size history
@@ -50,8 +41,8 @@ merge some of my_functions into autograd package with pull request
 
 ***
 for simulate_sfs, make theta=None work when -r is set
-(right now it counts up the total branch length, but doesn't know
-how to deal with multiple trees)
+
+(or at least have it raise an exception)
 
 ***
 add option to simulate from ms instead of scrm

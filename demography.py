@@ -159,5 +159,6 @@ def der_in_admixture_node(n_node):
     ret = fft_einsum(x, [0, 1, 2],
                      x[::-1,...], [0, 1, 3],
                      [0,1,2,3], [1])[:,:(n_node+1),:,:]
-    ret = truncate0(ret)
+    # deal with small negative numbers from fft
+    ret = truncate0(ret, axis=1)
     return ret
