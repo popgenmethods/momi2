@@ -8,8 +8,26 @@ let pop indices in ms command also be variables
 
 create an example.py with a simple (no) exponential growth, and a 4 pop model with migration (where the pop labels might vary)
 
+also, use new Hessian, Hessian_vector_product wrappers in autograd
+
 ***
 remove all TODO (grep for it)
+
+***
+are SFS numerical checks too stringent?
+for some demographies end up with a lot of 0 entries
+(also note, a single 0 entry will destroy the log_likelihood_prf)
+
+perhaps using a row-wise truncate0 instead?
+(i kind of like the idea of the global truncate0 though...)
+
+ALTERNATIVELY:
+when computing log_likelihood_prf, add 1e-30 to all sfs_entries
+(to prevent taking log of 0.0)
+(do this by having an EPSILON parameter in log_likelihood_prf, with default value of 0.0)
+
+***
+add an "ms_cmd" property to Demography
 
 ***
 rename test_basinhopping. (turn it into example.py?)
