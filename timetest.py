@@ -1,24 +1,24 @@
 from demography import make_demography
-from sum_product import SumProduct
+from sum_product import log_likelihood_prf
 import time
-#import numpy
-#import autograd.numpy as np
 from autograd import grad
 from autograd.numpy import dot, array
+from util import aggregate_sfs
 
 import sys
 sys.stdout = open('timetest.txt','w')
 
-def check_time(demofunc, data, *x):
+def check_time(demo, data, *x):
     # do data
-    data = data[:50]
+    #data = data[:50]
     def func(y):      
         start = time.time()
+        ret = log_likelihood_prf(demo, 1.0, data)
         ## TODO: use tensor format instead of for loop
-        assert False
-        for states in data:
-            demo.update_state(states)
-            ret += SumProduct(demo).p()
+#         assert False
+#         for states in data:
+#             demo.update_state(states)
+#             ret += SumProduct(demo).p()
         end = time.time()
         print "%f seconds per site (%d sites in %f seconds)" % ( (end-start) / float(len(data)), len(data), end-start)
         return ret
@@ -47,18 +47,21 @@ def check_time(demofunc, data, *x):
 
 def check_demo_time(demofunc, *x):
     demo = demofunc(*x)
-    sumFreqs, sumSqFreqs, nonzeroFreqs = demo.simulate_sfs(num_sims=100, theta=1.0)
-    
-    data = []
-    for key in sumFreqs:
-        state = {}
-        for i,pop in enumerate(sorted(demo.leaves)):
-            state[pop] = {'derived' : key[i], 'ancestral' : demo.n_lineages_subtended_by[pop] - key[i]}
-        data.append(state)
+    #sumFreqs, sumSqFreqs, nonzeroFreqs = demo.simulate_sfs(num_sims=100, theta=1.0)
+    sfs = aggregate_sfs(demo.simulate_sfs(num_sims=100, theta=1.0))
 
-    print "\n=======================\nTiming demography %s\n" % demo.graph['cmd']
+#     data = []
+#     for key in sfs:
+#         state = {}
+#         for i,pop in enumerate(sorted(demo.leaves)):
+#             state[pop] = {'derived' : key[i], 'ancestral' : demo.n_lineages_subtended_by[pop] - key[i]}
+#         data.append(state)
+
+    #print "\n=======================\nTiming demography %s\n" % demo.graph['cmd']
+    print "\n=======================\nTiming demography %s\n" % demo.ms_cmd
     print "%d variables" % len(x)
-    check_time(demofunc, data, *x)
+    #check_time(demofunc, data, *x)
+    check_time(demo, sfs, *x)
 
 
 def two_pop_demo(x):

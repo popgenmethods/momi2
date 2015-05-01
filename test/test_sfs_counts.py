@@ -6,6 +6,7 @@ import random
 import autograd.numpy as np
 import scipy, scipy.stats
 import itertools
+from util import aggregate_sfs
 
 #theta = 1.0
 #num_scrm_samples = 10000
@@ -61,7 +62,10 @@ def check_sfs_counts(demo):
     leaf_lins = {l : demo.n_lineages(l) for l in demo.leaves}
     leaf_pops = sorted(list(leaf_lins.keys()))
 
-    empirical_sfs,sqCounts,nonzeroCounts = demo.simulate_sfs(num_scrm_samples)
+    #empirical_sfs,sqCounts,nonzeroCounts = demo.simulate_sfs(num_scrm_samples)
+    sfs_list = demo.simulate_sfs(num_scrm_samples)
+    empirical_sfs,sqCounts,nonzeroCounts = [aggregate_sfs(sfs_list, f)
+                                            for f in [lambda x:x, lambda x:x**2, lambda x:int(x>0)]]
     
     theoretical_sfs = {}
     ranges = [range(leaf_lins[v]+1) for v in leaf_pops]

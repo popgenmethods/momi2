@@ -36,15 +36,11 @@ class Demography(nx.DiGraph):
 
     def simulate_sfs(self, num_sims, theta=None, seed=None, additionalParams=""):
         '''
-        Simulates the SFS from the demography. Requires $SCRM_PATH to be set.
+        Simulates num_sims independent SFS's from the demography. Requires $SCRM_PATH to be set.
         (TODO: change to $MS_PATH)
         If theta = None, uses total branch lengths for frequencies (ala fastsimcoal)
 
-        returns (sumFreqs,sumSqFreqs,nonzeroFreqs)
-        where
-        sumFreqs = sum of frequencies across all datasets
-        sumSqFreqs = sum of squared frequencies across all datasets
-        nonzeroFreqs = # of datasets where frequency was > 0
+        returns list [{tuple(config) : count}] of length num_sims
         '''
         return parse_ms.simulate_sfs(self, num_sims, theta, seed, additionalParams)
 

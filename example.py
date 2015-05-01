@@ -4,9 +4,9 @@ from sum_product import log_likelihood_prf
 from scipy.optimize import basinhopping, minimize
 import autograd.numpy as np
 from autograd.numpy import log,exp,dot
-from autograd import grad
+from autograd import grad, hessian_vector_product
 
-from util import memoize
+from util import memoize, aggregate_sfs
 
 def example_admixture_demo(x):
     '''
@@ -58,7 +58,7 @@ print true_x
 
 num_sims = 100
 print "\n# Simulating branch lengths for %d independent trees" % num_sims
-sfs,_,_ = true_demo.simulate_sfs(num_sims)
+sfs = aggregate_sfs(true_demo.simulate_sfs(num_sims))
 
 def objective(x):
     return -log_likelihood_prf(example_admixture_demo(x), num_sims, sfs)
@@ -70,9 +70,11 @@ def f_verbose(x):
     return f(x)
 
 g = grad(f)
+hp_rev = hessian_vector_product(f,argnum=0)
+hp = lambda x,vector: hessian_vector_product(f,argnum=0)(vector,x)
 # hp = hessian-vector product
-gdot = lambda x,y: dot(y, g(x))
-hp = grad(gdot)
+#gdot = lambda x,y: dot(y, g(x))
+#hp = grad(gdot)
 
 init_x = np.random.normal(size=len(true_x))
 print "# Start point:"

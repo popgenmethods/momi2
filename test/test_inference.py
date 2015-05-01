@@ -13,7 +13,7 @@ import networkx as nx
 
 from sum_product import compute_sfs, log_likelihood_prf
 from demography import make_demography
-
+from util import aggregate_sfs
 
 def test_joint_sfs_inference():
     N0=1.0
@@ -29,7 +29,8 @@ def test_joint_sfs_inference():
 
     true_demo = get_demo(t0)
 
-    jsfs,sqCounts,nonzero = true_demo.simulate_sfs(num_runs, theta=theta)
+    #jsfs,sqCounts,nonzero = true_demo.simulate_sfs(num_runs, theta=theta)
+    jsfs = aggregate_sfs(true_demo.simulate_sfs(num_runs, theta=theta))
     totalSnps = sum([v for k,v in jsfs.items()])
     logFactorialTotalSnps = sum([math.log(x) for x in range(1,totalSnps)])
 

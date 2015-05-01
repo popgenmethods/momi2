@@ -3,6 +3,12 @@ import autograd.numpy as np
 from functools import partial
 from autograd.core import primitive
 
+def aggregate_sfs(sfs_list, fun=lambda x: x):
+    config_list = set(sum([sfs.keys() for sfs in sfs_list], []))
+    aggregate_config = lambda config: sum([fun(sfs[config]) for sfs in sfs_list])
+
+    return {config: aggregate_config(config) for config in config_list}
+
 def memoize(obj):
     cache = obj.cache = {}
     @functools.wraps(obj)

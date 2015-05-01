@@ -8,25 +8,25 @@ get rid of all calls to eval!!!
 (it is not safe)
 
 ***
-let pop indices in ms command also be variables
-(so that it is easier to construct ms commands with splits)
+don't require user to figure out which population is indexed where...
 
-create an example.py with a simple (no) exponential growth, and a 4 pop model with migration (where the pop labels might vary)
-
-***
+either preprocess the input
+OR
+(
 let ms command take in arbitrary variable names with $ sign
 have them be passed in as **kwargs
-
+AND
 set $ signs for -es populations automatically
-
 to handle -es, whether it has a $pop or not,
 use
 _es(t,i,p,splitpop=None,**kwargs)
+)
 
 ***
-use new Hessian, Hessian_vector_product wrappers in autograd
 
-***
+make likelihood functions that take in a list of sfs's
+and also a Sigma_mle_hat
+that takes in same list, and returns the estimated variance of the mle
 
 To compute variances: treat each chromosome/sequence as an independent dataset
 Use theory of M/Z-estimators
@@ -51,7 +51,7 @@ Missing data support
 
 ***
 
-serial-sampling support
+archaic DNA support
 
 ***
 remove all TODO (grep for it)

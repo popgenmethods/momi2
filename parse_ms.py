@@ -193,7 +193,7 @@ class GetParams(object):
         else:
             ret = vartype(var)
         if isnan(ret):
-            raise Exception("nan in %s" % (ms_cmd))
+            raise Exception("nan in params %s" % (str(self.params)))
         return ret
 
     def getint(self, var):
@@ -295,21 +295,12 @@ def simulate_sfs(demo, num_sims, theta=None, seed=None, additionalParams=""):
     f.i = 0
     runs = itertools.groupby((line.strip() for line in lines), f)
     next(runs)
-    sumCounts = Counter()
-    sumSqCounts = Counter()
-    nonzeroCounts = Counter()
-    for i, lines in runs:
-        lines = list(lines)
-        if theta:
-            currCounts = read_empirical_sfs(lines, len(lins_per_pop), pops_by_lin)
-        else:
-            currCounts = read_tree_lens(lines, len(lins_per_pop), pops_by_lin)
-
-        for config in currCounts:
-            sumCounts[config] += currCounts[config]
-            sumSqCounts[config] += currCounts[config]**2
-            nonzeroCounts[config] += 1
-    return sumCounts,sumSqCounts,nonzeroCounts
+    if theta:
+        return [read_empirical_sfs(list(lines), len(lins_per_pop), pops_by_lin)
+                for i,lines in runs]
+    else:
+        return [read_tree_lens(list(lines), len(lins_per_pop), pops_by_lin)
+                for i, lines in runs]
 
 def read_empirical_sfs(lines, num_pops, pops_by_lin):
     currCounts = Counter()

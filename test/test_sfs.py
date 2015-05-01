@@ -41,7 +41,7 @@ def generate_sfs():
 
 @pytest.mark.parametrize("m_name,sfs,sfs2,branch_len,branch_len2", generate_sfs())
 def test_generated_cases(m_name,sfs,sfs2,branch_len,branch_len2):
-    log_within( np.array(branch_len), np.array(branch_len2) , eps=1e-6)
+    log_within( np.array(branch_len, ndmin=1), np.array(branch_len2, ndmin=1) , eps=1e-6)
     log_within( sfs, sfs2, eps=1e-6)
     
 

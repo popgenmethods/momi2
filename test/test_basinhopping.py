@@ -3,9 +3,9 @@ from sum_product import log_likelihood_prf
 from scipy.optimize import basinhopping, minimize
 import autograd.numpy as np
 from autograd.numpy import log,exp,dot
-from autograd import grad
+from autograd import grad, hessian_vector_product
 
-from util import memoize
+from util import memoize, aggregate_sfs
 
 def simple_human_demo(n,
                       #t_bottleneck_to_africa_split,
@@ -53,7 +53,8 @@ def check_simple_human_demo():
     init_x = np.random.normal(size=p)
 
     #sfs,_,_ = true_demo.simulate_sfs(num_sims, theta)
-    sfs,_,_ = true_demo.simulate_sfs(num_sims)
+    #sfs,_,_ = true_demo.simulate_sfs(num_sims)
+    sfs = aggregate_sfs(true_demo.simulate_sfs(num_sims))
 
     def objective(x):
         print (np.asarray(x) - true_x) / true_x
@@ -74,8 +75,9 @@ def check_simple_human_demo():
 
     f = objective
     g = grad(objective_helper)
-    gdot = lambda x,y: dot(y, g(x))
-    hp = grad(gdot)
+    #gdot = lambda x,y: dot(y, g(x))
+    #hp = grad(gdot)
+    hp = lambda x,vector: hessian_vector_product(objective_helper, argnum=0)(vector,x)
 #     f = lambda x: objective(x)[0]
 #     g = lambda x: objective(x)[1]
 #     h = lambda x: objective(x)[2]
@@ -103,66 +105,6 @@ def check_simple_human_demo():
     print true_x, "\n", inferred_x.x
     print error
     assert error < .05
-
-
-# def check_simple_human_demo():
-#     #n = [10] * 3
-#     n = [5] * 3
-#     theta = 2.0
-#     num_sims = 10000
-#     true_params = np.exp(np.random.normal(size=8))
-#     #true_params = np.random.normal(size=8)
-                                 
-#     true_demo = simple_human_demo(n, *true_params)
-#     #sfs,_,_ = true_demo.simulate_sfs(num_sims, theta)
-#     sfs,_,_ = true_demo.simulate_sfs(num_sims)
-
-#     p = len(true_params)
-
-#     def objective(x):
-#         x = np.ravel(x)
-#         if np.any(x <= 0.0):
-#             return None, np.zeros(len(x))
-#             #return None,None
-#             #return float('inf'), np.zeros(len(x))
-
-#         params = list(true_params)
-#         x = map(adnumber,x)
-
-#         params[:p] = x
-#         ret = -simple_human_demo(n, *params).log_likelihood_prf(theta * num_sims, sfs)
-#         #return float(ret)
-#         #print x, ret.x, ret.gradient(x)
-#         return np.asarray(ret.x), np.asarray(ret.gradient(x))
-
-#     true_x = true_params[:p]
-#     init_x = np.exp(np.random.normal(size=p))
-#     #init_x = np.random.normal(size=p)
-
-#     true_lik = objective(true_x)
-#     print true_lik
-
-#     print true_x, init_x
-
-#     def accept_test(x_new,**kwargs):
-#         return bool(np.all(x_new > 1e-6))
-
-#     def print_fun(x, f, accepted):
-#         print x
-#         print("at minimum %.4f accepted %d" % (f, int(accepted)))
-
-#     #inferred_x = basinhopping(objective, init_x, minimizer_kwargs = {'bounds':[(1e-6,None)] * len(init_x),'jac':True}, niter=10, accept_test=accept_test, callback=print_fun)
-#     #inferred_x = basinhopping(objective, init_x, minimizer_kwargs = {'method':'slsqp','bounds':[(1e-16,None)] * len(init_x),'jac':True}, niter=10, accept_test=accept_test, callback=print_fun)
-#     #inferred_x = basinhopping(objective, init_x, minimizer_kwargs = {'jac':True}, niter=10, accept_test=accept_test, callback=print_fun)
-#     inferred_x = basinhopping(objective, init_x, minimizer_kwargs = {'jac':True}, niter=10, callback=print_fun)
-#     #inferred_x = minimize(objective, init_x, jac=True, bounds=[(0,None)] * len(init_x))
-#     #inferred_x = minimize(objective, init_x, jac=False)
-
-#     print inferred_x
-#     error = max(abs(true_x - inferred_x.x) / true_x)
-#     print true_x, "\n", inferred_x.x
-#     print error
-#     assert error < .05
 
 if __name__ == "__main__":
     #set_order(2)
