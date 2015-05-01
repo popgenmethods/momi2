@@ -1,29 +1,10 @@
+from __future__ import division
 import autograd.numpy as np
-import scipy.misc
-from util import memoize_instance, memoize, truncate0
+import scipy
+from util import memoize_instance, memoize, truncate0, make_constant
 from math_functions import einsum2, fft_einsum, sum_antidiagonals
-
-def log_likelihood_prf(demo, theta, sfs_counts, EPSILON=0.0):
-    '''
-    Return log likelihood under Poisson random field model.
-
-    demo: object returned by demography.make_demography
-    theta: 2*mutation_rate
-    sfs_counts: dictionary {config : counts}
-    EPSILON: EPSILON/theta added onto SFS, to prevent taking log of 0
-             default is 0. Try setting to a small positive number, 
-             e.g. 1e-6, if optimizer is failing due to log(0).
-    '''
-    config_list,counts = zip(*sorted(sfs_counts.iteritems()))
-    counts = np.array(counts)
-
-    sfs_vals, branch_len = compute_sfs(demo, config_list)
-    sfs_vals = sfs_vals + EPSILON / theta
-    #ret = -branch_len * theta / 2.0 + np.sum(np.log(sfs_vals * theta / 2.0) * counts - scipy.special.gammaln(counts+1))
-    ret = -branch_len * theta + np.sum(np.log(sfs_vals * theta) * counts - scipy.special.gammaln(counts+1))
-
-    assert ret < 0.0
-    return ret
+from autograd.core import primitive
+from autograd import hessian
 
 def compute_sfs(demography, config_list):
     '''
@@ -45,6 +26,69 @@ def compute_sfs(demography, config_list):
     assert branch_len >= 0.0 and np.all(ret >= 0.0) and np.all(ret <= branch_len)
     return np.squeeze(ret), branch_len
 
+def log_likelihood_prf(demo, theta, sfs_counts, EPSILON=0.0):
+    '''
+    Return log likelihood under Poisson random field model.
+
+    demo: object returned by demography.make_demography
+    theta: mutation_rate
+    sfs_counts: dictionary {config : counts}
+    EPSILON: EPSILON/theta added onto SFS, to prevent taking log of 0
+             default is 0. Try setting to a small positive number, 
+             e.g. 1e-6, if optimizer is failing due to log(0).
+    '''
+    config_list,counts = zip(*sorted(sfs_counts.iteritems()))
+    counts = np.array(counts)
+
+    sfs_vals, branch_len = compute_sfs(demo, config_list)
+    sfs_vals = sfs_vals + EPSILON / theta
+    #ret = -branch_len * theta / 2.0 + np.sum(np.log(sfs_vals * theta / 2.0) * counts - scipy.special.gammaln(counts+1))
+    ret = -branch_len * theta + np.sum(np.log(sfs_vals * theta) * counts - scipy.special.gammaln(counts+1))
+
+    assert ret < 0.0
+    return ret
+
+## TODO: make this a class that supports likelihood computation as well as variance computation
+## TODO: use EPSILON
+## taking gradient of this not supported, due to way we constructed counts matrix
+@primitive
+def mle_estimated_variance(sfs_list, demofunc, params, EPSILON=0.0):
+    config_list = sorted(set(sum([sfs.keys()
+                                  for sfs in sfs_list],[])))
+    # (i,j)th coordinate = count of config j in dataset i
+    counts = np.zeros((len(sfs_list), len(config_list)))
+    for i,sfs in enumerate(sfs_list):
+        for j,config in enumerate(config_list):
+            counts[i,j] = sfs[config]
+
+    def log_lik_vec(x):
+        demo,theta = demofunc(x)
+        theta = theta * np.ones(shape=(len(sfs_list),))
+        assert len(theta) == len(sfs_list)
+
+        sfs_vals, branch_len = compute_sfs(demo, config_list)
+        return -branch_len * theta + np.sum(np.outer(theta, sfs_vals) * counts
+                                            - scipy.special.gammaln(counts+1), axis=1)
+
+    def log_lik(x):
+        return np.sum(log_lik_vec(x)) / len(sfs_list)
+
+    def pre_outer_gradient(x):
+        l = log_lik_vec(x)
+        lc = make_constant(l)
+        return np.sum(0.5 * (l**2 - l*lc - lc*l)) / len(sfs_list)
+
+    h = hessian(log_lik)(params)
+    g_out = hessian(pre_outer_gradient)(params)
+    # h, g_out should be symmetric
+    assert np.allclose(h, h.transpose()) and np.allclose(g_out, g_out.transpose())
+    g_out,h = (g_out + g_out.transpose())/2, (h + h.transpose())/2
+    
+    h_inv = np.linalg.inv(h)
+    assert np.allclose(h_inv, h_inv.transpose())
+    h_inv = (h_inv + h_inv.transpose()) / 2
+
+    return h_inv.dot(g_out.dot(h_inv)) / len(sfs_list)
 
 def partial_likelihood_top(data, G, event, popList):
     ''' Partial likelihood of data at top of node, i.e.

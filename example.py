@@ -1,12 +1,16 @@
 from __future__ import division
 from demography import make_demography
-from sum_product import log_likelihood_prf
-from scipy.optimize import basinhopping, minimize
+from sum_product import log_likelihood_prf, mle_estimated_variance
+from scipy.optimize import minimize
 import autograd.numpy as np
 from autograd.numpy import log,exp,dot
 from autograd import grad, hessian_vector_product
+import scipy
 
 from util import memoize, aggregate_sfs
+from scipy.stats import chi2
+
+theta = 1.0
 
 def example_admixture_demo(x):
     '''
@@ -47,10 +51,10 @@ def example_admixture_demo(x):
         pop0,pop1 = pop1,pop0
 
     return make_demography(ms_cmd,
-                           pop0,pop1,g2,t3,p4,t5,p6,t7,t8,t9)
+                           pop0,pop1,g2,t3,p4,t5,p6,t7,t8,t9), theta
 
 true_x = np.random.normal(size=8)
-true_demo = example_admixture_demo(true_x)
+true_demo,_ = example_admixture_demo(true_x)
 print "# True demography"
 print true_demo.ms_cmd
 print "# True parameters"
@@ -58,10 +62,15 @@ print true_x
 
 num_sims = 100
 print "\n# Simulating branch lengths for %d independent trees" % num_sims
-sfs = aggregate_sfs(true_demo.simulate_sfs(num_sims))
+sfs_list = true_demo.simulate_sfs(num_sims)
+sfs_agg = aggregate_sfs(sfs_list)
+
+mle_covariance = mle_estimated_variance(sfs_list, example_admixture_demo,
+                                        true_x)
 
 def objective(x):
-    return -log_likelihood_prf(example_admixture_demo(x), num_sims, sfs)
+    demo,_ = example_admixture_demo(x)
+    return -log_likelihood_prf(demo, num_sims, sfs_agg)
 
 f = objective
 def f_verbose(x):
@@ -86,6 +95,18 @@ inferred_x = minimize(f_verbose, init_x, jac=g,hessp=hp,method='newton-cg')
 print "# Optimization results:", "\n", inferred_x
 print "# Inferred params:", "\n", inferred_x.x
 print "# True params:", "\n", true_x
+
 error = max(abs((true_x - inferred_x.x) / true_x))
 print "#Max error:", "\n", error
-assert error < .05
+
+mle_covariance = mle_estimated_variance(sfs_list, example_admixture_demo,
+                                        inferred_x.x)
+print "# Estimated MLE standard deviations"
+print np.sqrt(np.diag(mle_covariance))
+
+print "# p-value for norm of transformed MLE"
+z = scipy.linalg.sqrtm(np.linalg.inv(mle_covariance)).dot(inferred_x.x)
+znorm = z.dot(z)
+print 1.0 - chi2.cdf(znorm, df=len(z))
+
+#assert error < .05

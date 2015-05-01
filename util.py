@@ -72,3 +72,8 @@ def truncate0(x, axis=None):
     x[x < mins] = 0.0
     return x
 truncate0.defgrad(lambda ans,x,axis=None: lambda g: g)    
+
+@primitive
+def make_constant(x):
+    return x
+make_constant.defgrad_is_zero()
