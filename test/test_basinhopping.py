@@ -77,7 +77,8 @@ def check_simple_human_demo():
     g = grad(objective_helper)
     #gdot = lambda x,y: dot(y, g(x))
     #hp = grad(gdot)
-    hp = lambda x,vector: hessian_vector_product(objective_helper, argnum=0)(vector,x)
+    #hp = lambda x,vector: hessian_vector_product(objective_helper, argnum=0)(vector,x)
+    hp = hessian_vector_product(objective_helper, argnum=0)
 #     f = lambda x: objective(x)[0]
 #     g = lambda x: objective(x)[1]
 #     h = lambda x: objective(x)[2]

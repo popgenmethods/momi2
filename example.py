@@ -70,8 +70,9 @@ def f_verbose(x):
     return f(x)
 
 g = grad(f)
-hp_rev = hessian_vector_product(f,argnum=0)
-hp = lambda x,vector: hessian_vector_product(f,argnum=0)(vector,x)
+hp = hessian_vector_product(f, argnum=0)
+#hp_rev = hessian_vector_product(f,argnum=0)
+#hp = lambda x,vector: hessian_vector_product(f,argnum=0)(vector,x)
 # hp = hessian-vector product
 #gdot = lambda x,y: dot(y, g(x))
 #hp = grad(gdot)
