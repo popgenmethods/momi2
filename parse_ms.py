@@ -10,20 +10,25 @@ import sh, os, random
 import itertools
 from collections import Counter
 
+def sort_ms_cmd(args_list, params):
+    ret = {}
+    for arg in args_list:
+        if arg[0].startswith("e"):
+            t = params.getfloat(arg[1])
+        else:
+            t = 0.0
+        if t not in ret:
+            ret[t] = []
+        ret[t].append(arg)
+    ret = sum([x for t,x in sorted(ret.iteritems())], [])
+    return ret
+
 '''
 Construct networkx DiGraph from ms command.
 Use demography.make_demography instead of calling this directly.
 '''
 def _to_nx(ms_cmd, *params):
-    def toFloat(var):
-        if var[0] == "$":
-            ret = params[int(var[1:])]
-        else:
-            ret = float(var)
-        if isnan(ret):
-            raise Exception("nan in %s" % (ms_cmd))
-        return ret
-                           
+    get_params = GetParams(params)
 
     ms_cmd = ms_cmd.strip()
     if not ms_cmd.startswith("-I "):
@@ -39,17 +44,20 @@ def _to_nx(ms_cmd, *params):
             curr_args.append(arg)
     assert cmd_list[0][0] == 'I'
 
+    cmd_list = sort_ms_cmd(cmd_list, get_params)
+    ms_cmd = ["-" + " ".join([str(x) for x in arg]) for arg in cmd_list]
+    ms_cmd = " ".join(ms_cmd)
     # replace variables in the ms cmd string
     ### TODO: fix this try/except! it's needed in general, but breaks for autograd
     try:
-        ## MUST do this in reversed order, otherwise $26 will turn into ($2)6
+        ## MUST do this in reversed order, otherwise ($26) will turn into ($2)6
         for i in reversed(range(len(params))):
-            ms_cmd = ms_cmd.replace("$" + str(i), str(float(params[i])))
+            ms_cmd = ms_cmd.replace("$" + str(i), str(params[i]))
     except:
         pass
 
     # now parse the ms cmd, store results in kwargs
-    kwargs = {'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd,'toFloat':toFloat}
+    kwargs = {'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd,'params':get_params}
     for cmd in cmd_list:
         if cmd[0] not in valid_params:
             raise NotImplementedError("-%s not implemented" % cmd[0])
@@ -61,25 +69,9 @@ def _to_nx(ms_cmd, *params):
 
 valid_params = set(["G","I","n","g","eG","eg","eN","en","ej","es"])
 
-
-def _nx_from_parsed_ms(events, edges, nodes, roots, cmd, toFloat, **kwargs):
-    assert nodes
-    roots = [r for _,r in roots.iteritems() if r is not None]
-
-    if len(roots) != 1:
-        raise IOError(("Must have a single root population", cmd))
-    
-    node, = roots
-    set_model(nodes[node], toFloat('inf'), cmd)
-
-    ret = nx.DiGraph(edges, cmd=cmd, events=events)
-    for v in nodes:
-        ret.add_node(v, **(nodes[v]))
-    return ret
-
-def _es(t,i,p, events, nodes, roots, edges, cmd, toFloat, **kwargs):
-    t,p = map(toFloat, (t,p))
-    i = int(i)
+def _es(t,i,p, events, nodes, roots, edges, cmd, params, **kwargs):
+    t,p = map(params.getfloat, (t,p))
+    i = params.getint(i)
 
     child = roots[i]
     set_model(nodes[child], t, cmd)
@@ -100,9 +92,9 @@ def _es(t,i,p, events, nodes, roots, edges, cmd, toFloat, **kwargs):
     roots[i] = parents[0]
     roots[len(roots)+1] = parents[1]
 
-def _ej(t,i,j, events, nodes, roots, edges, cmd, toFloat, **kwargs):
-    t = toFloat(t)
-    i,j = map(int, [i,j])
+def _ej(t,i,j, events, nodes, roots, edges, cmd, params, **kwargs):
+    t = params.getfloat(t)
+    i,j = map(params.getint, [i,j])
 
     for k in i,j:
         # sets the TruncatedSizeHistory, and N_top and alpha for all epochs
@@ -122,9 +114,9 @@ def _ej(t,i,j, events, nodes, roots, edges, cmd, toFloat, **kwargs):
     #del roots[i]
     roots[i] = None
 
-def _en(t,i,N, nodes, roots, toFloat, **kwargs):
-    t,N = map(toFloat, [t,N])
-    i = int(i)
+def _en(t,i,N, nodes, roots, params, **kwargs):
+    t,N = map(params.getfloat, [t,N])
+    i = params.getint(i)
     nodes[roots[i]]['sizes'].append({'t':t,'N':N,'alpha':None})
 
 def _eN(t,N, roots, **kwargs):
@@ -133,12 +125,12 @@ def _eN(t,N, roots, **kwargs):
          if roots[i] is not None:
              _en(t, i, N, roots=roots, **kwargs)
 
-def _eg(t,i,alpha, roots, nodes, toFloat, **kwargs):
-    if toFloat(alpha) == 0.0 and alpha[0] != "$":
+def _eg(t,i,alpha, roots, nodes, params, **kwargs):
+    if params.getfloat(alpha) == 0.0 and alpha[0] != "$":
         alpha = None
     else:
-        alpha = toFloat(alpha)
-    t,i = toFloat(t), int(i)
+        alpha = params.getfloat(alpha)
+    t,i = params.getfloat(t), params.getint(i)
     nodes[roots[i]]['sizes'].append({'t':t,'alpha':alpha})
 
 def _eG(t,alpha, roots, **kwargs):
@@ -147,26 +139,26 @@ def _eG(t,alpha, roots, **kwargs):
         if roots[i] is not None:
             _eg(t,i,alpha, roots=roots, **kwargs)
 
-def _n(i,N, nodes, events, edges, roots, toFloat, **kwargs):
+def _n(i,N, nodes, events, edges, roots, params, **kwargs):
     assert roots
     if events:
         raise IOError(("-n should be called before any demographic changes", kwargs['cmd']))
     assert not edges and len(nodes) == len(roots)
-    i = roots[int(i)]
+    i = roots[params.getint(i)]
     assert len(nodes[i]['sizes']) == 1
-    nodes[i]['sizes'][0]['N'] = toFloat(N)
+    nodes[i]['sizes'][0]['N'] = params.getfloat(N)
 
-def _g(i,alpha, nodes, events, edges, roots, toFloat, **kwargs):
+def _g(i,alpha, nodes, events, edges, roots, params, **kwargs):
     assert roots
     if events:
         raise IOError(("-g,-G should be called before any demographic changes", kwargs['cmd']))
     assert not edges and len(nodes) == len(roots)
-    i = roots[int(i)]
+    i = roots[params.getint(i)]
     assert len(nodes[i]['sizes']) == 1
-    if toFloat(alpha) == 0.0 and alpha[0] != "$":
+    if params.getfloat(alpha) == 0.0 and alpha[0] != "$":
         alpha = None
     else:
-        alpha = toFloat(alpha)
+        alpha = params.getfloat(alpha)
     nodes[i]['sizes'][0]['alpha'] = alpha
 
 def _G(rate, roots, nodes, **kwargs):
@@ -188,6 +180,42 @@ def _I(*args, **kwargs):
         leaf_name = i+1
         kwargs['nodes'][leaf_name] = {'sizes':[{'t':0.0,'N':1.0,'alpha':None}],'lineages':lins_per_pop[i]}
         kwargs['roots'][i+1] = leaf_name
+
+class GetParams(object):
+    def __init__(self, params):
+        self.params = list(params)
+
+    def get(self, var, vartype):
+        if isinstance(var,vartype):
+            return var
+        if var[0] == "$":
+            ret = self.params[int(var[1:])]
+        else:
+            ret = vartype(var)
+        if isnan(ret):
+            raise Exception("nan in %s" % (ms_cmd))
+        return ret
+
+    def getint(self, var):
+        return self.get(var, int)
+
+    def getfloat(self, var):
+        return self.get(var, float)
+
+def _nx_from_parsed_ms(events, edges, nodes, roots, cmd, **kwargs):
+    assert nodes
+    roots = [r for _,r in roots.iteritems() if r is not None]
+
+    if len(roots) != 1:
+        raise IOError(("Must have a single root population", cmd))
+    
+    node, = roots
+    set_model(nodes[node], float('inf'), cmd)
+
+    ret = nx.DiGraph(edges, cmd=cmd, events=events)
+    for v in nodes:
+        ret.add_node(v, **(nodes[v]))
+    return ret
 
 def set_model(node_data, end_time, cmd):
     # add 'model_func' to node_data, add information to node_data['sizes']

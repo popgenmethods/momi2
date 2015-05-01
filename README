@@ -14,6 +14,16 @@ let pop indices in ms command also be variables
 create an example.py with a simple (no) exponential growth, and a 4 pop model with migration (where the pop labels might vary)
 
 ***
+let ms command take in arbitrary variable names with $ sign
+have them be passed in as **kwargs
+
+set $ signs for -es populations automatically
+
+to handle -es, whether it has a $pop or not,
+use
+_es(t,i,p,splitpop=None,**kwargs)
+
+***
 use new Hessian, Hessian_vector_product wrappers in autograd
 
 ***
