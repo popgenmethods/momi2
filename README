@@ -24,6 +24,16 @@ _es(t,i,p,splitpop=None,**kwargs)
 
 ***
 
+add back EPSILON to deal with underflow issues in log likelihood
+
+***
+
+add try/except to moran_model.action, to call moran_al_mohy_higham?
+seems like trunc0 might still fail occassionally, possibly due to moran action
+(or possibly due to something else)
+
+***
+
 make likelihood functions that take in a list of sfs's
 and also a Sigma_mle_hat
 that takes in same list, and returns the estimated variance of the mle

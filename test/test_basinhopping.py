@@ -1,5 +1,5 @@
 from demography import make_demography
-from sum_product import log_likelihood_prf
+from maximum_likelihood import LogLikelihoodPRF
 from scipy.optimize import basinhopping, minimize
 import autograd.numpy as np
 from autograd.numpy import log,exp,dot
@@ -29,23 +29,26 @@ def simple_human_demo(n,
     africa_split = eurasia_split + exp(t_africa_split_to_eurasia_split)
     bottleneck = africa_split + exp(t_bottleneck_to_africa_split)
 
-    return make_demography(demo_cmd,
+    demo = make_demography(demo_cmd,
                            exp(africa_size),
                            exp(eur_present_size),
                            exp(asia_present_size),
                            eurasia_split, exp(eurasia_size),
                            africa_split,
                            bottleneck, exp(ancestral_size))
+    return demo,None
 
 def check_simple_human_demo():
     #n = [10] * 3
     n = [5] * 3
-    theta = 1.0
+    #theta = 1.0
     num_sims = 10000
     #true_params = np.exp(np.random.normal(size=6))
     true_params = np.random.normal(size=6)
-                                 
-    true_demo = simple_human_demo(n, *true_params)
+    
+    demo_func = lambda x: simple_human_demo(n, *x)
+    true_demo,_ = demo_func(true_params)
+    #true_demo = simple_human_demo(n, *true_params)
 
     p = len(true_params)
     true_x = true_params[:p]
@@ -54,7 +57,10 @@ def check_simple_human_demo():
 
     #sfs,_,_ = true_demo.simulate_sfs(num_sims, theta)
     #sfs,_,_ = true_demo.simulate_sfs(num_sims)
-    sfs = aggregate_sfs(true_demo.simulate_sfs(num_sims))
+    #sfs = aggregate_sfs(true_demo.simulate_sfs(num_sims))
+    sfs_list = true_demo.simulate_sfs(num_sims)
+
+    log_lik_prf = LogLikelihoodPRF(demo_func, sfs_list)
 
     def objective(x):
         print (np.asarray(x) - true_x) / true_x
@@ -68,7 +74,8 @@ def check_simple_human_demo():
         #x = map(adnumber,x)
 
         params[:p] = x
-        ret = -log_likelihood_prf(simple_human_demo(n, *params), theta * num_sims, sfs)
+        #ret = -log_likelihood_prf(simple_human_demo(n, *params), theta * num_sims, sfs)
+        ret = -log_lik_prf.log_likelihood(params)
         return ret
         #return np.asarray(ret)
         #return np.asarray(ret.x), np.asarray(ret.gradient(x)), np.asarray(ret.hessian(x))

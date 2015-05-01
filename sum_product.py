@@ -26,28 +26,6 @@ def compute_sfs(demography, config_list):
     assert branch_len >= 0.0 and np.all(ret >= 0.0) and np.all(ret <= branch_len)
     return np.squeeze(ret), branch_len
 
-def log_likelihood_prf(demo, theta, sfs_counts, EPSILON=0.0):
-    '''
-    Return log likelihood under Poisson random field model.
-
-    demo: object returned by demography.make_demography
-    theta: mutation_rate
-    sfs_counts: dictionary {config : counts}
-    EPSILON: EPSILON/theta added onto SFS, to prevent taking log of 0
-             default is 0. Try setting to a small positive number, 
-             e.g. 1e-6, if optimizer is failing due to log(0).
-    '''
-    config_list,counts = zip(*sorted(sfs_counts.iteritems()))
-    counts = np.array(counts)
-
-    sfs_vals, branch_len = compute_sfs(demo, config_list)
-    sfs_vals = sfs_vals + EPSILON / theta
-    #ret = -branch_len * theta / 2.0 + np.sum(np.log(sfs_vals * theta / 2.0) * counts - scipy.special.gammaln(counts+1))
-    ret = -branch_len * theta + np.sum(np.log(sfs_vals * theta) * counts - scipy.special.gammaln(counts+1))
-
-    assert ret < 0.0
-    return ret
-
 ## TODO: make this a class that supports likelihood computation as well as variance computation
 ## TODO: use EPSILON
 ## taking gradient of this not supported, due to way we constructed counts matrix

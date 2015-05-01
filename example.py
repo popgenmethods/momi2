@@ -1,6 +1,7 @@
 from __future__ import division
 from demography import make_demography
-from sum_product import log_likelihood_prf, mle_estimated_variance
+from sum_product import mle_estimated_variance
+from maximum_likelihood import LogLikelihoodPRF
 from scipy.optimize import minimize
 import autograd.numpy as np
 from autograd.numpy import log,exp,dot
@@ -9,8 +10,6 @@ import scipy
 
 from util import memoize, aggregate_sfs
 from scipy.stats import chi2
-
-theta = 1.0
 
 def example_admixture_demo(x):
     '''
@@ -50,8 +49,9 @@ def example_admixture_demo(x):
         # ms population labels are swapped in this case
         pop0,pop1 = pop1,pop0
 
-    return make_demography(ms_cmd,
-                           pop0,pop1,g2,t3,p4,t5,p6,t7,t8,t9), theta
+    demo =  make_demography(ms_cmd,
+                            pop0,pop1,g2,t3,p4,t5,p6,t7,t8,t9)
+    return demo, 1.0
 
 true_x = np.random.normal(size=8)
 true_demo,_ = example_admixture_demo(true_x)
@@ -63,14 +63,17 @@ print true_x
 num_sims = 100
 print "\n# Simulating branch lengths for %d independent trees" % num_sims
 sfs_list = true_demo.simulate_sfs(num_sims)
-sfs_agg = aggregate_sfs(sfs_list)
+#sfs_agg = aggregate_sfs(sfs_list)
+
+log_lik_prf = LogLikelihoodPRF(example_admixture_demo, sfs_list)
 
 mle_covariance = mle_estimated_variance(sfs_list, example_admixture_demo,
                                         true_x)
 
 def objective(x):
     demo,_ = example_admixture_demo(x)
-    return -log_likelihood_prf(demo, num_sims, sfs_agg)
+    return -log_lik_prf.log_likelihood(x)
+    #return -log_likelihood_prf(demo, num_sims, sfs_agg)
 
 f = objective
 def f_verbose(x):

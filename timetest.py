@@ -8,6 +8,9 @@ from util import aggregate_sfs
 import sys
 sys.stdout = open('timetest.txt','w')
 
+
+### TODO: THIS FILE IS OUT OF DATE AND BROKEN
+
 def check_time(demo, data, *x):
     # do data
     #data = data[:50]
