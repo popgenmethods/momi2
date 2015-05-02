@@ -1,7 +1,7 @@
 from __future__ import division
 from demography import make_demography
-from sum_product import mle_estimated_variance
-from maximum_likelihood import LogLikelihoodPRF
+#from sum_product import mle_estimated_variance
+from maximum_likelihood import fit_log_likelihood_example
 from scipy.optimize import minimize
 import autograd.numpy as np
 from autograd.numpy import log,exp,dot
@@ -28,7 +28,7 @@ def example_admixture_demo(x):
     times $7,$8 = $3+exp(t7-1), $5+exp(t8-1)
     time $9 = max($7,$8) + exp(t9-1)
     '''
-    ms_cmd = ["-I 2 2 2",
+    ms_cmd = ["-I 2 10 10",
               "-g 1 $2", # pop 1 starts with growth rate $2
               "-es $3 1 $4",  # pop 1 pulses to pop $0 at t=$3, w.p. $4
               "-es $5 2 $6", # pop 2 pulses to pop $1 at t=$5, w.p. $6
@@ -54,62 +54,64 @@ def example_admixture_demo(x):
     return demo, 1.0
 
 true_x = np.random.normal(size=8)
-true_demo,_ = example_admixture_demo(true_x)
-print "# True demography"
-print true_demo.ms_cmd
-print "# True parameters"
-print true_x
+init_x = np.random.normal(size=8)
+num_sims = 10000
+fit_log_likelihood_example(example_admixture_demo, num_sims, true_x, init_x)
+#true_demo,_ = example_admixture_demo(true_x)
 
-num_sims = 100
-print "\n# Simulating branch lengths for %d independent trees" % num_sims
-sfs_list = true_demo.simulate_sfs(num_sims)
-#sfs_agg = aggregate_sfs(sfs_list)
 
-log_lik_prf = LogLikelihoodPRF(example_admixture_demo, sfs_list)
+# print "# True demography"
+# print true_demo.ms_cmd
+# print "# True parameters"
+# print true_x
 
-mle_covariance = mle_estimated_variance(sfs_list, example_admixture_demo,
-                                        true_x)
+# num_sims = 100
+# print "\n# Simulating branch lengths for %d independent trees" % num_sims
+# sfs_list = true_demo.simulate_sfs(num_sims)
+# #sfs_agg = aggregate_sfs(sfs_list)
 
-def objective(x):
-    demo,_ = example_admixture_demo(x)
-    return -log_lik_prf.log_likelihood(x)
-    #return -log_likelihood_prf(demo, num_sims, sfs_agg)
+# log_lik_prf = LogLikelihoodPRF(example_admixture_demo, sfs_list)
 
-f = objective
-def f_verbose(x):
-    # print how far we are from truth
-    print (x - true_x) / true_x
-    return f(x)
+# #mle_covariance = mle_estimated_variance(sfs_list, example_admixture_demo,
+# #                                        true_x)
+# mle_covariance = log_lik_prf.mle_Sigma_hat(true_x)
 
-g = grad(f)
-hp = hessian_vector_product(f, argnum=0)
-#hp_rev = hessian_vector_product(f,argnum=0)
-#hp = lambda x,vector: hessian_vector_product(f,argnum=0)(vector,x)
-# hp = hessian-vector product
-#gdot = lambda x,y: dot(y, g(x))
-#hp = grad(gdot)
+# def objective(x):
+#     demo,_ = example_admixture_demo(x)
+#     return -log_lik_prf.log_likelihood(x)
+#     #return -log_likelihood_prf(demo, num_sims, sfs_agg)
 
-init_x = np.random.normal(size=len(true_x))
-print "# Start point:"
-print init_x
-print "# Performing optimization"
-inferred_x = minimize(f_verbose, init_x, jac=g,hessp=hp,method='newton-cg')
+# f = objective
+# def f_verbose(x):
+#     # print how far we are from truth
+#     print (x - true_x) / true_x
+#     return f(x)
 
-print "# Optimization results:", "\n", inferred_x
-print "# Inferred params:", "\n", inferred_x.x
-print "# True params:", "\n", true_x
+# g = grad(f)
+# hp = hessian_vector_product(f, argnum=0)
 
-error = max(abs((true_x - inferred_x.x) / true_x))
-print "#Max error:", "\n", error
+# init_x = np.random.normal(size=len(true_x))
+# print "# Start point:"
+# print init_x
+# print "# Performing optimization"
+# inferred_x = minimize(f_verbose, init_x, jac=g,hessp=hp,method='newton-cg')
 
-mle_covariance = mle_estimated_variance(sfs_list, example_admixture_demo,
-                                        inferred_x.x)
-print "# Estimated MLE standard deviations"
-print np.sqrt(np.diag(mle_covariance))
+# print "# Optimization results:", "\n", inferred_x
+# print "# Inferred params:", "\n", inferred_x.x
+# print "# True params:", "\n", true_x
 
-print "# p-value for norm of transformed MLE"
-z = scipy.linalg.sqrtm(np.linalg.inv(mle_covariance)).dot(inferred_x.x)
-znorm = z.dot(z)
-print 1.0 - chi2.cdf(znorm, df=len(z))
+# error = max(abs((true_x - inferred_x.x) / true_x))
+# print "#Max error:", "\n", error
 
-#assert error < .05
+# #mle_covariance = mle_estimated_variance(sfs_list, example_admixture_demo,
+# #                                        inferred_x.x)
+# mle_covariance = log_lik_prf.mle_Sigma_hat(true_x)
+# print "# Estimated MLE standard deviations"
+# print np.sqrt(np.diag(mle_covariance))
+
+# print "# p-value for norm of transformed MLE"
+# z = scipy.linalg.sqrtm(np.linalg.inv(mle_covariance)).dot(inferred_x.x)
+# znorm = z.dot(z)
+# print 1.0 - chi2.cdf(znorm, df=len(z))
+
+# #assert error < .05

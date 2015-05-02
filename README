@@ -25,6 +25,10 @@ _es(t,i,p,splitpop=None,**kwargs)
 ***
 
 add back EPSILON to deal with underflow issues in log likelihood
+add a default. only use it if necessary. in that event, output a warning.
+
+basically have it work GRACEFULLY with minimal effort from user
+
 
 ***
 

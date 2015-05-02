@@ -26,62 +26,6 @@ def compute_sfs(demography, config_list):
     assert branch_len >= 0.0 and np.all(ret >= 0.0) and np.all(ret <= branch_len)
     return np.squeeze(ret), branch_len
 
-## TODO: make this a class that supports likelihood computation as well as variance computation
-## TODO: use EPSILON
-## taking gradient of this not supported, due to way we constructed counts matrix
-@primitive
-def mle_estimated_variance(sfs_list, demofunc, params, EPSILON=0.0):
-    config_list = sorted(set(sum([sfs.keys()
-                                  for sfs in sfs_list],[])))
-    # (i,j)th coordinate = count of config j in dataset i
-    counts = np.zeros((len(sfs_list), len(config_list)))
-    for i,sfs in enumerate(sfs_list):
-        for j,config in enumerate(config_list):
-            counts[i,j] = sfs[config]
-
-    def log_lik_vec(x):
-        demo,theta = demofunc(x)
-        theta = theta * np.ones(shape=(len(sfs_list),))
-        assert len(theta) == len(sfs_list)
-
-        sfs_vals, branch_len = compute_sfs(demo, config_list)
-        return -branch_len * theta + np.sum(np.outer(theta, sfs_vals) * counts
-                                            - scipy.special.gammaln(counts+1), axis=1)
-
-    def log_lik(x):
-        return np.sum(log_lik_vec(x)) / len(sfs_list)
-
-    def pre_outer_gradient(x):
-        l = log_lik_vec(x)
-        lc = make_constant(l)
-        return np.sum(0.5 * (l**2 - l*lc - lc*l)) / len(sfs_list)
-
-    h = hessian(log_lik)(params)
-    g_out = hessian(pre_outer_gradient)(params)
-    # h, g_out should be symmetric
-    assert np.allclose(h, h.transpose()) and np.allclose(g_out, g_out.transpose())
-    g_out,h = (g_out + g_out.transpose())/2, (h + h.transpose())/2
-    
-    h_inv = np.linalg.inv(h)
-    assert np.allclose(h_inv, h_inv.transpose())
-    h_inv = (h_inv + h_inv.transpose()) / 2
-
-    return h_inv.dot(g_out.dot(h_inv)) / len(sfs_list)
-
-def partial_likelihood_top(data, G, event, popList):
-    ''' Partial likelihood of data at top of node, i.e.
-    i.e. = P(n_top) P(x | n_derived_top, n_ancestral_top)
-    note n_top is fixed in Moran model, so P(n_top)=1
-    '''       
-    lik,sfs,branch_len = partial_likelihood(data, G, event)
-    for pop in popList:
-        idx = (_lik_axes(G, event)).index(pop)
-        lik = G.apply_transition(pop, lik, idx)
-
-    _check_positive(lik,sfs,branch_len)
-
-    return lik,sfs,branch_len
-
 def partial_likelihood(data, G, event):
     lik_fun = eval("_%s_likelihood" % G.event_type(event))
     lik,sfs,branch_len = lik_fun(data, G, event)
@@ -99,6 +43,22 @@ def partial_likelihood(data, G, event):
                             trunc_sfs, [newpop],
                             [''])
         branch_len = branch_len + np.dot(1.0 - sub_lik[0,:] , trunc_sfs)
+
+    _check_positive(lik,sfs,branch_len)
+
+    return lik,sfs,branch_len
+
+## TODO: rename this function to something better
+## like maybe apply_action or integrate_time
+def partial_likelihood_top(data, G, event, popList):
+    ''' Partial likelihood of data at top of node, i.e.
+    i.e. = P(n_top) P(x | n_derived_top, n_ancestral_top)
+    note n_top is fixed in Moran model, so P(n_top)=1
+    '''       
+    lik,sfs,branch_len = partial_likelihood(data, G, event)
+    for pop in popList:
+        idx = (_lik_axes(G, event)).index(pop)
+        lik = G.apply_transition(pop, lik, idx)
 
     _check_positive(lik,sfs,branch_len)
 
