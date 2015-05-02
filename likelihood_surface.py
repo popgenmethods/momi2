@@ -1,6 +1,6 @@
 from __future__ import division
 from util import make_constant, check_symmetric
-from autograd import hessian, grad, hessian_vector_product
+from autograd import hessian, grad, hessian_vector_product, jacobian
 import autograd.numpy as np
 import scipy
 from sum_product import compute_sfs
@@ -100,20 +100,32 @@ class CompositeLogLikelihood(object):
         '''
         h = hessian(self.log_likelihood)(true_params)
 
-        #g_out = einsum("ij,ik",Jacobian,Jacobian)
-        ## autograd Jacobian implementation is slow; construct g_out in roundabout way
-        def g_out_antihess(param):
-            l = self.log_likelihood(param, vector=True)
-            lc = make_constant(l)
-            return np.sum(0.5 * (l**2 - l*lc - lc*l))
-        g_out = hessian(g_out_antihess)(true_params)
-
+        g_out = self._g_out(true_params)
+        #assert g_out == self._g_out_slow(true_params)
         h,g_out = (check_symmetric(_) for _ in (h,g_out))
 
         h_inv = np.linalg.inv(h)
         h_inv = check_symmetric(h_inv)
 
-        return np.dot(h_inv, np.dot(g_out,h_inv))
+        ret = np.dot(h_inv, np.dot(g_out,h_inv))
+        return check_symmetric(ret)
+
+    def _g_out(self, params):
+        '''
+        Returns einsum("ij,ik", jacobian(params), jacobian(params))
+        But in a roundabout way because jacobian implementation is slow
+        '''
+        def g_out_antihess(x):
+            l = self.log_likelihood(x, vector=True)
+            lc = make_constant(l)
+            return np.sum(0.5 * (l**2 - l*lc - lc*l))
+        return hessian(g_out_antihess)(params)
+
+    ## TODO: make unit test of this function
+#     def _g_out_slow(self, params):
+#         j = jacobian(lambda x: self.log_likelihood(x, vector=True))(params)
+#         return np.einsum("ij,ik",j,j)
+
 
 
 def fit_log_likelihood_example(demo_func, num_sims, true_params, init_params, theta=None):
@@ -124,6 +136,8 @@ def fit_log_likelihood_example(demo_func, num_sims, true_params, init_params, th
     if theta is None:
         theta = 1.0
     surface = CompositeLogLikelihood(sfs_list, demo_func, theta=theta)
+
+    surface.max_covariance(true_params)
 
     # construct the function to minimize, and its gradients
     f = lambda params: -surface.log_likelihood(params)
@@ -147,18 +161,26 @@ def fit_log_likelihood_example(demo_func, num_sims, true_params, init_params, th
 
     for params,param_name in ((true_params,"TRUTH"), (inferred_params,"PLUGIN")):
         print "\n\n**** Estimating Sigma_hat at %s" % param_name
-        sigma_hat = surface.max_covariance(params)
-        sigma_hat_inv = scipy.linalg.sqrtm(np.linalg.inv(sigma_hat))
+        sigma = surface.max_covariance(params)
+
+        # recommend to call check_symmetric on matrix inverse and square root
+        # linear algebra routines may not preserve symmetry due to numerical errors,
+        # and this may cause errors to propogate
+        sigma_inv = check_symmetric(np.linalg.inv(sigma))
+        sigma_inv_root = check_symmetric(scipy.linalg.sqrtm(sigma_inv))
+
+        print "# Estimated standard deviation of inferred[i] - truth[i]"
+        sd = np.sqrt(np.diag(sigma))
+        print sd
         ## TODO: use t-test instead
-        print "# p-values of marginal Z-tests, that params[i]=true_params[i]"
-        print "# 2.0 * (1.0 - Normal_cdf(|Sigma_hat^{-1/2}[:,i] * (inferred[i]-truth[i])|))"
-        z = np.sqrt(np.sum(sigma_hat_inv * sigma_hat_inv, axis=1) * (inferred_params - true_params)**2)
-        print (1.0 - norm.cdf(z)) * 2.0
+        print "# p-value of Z-test that params[i]=true_params[i]"
+        z = (inferred_params - true_params) / sd
+        print (1.0 - norm.cdf(np.abs(z))) * 2.0
         print "# Transformed residuals EPS_hat = Sigma_hat^{-1/2} * (inferred - truth)"
-        eps_hat = sigma_hat_inv.dot(inferred_params - true_params )
+        eps_hat = sigma_inv_root.dot(inferred_params - true_params )
         print eps_hat
         ## TODO: use correct degrees of freedom
-        print "# Chi2 test on transformed residuals, for params=true_params"
+        print "# Chi2 test for params=true_params, using transformed residuals"
         print "# <EPS_hat,EPS_hat>, 1-Chi2_cdf(<EPS_hat,EPS_hat>,df=%d)" % len(eps_hat)
         eps_norm = np.sum(eps_hat**2)
         print eps_norm, 1.0 - chi2.cdf(eps_norm, df=len(eps_hat))
