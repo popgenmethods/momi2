@@ -1,5 +1,6 @@
 from demography import make_demography
-from maximum_likelihood import LogLikelihoodPRF, fit_log_likelihood_example
+#from maximum_likelihood import LogLikelihoodPRF, fit_log_likelihood_example
+from likelihood_surface import fit_log_likelihood_example
 from scipy.optimize import basinhopping, minimize
 import autograd.numpy as np
 from autograd.numpy import log,exp,dot
@@ -36,7 +37,7 @@ def simple_human_demo(n,
                            eurasia_split, exp(eurasia_size),
                            africa_split,
                            bottleneck, exp(ancestral_size))
-    return demo,None
+    return demo
 
 def check_simple_human_demo():
     #n = [10] * 3

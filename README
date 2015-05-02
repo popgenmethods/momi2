@@ -3,18 +3,22 @@ TODO:
 next steps:
 
 general cleanup, reorganization, removal of dead files
-make examples/ folder alongside test/ folder
-rename maximum_likelihood to likelihood_surface
 
 ***
-make LogLikelihoodSurface have default get_demo_theta
-that takes (demo,theta) as input and returns it
 
-(i.e., view demo,theta as input parameter)
+make examples/ folder alongside test/ folder
 
-Have log_likelihood still work, but have mle_Sigma_hat fail
-(assert that x is an ndarray)
+examples directory,
+with example.py,
+and
+example_demo_funcs.py
+and
 
+move
+fit_log_likelihood
+to example.py
+
+rename test_basinhopping. (turn it into example.py?)
 
 ***
 get rid of all calls to eval!!!
@@ -66,21 +70,6 @@ archaic DNA support
 ***
 
 change SCRM_PATH to MS_PATH
-
-***
-
-examples directory,
-with example.py,
-and
-example_demo_funcs.py
-and
-
-move
-fit_log_likelihood
-to example.py
-
-***
-rename test_basinhopping. (turn it into example.py?)
 
 ***
 Make autodifferentiation work for functional size history

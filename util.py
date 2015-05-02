@@ -77,3 +77,8 @@ truncate0.defgrad(lambda ans,x,axis=None: lambda g: g)
 def make_constant(x):
     return x
 make_constant.defgrad_is_zero()
+
+def check_symmetric(X):
+    Xt = np.transpose(X)
+    np.allclose(X, Xt)
+    return 0.5 * (X + Xt)

@@ -13,8 +13,8 @@ import networkx as nx
 
 from sum_product import compute_sfs
 from demography import make_demography
-from maximum_likelihood import LogLikelihoodPRF
-#from util import aggregate_sfs
+from likelihood_surface import SfsPoissonLogLikelihood as LogLik
+
 
 def test_joint_sfs_inference():
     N0=1.0
@@ -35,7 +35,7 @@ def test_joint_sfs_inference():
     #jsfs = aggregate_sfs(true_demo.simulate_sfs(num_runs, theta=theta))
     sfs_list = true_demo.simulate_sfs(num_runs, theta=theta)
 
-    log_lik = LogLikelihoodPRF(get_demo, sfs_list)
+    log_lik = LogLik(get_demo, sfs_list)
 
     print(t0,t1)
     def f(join_time):
