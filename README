@@ -2,10 +2,40 @@ TODO:
 
 next steps:
 
+general cleanup, reorganization, removal of dead files
+make examples/ folder alongside test/ folder
+rename maximum_likelihood to likelihood_surface
+
+***
+make LogLikelihoodSurface have default get_demo_theta
+that takes (demo,theta) as input and returns it
+
+(i.e., view demo,theta as input parameter)
+
+Have log_likelihood still work, but have mle_Sigma_hat fail
+(assert that x is an ndarray)
+
 
 ***
 get rid of all calls to eval!!!
 (it is not safe)
+
+***
+remove all TODO (grep for it)
+
+
+***
+
+add back EPSILON to deal with underflow issues in log likelihood
+add a default. only use it if necessary. in that event, output a warning.
+
+basically have it work GRACEFULLY with minimal effort from user
+
+test what parameter of EPSILON is needed for log_likelihood_prf
+(perhaps by starting out optimizer in very unlikely position)
+
+also visually look how many 0s occur, and for what sorts of configs
+
 
 ***
 don't require user to figure out which population is indexed where...
@@ -23,40 +53,6 @@ _es(t,i,p,splitpop=None,**kwargs)
 )
 
 ***
-
-add back EPSILON to deal with underflow issues in log likelihood
-add a default. only use it if necessary. in that event, output a warning.
-
-basically have it work GRACEFULLY with minimal effort from user
-
-
-***
-
-add try/except to moran_model.action, to call moran_al_mohy_higham?
-seems like trunc0 might still fail occassionally, possibly due to moran action
-(or possibly due to something else)
-
-***
-
-make likelihood functions that take in a list of sfs's
-and also a Sigma_mle_hat
-that takes in same list, and returns the estimated variance of the mle
-
-To compute variances: treat each chromosome/sequence as an independent dataset
-Use theory of M/Z-estimators
-This also allows for using bootstrap estimation of variance
-
-To compute this efficiently use a hack: define a primitive function
-remove_gradient(x)
-that returns x, but whose gradient returns 0
-
-This allows to compute E[xdot * xdot] by computing hessian of
-E[x*x]/2.0 - (E[x_ * x] + E[x * x_]) / 2.0
-where
-x_ = remove_gradient(x)
-
-***
-
 GPU support
 
 ***
@@ -68,19 +64,20 @@ Missing data support
 archaic DNA support
 
 ***
-remove all TODO (grep for it)
-
-***
 
 change SCRM_PATH to MS_PATH
 
 ***
 
-test what parameter of EPSILON is needed for log_likelihood_prf
-(perhaps by starting out optimizer in very unlikely position)
+examples directory,
+with example.py,
+and
+example_demo_funcs.py
+and
 
-also visually look how many 0s occur, and for what sorts of configs
-
+move
+fit_log_likelihood
+to example.py
 
 ***
 rename test_basinhopping. (turn it into example.py?)
@@ -105,11 +102,6 @@ for simulate_sfs, make theta=None work when -r is set
 
 ***
 add option to simulate from ms instead of scrm
-
-***
-store sumCounts, sumSqCounts, nonzeroCounts in a single object?
-OR
-name it sfs_counts, sq_counts, nonzero_counts instead
 
 ***
 add back from __future__ import division
