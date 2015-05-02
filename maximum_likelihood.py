@@ -95,7 +95,7 @@ def fit_log_likelihood_example(get_demo_theta, num_sims, true_x, init_x):
         print (x - true_x) / true_x
         return f(x)    
 
-    init_x = np.random.normal(size=len(true_x))
+    #init_x = np.random.normal(size=len(true_x))
     print "# Start point:"
     print init_x
     print "# Performing optimization"
@@ -104,8 +104,8 @@ def fit_log_likelihood_example(get_demo_theta, num_sims, true_x, init_x):
     
     inferred_x = optimize_res.x
     error = (true_x - inferred_x) / true_x
-    print "# Max Percent Error: %f" % max(abs(error))
-    print "# Percent Error:","\n",error
+    print "# Max Percent Error: %f" % max(abs(error)) * 100
+    print "# Percent Error:","\n",error * 100
     print "# True params:", "\n", true_x
     print "# Inferred params:", "\n", inferred_x   
 

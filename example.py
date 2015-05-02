@@ -54,64 +54,6 @@ def example_admixture_demo(x):
     return demo, 1.0
 
 true_x = np.random.normal(size=8)
-init_x = np.random.normal(size=8)
 num_sims = 10000
-fit_log_likelihood_example(example_admixture_demo, num_sims, true_x, init_x)
-#true_demo,_ = example_admixture_demo(true_x)
-
-
-# print "# True demography"
-# print true_demo.ms_cmd
-# print "# True parameters"
-# print true_x
-
-# num_sims = 100
-# print "\n# Simulating branch lengths for %d independent trees" % num_sims
-# sfs_list = true_demo.simulate_sfs(num_sims)
-# #sfs_agg = aggregate_sfs(sfs_list)
-
-# log_lik_prf = LogLikelihoodPRF(example_admixture_demo, sfs_list)
-
-# #mle_covariance = mle_estimated_variance(sfs_list, example_admixture_demo,
-# #                                        true_x)
-# mle_covariance = log_lik_prf.mle_Sigma_hat(true_x)
-
-# def objective(x):
-#     demo,_ = example_admixture_demo(x)
-#     return -log_lik_prf.log_likelihood(x)
-#     #return -log_likelihood_prf(demo, num_sims, sfs_agg)
-
-# f = objective
-# def f_verbose(x):
-#     # print how far we are from truth
-#     print (x - true_x) / true_x
-#     return f(x)
-
-# g = grad(f)
-# hp = hessian_vector_product(f, argnum=0)
-
-# init_x = np.random.normal(size=len(true_x))
-# print "# Start point:"
-# print init_x
-# print "# Performing optimization"
-# inferred_x = minimize(f_verbose, init_x, jac=g,hessp=hp,method='newton-cg')
-
-# print "# Optimization results:", "\n", inferred_x
-# print "# Inferred params:", "\n", inferred_x.x
-# print "# True params:", "\n", true_x
-
-# error = max(abs((true_x - inferred_x.x) / true_x))
-# print "#Max error:", "\n", error
-
-# #mle_covariance = mle_estimated_variance(sfs_list, example_admixture_demo,
-# #                                        inferred_x.x)
-# mle_covariance = log_lik_prf.mle_Sigma_hat(true_x)
-# print "# Estimated MLE standard deviations"
-# print np.sqrt(np.diag(mle_covariance))
-
-# print "# p-value for norm of transformed MLE"
-# z = scipy.linalg.sqrtm(np.linalg.inv(mle_covariance)).dot(inferred_x.x)
-# znorm = z.dot(z)
-# print 1.0 - chi2.cdf(znorm, df=len(z))
-
-# #assert error < .05
+fit_log_likelihood_example(example_admixture_demo, num_sims, true_x, np.random.normal(size=8))
+#fit_log_likelihood_example(example_admixture_demo, num_sims, true_x, true_x)
