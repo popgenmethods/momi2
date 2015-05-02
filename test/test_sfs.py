@@ -2,7 +2,7 @@ from __future__ import division
 import pytest
 from demography import make_demography
 from sum_product import compute_sfs
-from test_sfs_counts import simple_admixture_demo
+from test_sims import simple_admixture_demo
 from test_gradient import simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model
 from test_gradient import log_within
 import autograd.numpy as np

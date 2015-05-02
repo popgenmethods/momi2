@@ -10,7 +10,7 @@ import random
 from sum_product import compute_sfs
 #import math
 from numdifftools import Gradient, Hessian
-from test_sfs_counts import simple_admixture_demo
+from test_sims import simple_admixture_demo
 
 EPS=1e-8
 

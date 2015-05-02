@@ -13,7 +13,7 @@ import networkx as nx
 
 from sum_product import compute_sfs
 from demography import make_demography
-from likelihood_surface import SfsPoissonLogLikelihood as LogLik
+from likelihood_surface import CompositeLogLikelihood as LogLik
 
 
 def test_joint_sfs_inference():
@@ -27,15 +27,15 @@ def test_joint_sfs_inference():
         join_time, = join_time
         return make_demography("-I 3 1 1 1 -ej $0 1 2 -ej $1 2 3",
                                join_time / 2. * N0,
-                               t1 / 2. * N0), theta
+                               t1 / 2. * N0)
 
-    true_demo,_ = get_demo([t0])
+    true_demo = get_demo([t0])
 
     #jsfs,sqCounts,nonzero = true_demo.simulate_sfs(num_runs, theta=theta)
     #jsfs = aggregate_sfs(true_demo.simulate_sfs(num_runs, theta=theta))
     sfs_list = true_demo.simulate_sfs(num_runs, theta=theta)
 
-    log_lik = LogLik(get_demo, sfs_list)
+    log_lik = LogLik(sfs_list, get_demo, theta=theta)
 
     print(t0,t1)
     def f(join_time):

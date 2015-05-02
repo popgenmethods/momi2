@@ -5,7 +5,7 @@ import networkx as nx
 from sum_product import compute_sfs
 from autograd.numpy import log
 import autograd.numpy as np
-from test_sfs_counts import simple_admixture_demo
+from test_sims import simple_admixture_demo
 
 def random_tree_demo(num_leaf_pops, lins_per_pop):
     cmd = "-I %d %s" % (num_leaf_pops, " ".join([str(lins_per_pop)] * num_leaf_pops))

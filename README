@@ -5,20 +5,13 @@ next steps:
 general cleanup, reorganization, removal of dead files
 
 ***
+move test demographies to their own file
+(or have an example_demographies be accessible through __init__)
 
-make examples/ folder alongside test/ folder
+***
 
-examples directory,
-with example.py,
-and
-example_demo_funcs.py
-and
-
-move
-fit_log_likelihood
-to example.py
-
-rename test_basinhopping. (turn it into example.py?)
+write example_sfs.py
+clean up TODO's in examples
 
 ***
 get rid of all calls to eval!!!
@@ -44,6 +37,9 @@ also visually look how many 0s occur, and for what sorts of configs
 ***
 don't require user to figure out which population is indexed where...
 
+allow a new variable convention, e.g. #2.1 is the first population that split from 2?
+(but what if we have multiple splits off same pop?)
+OR
 either preprocess the input
 OR
 (
@@ -94,10 +90,6 @@ add option to simulate from ms instead of scrm
 
 ***
 add back from __future__ import division
-
-***
-get rid of Demography.from_newick
-get rid of from_newick, to_newick in parse_ms
 
 ***
 tau = inf in ExponentialHistory currently disabled because it breaks automatic differentiation
