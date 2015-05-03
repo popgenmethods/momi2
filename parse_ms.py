@@ -15,16 +15,19 @@ from collections import Counter
 ## TODO: do some reorganization and cleanup of this file
 
 
-def _to_nx(ms_cmd, *params):
-    parser = MsCmdParser(*params)
+def _to_nx(ms_cmd, *args, **kwargs):
+    parser = MsCmdParser(*args, **kwargs)
     cmd_list = parser.sorted_cmd_list(ms_cmd)
     for event in cmd_list:
         parser.add_event(*event)
     return parser.to_nx()
 
 class MsCmdParser(object):
-    def __init__(self, *params):
-        self.params = params
+    def __init__(self, *args, **kwargs):
+        #self.params = params
+        self.params_dict = dict(kwargs)
+        for i,x in enumerate(args):
+            self.params_dict[str(i)] = x
 
         self.events,self.edges,self.nodes = [],[],{}
         # roots is the set of nodes currently at the root of the graph
@@ -216,11 +219,11 @@ class MsCmdParser(object):
         if not isinstance(var,str):
             return var
         if var[0] == "$":
-            ret = self.params[int(var[1:])]
+            ret = self.params_dict[var[1:]]
         else:
             ret = vartype(var)
         if isnan(ret):
-            raise Exception("nan in params %s" % (str(self.params)))
+            raise Exception("nan in params %s" % (str(self.params_dict)))
         return ret
 
     def getint(self, var):

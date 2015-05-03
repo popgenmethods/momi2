@@ -10,8 +10,8 @@ import parse_ms
 import random
 import itertools
 
-def make_demography(ms_cmd, *params):
-    return Demography(parse_ms._to_nx(ms_cmd, *params))
+def make_demography(ms_cmd, *args, **kwargs):
+    return Demography(parse_ms._to_nx(ms_cmd, *args, **kwargs))
 
 class Demography(nx.DiGraph):
     ## TODO: remove this method

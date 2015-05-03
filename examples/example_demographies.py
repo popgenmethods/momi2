@@ -68,9 +68,9 @@ def example_admixture_demo(x):
               "-g 1 $0", # pop 1 starts with growth rate $2
               "-es $1 1 $2",  # pop 1 pulses to pop $0 at t=$3, w.p. $4
               "-es $3 2 $4", # pop 2 pulses to pop $1 at t=$5, w.p. $6
-              "-ej $5 #3 1", # pops 1 and $0 coalesce at t=$7
-              "-ej $6 #4 2", # pops 2 and $1 coalesce at t=$8
-              "-ej $7 1 2"] # pops 1 and 2 coalesce at t=$9
+              "-ej $t5 #3 1", # pops 1 and $0 coalesce at t=$7
+              "-ej $t6 #4 2", # pops 2 and $1 coalesce at t=$8
+              "-ej $t7 1 2"] # pops 1 and 2 coalesce at t=$9
     ms_cmd = " ".join(ms_cmd)
     
     g0,t1,p2,t3,p4,t5,t6,t7 = x
@@ -81,7 +81,7 @@ def example_admixture_demo(x):
     t7 = anp.maximum(t5,t6) + anp.exp(t7-1)
 
     demo =  make_demography(ms_cmd,
-                            g0,t1,p2,t3,p4,t5,t6,t7)
+                            g0,t1,p2,t3,p4,t5=t5,t6=t6,t7=t7)
     return demo
 # def example_admixture_demo(x):
 #     '''
