@@ -38,23 +38,34 @@ class MsCmdParser(object):
         return 0.0
 
     def sorted_cmd_list(self, ms_cmd):
-        cmd_list = []
+        unsorted_list = []
         for arg in ms_cmd.split():
             if arg[0] == '-' and arg[1].isalpha():
                 curr_args = [arg[1:]]
-                cmd_list.append(curr_args)
+                unsorted_list.append(curr_args)
             else:
-                curr_args.append(arg)
+                curr_args.append(arg)       
+        assert unsorted_list[0][0] == 'I'
 
-        unsorted_list = cmd_list
-        cmd_list,times = [],[]
+        n_leaf_pop = self.getint(unsorted_list[0][1])
+
+        sorted_cmd,times = [],[]
+        sorted_pops = ['#'+str(i) for i in range(1,n_leaf_pop+1)]
+        pop_times = [0.0]*n_leaf_pop
         for cmd in unsorted_list:
             t = self.get_time(cmd[0], *cmd[1:])
             idx = bisect.bisect_right(times, t)
             times.insert(idx, t)
-            cmd_list.insert(idx, cmd)            
-        assert cmd_list[0][0] == 'I'
-        return cmd_list
+            sorted_cmd.insert(idx, cmd)
+
+            if cmd[0] == 'es':
+                idx = bisect.bisect_right(pop_times, t)
+                pop_times.insert(idx, t)
+                sorted_pops.insert(idx, '#'+str(len(sorted_pops)+1))
+        assert sorted_cmd[0][0] == 'I'
+
+        self.pop_by_order = {x : i for i,x in enumerate(sorted_pops,1)}
+        return sorted_cmd
 
     def add_event(self, event_flag, *args):
         # add nodes,edges,events associated with the event
@@ -65,9 +76,16 @@ class MsCmdParser(object):
         self.prev_time = t
         self.cmd_list.append("-%s %s" % (event_flag, " ".join(map(str,args))))
 
+    def getpop(self, pop):
+        if not isinstance(pop, str):
+            return pop
+        if pop[0] == '#':
+            return self.pop_by_order[pop]
+        return self.getint(pop)
+
     def _es(self, t,i,p):
         t,p = map(self.getfloat, (t,p))
-        i = self.getint(i)
+        i = self.getpop(i)
 
         child = self.roots[i]
         self.set_sizes(self.nodes[child], t)
@@ -92,7 +110,7 @@ class MsCmdParser(object):
 
     def _ej(self, t,i,j):
         t = self.getfloat(t)
-        i,j = map(self.getint, [i,j])
+        i,j = map(self.getpop, [i,j])
 
         for k in i,j:
             # sets the TruncatedSizeHistory, and N_top and alpha for all epochs
@@ -116,7 +134,7 @@ class MsCmdParser(object):
 
     def _en(self, t,i,N):
         t,N = map(self.getfloat, [t,N])
-        i = self.getint(i)
+        i = self.getpop(i)
         self.nodes[self.roots[i]]['sizes'].append({'t':t,'N':N,'alpha':None})
         return t,i,N
 
@@ -132,7 +150,7 @@ class MsCmdParser(object):
             alpha = None
         else:
             alpha = self.getfloat(alpha)
-        t,i = self.getfloat(t), self.getint(i)
+        t,i = self.getfloat(t), self.getpop(i)
         self.nodes[self.roots[i]]['sizes'].append({'t':t,'alpha':alpha})
         return t,i,alpha
 
@@ -149,7 +167,7 @@ class MsCmdParser(object):
             raise IOError(("-n should be called before any demographic changes", kwargs['cmd']))
         assert not self.edges and len(self.nodes) == len(self.roots)
 
-        i,N = self.getint(i), self.getfloat(N)
+        i,N = self.getpop(i), self.getfloat(N)
         pop = self.roots[i]
         assert len(self.nodes[pop]['sizes']) == 1
         self.nodes[pop]['sizes'][0]['N'] = N
@@ -161,7 +179,7 @@ class MsCmdParser(object):
         if self.events:
             raise IOError(("-g,-G should be called before any demographic changes", kwargs['cmd']))
         assert not self.edges and len(self.nodes) == len(self.roots)
-        i = self.getint(i)
+        i = self.getpop(i)
         pop = self.roots[i]
         assert len(self.nodes[pop]['sizes']) == 1
         if self.getfloat(alpha) == 0.0 and alpha[0] != "$":

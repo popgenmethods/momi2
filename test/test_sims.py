@@ -22,7 +22,7 @@ def simple_admixture_demo(x, n_lins):
     #for i in range(1,len(t)):
     #    t[i] += t[i-1]
     p = 1.0 / (1.0 + np.exp(x[5:]))
-    return make_demography("-I 2 %d %d -es $0 2 $1 -es $2 2 $3 -ej $4 4 3 -ej $5 3 1 -ej $6 2 1" % (n_lins['1'], n_lins['2']), 
+    return make_demography("-I 2 %d %d -es $2 2 $3 -es $0 2 $1 -ej $4 #3 #4 -ej $5 #4 1 -ej $6 2 1" % (n_lins['1'], n_lins['2']), 
                            t[0], p[0], t[1], p[1], t[2], t[3], t[4])
 
 def test_admixture():
