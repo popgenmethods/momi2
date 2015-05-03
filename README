@@ -10,10 +10,6 @@ write example_sfs.py
 clean up TODO's in examples
 
 ***
-get rid of all calls to eval!!!
-(it is not safe)
-
-***
 remove all TODO (grep for it)
 
 

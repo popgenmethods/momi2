@@ -27,7 +27,7 @@ def compute_sfs(demography, config_list):
     return np.squeeze(ret), branch_len
 
 def partial_likelihood(data, G, event):
-    lik_fun = eval("_%s_likelihood" % G.event_type(event))
+    lik_fun = _event_lik_fun(G, event)
     lik,sfs,branch_len = lik_fun(data, G, event)
 
     # add on sfs entry at this event
@@ -80,6 +80,19 @@ def _lik_axes(G, event):
     sub_pops = list(G.sub_pops(event))
     assert '' not in sub_pops
     return [''] + sub_pops
+
+def _event_lik_fun(G, event):
+    e_type = G.event_type(event)
+    if e_type == 'leaf':
+        return _leaf_likelihood
+    elif e_type == 'admixture':
+        return _admixture_likelihood
+    elif e_type == 'merge_subpops':
+        return _merge_subpops_likelihood
+    elif e_type == 'merge_clusters':
+        return _merge_clusters_likelihood
+    else:
+        raise Exception("Unrecognized event type.")
 
 def _leaf_likelihood(data, G, event):
     leaf, = G.parent_pops(event)
