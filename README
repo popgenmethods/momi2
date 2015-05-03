@@ -5,6 +5,13 @@ next steps:
 general cleanup, reorganization, removal of dead files
 
 ***
+when constructing demographies:
+if $0==$1 are times,
+the sorting is ill-defined
+
+so use bisect instead of dictionary to sort
+
+***
 move test demographies to their own file
 (or have an example_demographies be accessible through __init__)
 

@@ -10,183 +10,194 @@ import sh, os, random
 import itertools
 from collections import Counter
 
-def sort_ms_cmd(args_list, params):
-    ret = {}
-    for arg in args_list:
-        if arg[0].startswith("e"):
-            t = params.getfloat(arg[1])
-        else:
-            t = 0.0
-        if t not in ret:
-            ret[t] = []
-        ret[t].append(arg)
-    ret = sum([x for t,x in sorted(ret.iteritems())], [])
-    return ret
+## TODO: do some reorganization and cleanup of this file
 
-'''
-Construct networkx DiGraph from ms command.
-Use demography.make_demography instead of calling this directly.
-'''
+
 def _to_nx(ms_cmd, *params):
-    get_params = GetParams(params)
+    parser = MsCmdParser(*params)
+    cmd_list = parser.sorted_cmd_list(ms_cmd)
+    for event in cmd_list:
+        parser.add_event(*event)
+    return parser.to_nx()
 
-    ms_cmd = ms_cmd.strip()
-    if not ms_cmd.startswith("-I "):
-        raise IOError(("Must start cmd with -I", ms_cmd))
+class MsCmdParser(object):
+    def __init__(self, *params):
+        self.params = params
 
-    cmd_list = []
+        self.events,self.edges,self.nodes = [],[],{}
+        # roots is the set of nodes currently at the root of the graph
+        self.roots = {}
+        self.prev_time = 0.0
+        self.cmd_list = []
 
-    for arg in ms_cmd.split():
-        if arg[0] == '-' and arg[1].isalpha():
-            curr_args = [arg[1:]]
-            cmd_list.append(curr_args)
+    def get_time(self, event_type, *args):
+        if event_type[0] == 'e':
+            return self.getfloat(args[0])
+        return 0.0
+
+    def sorted_cmd_list(self, ms_cmd):
+        cmd_list = []
+        for arg in ms_cmd.split():
+            if arg[0] == '-' and arg[1].isalpha():
+                curr_args = [arg[1:]]
+                cmd_list.append(curr_args)
+            else:
+                curr_args.append(arg)
+        assert cmd_list[0][0] == 'I'
+        #return cmd_list
+
+        sorted_cmd = {}
+        for cmd in cmd_list:
+            t = self.get_time(*cmd)
+            if t not in sorted_cmd:
+                sorted_cmd[t] = []
+            sorted_cmd[t].append(cmd)
+        return sum([v for k,v in sorted(sorted_cmd.iteritems())],[])
+
+    def add_event(self, event_flag, *args):
+        # add nodes,edges,events associated with the event
+        # and get back the arguments with variables substituted in
+        args = getattr(self, '_' + event_flag)(*args)
+        t = self.get_time(event_flag, *args)
+        assert t >= self.prev_time
+        self.prev_time = t
+        self.cmd_list.append("-%s %s" % (event_flag, " ".join(map(str,args))))
+#         if t not in self.sorted_cmd:
+#             self.sorted_cmd[t] = []
+#         self.sorted_cmd[t].append("-%s %s" % (event_flag, " ".join(map(str,args))))
+        
+
+    def _es(self, t,i,p):
+        t,p = map(self.getfloat, (t,p))
+        i = self.getint(i)
+
+        child = self.roots[i]
+        self.set_sizes(self.nodes[child], t)
+
+        parents = ((child,), len(self.roots)+1)
+        assert all([par not in self.nodes for par in parents])
+
+        self.nodes[child]['splitprobs'] = {par : prob for par,prob in zip(parents, [p,1-p])}
+
+        prev = self.nodes[child]['sizes'][-1]
+        self.nodes[parents[0]] = {'sizes':[{'t':t,'N':prev['N_top'], 'alpha':prev['alpha']}]}
+        self.nodes[parents[1]] = {'sizes':[{'t':t,'N':1.0, 'alpha':None}]}
+
+        new_edges = tuple([(par, child) for par in parents])
+        self.events.append( new_edges )
+        self.edges += list(new_edges)
+
+        self.roots[i] = parents[0]
+        self.roots[len(self.roots)+1] = parents[1]
+        
+        return t,i,p
+
+    def _ej(self, t,i,j):
+        t = self.getfloat(t)
+        i,j = map(self.getint, [i,j])
+
+        for k in i,j:
+            # sets the TruncatedSizeHistory, and N_top and alpha for all epochs
+            self.set_sizes(self.nodes[self.roots[k]], t)
+
+        new_pop = (self.roots[i], self.roots[j])
+        self.events.append( ((new_pop,self.roots[i]),
+                        (new_pop,self.roots[j]))  )
+
+        assert new_pop not in self.nodes
+        prev = self.nodes[self.roots[j]]['sizes'][-1]
+        self.nodes[new_pop] = {'sizes':[{'t':t,'N':prev['N_top'], 'alpha':prev['alpha']}]}
+
+        self.edges += [(new_pop, self.roots[i]), (new_pop, self.roots[j])]
+
+        self.roots[j] = new_pop
+        #del self.roots[i]
+        self.roots[i] = None
+
+        return t,i,j
+
+    def _en(self, t,i,N):
+        t,N = map(self.getfloat, [t,N])
+        i = self.getint(i)
+        self.nodes[self.roots[i]]['sizes'].append({'t':t,'N':N,'alpha':None})
+        return t,i,N
+
+    def _eN(self, t, N):
+        assert self.roots
+        for i in self.roots:
+             if self.roots[i] is not None:
+                 self._en(t, i, N)
+        return map(self.getfloat, (t,N))
+
+    def _eg(self, t,i,alpha):
+        if self.getfloat(alpha) == 0.0 and alpha[0] != "$":
+            alpha = None
         else:
-            curr_args.append(arg)
-    assert cmd_list[0][0] == 'I'
+            alpha = self.getfloat(alpha)
+        t,i = self.getfloat(t), self.getint(i)
+        self.nodes[self.roots[i]]['sizes'].append({'t':t,'alpha':alpha})
+        return t,i,alpha
 
-    cmd_list = sort_ms_cmd(cmd_list, get_params)
-    ms_cmd = ["-" + " ".join([str(x) for x in arg]) for arg in cmd_list]
-    ms_cmd = " ".join(ms_cmd)
-    # replace variables in the ms cmd string
-    ### TODO: fix this try/except! it's needed in general, but breaks for autograd
-    try:
-        ## MUST do this in reversed order, otherwise ($26) will turn into ($2)6
-        for i in reversed(range(len(params))):
-            ms_cmd = ms_cmd.replace("$" + str(i), str(params[i]))
-    except:
-        pass
+    def _eG(self, t,alpha):
+        assert self.roots
+        for i in self.roots:
+            if self.roots[i] is not None:
+                self._eg(t,i,alpha)
+        return map(self.getfloat, (t,alpha))
 
-    # now parse the ms cmd, store results in kwargs
-    kwargs = {'events':[],'edges':[],'nodes':{},'roots':{},'cmd':ms_cmd,'params':get_params}
-    for cmd in cmd_list:
-        if cmd[0] not in valid_params:
-            raise NotImplementedError("-%s not implemented" % cmd[0])
-        cmdfunc, args = eval("_" + cmd[0]), cmd[1:]
-        cmdfunc(*args, **kwargs)
+    def _n(self, i,N):
+        assert self.roots
+        if self.events:
+            raise IOError(("-n should be called before any demographic changes", kwargs['cmd']))
+        assert not self.edges and len(self.nodes) == len(self.roots)
 
-    # return nx.DiGraph from parsed ms cmd
-    return _nx_from_parsed_ms(**kwargs)
+        i,N = self.getint(i), self.getfloat(N)
+        pop = self.roots[i]
+        assert len(self.nodes[pop]['sizes']) == 1
+        self.nodes[pop]['sizes'][0]['N'] = N
 
-valid_params = set(["G","I","n","g","eG","eg","eN","en","ej","es"])
+        return i,N
 
-def _es(t,i,p, events, nodes, roots, edges, cmd, params, **kwargs):
-    t,p = map(params.getfloat, (t,p))
-    i = params.getint(i)
+    def _g(self, i,alpha):
+        assert self.roots
+        if self.events:
+            raise IOError(("-g,-G should be called before any demographic changes", kwargs['cmd']))
+        assert not self.edges and len(self.nodes) == len(self.roots)
+        i = self.getint(i)
+        pop = self.roots[i]
+        assert len(self.nodes[pop]['sizes']) == 1
+        if self.getfloat(alpha) == 0.0 and alpha[0] != "$":
+            alpha = None
+        else:
+            alpha = self.getfloat(alpha)
+        self.nodes[pop]['sizes'][0]['alpha'] = alpha
 
-    child = roots[i]
-    set_model(nodes[child], t, cmd)
+        return i,alpha
 
-    parents = ((child,), len(roots)+1)
-    assert all([par not in nodes for par in parents])
+    def _G(self, rate):
+        assert self.roots
+        for i in self.roots:
+            if self.roots[i] is not None:
+                self._g(i, rate)
+        return self.getfloat(rate),
 
-    nodes[child]['splitprobs'] = {par : prob for par,prob in zip(parents, [p,1-p])}
+    def _I(self, npop, *lins_per_pop):
+        # -I should be called first, so everything should be empty
+        assert all([not x for x in self.roots,self.events,self.edges,self.nodes])
+        
+        npop = self.getint(npop)
+        lins_per_pop = map(self.getint,lins_per_pop)
 
-    prev = nodes[child]['sizes'][-1]
-    nodes[parents[0]] = {'sizes':[{'t':t,'N':prev['N_top'], 'alpha':prev['alpha']}]}
-    nodes[parents[1]] = {'sizes':[{'t':t,'N':1.0, 'alpha':None}]}
+        if len(lins_per_pop) != npop:
+            raise IOError("Bad args for -I. Note continuous migration is not implemented.")
 
-    new_edges = tuple([(par, child) for par in parents])
-    events.append( new_edges )
-    edges += list(new_edges)
-
-    roots[i] = parents[0]
-    roots[len(roots)+1] = parents[1]
-
-def _ej(t,i,j, events, nodes, roots, edges, cmd, params, **kwargs):
-    t = params.getfloat(t)
-    i,j = map(params.getint, [i,j])
-
-    for k in i,j:
-        # sets the TruncatedSizeHistory, and N_top and alpha for all epochs
-        set_model(nodes[roots[k]], t, cmd)
-
-    new_pop = (roots[i], roots[j])
-    events.append( ((new_pop,roots[i]),
-                    (new_pop,roots[j]))  )
-
-    assert new_pop not in nodes
-    prev = nodes[roots[j]]['sizes'][-1]
-    nodes[new_pop] = {'sizes':[{'t':t,'N':prev['N_top'], 'alpha':prev['alpha']}]}
-
-    edges += [(new_pop, roots[i]), (new_pop, roots[j])]
-
-    roots[j] = new_pop
-    #del roots[i]
-    roots[i] = None
-
-def _en(t,i,N, nodes, roots, params, **kwargs):
-    t,N = map(params.getfloat, [t,N])
-    i = params.getint(i)
-    nodes[roots[i]]['sizes'].append({'t':t,'N':N,'alpha':None})
-
-def _eN(t,N, roots, **kwargs):
-    assert roots
-    for i in roots:
-         if roots[i] is not None:
-             _en(t, i, N, roots=roots, **kwargs)
-
-def _eg(t,i,alpha, roots, nodes, params, **kwargs):
-    if params.getfloat(alpha) == 0.0 and alpha[0] != "$":
-        alpha = None
-    else:
-        alpha = params.getfloat(alpha)
-    t,i = params.getfloat(t), params.getint(i)
-    nodes[roots[i]]['sizes'].append({'t':t,'alpha':alpha})
-
-def _eG(t,alpha, roots, **kwargs):
-    assert roots
-    for i in roots:
-        if roots[i] is not None:
-            _eg(t,i,alpha, roots=roots, **kwargs)
-
-def _n(i,N, nodes, events, edges, roots, params, **kwargs):
-    assert roots
-    if events:
-        raise IOError(("-n should be called before any demographic changes", kwargs['cmd']))
-    assert not edges and len(nodes) == len(roots)
-    i = roots[params.getint(i)]
-    assert len(nodes[i]['sizes']) == 1
-    nodes[i]['sizes'][0]['N'] = params.getfloat(N)
-
-def _g(i,alpha, nodes, events, edges, roots, params, **kwargs):
-    assert roots
-    if events:
-        raise IOError(("-g,-G should be called before any demographic changes", kwargs['cmd']))
-    assert not edges and len(nodes) == len(roots)
-    i = roots[params.getint(i)]
-    assert len(nodes[i]['sizes']) == 1
-    if params.getfloat(alpha) == 0.0 and alpha[0] != "$":
-        alpha = None
-    else:
-        alpha = params.getfloat(alpha)
-    nodes[i]['sizes'][0]['alpha'] = alpha
-
-def _G(rate, roots, nodes, **kwargs):
-    assert roots
-    for i in roots:
-        if roots[i] is not None:
-            _g(i, rate, roots=roots, nodes=nodes, **kwargs)
-
-def _I(*args, **kwargs):
-    # -I should be called first, so kwargs should be empty
-    assert all([not kwargs[x] for x in 'roots','events','edges','nodes'])
-
-    npop = int(args[0])
-    lins_per_pop = map(int,args[1:])
-    if len(lins_per_pop) != npop:
-        raise IOError(("Bad args for -I. Note continuous migration is not implemented.", kwargs['cmd']))
-
-    for i in range(npop):
-        leaf_name = i+1
-        kwargs['nodes'][leaf_name] = {'sizes':[{'t':0.0,'N':1.0,'alpha':None}],'lineages':lins_per_pop[i]}
-        kwargs['roots'][i+1] = leaf_name
-
-class GetParams(object):
-    def __init__(self, params):
-        self.params = list(params)
+        for i in range(1,npop+1):
+            self.nodes[i] = {'sizes':[{'t':0.0,'N':1.0,'alpha':None}],'lineages':lins_per_pop[i-1]}
+            self.roots[i] = i
+        return [npop] + lins_per_pop
 
     def get(self, var, vartype):
-        if isinstance(var,vartype):
+        if not isinstance(var,str):
             return var
         if var[0] == "$":
             ret = self.params[int(var[1:])]
@@ -202,59 +213,64 @@ class GetParams(object):
     def getfloat(self, var):
         return self.get(var, float)
 
-def _nx_from_parsed_ms(events, edges, nodes, roots, cmd, **kwargs):
-    assert nodes
-    roots = [r for _,r in roots.iteritems() if r is not None]
+    def to_nx(self):
+        assert self.nodes
+        self.roots = [r for _,r in self.roots.iteritems() if r is not None]
 
-    if len(roots) != 1:
-        raise IOError(("Must have a single root population", cmd))
-    
-    node, = roots
-    set_model(nodes[node], float('inf'), cmd)
+        if len(self.roots) != 1:
+            raise IOError("Must have a single root population")
 
-    ret = nx.DiGraph(edges, cmd=cmd, events=events)
-    for v in nodes:
-        ret.add_node(v, **(nodes[v]))
-    return ret
+        node, = self.roots
+        self.set_sizes(self.nodes[node], float('inf'))
 
-def set_model(node_data, end_time, cmd):
-    # add 'model_func' to node_data, add information to node_data['sizes']
-    sizes = node_data['sizes']
-    # add a dummy epoch with the end time
-    sizes.append({'t': end_time})
+        #cmd = sum([v for k,v in sorted(self.sorted_cmd.iteritems())],[])
+        #cmd = " ".join(cmd)
+        #print sorted(self.sorted_cmd.iteritems())
+        cmd = " ".join(self.cmd_list)
+        #print cmd
 
-    # do some processing
-    N, alpha = sizes[0]['N'], sizes[0]['alpha']
-    pieces = []
-    for i in range(len(sizes) - 1):
-        #sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t']) * 2.0
-        sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t'])
+        ret = nx.DiGraph(self.edges, cmd=cmd, events=self.events)
+        for v in self.nodes:
+            ret.add_node(v, **(self.nodes[v]))
+        return ret
 
-        if 'N' not in sizes[i]:
-            sizes[i]['N'] = N
-        if 'alpha' not in sizes[i]:
-            sizes[i]['alpha'] = alpha
-        alpha = sizes[i]['alpha']
-        N = sizes[i]['N']
+    def set_sizes(self, node_data, end_time):
+        # add 'model_func' to node_data, add information to node_data['sizes']
+        sizes = node_data['sizes']
+        # add a dummy epoch with the end time
+        sizes.append({'t': end_time})
 
-        if alpha is not None:
-            #pieces.append(ExponentialHistory(tau=tau, growth_rate=alpha/2.0, N_bottom=N))
-            pieces.append(ExponentialHistory(tau=tau, growth_rate=alpha, N_bottom=N))
-            N = pieces[-1].N_top
+        # do some processing
+        N, alpha = sizes[0]['N'], sizes[0]['alpha']
+        pieces = []
+        for i in range(len(sizes) - 1):
+            sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t'])
+
+            if 'N' not in sizes[i]:
+                sizes[i]['N'] = N
+            if 'alpha' not in sizes[i]:
+                sizes[i]['alpha'] = alpha
+            alpha = sizes[i]['alpha']
+            N = sizes[i]['N']
+
+            if alpha is not None:
+                pieces.append(ExponentialHistory(tau=tau,growth_rate=alpha,N_bottom=N))
+                N = pieces[-1].N_top
+            else:
+                pieces.append(ConstantHistory(tau=tau, N=N))
+
+            sizes[i]['N_top'] = N
+
+            if not all([sizes[i][x] >= 0.0 for x in 'tau','N','N_top']):
+                raise IOError("Negative time or population size. (Were events specified in correct order?")
+        sizes.pop() # remove the final dummy epoch
+
+        assert len(pieces) > 0
+        if len(pieces) == 0:
+            node_data['model'] = pieces[0]
         else:
-            pieces.append(ConstantHistory(tau=tau, N=N))
+            node_data['model'] = PiecewiseHistory(pieces)
 
-        sizes[i]['N_top'] = N
-
-        if not all([sizes[i][x] >= 0.0 for x in 'tau','N','N_top']):
-            raise IOError(("Negative time or population size. (Were events specified in correct order?", cmd))
-    sizes.pop() # remove the final dummy epoch
-
-    assert len(pieces) > 0
-    if len(pieces) == 0:
-        node_data['model'] = pieces[0]
-    else:
-        node_data['model'] = PiecewiseHistory(pieces)
 
 
 '''Simulate SFS from Demography. Call from demography.simulate_sfs instead.'''

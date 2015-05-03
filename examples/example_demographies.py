@@ -87,4 +87,4 @@ def example_admixture_demo(x):
 
     demo =  make_demography(ms_cmd,
                             pop0,pop1,g2,t3,p4,t5,p6,t7,t8,t9)
-    return demo, 1.0
+    return demo
