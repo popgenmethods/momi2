@@ -82,11 +82,11 @@ def fit_log_likelihood_example(demo_func, num_loci, true_params, init_params, th
         print eps_norm, 1.0 - chi2.cdf(eps_norm, df=len(eps_hat))
 
 ## TODO: use an example that works
-fit_log_likelihood_example(vectorized_demo_func(simple_human_demo, [5] * 3),
-                           num_loci=10000,
-                           true_params = np.random.normal(size=8),
-                           init_params = np.random.normal(size=8))
-# fit_log_likelihood_example(example_admixture_demo,
-#                            num_loci=100,
+# fit_log_likelihood_example(vectorized_demo_func(simple_human_demo, [5] * 3),
+#                            num_loci=10000,
 #                            true_params = np.random.normal(size=8),
 #                            init_params = np.random.normal(size=8))
+fit_log_likelihood_example(example_admixture_demo,
+                           num_loci=100,
+                           true_params = np.random.normal(size=8),
+                           init_params = np.random.normal(size=8))

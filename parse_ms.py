@@ -1,3 +1,5 @@
+from __future__ import division
+import bisect
 import networkx as nx
 from cStringIO import StringIO
 from Bio import Phylo
@@ -43,16 +45,16 @@ class MsCmdParser(object):
                 cmd_list.append(curr_args)
             else:
                 curr_args.append(arg)
-        assert cmd_list[0][0] == 'I'
-        #return cmd_list
 
-        sorted_cmd = {}
-        for cmd in cmd_list:
-            t = self.get_time(*cmd)
-            if t not in sorted_cmd:
-                sorted_cmd[t] = []
-            sorted_cmd[t].append(cmd)
-        return sum([v for k,v in sorted(sorted_cmd.iteritems())],[])
+        unsorted_list = cmd_list
+        cmd_list,times = [],[]
+        for cmd in unsorted_list:
+            t = self.get_time(cmd[0], *cmd[1:])
+            idx = bisect.bisect_right(times, t)
+            times.insert(idx, t)
+            cmd_list.insert(idx, cmd)            
+        assert cmd_list[0][0] == 'I'
+        return cmd_list
 
     def add_event(self, event_flag, *args):
         # add nodes,edges,events associated with the event
@@ -62,10 +64,6 @@ class MsCmdParser(object):
         assert t >= self.prev_time
         self.prev_time = t
         self.cmd_list.append("-%s %s" % (event_flag, " ".join(map(str,args))))
-#         if t not in self.sorted_cmd:
-#             self.sorted_cmd[t] = []
-#         self.sorted_cmd[t].append("-%s %s" % (event_flag, " ".join(map(str,args))))
-        
 
     def _es(self, t,i,p):
         t,p = map(self.getfloat, (t,p))
