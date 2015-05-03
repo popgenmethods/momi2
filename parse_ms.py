@@ -211,7 +211,7 @@ class MsCmdParser(object):
             ret = self.params_dict[var[1:]]
         else:
             ret = vartype(var)
-        if isnan(ret):
+        if vartype==float and isnan(ret):
             raise Exception("nan in params %s" % (str(self.params_dict)))
         return ret
 
@@ -221,11 +221,12 @@ class MsCmdParser(object):
         return 0.0
 
     def get_pop(self, pop):
-        if not isinstance(pop, str):
-            return pop
-        if pop[0] == '#':
+        ret = self.get_param(pop, str)
+        if not isinstance(ret, str):
+            return ret
+        if ret[0] == '#':
             return self.pop_by_order[pop]
-        return self.get_param(pop, int)
+        return int(ret)
 
     def to_nx(self):
         assert self.nodes
@@ -281,7 +282,9 @@ class MsCmdParser(object):
             node_data['model'] = PiecewiseHistory(pieces)
 
 
-
+## TODO: replace SCRM with MS
+## TODO: clean up a little bit (make a small function and put it at the top of this file)
+## TODO: write our own newick parser?
 '''Simulate SFS from Demography. Call from demography.simulate_sfs instead.'''
 def simulate_sfs(demo, num_sims, theta=None, seed=None, additionalParams=""):
     if any([(x in additionalParams) for x in "-t","-T","seed"]):
