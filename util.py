@@ -1,3 +1,4 @@
+from __future__ import division
 import functools
 import autograd.numpy as np
 from functools import partial

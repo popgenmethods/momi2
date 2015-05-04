@@ -3,13 +3,7 @@ TODO:
 next steps:
 
 ***
-get rid of theta=None option for simulations (so one less dependency)
-
-***
 remove all TODO (grep for it)
-
-***
-add back from __future__ import division
 
 ***
 numpy parallel support/testing

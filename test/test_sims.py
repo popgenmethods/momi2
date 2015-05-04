@@ -8,14 +8,8 @@ import scipy, scipy.stats
 import itertools
 from util import aggregate_sfs
 
-#theta = 1.0
-#num_scrm_samples = 10000
-#num_scrm_samples = 5000
-num_scrm_samples = 1000
-#num_scrm_samples = 10
-#theta = .01
-#num_scrm_samples = 100000
-
+theta = 10.0
+num_ms_samples = 1000
 
 def simple_admixture_demo(x, n_lins):
     t = np.cumsum(np.exp(x[:5]))
@@ -62,8 +56,7 @@ def check_sfs_counts(demo):
     leaf_lins = {l : demo.n_lineages(l) for l in demo.leaves}
     leaf_pops = sorted(list(leaf_lins.keys()))
 
-    #empirical_sfs,sqCounts,nonzeroCounts = demo.simulate_sfs(num_scrm_samples)
-    sfs_list = demo.simulate_sfs(num_scrm_samples)
+    sfs_list = demo.simulate_sfs(num_ms_samples, theta=theta)
     empirical_sfs,sqCounts,nonzeroCounts = [aggregate_sfs(sfs_list, f)
                                             for f in [lambda x:x, lambda x:x**2, lambda x:int(x>0)]]
     
@@ -73,9 +66,9 @@ def check_sfs_counts(demo):
     config_list = sorted(empirical_sfs.keys())
 
     sfs_vals,_ = compute_sfs(demo, config_list)
-    theoretical_sfs = {k:v for k,v in zip(config_list, sfs_vals)}
+    theoretical_sfs = {k: theta * v for k,v in zip(config_list, sfs_vals)}
 
-    p_val = sfs_p_value(nonzeroCounts, empirical_sfs, sqCounts, theoretical_sfs, num_scrm_samples)
+    p_val = sfs_p_value(nonzeroCounts, empirical_sfs, sqCounts, theoretical_sfs, num_ms_samples)
     print(p_val)
     cutoff = 0.05
     #cutoff = 1.0

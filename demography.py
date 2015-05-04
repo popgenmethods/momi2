@@ -1,3 +1,4 @@
+from __future__ import division
 import networkx as nx
 from util import default_ms_path, memoize_instance, memoize, truncate0
 from math_functions import einsum2, fft_einsum
@@ -27,7 +28,7 @@ class Demography(nx.DiGraph):
         '''The ms command line equivalent to this demography'''
         return self.graph['cmd']
 
-    def simulate_sfs(self, num_sims, ms_path=default_ms_path(), theta=None, seed=None, additional_ms_params=""):
+    def simulate_sfs(self, num_sims, theta, ms_path=default_ms_path(), seed=None, additional_ms_params=""):
         '''
         Simulates num_sims independent SFS's from the demography, using ms or
         similar program (e.g. scrm, macs).
@@ -39,7 +40,7 @@ class Demography(nx.DiGraph):
 
         returns list [{tuple(config) : count}] of length num_sims
         '''
-        return parse_ms.simulate_sfs(self, num_sims, ms_path, theta, seed, additional_ms_params)
+        return parse_ms.simulate_sfs(self, num_sims, theta, ms_path, seed, additional_ms_params)
 
     @memoize_instance
     def n_lineages(self, node):

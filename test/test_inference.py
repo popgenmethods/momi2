@@ -1,20 +1,10 @@
-import sh
-import os
+import os, random
 import scipy.optimize
-import math
-import re
-from pprint import pprint
-import random
 import autograd.numpy as np
-import newick
-from autograd.numpy import sum
 from autograd import grad
-import networkx as nx
 
-from sum_product import compute_sfs
 from demography import make_demography
 from likelihood_surface import CompositeLogLikelihood as LogLik
-
 
 def test_joint_sfs_inference():
     N0=1.0
@@ -30,9 +20,6 @@ def test_joint_sfs_inference():
                                t1 / 2. * N0)
 
     true_demo = get_demo([t0])
-
-    #jsfs,sqCounts,nonzero = true_demo.simulate_sfs(num_runs, theta=theta)
-    #jsfs = aggregate_sfs(true_demo.simulate_sfs(num_runs, theta=theta))
     sfs_list = true_demo.simulate_sfs(num_runs, theta=theta)
 
     log_lik = LogLik(sfs_list, get_demo, theta=theta)

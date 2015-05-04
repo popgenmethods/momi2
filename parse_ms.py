@@ -7,7 +7,6 @@ from util import default_ms_path
 
 from autograd.numpy import isnan, exp,min
 
-import newick
 import sh, random
 import itertools
 from collections import Counter
@@ -287,11 +286,9 @@ class MsCmdParser(object):
             node_data['model'] = PiecewiseHistory(pieces)
 
 
-## TODO: replace SCRM with MS
 ## TODO: clean up a little bit (make a small function and put it at the top of this file)
-## TODO: write our own newick parser?
 '''Simulate SFS from Demography. Call from demography.simulate_sfs instead.'''
-def simulate_sfs(demo, num_sims, ms_path=default_ms_path(), theta=None, seeds=None, additional_ms_params=""):
+def simulate_sfs(demo, num_sims, theta, ms_path=default_ms_path(), seeds=None, additional_ms_params=""):
     if any([(x in additional_ms_params) for x in "-t","-T","seed"]):
         raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
 
@@ -312,10 +309,7 @@ def simulate_sfs(demo, num_sims, ms_path=default_ms_path(), theta=None, seeds=No
     ms_args = "%s -seeds %s" % (ms_args, seeds)
 
     assert ms_args.startswith("-I ")
-    if not theta:
-        ms_args = "-T %s" % ms_args
-    else:
-        ms_args = "-t %f %s" % (theta, ms_args)
+    ms_args = "-t %f %s" % (theta, ms_args)
     ms_args = "%d %d %s" % (n, num_sims, ms_args)
 
     lines = sh.Command(ms_path)(*ms_args.split(),_ok_code=[0,16,17,18])
@@ -327,12 +321,10 @@ def simulate_sfs(demo, num_sims, ms_path=default_ms_path(), theta=None, seeds=No
     f.i = 0
     runs = itertools.groupby((line.strip() for line in lines), f)
     next(runs)
-    if theta:
-        return [read_empirical_sfs(list(lines), len(lins_per_pop), pops_by_lin)
-                for i,lines in runs]
-    else:
-        return [read_tree_lens(list(lines), len(lins_per_pop), pops_by_lin)
-                for i, lines in runs]
+
+    return [read_empirical_sfs(list(lines), len(lins_per_pop), pops_by_lin)
+            for i,lines in runs]
+
 
 def read_empirical_sfs(lines, num_pops, pops_by_lin):
     currCounts = Counter()
@@ -358,25 +350,3 @@ def read_empirical_sfs(lines, num_pops, pops_by_lin):
         assert sum(dd) > 0
         currCounts[tuple(dd)] += 1
     return currCounts
-
-def read_tree_lens(lines, num_pops, pops_by_lin):
-    assert lines[0] == "//"
-    return NewickSfs(lines[1], num_pops, pops_by_lin).sfs
-
-class NewickSfs(newick.tree.TreeVisitor):
-    def __init__(self, newick_str, num_pops, pops_by_lin):
-        self.tree = newick.parse_tree(newick_str)
-        self.sfs = Counter()
-        self.num_pops = num_pops
-        self.pops_by_lin = pops_by_lin
-
-        self.tree.dfs_traverse(self)
-
-    def pre_visit_edge(self,src,b,len,dst):
-        dd = [0] * self.num_pops
-        # get the # lineages in each pop below edge
-        for leaf in dst.get_leaves_identifiers():
-            dd[self.pops_by_lin[int(leaf)-1]] += 1
-        # add length to the sfs entry. multiply by 2 cuz of ms format
-        #self.sfs[tuple(dd)] += len * 2.0
-        self.sfs[tuple(dd)] += len

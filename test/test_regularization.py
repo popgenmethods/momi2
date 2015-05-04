@@ -12,16 +12,14 @@ from likelihood_surface import CompositeLogLikelihood as LogLik
 
 def test_regularization():
     num_runs = 1000
+    theta=10.0
     def get_demo(t0,t1):
         return make_demography("-I 3 5 5 5 -ej $0 1 2 -ej $1 2 3", np.exp(t0),np.exp(t0) + np.exp(t1))
     true_x = np.array([np.log(.5),np.log(.2)])
     true_demo = get_demo(*true_x)
-    sfs_list = true_demo.simulate_sfs(num_runs, theta=None)    
+    sfs_list = true_demo.simulate_sfs(num_runs, theta=theta)
 
-    #log_lik = LogLik(sfs_list, lambda x: get_demo(*x), theta=1.0, eps=1e-100)
-    #log_lik = LogLik(sfs_list, lambda x: get_demo(*x), theta=1.0, eps=1e-10)
-    log_lik = LogLik(sfs_list, lambda x: get_demo(*x), theta=1.0, eps=1e-6)
-    #log_lik = LogLik(sfs_list, lambda x: get_demo(*x), theta=1.0, eps=0)
+    log_lik = LogLik(sfs_list, lambda x: get_demo(*x), theta=theta, eps=1e-6)
 
     f = lambda x: -log_lik.log_likelihood(x)
     g, hp = grad(f), hessian_vector_product(f)

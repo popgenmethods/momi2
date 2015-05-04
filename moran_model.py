@@ -1,3 +1,4 @@
+from __future__ import division
 from util import memoize, truncate0
 from math_functions import einsum2, swapaxes
 import scipy.sparse
