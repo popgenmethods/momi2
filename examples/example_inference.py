@@ -12,7 +12,7 @@ from scipy.optimize import minimize
 
 ## Thinly-wrapped numpy that supports automatic differentiation
 import autograd.numpy as anp
-## Methods for computing derivatives
+## Functions for computing derivatives
 from autograd import grad, hessian_vector_product
 
 def main():
@@ -28,12 +28,13 @@ def main():
                                ms_path=ms_path,
                                num_loci=1000,
                                theta=10.0,
+                               additional_ms_params='-r 10.0 10000',
                                true_params = anp.array([1.0, -1.0, -1.0, 1.0]),
                                init_params = anp.random.normal(size=4))
 
-def example_pulse_demo(x):
+def example_pulse_demo(params):
     '''
-    Function that returns an example pulse demography, parametrized by x.
+    Function that returns an example pulse demography, parametrized by params.
     
     Parametrization is chosen so that the parameter space is all of \mathbb{R}^4,
     thus allowing the convenience of using unconstrained optimization.
@@ -44,7 +45,7 @@ def example_pulse_demo(x):
     autograd.numpy supports nearly all functions from numpy, and also 
     makes it easy to define your own differentiable functions as necessary.
     '''
-    growth, logit_pulse_prob, log_pulse_time, log_join_wait_time = x
+    growth, logit_pulse_prob, log_pulse_time, log_join_wait_time = params
 
     pulse_prob = anp.exp(logit_pulse_prob) / (anp.exp(logit_pulse_prob)+1)
     pulse_time = anp.exp(log_pulse_time)
@@ -58,7 +59,7 @@ def example_pulse_demo(x):
                            pulse_prob = pulse_prob,
                            join_time = join_time)
 
-def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, true_params, init_params):
+def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, additional_ms_params, true_params, init_params):
     '''
     Simulate a SFS, then estimate the demography via maximum composite
     likelihood, using first and second-order derivatives to search 
@@ -73,7 +74,7 @@ def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, true_params,
     true_demo = demo_func(true_params)
 
     print "# Simulating %d trees" % num_loci
-    sfs_list = true_demo.simulate_sfs(num_loci, ms_path=ms_path, theta=theta)
+    sfs_list = true_demo.simulate_sfs(num_loci, ms_path=ms_path, theta=theta, additional_ms_params=additional_ms_params)
     surface = CompositeLogLikelihood(sfs_list, demo_func, theta=theta)
 
     # construct the function to minimize, and its derivatives
@@ -108,8 +109,8 @@ def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, true_params,
         print "\n\n**** Estimating Sigma_hat at %s" % param_name
         sigma = surface.max_covariance(params)
 
-        # recommend to call check_symmetric on matrix inverse and square root
-        # linear algebra routines may not preserve symmetry due to numerical errors
+        # recommend to call check_symmetric on matrix inverse and square root,
+        # as linear algebra routines may not preserve symmetry due to numerical errors
         sigma_inv = check_symmetric(anp.linalg.inv(sigma))
         sigma_inv_root = check_symmetric(scipy.linalg.sqrtm(sigma_inv))
 

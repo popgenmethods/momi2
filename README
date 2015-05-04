@@ -2,30 +2,32 @@ TODO:
 
 next steps:
 
-general cleanup, reorganization, removal of dead files
-
 ***
-write a nice README
-
-
-***
-
-use -r in examples
+get rid of theta=None option for simulations (so one less dependency)
 
 ***
 remove all TODO (grep for it)
 
 ***
-GPU support
+add back from __future__ import division
 
 ***
 numpy parallel support/testing
 make einsum2 use tensordot (it is faster and more parallelizable/GPU-friendly)
 
 ***
+write a nice README
+
+***
+put things into __init__
+
 in examples, replace imports with just "import momi"
 
 have setup.py install momi
+
+
+***
+GPU support
 
 ***
 
@@ -40,16 +42,7 @@ Make autodifferentiation work for functional size history
 allow functional size history to be passed in with ms style cmd
 
 ***
-put things into __init__
-
-***
 find minimal example test case for autograd issue #24
-
-***
-get rid of theta=None option for simulations (so one less dependency)
-
-***
-add back from __future__ import division
 
 ***
 tau = inf in ExponentialHistory currently disabled because it breaks automatic differentiation

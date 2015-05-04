@@ -291,9 +291,9 @@ class MsCmdParser(object):
 ## TODO: clean up a little bit (make a small function and put it at the top of this file)
 ## TODO: write our own newick parser?
 '''Simulate SFS from Demography. Call from demography.simulate_sfs instead.'''
-def simulate_sfs(demo, num_sims, ms_path=default_ms_path(), theta=None, seeds=None, additionalParams=""):
-    if any([(x in additionalParams) for x in "-t","-T","seed"]):
-        raise IOError("additionalParams should not contain -t,-T,-seed,-seeds")
+def simulate_sfs(demo, num_sims, ms_path=default_ms_path(), theta=None, seeds=None, additional_ms_params=""):
+    if any([(x in additional_ms_params) for x in "-t","-T","seed"]):
+        raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
 
     lins_per_pop = [demo.n_lineages(l) for l in sorted(demo.leaves)]
     n = sum(lins_per_pop)
@@ -304,8 +304,8 @@ def simulate_sfs(demo, num_sims, ms_path=default_ms_path(), theta=None, seeds=No
     assert len(pops_by_lin) == int(n)
 
     ms_args = demo.ms_cmd
-    if additionalParams:
-        ms_args = "%s %s" % (ms_args, additionalParams)
+    if additional_ms_params:
+        ms_args = "%s %s" % (ms_args, additional_ms_params)
 
     if seeds is None:
         seeds = " ".join([str(random.randint(0,999999999)) for _ in range(3)])

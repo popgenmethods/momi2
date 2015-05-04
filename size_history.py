@@ -138,7 +138,7 @@ def sfs_recurrence(sfs, tau):
     assert tau == ret[(1, 1)] or abs(log(tau / ret[(1, 1)])) < 1e-14
     return ret[1:,1:]
 
-## TODO: add ms-style command line option for FunctionalHistory
+## TODO: not currently used, and not yet compatible with automatic differentiation.
 class FunctionalHistory(SizeHistory):
     '''Size history parameterized by an arbitrary function f.'''
     def __init__(self, tau, f):

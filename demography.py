@@ -27,18 +27,19 @@ class Demography(nx.DiGraph):
         '''The ms command line equivalent to this demography'''
         return self.graph['cmd']
 
-    def simulate_sfs(self, num_sims, ms_path=default_ms_path(), theta=None, seed=None, additionalParams=""):
+    def simulate_sfs(self, num_sims, ms_path=default_ms_path(), theta=None, seed=None, additional_ms_params=""):
         '''
         Simulates num_sims independent SFS's from the demography, using ms or
         similar program (e.g. scrm, macs).
 
         Default value of ms_path is system variable $MS_PATH.
 
+        ## TODO: disable this option
         If theta = None, uses total branch lengths for frequencies (ala fastsimcoal).
 
         returns list [{tuple(config) : count}] of length num_sims
         '''
-        return parse_ms.simulate_sfs(self, num_sims, ms_path, theta, seed, additionalParams)
+        return parse_ms.simulate_sfs(self, num_sims, ms_path, theta, seed, additional_ms_params)
 
     @memoize_instance
     def n_lineages(self, node):
