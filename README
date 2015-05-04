@@ -6,14 +6,25 @@ general cleanup, reorganization, removal of dead files
 
 ***
 
-write example_sfs.py
 clean up TODO's in examples
 
 ***
 remove all TODO (grep for it)
 
 ***
+assert no monomorphic configs in compute_sfs
+
+***
 GPU support
+
+***
+numpy parallel support/testing
+make einsum2 use tensordot (it is faster and more parallelizable/GPU-friendly)
+
+***
+in examples, replace imports with just "import momi"
+
+have setup.py install momi
 
 ***
 
@@ -21,7 +32,7 @@ Missing data support
 
 ***
 
-archaic DNA support
+ancient DNA support
 
 ***
 
@@ -38,12 +49,11 @@ put things into __init__
 find minimal example test case for autograd issue #24
 
 ***
-merge some of my_functions into autograd package with pull request
-
-***
 for simulate_sfs, make theta=None work when -r is set
 
 (or at least have it raise an exception)
+
+or get rid of theta=None altogether
 
 ***
 add back from __future__ import division
