@@ -5,6 +5,10 @@ next steps:
 general cleanup, reorganization, removal of dead files
 
 ***
+make ms_path an option to pass in
+use -r in examples
+
+***
 
 clean up TODO's in examples
 

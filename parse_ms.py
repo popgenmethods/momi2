@@ -143,6 +143,9 @@ class MsCmdParser(object):
             alpha = self.get_param(alpha)
         t,i = self.get_param(t), self.get_pop(i)
         self.nodes[self.roots[i]]['sizes'].append({'t':t,'alpha':alpha})
+
+        if alpha is None:
+            alpha=0.0
         return t,i,alpha
 
     def _eG(self, t,alpha):
@@ -178,7 +181,9 @@ class MsCmdParser(object):
         else:
             alpha = self.get_param(alpha)
         self.nodes[pop]['sizes'][0]['alpha'] = alpha
-
+        
+        if alpha is None:
+            alpha=0.0
         return i,alpha
 
     def _G(self, rate):
