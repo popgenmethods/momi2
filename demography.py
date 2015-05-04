@@ -46,13 +46,11 @@ class Demography(nx.DiGraph):
 
     @memoize_instance
     def n_lineages(self, node):
-        '''Number of lineages at Moran model at node.'''
-        if node in self.leaves:
-            return self.node[node]['lineages']
-        ret = 0
-        for child_node in self[node]:
-            ret = ret + self.n_lineages(child_node)
-        return ret
+        return np.sum(self.node[l]['lineages'] for l in self.leaves_subtended_by(node))
+
+    @memoize_instance
+    def leaves_subtended_by(self, node):
+        return self.leaves & set(nx.dfs_preorder_nodes(self, node))
 
     def truncated_sfs(self, node):
         '''The truncated SFS at node.'''

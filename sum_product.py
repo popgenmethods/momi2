@@ -2,7 +2,7 @@ from __future__ import division
 import autograd.numpy as np
 import scipy
 from util import memoize_instance, memoize, truncate0, make_constant
-from math_functions import einsum2, fft_einsum, sum_antidiagonals
+from math_functions import einsum2, fft_einsum, sum_antidiagonals, hypergeom_quasi_inverse
 from autograd.core import primitive
 from autograd import hessian
 
@@ -67,9 +67,11 @@ def partial_likelihood_top(data, G, event, popList):
 def _check_positive(lik,sfs,branch_len):
     assert np.all(lik >= 0.0) and np.all(sfs >= 0.0) and np.all(branch_len >= 0.0)    
 
-def combinatorial_factors(G, node):
-    n_node = G.n_lineages(node)
-    return scipy.misc.comb(n_node, np.arange(n_node + 1))
+# def combinatorial_factors(G, node):
+#     n_node = G.n_lineages(node)
+#     return scipy.misc.comb(n_node, np.arange(n_node + 1))
+def combinatorial_factors(n):
+    return scipy.misc.comb(n, np.arange(n + 1))
 
 def _lik_axes(G, event):
     '''
@@ -133,14 +135,25 @@ def _merge_subpops_likelihood(data, G, event):
     child_axes = _lik_axes(G, child_event)
     for c in c1,c2:
         lik = einsum2(lik, child_axes,
-                      combinatorial_factors(G, c), [c],
+                      combinatorial_factors(G.n_lineages(c)), [c],
                       child_axes)
     lik,axes = sum_antidiagonals(lik, child_axes, c1, c2, newpop)
 
-    assert set(axes) == set(_lik_axes(G,event))
+    event_axes = _lik_axes(G,event)
+    assert set(axes) == set(event_axes)
+    newidx = axes.index(newpop)
     lik = einsum2(lik, axes,
-                  1.0/combinatorial_factors(G, newpop), [newpop],
-                  _lik_axes(G, event))
+                  1.0/combinatorial_factors(lik.shape[newidx]-1), [newpop],
+                  event_axes)
+
+    # reduce the number of lineages in newpop to only the number necessary
+    axes = event_axes
+    newidx = axes.index(newpop)
+    lik = einsum2(lik, event_axes[:newidx] + [c1] + axes[(newidx+1):],
+                  hypergeom_quasi_inverse(lik.shape[newidx]-1, G.n_lineages(newpop)),
+                  [c1,newpop], axes)
+    truncate0(lik, axis=newidx)
+    assert lik.shape[newidx] == G.n_lineages(newpop)+1
 
     return lik,sfs,branch_len
 
@@ -157,7 +170,7 @@ def _merge_clusters_likelihood(data, G, event):
         axes = [newpop if x == child_pop else x for x in _lik_axes(G, child_event)]
         child_axes.append(axes)
         lik = einsum2(lik, axes,
-                      combinatorial_factors(G, child_pop), [newpop],
+                      combinatorial_factors(G.n_lineages(child_pop)), [newpop],
                       axes)
 
         child_liks.append((lik,sfs))
@@ -170,10 +183,11 @@ def _merge_clusters_likelihood(data, G, event):
                      axes,
                      [newpop])
     # deal with very small negative numbers from fft
-    lik = truncate0(lik, axis=axes.index(newpop))
+    newidx = axes.index(newpop)
+    lik = truncate0(lik, axis=newidx)
 
     lik = einsum2(lik, axes,
-                  1.0/combinatorial_factors(G, newpop), [newpop],
+                  1.0/combinatorial_factors(G.n_lineages(newpop)), [newpop],
                   axes)
 
     sfs = 0.0
