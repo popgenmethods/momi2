@@ -26,7 +26,7 @@ def simple_admixture_demo(x, n_lins):
                            t[0], p[0], t[1], p[1], t[2], t3=t[3], t4=t[4])
 
 def test_admixture():
-    n = {'1':2,'2':2}
+    n = {'1':5,'2':5}
     check_sfs_counts(simple_admixture_demo(np.random.normal(size=7),n))
 
 def test_exp_growth():

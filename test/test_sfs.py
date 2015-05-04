@@ -8,12 +8,13 @@ from test_gradient import log_within
 import autograd.numpy as np
 import sys, os
 import cPickle as pickle
+from util import aggregate_sfs
 
 def exp_growth_0_model(x, n_lins):
     x0 = np.array([x[0], 0.0, x[1]])
     return exp_growth_model(x0, n_lins)
 
-MODELS = [{'demo':simple_admixture_demo,'nlins':{'1':2,'2':2},'params':7},
+MODELS = [{'demo':simple_admixture_demo,'nlins':{'1':5,'2':5},'params':7},
           {'demo':simple_two_pop_demo,'nlins':{'1':5,'2':8},'params':4},
           {'demo':piecewise_constant_demo,'nlins':{'a':10},'params':9},
           {'demo':simple_five_pop_demo,'nlins':{str(i):i for i in range(1,6)},'params':30},
@@ -54,7 +55,8 @@ if __name__=="__main__":
                 x = np.random.normal(size=m_val['params'])
                 demo = m_val['demo'](x, m_val['nlins'])
                 
-                sampled_sfs,_,_ = demo.simulate_sfs(10)
+                sampled_sfs = demo.simulate_sfs(10)
+                sampled_sfs = aggregate_sfs(sampled_sfs)
                 config_list = tuple(sorted(sampled_sfs.keys()))
                 
                 results[(m_name, tuple(x), config_list)] = compute_sfs(demo, config_list)
