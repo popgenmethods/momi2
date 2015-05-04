@@ -23,24 +23,23 @@ class Demography(nx.DiGraph):
         self.leaves = set([k for k, v in self.out_degree().items() if v == 0])
         self.event_tree = build_event_tree(self)
 
-    @property
-    def ms_cmd(self):
-        '''The ms command line equivalent to this demography'''
-        return self.graph['cmd']
-
-    def simulate_sfs(self, num_sims, theta, ms_path=default_ms_path(), seed=None, additional_ms_params=""):
+    def simulate_sfs(self, num_sims, theta, ms_path=default_ms_path(), seeds=None, additional_ms_params=""):
         '''
         Simulates num_sims independent SFS's from the demography, using ms or
         similar program (e.g. scrm, macs).
 
         Default value of ms_path is system variable $MS_PATH.
 
-        ## TODO: disable this option
         If theta = None, uses total branch lengths for frequencies (ala fastsimcoal).
 
         returns list [{tuple(config) : count}] of length num_sims
         '''
-        return parse_ms.simulate_sfs(self, num_sims, theta, ms_path, seed, additional_ms_params)
+        return parse_ms._simulate_sfs(self, num_sims, theta, ms_path, seeds, additional_ms_params)
+
+    @property
+    def ms_cmd(self):
+        '''The ms command line equivalent to this demography'''
+        return self.graph['cmd']
 
     @memoize_instance
     def n_lineages(self, node):

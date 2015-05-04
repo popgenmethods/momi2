@@ -11,8 +11,25 @@ import sh, random
 import itertools
 from collections import Counter
 
-## TODO: do some reorganization and cleanup of this file
+
+'''
+This file contains helper functions for:
+1) Constructing demography from ms command line
+2) Using ms to simulate a SFS from a demographic scenario
+
+It is recommended to not call these directly, but instead use
+the functions make_demography and Demography.simulate_sfs
+in demography.py.
+'''
+
+'''
+Helper functions for constructing demography from ms command line.
+'''
+
 def _to_nx(ms_cmd, *args, **kwargs):
+    '''
+    Use demography.make_demography instead of calling this function directly.
+    '''
     parser = MsCmdParser(*args, **kwargs)
     unsorted_list = get_cmd_list(ms_cmd)
 
@@ -286,9 +303,14 @@ class MsCmdParser(object):
             node_data['model'] = PiecewiseHistory(pieces)
 
 
-## TODO: clean up a little bit (make a small function and put it at the top of this file)
-'''Simulate SFS from Demography. Call from demography.simulate_sfs instead.'''
-def simulate_sfs(demo, num_sims, theta, ms_path=default_ms_path(), seeds=None, additional_ms_params=""):
+'''
+Helper functions for simulating SFS with ms.
+'''
+
+def _simulate_sfs(demo, num_sims, theta, ms_path=default_ms_path(), seeds=None, additional_ms_params=""):
+    '''
+    Use demography.simulate_sfs instead of calling this function directly.
+    '''
     if any([(x in additional_ms_params) for x in "-t","-T","seed"]):
         raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
 
@@ -305,7 +327,8 @@ def simulate_sfs(demo, num_sims, theta, ms_path=default_ms_path(), seeds=None, a
         ms_args = "%s %s" % (ms_args, additional_ms_params)
 
     if seeds is None:
-        seeds = " ".join([str(random.randint(0,999999999)) for _ in range(3)])
+        seeds = [random.randint(0,999999999) for _ in range(3)]
+    seeds = " ".join([str(s) for s in seeds])
     ms_args = "%s -seeds %s" % (ms_args, seeds)
 
     assert ms_args.startswith("-I ")

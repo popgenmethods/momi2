@@ -26,9 +26,6 @@ def einsum2(*args):
     
     return np.einsum(*args)
 def make_einsum_grad(argnum, ans, *args):
-    '''
-    TODO: file pull request to autograd (einsum gradient not yet implemented)
-    '''
     if argnum % 2 == 1:
         raise Exception()
     grad_args = list(args)
@@ -67,7 +64,7 @@ swapaxes.defgrad(lambda ans,a,axis1,axis2:
 def trace(a, offset):
     '''
     autograd.numpy.trace gradient is broken.
-    TODO: file pull request to autograd
+    TODO: submit pull request to autograd
     '''
     return np.trace(a, offset)
 trace.defgrad(lambda ans,a,offset:
@@ -92,7 +89,7 @@ def transformed_expi(x):
 
     ## We use np.concatenate to combine.
     ## would be better to use ret[ser] and ret[nser] as commented out above
-    ## but array assignment not yet supported by autograd (TODO)
+    ## but array assignment not yet supported by autograd
     assert np.all(abs_x[:-1] >= abs_x[1:])
     return np.concatenate((transformed_expi_naive(x[nser]), transformed_expi_series(x[ser])))
 
@@ -169,7 +166,7 @@ def fft_einsum(in1, labels1, in2, labels2, out_labels, fft_labels):
 def fftn(x, s, axes):
     '''
     autograd fftn currently broken for arguments s,axes
-    TODO: file pull request
+    TODO: submit pull request to autograd
     '''
     return np.fft.fftn(x,s,axes)
 def fftngrad(ans,x,s,axes):

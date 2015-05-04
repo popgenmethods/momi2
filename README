@@ -3,9 +3,6 @@ TODO:
 next steps:
 
 ***
-remove all TODO (grep for it)
-
-***
 numpy parallel support/testing
 make einsum2 use tensordot (it is faster and more parallelizable/GPU-friendly)
 
