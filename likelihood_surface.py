@@ -20,8 +20,7 @@ class CompositeLogLikelihood(object):
     log_likelihood: returns the composite log likelihood
     max_covariance: estimates covariance matrix of composite MLE
     '''
-    ## TODO: add EPSILON parameter for underflow issues
-    def __init__(self, sfs_list, demo_func=lambda demo: demo, theta=None, theta_func=None):
+    def __init__(self, sfs_list, demo_func=lambda demo: demo, theta=None, theta_func=None, eps=1e-6):
         '''
         sfs_list: [{config : count}], a list of length num_loci,
                   with each entry a dictionary giving the SFS at the locus
@@ -33,10 +32,13 @@ class CompositeLogLikelihood(object):
         theta: a number or list of numbers, giving mutation rate at each locus.
                Exactly one of theta or theta_func must be specified.
         theta_func: a function that returns mutation rate(s) from the parameters
+        eps: add branch_len*eps/num_configs to each SFS entry, to avoid taking log(0) in
+             case of underflow
         '''
         self.sfs_list = sfs_list
         self.config_list = list(set(sum([sfs.keys() for sfs in sfs_list],[])))
         self.demo_func = demo_func
+        self.eps = eps
 
         if (theta is None) == (theta_func is None):
             raise Exception("Exactly one of theta,theta_func should be given")
@@ -77,13 +79,19 @@ class CompositeLogLikelihood(object):
             theta, log_fact = np.sum(theta), np.sum(log_fact)
             loc_dim = []
 
+        n_leaf_lins = np.array([demo.n_lineages(l) for l in demo.leaves])
+        num_configs = np.prod(n_leaf_lins + 1) - 2
+
+        eps = self.eps*branch_len
         # Return -theta*branch_length - log_factorial + counts * log(theta*sfs)
         # first multiply theta*sfs along config ('c') dimension
-        log_theta_sfs = np.log(einsum2(theta, loc_dim, sfs_vals, ['c'], loc_dim+['c']))
+        log_theta_sfs = np.log(einsum2(theta, loc_dim, 
+                                       sfs_vals+eps/num_configs, ['c'], loc_dim+['c']))
         # then multiply by counts and sum out config dimension
-        return -theta*branch_len - log_fact + einsum2(counts, loc_dim+['c'], 
-                                                      log_theta_sfs, loc_dim+['c'],
-                                                      loc_dim)
+        return -theta*(branch_len
+                       +eps) - log_fact + einsum2(counts, loc_dim+['c'], 
+                                                       log_theta_sfs, loc_dim+['c'],
+                                                       loc_dim)
 
     def max_covariance(self, true_params):
         '''
