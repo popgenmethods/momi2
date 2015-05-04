@@ -291,7 +291,7 @@ class MsCmdParser(object):
 ## TODO: clean up a little bit (make a small function and put it at the top of this file)
 ## TODO: write our own newick parser?
 '''Simulate SFS from Demography. Call from demography.simulate_sfs instead.'''
-def simulate_sfs(demo, num_sims, ms_path=default_ms_path(), theta=None, seed=None, additionalParams=""):
+def simulate_sfs(demo, num_sims, ms_path=default_ms_path(), theta=None, seeds=None, additionalParams=""):
     if any([(x in additionalParams) for x in "-t","-T","seed"]):
         raise IOError("additionalParams should not contain -t,-T,-seed,-seeds")
 
@@ -307,9 +307,9 @@ def simulate_sfs(demo, num_sims, ms_path=default_ms_path(), theta=None, seed=Non
     if additionalParams:
         ms_args = "%s %s" % (ms_args, additionalParams)
 
-    if seed is None:
-        seed = random.randint(0,999999999)
-    ms_args = "%s --seed %s" % (ms_args, str(seed))
+    if seeds is None:
+        seeds = " ".join([str(random.randint(0,999999999)) for _ in range(3)])
+    ms_args = "%s -seeds %s" % (ms_args, seeds)
 
     assert ms_args.startswith("-I ")
     if not theta:

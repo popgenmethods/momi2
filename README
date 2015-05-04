@@ -10,9 +10,7 @@ write a nice README
 
 ***
 
-test using ms instead of scrm for examples and tests
 use -r in examples
-
 
 ***
 remove all TODO (grep for it)
