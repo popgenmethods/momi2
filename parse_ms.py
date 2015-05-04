@@ -1,14 +1,14 @@
 from __future__ import division
 import bisect
 import networkx as nx
-from cStringIO import StringIO
-from Bio import Phylo
+
 from size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
+from util import default_ms_path
 
 from autograd.numpy import isnan, exp,min
 
 import newick
-import sh, os, random
+import sh, random
 import itertools
 from collections import Counter
 
@@ -291,7 +291,7 @@ class MsCmdParser(object):
 ## TODO: clean up a little bit (make a small function and put it at the top of this file)
 ## TODO: write our own newick parser?
 '''Simulate SFS from Demography. Call from demography.simulate_sfs instead.'''
-def simulate_sfs(demo, num_sims, theta=None, seed=None, additionalParams=""):
+def simulate_sfs(demo, num_sims, ms_path=default_ms_path(), theta=None, seed=None, additionalParams=""):
     if any([(x in additionalParams) for x in "-t","-T","seed"]):
         raise IOError("additionalParams should not contain -t,-T,-seed,-seeds")
 
@@ -303,23 +303,22 @@ def simulate_sfs(demo, num_sims, theta=None, seed=None, additionalParams=""):
             pops_by_lin.append(pop)
     assert len(pops_by_lin) == int(n)
 
-    scrm_args = demo.ms_cmd
+    ms_args = demo.ms_cmd
     if additionalParams:
-        scrm_args = "%s %s" % (scrm_args, additionalParams)
+        ms_args = "%s %s" % (ms_args, additionalParams)
 
     if seed is None:
         seed = random.randint(0,999999999)
-    scrm_args = "%s --seed %s" % (scrm_args, str(seed))
+    ms_args = "%s --seed %s" % (ms_args, str(seed))
 
-    assert scrm_args.startswith("-I ")
+    assert ms_args.startswith("-I ")
     if not theta:
-        scrm_args = "-T %s" % scrm_args
+        ms_args = "-T %s" % ms_args
     else:
-        scrm_args = "-t %f %s" % (theta, scrm_args)
-    scrm_args = "%d %d %s" % (n, num_sims, scrm_args)
+        ms_args = "-t %f %s" % (theta, ms_args)
+    ms_args = "%d %d %s" % (n, num_sims, ms_args)
 
-    #lines = sh.Command(os.environ["MSPATH"])(*ms_cmd.split(),_ok_code=[0,16,17,18])
-    lines = sh.Command(os.environ["SCRM_PATH"])(*scrm_args.split())
+    lines = sh.Command(ms_path)(*ms_args.split(),_ok_code=[0,16,17,18])
 
     def f(x):
         if x == "//":

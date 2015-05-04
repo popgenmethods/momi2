@@ -18,6 +18,11 @@ def compute_sfs(demography, config_list):
     if data.ndim != 2 or data.shape[1] != len(demography.leaves):
         raise IOError("Invalid config_list.")
 
+    n = np.sum([demography.n_lineages(l) for l in demography.leaves])
+    data_rowsums = np.sum(data, axis=1)
+    if np.any(data_rowsums == n) or np.any(data_rowsums == 0):
+        raise IOError("Monomorphic sites in config_list.")
+
     _,ret,branch_len = partial_likelihood(data, demography, demography.event_root)
     branch_len = branch_len - ret[1]
 

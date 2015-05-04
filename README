@@ -5,18 +5,17 @@ next steps:
 general cleanup, reorganization, removal of dead files
 
 ***
-make ms_path an option to pass in
-use -r in examples
+write a nice README
+
 
 ***
 
-clean up TODO's in examples
+test using ms instead of scrm for examples and tests
+use -r in examples
+
 
 ***
 remove all TODO (grep for it)
-
-***
-assert no monomorphic configs in compute_sfs
 
 ***
 GPU support
@@ -39,10 +38,6 @@ Missing data support
 ancient DNA support
 
 ***
-
-change SCRM_PATH to MS_PATH
-
-***
 Make autodifferentiation work for functional size history
 allow functional size history to be passed in with ms style cmd
 
@@ -53,11 +48,7 @@ put things into __init__
 find minimal example test case for autograd issue #24
 
 ***
-for simulate_sfs, make theta=None work when -r is set
-
-(or at least have it raise an exception)
-
-or get rid of theta=None altogether
+get rid of theta=None option for simulations (so one less dependency)
 
 ***
 add back from __future__ import division

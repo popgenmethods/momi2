@@ -2,6 +2,10 @@ import functools
 import autograd.numpy as np
 from functools import partial
 from autograd.core import primitive
+import os
+
+def default_ms_path():
+    return os.environ["MS_PATH"]
 
 def aggregate_sfs(sfs_list, fun=lambda x: x):
     config_list = set(sum([sfs.keys() for sfs in sfs_list], []))

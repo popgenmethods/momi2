@@ -1,8 +1,10 @@
 from __future__ import division
+import sys
 
+## TODO: import momi
 from likelihood_surface import CompositeLogLikelihood
 from demography import make_demography
-from util import check_symmetric
+from util import check_symmetric, default_ms_path
 
 import scipy
 from scipy.stats import norm,chi2
@@ -14,10 +16,19 @@ import autograd.numpy as anp
 from autograd import grad, hessian_vector_product
 
 def main():
+    if len(sys.argv) > 2:
+        raise Exception("Too many command-line arguments.")
+
+    if len(sys.argv) == 2:
+        ms_path = sys.argv[1]
+    else:
+        ms_path = default_ms_path()
+
     fit_log_likelihood_example(example_pulse_demo,
+                               ms_path=ms_path,
                                num_loci=1000,
                                theta=10.0,
-                               true_params = anp.array([1.0, -1.0, -1.0, -.1]),
+                               true_params = anp.array([1.0, -1.0, -1.0, 1.0]),
                                init_params = anp.random.normal(size=4))
 
 def example_pulse_demo(x):
@@ -47,7 +58,7 @@ def example_pulse_demo(x):
                            pulse_prob = pulse_prob,
                            join_time = join_time)
 
-def fit_log_likelihood_example(demo_func, num_loci, true_params, init_params, theta=None):
+def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, true_params, init_params):
     '''
     Simulate a SFS, then estimate the demography via maximum composite
     likelihood, using first and second-order derivatives to search 
@@ -62,7 +73,7 @@ def fit_log_likelihood_example(demo_func, num_loci, true_params, init_params, th
     true_demo = demo_func(true_params)
 
     print "# Simulating %d trees" % num_loci
-    sfs_list = true_demo.simulate_sfs(num_loci, theta=theta)
+    sfs_list = true_demo.simulate_sfs(num_loci, ms_path=ms_path, theta=theta)
     surface = CompositeLogLikelihood(sfs_list, demo_func, theta=theta)
 
     # construct the function to minimize, and its derivatives
@@ -70,6 +81,7 @@ def fit_log_likelihood_example(demo_func, num_loci, true_params, init_params, th
     g, hp = grad(f), hessian_vector_product(f)
     def f_verbose(params):
         # for verbose output during the gradient descent
+        print "Evaluating objective. Current relative error:"
         print (params - true_params) / true_params
         return f(params)
     def g_verbose(params):

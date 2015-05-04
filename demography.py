@@ -1,5 +1,5 @@
 import networkx as nx
-from util import memoize_instance, memoize, truncate0
+from util import default_ms_path, memoize_instance, memoize, truncate0
 from math_functions import einsum2, fft_einsum
 import scipy, scipy.misc
 import autograd.numpy as np
@@ -7,19 +7,12 @@ import autograd.numpy as np
 from sum_product import compute_sfs
 
 import parse_ms
-import random
-import itertools
+import os, itertools
 
 def make_demography(ms_cmd, *args, **kwargs):
     return Demography(parse_ms._to_nx(ms_cmd, *args, **kwargs))
 
 class Demography(nx.DiGraph):
-    ## TODO: remove this method
-    @classmethod
-    def from_newick(cls, newick, default_lineages=None, default_N=1.0):
-        ms_cmd = parse_ms._from_newick(newick, default_lineages, default_N)
-        return make_demography(ms_cmd)
-
     def __init__(self, to_copy, *args, **kwargs):
         '''
         to_copy: a networkx.DiGraph returned by parse_ms.to_nx(),
@@ -34,15 +27,18 @@ class Demography(nx.DiGraph):
         '''The ms command line equivalent to this demography'''
         return self.graph['cmd']
 
-    def simulate_sfs(self, num_sims, theta=None, seed=None, additionalParams=""):
+    def simulate_sfs(self, num_sims, ms_path=default_ms_path(), theta=None, seed=None, additionalParams=""):
         '''
-        Simulates num_sims independent SFS's from the demography. Requires $SCRM_PATH to be set.
-        (TODO: change to $MS_PATH)
-        If theta = None, uses total branch lengths for frequencies (ala fastsimcoal)
+        Simulates num_sims independent SFS's from the demography, using ms or
+        similar program (e.g. scrm, macs).
+
+        Default value of ms_path is system variable $MS_PATH.
+
+        If theta = None, uses total branch lengths for frequencies (ala fastsimcoal).
 
         returns list [{tuple(config) : count}] of length num_sims
         '''
-        return parse_ms.simulate_sfs(self, num_sims, theta, seed, additionalParams)
+        return parse_ms.simulate_sfs(self, num_sims, ms_path, theta, seed, additionalParams)
 
     @memoize_instance
     def n_lineages(self, node):
