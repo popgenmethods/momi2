@@ -5,12 +5,12 @@ from autograd.numpy import outer, sum, exp, log
 from autograd import grad
 
 import networkx as nx
-from demography import make_demography
 import random
-from sum_product import compute_sfs
-#import math
+
 from numdifftools import Gradient, Hessian
 from test_sims import simple_admixture_demo
+
+from momi import make_demography, compute_sfs
 
 EPS=1e-8
 

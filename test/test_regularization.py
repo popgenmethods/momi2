@@ -5,9 +5,8 @@ import autograd.numpy as np
 from autograd.numpy import sum
 from autograd import grad, hessian_vector_product
 
-from sum_product import compute_sfs
-from demography import make_demography
-from likelihood_surface import CompositeLogLikelihood as LogLik
+from momi import compute_sfs, make_demography
+from momi import CompositeLogLikelihood as LogLik
 
 
 def test_regularization():

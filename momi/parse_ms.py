@@ -307,10 +307,13 @@ class MsCmdParser(object):
 Helper functions for simulating SFS with ms.
 '''
 
-def _simulate_sfs(demo, num_sims, theta, ms_path=default_ms_path(), seeds=None, additional_ms_params=""):
+def _simulate_sfs(demo, num_sims, theta, ms_path=None, seeds=None, additional_ms_params=""):
     '''
     Use demography.simulate_sfs instead of calling this function directly.
     '''
+    if ms_path is None:
+        ms_path = default_ms_path()
+
     if any([(x in additional_ms_params) for x in "-t","-T","seed"]):
         raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
 

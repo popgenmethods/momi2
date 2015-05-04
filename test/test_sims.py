@@ -1,12 +1,9 @@
-from demography import make_demography
-from sum_product import compute_sfs
+from momi import make_demography, compute_sfs, aggregate_sfs
 import pytest
-import networkx as nx
 import random
 import autograd.numpy as np
 import scipy, scipy.stats
 import itertools
-from util import aggregate_sfs
 
 theta = 10.0
 num_ms_samples = 1000

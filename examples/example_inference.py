@@ -1,14 +1,11 @@
 from __future__ import division
 import sys
 
-## TODO: import momi
-from likelihood_surface import CompositeLogLikelihood
-from demography import make_demography
-from util import check_symmetric, default_ms_path
+from momi import CompositeLogLikelihood, make_demography
+from momi.util import check_symmetric
 
 import scipy
-from scipy.stats import norm,chi2
-from scipy.optimize import minimize
+import scipy.stats
 
 ## Thinly-wrapped numpy that supports automatic differentiation
 import autograd.numpy as anp
@@ -22,7 +19,7 @@ def main():
     if len(sys.argv) == 2:
         ms_path = sys.argv[1]
     else:
-        ms_path = default_ms_path()
+        ms_path = None
 
     fit_log_likelihood_example(example_pulse_demo,
                                ms_path=ms_path,
@@ -95,7 +92,7 @@ def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, additional_m
     print "# Start point:"
     print init_params
     print "# Performing optimization. Printing relative error."
-    optimize_res = minimize(f_verbose, init_params, jac=g_verbose, hessp=hp_verbose, method='newton-cg')
+    optimize_res = scipy.optimize.minimize(f_verbose, init_params, jac=g_verbose, hessp=hp_verbose, method='newton-cg')
     print optimize_res
     
     inferred_params = optimize_res.x
@@ -120,7 +117,7 @@ def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, additional_m
         ## TODO: use t-test instead
         print "# p-value of Z-test that params[i]=true_params[i]"
         z = (inferred_params - true_params) / sd
-        print (1.0 - norm.cdf(anp.abs(z))) * 2.0
+        print (1.0 - scipy.stats.norm.cdf(anp.abs(z))) * 2.0
         print "# Transformed residuals EPS_hat = Sigma_hat^{-1/2} * (inferred - truth)"
         eps_hat = anp.dot(sigma_inv_root, inferred_params - true_params )
         print eps_hat
@@ -128,7 +125,7 @@ def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, additional_m
         print "# Chi2 test for params=true_params, using transformed residuals"
         print "# <EPS_hat,EPS_hat>, 1-Chi2_cdf(<EPS_hat,EPS_hat>,df=%d)" % len(eps_hat)
         eps_norm = anp.sum(eps_hat**2)
-        print eps_norm, 1.0 - chi2.cdf(eps_norm, df=len(eps_hat))
+        print eps_norm, 1.0 - scipy.stats.chi2.cdf(eps_norm, df=len(eps_hat))
 
 
 if __name__=="__main__":

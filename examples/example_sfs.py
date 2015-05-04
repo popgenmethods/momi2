@@ -1,5 +1,4 @@
-from demography import make_demography
-from sum_product import compute_sfs
+from momi import make_demography, compute_sfs
 import numpy as np
 
 '''

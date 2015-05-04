@@ -1,5 +1,7 @@
 #!/usr/bin/env python
+
 from distutils.core import setup
+
 setup(name='momi',
       version='0.1',
       description='MOran Model for Inference',

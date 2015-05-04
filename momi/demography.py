@@ -23,7 +23,7 @@ class Demography(nx.DiGraph):
         self.leaves = set([k for k, v in self.out_degree().items() if v == 0])
         self.event_tree = build_event_tree(self)
 
-    def simulate_sfs(self, num_sims, theta, ms_path=default_ms_path(), seeds=None, additional_ms_params=""):
+    def simulate_sfs(self, num_sims, theta, ms_path=None, seeds=None, additional_ms_params=""):
         '''
         Simulates num_sims independent SFS's from the demography, using ms or
         similar program (e.g. scrm, macs).

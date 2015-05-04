@@ -1,10 +1,11 @@
-from demography import make_demography
+from momi import make_demography, compute_sfs
 import random
 import itertools
 import networkx as nx
-from sum_product import compute_sfs
+
 from autograd.numpy import log
 import autograd.numpy as np
+
 from test_sims import simple_admixture_demo
 
 def random_tree_demo(num_leaf_pops, lins_per_pop):

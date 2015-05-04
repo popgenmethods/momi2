@@ -3,8 +3,8 @@ import scipy.optimize
 import autograd.numpy as np
 from autograd import grad
 
-from demography import make_demography
-from likelihood_surface import CompositeLogLikelihood as LogLik
+from momi import make_demography
+from momi import CompositeLogLikelihood as LogLik
 
 def test_joint_sfs_inference():
     N0=1.0

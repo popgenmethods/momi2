@@ -1,5 +1,5 @@
-import size_history
-import util
+import momi.size_history as size_history
+import momi.util as util
 import numpy as np
 from scipy.misc import comb as binom
 import random
