@@ -34,8 +34,9 @@ tree relating these individuals. In particular:
 where this branch length is scaled in the same time units as in ms.
 
 Note also that momi can use ms (or a similar program like [scrm](https://github.com/scrm/scrm))
-to simulate the SFS. Simply pass in ms_path to Demography.simulate_sfs,
-or set the environment variable $MS_PATH to point to the appropriate location.
+to simulate the SFS. This can be done in two ways:
+* Pass in the MS path to Demography.simulate_sfs.
+* Set the environment variable $MS_PATH to point to the appropriate location.
 
 ## Installation and Dependencies
 
