@@ -28,7 +28,7 @@ class Demography(nx.DiGraph):
         Simulates num_sims independent SFS's from the demography, using ms or
         similar program (e.g. scrm, macs).
 
-        Default value of ms_path is system variable $MS_PATH.
+        If ms_path is None, uses the system variable $MS_PATH.
 
         If theta = None, uses total branch lengths for frequencies (ala fastsimcoal).
 

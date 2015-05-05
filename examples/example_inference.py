@@ -19,6 +19,7 @@ def main():
     if len(sys.argv) == 2:
         ms_path = sys.argv[1]
     else:
+        ## If ms_path is None, momi uses system variable $MS_PATH
         ms_path = None
 
     fit_log_likelihood_example(example_pulse_demo,
