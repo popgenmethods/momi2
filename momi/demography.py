@@ -30,8 +30,6 @@ class Demography(nx.DiGraph):
 
         If ms_path is None, uses the system variable $MS_PATH.
 
-        If theta = None, uses total branch lengths for frequencies (ala fastsimcoal).
-
         returns list [{tuple(config) : count}] of length num_sims
         '''
         return parse_ms._simulate_sfs(self, num_sims, theta, ms_path, seeds, additional_ms_params)
