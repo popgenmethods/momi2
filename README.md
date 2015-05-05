@@ -40,6 +40,7 @@ momi depends on the following Python packages:
 * [scipy](http://www.scipy.org/)
 * [networkx](https://networkx.github.io/)
 * [autograd](https://github.com/HIPS/autograd)
+
 numpy, scipy, and networkx are automatically included in the
 [Anaconda](https://store.continuum.io/cshop/anaconda/) Python
 distribution for scientific computing.
