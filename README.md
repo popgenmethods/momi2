@@ -31,7 +31,7 @@ we define the SFS to be an expected branch length in the genealogical
 tree relating these individuals. In particular:
 * SFS(x1,x2,...) = expected total length of branches with x1,x2,... leafs
 
-where this branch length is scaled in the *same* time units as in ms.
+where this branch length is scaled in the same time units as in ms.
 
 ## Installation and Dependencies
 
