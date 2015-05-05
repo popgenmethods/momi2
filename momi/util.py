@@ -85,5 +85,5 @@ make_constant.defgrad_is_zero()
 
 def check_symmetric(X):
     Xt = np.transpose(X)
-    np.allclose(X, Xt)
+    assert np.allclose(X, Xt)
     return 0.5 * (X + Xt)
