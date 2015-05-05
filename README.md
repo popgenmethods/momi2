@@ -66,7 +66,7 @@ reported bugs at https://github.com/jackkamm/momi/issues
 Upcoming features, in roughly the order to be implemented, are:
 * Support for ancient DNA
 * Parallelization 
-(compiling numpy with a parallel implementation of blas should automatically parallelize all the matrix/tensor operations, but we have not yet tested this)
+ * Compiling numpy with a parallel implementation of blas should automatically parallelize all the matrix/tensor operations, but we have not yet tested this)
 * GPU support
 * Support for missing alleles
 
