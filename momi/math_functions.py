@@ -24,6 +24,7 @@ def einsum2(*args):
     for argnum,idxs in zip(idx_argnum,idx_lists):
         args[argnum] = [idx_to_int[i] for i in idxs]
     
+    ## TODO: use np.tensordot instead (faster, easier to parallelize)
     return np.einsum(*args)
 def make_einsum_grad(argnum, ans, *args):
     if argnum % 2 == 1:
