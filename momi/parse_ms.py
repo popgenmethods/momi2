@@ -332,7 +332,7 @@ def _simulate_sfs(demo, num_sims, theta, ms_path=None, seeds=None, additional_ms
     if seeds is None:
         seeds = [random.randint(0,999999999) for _ in range(3)]
     seeds = " ".join([str(s) for s in seeds])
-    ms_args = "%s -seeds %s" % (ms_args, seeds)
+    ms_args = "%s -seed %s" % (ms_args, seeds)
 
     assert ms_args.startswith("-I ")
     ms_args = "-t %f %s" % (theta, ms_args)
