@@ -26,7 +26,7 @@ def compute_sfs(demography, config_list):
     _,ret,branch_len = _partial_likelihood(data, demography, demography.event_root)
 
     # first two indices of ret correspond to the monomorphic states
-    branch_len = branch_len - ret[1]
+    branch_len = branch_len - ret[0] - ret[1]
     ret = ret[2:]
 
     assert branch_len >= 0.0 and np.all(ret >= 0.0) and np.all(ret <= branch_len)
@@ -53,7 +53,7 @@ def _partial_likelihood(data, G, event):
         sfs = sfs + einsum2(sub_lik, ['',newpop],
                             trunc_sfs, [newpop],
                             [''])
-        branch_len = branch_len + np.dot(1.0 - sub_lik[0,:] , trunc_sfs)
+        branch_len = branch_len + np.sum(trunc_sfs)
 
     _check_positive(lik,sfs,branch_len)
 
