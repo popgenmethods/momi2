@@ -7,7 +7,8 @@ from util import default_ms_path
 
 from autograd.numpy import isnan, exp,min
 
-import sh, random
+import random
+import subprocess
 import itertools
 from collections import Counter
 
@@ -338,7 +339,15 @@ def _simulate_sfs(demo, num_sims, theta, ms_path=None, seeds=None, additional_ms
     ms_args = "-t %f %s" % (theta, ms_args)
     ms_args = "%d %d %s" % (n, num_sims, ms_args)
 
-    lines = sh.Command(ms_path)(*ms_args.split(),_ok_code=[0,16,17,18])
+    try:
+        lines = subprocess.check_output([ms_path] + ms_args.split(),
+                                        stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError, e:
+        if e.returncode not in [0,16,17,18]:
+            raise IOError("call to ms failed", e.cmd, "\n", e.output)
+        lines = e.output
+
+    lines = lines.split("\n")
 
     def f(x):
         if x == "//":
