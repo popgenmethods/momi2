@@ -75,6 +75,7 @@ def check_sfs_counts(demo, normalize=False):
         theoretical = theoretical / branch_len
         theoretical = np.concatenate([[branch_len], theoretical])
 
+        ## TODO: what if observed_lens[i] == 0?
         observed_lens = np.sum(observed,axis=0)
         observed = np.einsum('ij,j->ij',observed, 1/observed_lens)
         observed = np.vstack([observed_lens, observed])
@@ -108,6 +109,7 @@ def my_t_test(labels, theoretical, observed, minSamples=25):
     bias = observed_mean - theoretical
     variances = np.var(observed,axis=1)
 
+    ## TODO: should the variance depend explicitly on n_observed?
     t_vals = bias / np.sqrt(variances) * np.sqrt(runs)
     #t_vals = bias / np.sqrt(variances) * np.sqrt(n_observed)
 
