@@ -1,3 +1,4 @@
+from __future__ import division
 from momi import make_demography, compute_sfs, aggregate_sfs
 import pytest
 import random
@@ -48,66 +49,74 @@ def test_tree_demo_4():
     check_sfs_counts(demo)
 
 
-def check_sfs_counts(demo):
+def check_sfs_counts(demo, normalize=False):
     print demo.graph['cmd']
     leaf_lins = {l : demo.n_lineages(l) for l in demo.leaves}
     leaf_pops = sorted(list(leaf_lins.keys()))
 
     sfs_list = demo.simulate_sfs(num_ms_samples, theta=theta)
-    empirical_sfs,sqCounts,nonzeroCounts = [aggregate_sfs(sfs_list, f)
-                                            for f in [lambda x:x, lambda x:x**2, lambda x:int(x>0)]]
-    
-    theoretical_sfs = {}
-    ranges = [range(leaf_lins[v]+1) for v in leaf_pops]
-    total_lins = sum([leaf_lins[v] for v in leaf_pops])
-    config_list = sorted(empirical_sfs.keys())
+    config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
+    sfs_vals,branch_len = compute_sfs(demo, config_list)
+    theoretical = sfs_vals
 
-    sfs_vals,_ = compute_sfs(demo, config_list)
-    theoretical_sfs = {k: theta * v for k,v in zip(config_list, sfs_vals)}
+    observed = np.zeros((len(config_list), len(sfs_list)))
+    for j,sfs in enumerate(sfs_list):
+        for i,config in enumerate(config_list):
+            try:
+                observed[i,j] = sfs[config] / theta
+            except KeyError:
+                pass
 
-    p_val = sfs_p_value(nonzeroCounts, empirical_sfs, sqCounts, theoretical_sfs, num_ms_samples)
+    labels = list(config_list)
+
+    if normalize:
+        labels = ['totalLen'] + labels
+
+        theoretical = theoretical / branch_len
+        theoretical = np.concatenate([[branch_len], theoretical])
+
+        observed_lens = np.sum(observed,axis=0)
+        observed = np.einsum('ij,j->ij',observed, 1/observed_lens)
+        observed = np.vstack([observed_lens, observed])
+
+    #p_val = sfs_p_value(nonzeroCounts, empirical_sfs, sqCounts, theoretical_sfs, num_ms_samples)
+    #p_val = sfs_p_value(['branch_len'] + config_list, theoretical, observed)
+    p_val = my_t_test(labels, theoretical, observed)
     print(p_val)
     cutoff = 0.05
     #cutoff = 1.0
     assert p_val > cutoff
 
+    ## TODO: also use a chi-square goodness of fit test, in addition to component-wise t-tests
+
     #configs = sorted(empirical_sfs.keys())
     #assert scipy.stats.chisquare(sfsArray(empirical_sfs), sfsArray(theoretical_sfs))[1] >= .05
     #assert theoretical_sfs == empirical_sfs
 
-# approximate empirical_sfs - theoretical_sfs / sd by standard normal
-# use theta=2.0 if simulating trees instead of mutations
-def sfs_p_value(nonzeroCounts, empirical_sfs, squaredCounts, theoretical_sfs, runs, theta=2.0, minSamples=25):
-    configs = theoretical_sfs.keys()
-    # throw away all the entries with too few observations (they will not be very Gaussian)
-    configs = [x for x in configs if nonzeroCounts[x] > minSamples]
-    def sfsArray(sfs):
-        return np.array([float(sfs[x]) for x in configs])
-    
-    empirical_sfs = sfsArray(empirical_sfs)
-    squaredCounts = sfsArray(squaredCounts)
-    theoretical_sfs = sfsArray(theoretical_sfs)
-    nonzeroCounts = sfsArray(nonzeroCounts)
+def my_t_test(labels, theoretical, observed, minSamples=25):
 
-    means = empirical_sfs / float(runs)
-    sqMeans = squaredCounts / float(runs)
-    bias = theoretical_sfs * theta / 2.0 - means
-    # estimated variance = empirical variance + bias^2
-    variances = bias**2 + sqMeans - np.square(means)
-    variances *= runs / float(runs-1)
+    assert theoretical.ndim == 1 and observed.ndim == 2
+    assert len(theoretical) == observed.shape[0] and len(theoretical) == len(labels)
 
-    # observed counts are Gaussian by CLT
-    # empirical_mean - theoretical mean / estimated variance ~ t distribution with df runs-1
+    n_observed = np.sum(observed > 0, axis=1)
+    theoretical, observed = theoretical[n_observed > minSamples], observed[n_observed > minSamples, :]
+    labels = np.array(map(str,labels))[n_observed > minSamples]
+    n_observed = n_observed[n_observed > minSamples]
+
+    runs = observed.shape[1]
+    observed_mean = np.mean(observed,axis=1)
+    bias = observed_mean - theoretical
+    variances = np.var(observed,axis=1)
+
     t_vals = bias / np.sqrt(variances) * np.sqrt(runs)
+    #t_vals = bias / np.sqrt(variances) * np.sqrt(n_observed)
 
     # get the p-values
     abs_t_vals = np.abs(t_vals)
     p_vals = 2.0 * scipy.stats.t.sf(abs_t_vals, df=runs-1)
-    # print some stuff
     print("# configs, p-values, empirical-sfs, theoretical-sfs, nonzeroCounts")
-    toPrint = np.array([configs, p_vals, empirical_sfs, theoretical_sfs * theta / 2.0 * runs, nonzeroCounts]).transpose()
-    toPrint = toPrint[toPrint[:,1].argsort()[::-1]] # reverse-sort by p-vals
-    #toPrint = toPrint[toPrint[:,0].argsort()] # sort by config
+    toPrint = np.array([labels, p_vals, observed_mean, theoretical, n_observed]).transpose()
+    toPrint = toPrint[np.array(toPrint[:,1],dtype='float').argsort()[::-1]] # reverse-sort by p-vals
     print(toPrint)
     
     # p-values should be uniformly distributed
