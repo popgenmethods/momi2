@@ -75,24 +75,22 @@ def check_sfs_counts(demo):
     assert p_val > cutoff
 
 
-def my_t_test(labels, theoretical, observed, minSamples=25):
+def my_t_test(labels, theoretical, observed, min_samples=25):
 
     assert theoretical.ndim == 1 and observed.ndim == 2
     assert len(theoretical) == observed.shape[0] and len(theoretical) == len(labels)
 
     n_observed = np.sum(observed > 0, axis=1)
-    theoretical, observed = theoretical[n_observed > minSamples], observed[n_observed > minSamples, :]
-    labels = np.array(map(str,labels))[n_observed > minSamples]
-    n_observed = n_observed[n_observed > minSamples]
+    theoretical, observed = theoretical[n_observed > min_samples], observed[n_observed > min_samples, :]
+    labels = np.array(map(str,labels))[n_observed > min_samples]
+    n_observed = n_observed[n_observed > min_samples]
 
     runs = observed.shape[1]
     observed_mean = np.mean(observed,axis=1)
     bias = observed_mean - theoretical
     variances = np.var(observed,axis=1)
 
-    ## TODO: should the variance depend explicitly on n_observed?
     t_vals = bias / np.sqrt(variances) * np.sqrt(runs)
-    #t_vals = bias / np.sqrt(variances) * np.sqrt(n_observed)
 
     # get the p-values
     abs_t_vals = np.abs(t_vals)
