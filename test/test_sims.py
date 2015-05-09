@@ -49,50 +49,31 @@ def test_tree_demo_4():
     check_sfs_counts(demo)
 
 
-def check_sfs_counts(demo, normalize=False):
+def check_sfs_counts(demo):
     print demo.graph['cmd']
-    leaf_lins = {l : demo.n_lineages(l) for l in demo.leaves}
-    leaf_pops = sorted(list(leaf_lins.keys()))
 
     sfs_list = demo.simulate_sfs(num_ms_samples, theta=theta)
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
+    
     sfs_vals,branch_len = compute_sfs(demo, config_list)
-    theoretical = sfs_vals
+    theoretical = sfs_vals * theta
 
     observed = np.zeros((len(config_list), len(sfs_list)))
     for j,sfs in enumerate(sfs_list):
         for i,config in enumerate(config_list):
             try:
-                observed[i,j] = sfs[config] / theta
+                observed[i,j] = sfs[config]
             except KeyError:
                 pass
 
     labels = list(config_list)
 
-    if normalize:
-        labels = ['totalLen'] + labels
-
-        theoretical = theoretical / branch_len
-        theoretical = np.concatenate([[branch_len], theoretical])
-
-        ## TODO: what if observed_lens[i] == 0?
-        observed_lens = np.sum(observed,axis=0)
-        observed = np.einsum('ij,j->ij',observed, 1/observed_lens)
-        observed = np.vstack([observed_lens, observed])
-
-    #p_val = sfs_p_value(nonzeroCounts, empirical_sfs, sqCounts, theoretical_sfs, num_ms_samples)
-    #p_val = sfs_p_value(['branch_len'] + config_list, theoretical, observed)
     p_val = my_t_test(labels, theoretical, observed)
     print(p_val)
     cutoff = 0.05
     #cutoff = 1.0
     assert p_val > cutoff
 
-    ## TODO: also use a chi-square goodness of fit test, in addition to component-wise t-tests
-
-    #configs = sorted(empirical_sfs.keys())
-    #assert scipy.stats.chisquare(sfsArray(empirical_sfs), sfsArray(theoretical_sfs))[1] >= .05
-    #assert theoretical_sfs == empirical_sfs
 
 def my_t_test(labels, theoretical, observed, minSamples=25):
 
@@ -116,7 +97,7 @@ def my_t_test(labels, theoretical, observed, minSamples=25):
     # get the p-values
     abs_t_vals = np.abs(t_vals)
     p_vals = 2.0 * scipy.stats.t.sf(abs_t_vals, df=runs-1)
-    print("# configs, p-values, empirical-sfs, theoretical-sfs, nonzeroCounts")
+    print("# labels, p-values, empirical-mean, theoretical-mean, nonzero-counts")
     toPrint = np.array([labels, p_vals, observed_mean, theoretical, n_observed]).transpose()
     toPrint = toPrint[np.array(toPrint[:,1],dtype='float').argsort()[::-1]] # reverse-sort by p-vals
     print(toPrint)

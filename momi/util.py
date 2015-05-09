@@ -4,6 +4,7 @@ import autograd.numpy as np
 from functools import partial
 from autograd.core import primitive
 import os
+import itertools
 
 def default_ms_path():
     return os.environ["MS_PATH"]
@@ -13,6 +14,43 @@ def aggregate_sfs(sfs_list, fun=lambda x: x):
     aggregate_config = lambda config: sum([fun(sfs[config]) for sfs in sfs_list])
 
     return {config: aggregate_config(config) for config in config_list}
+
+def polymorphic_configs(demo):
+    n = sum([demo.n_lineages(l) for l in demo.leaves])
+    ranges = [range(demo.n_lineages(l)) for l in sorted(demo.leaves)]
+
+    config_list = []
+    for config in itertools.product(*ranges):
+        if sum(config) == n or sum(config) == 0:
+            continue
+        config_list.append(config)
+    return config_list
+
+def check_symmetric(X):
+    Xt = np.transpose(X)
+    assert np.allclose(X, Xt)
+    return 0.5 * (X + Xt)
+
+@primitive
+def truncate0(x, axis=None):
+    '''make sure everything in x is non-negative'''
+    mins = np.maximum(-np.amin(x,axis=axis), 0.0)
+    maxes = np.maximum(np.amax(x, axis=axis), 1e-300)
+    assert np.all(mins <= 1e-13 * maxes)
+
+    if axis is not None:
+        idx = [slice(None)] * x.ndim
+        idx[axis] = np.newaxis
+        mins = mins[idx]
+    
+    x[x < mins] = 0.0
+    return x
+truncate0.defgrad(lambda ans,x,axis=None: lambda g: g)    
+
+@primitive
+def make_constant(x):
+    return x
+make_constant.defgrad_is_zero()
 
 def memoize(obj):
     cache = obj.cache = {}
@@ -61,29 +99,3 @@ class memoize_instance(object):
         except KeyError:
             res = cache[key] = self.func(*args, **kw)
         return res
-
-@primitive
-def truncate0(x, axis=None):
-    '''make sure everything in x is non-negative'''
-    mins = np.maximum(-np.amin(x,axis=axis), 0.0)
-    maxes = np.maximum(np.amax(x, axis=axis), 1e-300)
-    assert np.all(mins <= 1e-13 * maxes)
-
-    if axis is not None:
-        idx = [slice(None)] * x.ndim
-        idx[axis] = np.newaxis
-        mins = mins[idx]
-    
-    x[x < mins] = 0.0
-    return x
-truncate0.defgrad(lambda ans,x,axis=None: lambda g: g)    
-
-@primitive
-def make_constant(x):
-    return x
-make_constant.defgrad_is_zero()
-
-def check_symmetric(X):
-    Xt = np.transpose(X)
-    assert np.allclose(X, Xt)
-    return 0.5 * (X + Xt)
