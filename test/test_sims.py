@@ -70,7 +70,7 @@ def check_sfs_counts(demo, theta=default_theta, num_ms_samples=default_num_ms_sa
     labels = list(config_list)
 
     p_val = my_t_test(labels, theoretical, observed)
-    print(p_val)
+    print "p-value of smallest p-value under beta(1,num_configs)\n",p_val
     cutoff = 0.05
     #cutoff = 1.0
     assert p_val > cutoff
