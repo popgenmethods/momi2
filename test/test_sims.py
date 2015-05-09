@@ -5,9 +5,10 @@ import random
 import autograd.numpy as np
 import scipy, scipy.stats
 import itertools
+import sys
 
-theta = 10.0
-num_ms_samples = 1000
+default_theta = 10.0
+default_num_ms_samples = 1000
 
 def simple_admixture_demo(x, n_lins):
     t = np.cumsum(np.exp(x[:5]))
@@ -49,7 +50,7 @@ def test_tree_demo_4():
     check_sfs_counts(demo)
 
 
-def check_sfs_counts(demo):
+def check_sfs_counts(demo, theta=default_theta, num_ms_samples=default_num_ms_samples):
     print demo.graph['cmd']
 
     sfs_list = demo.simulate_sfs(num_ms_samples, theta=theta)
@@ -103,3 +104,8 @@ def my_t_test(labels, theoretical, observed, min_samples=25):
     # p-values should be uniformly distributed
     # so then the min p-value should be beta distributed
     return scipy.stats.beta.cdf(np.min(p_vals), 1, len(p_vals))
+
+
+if  __name__=="__main__":
+    demo = make_demography(" ".join(sys.argv[3:]))
+    check_sfs_counts(demo, theta=float(sys.argv[2]), num_ms_samples=int(sys.argv[1]))
