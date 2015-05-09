@@ -53,11 +53,18 @@ distribution for scientific computing.
 momi is written purely in Python, though many of the functions
 in numpy and scipy are actually implemented in C and Fortran.
 
-After installing dependencies, do
+Simply type
+```
+easy_install momi
+```
+at the command line to install.
+
+TODO: need to add momi to PyPi for easy_install to work.
+Until momi becomes public, use
 ```
 python setup.py install
 ```
-to install.
+instead.
 
 ## Examples
 
