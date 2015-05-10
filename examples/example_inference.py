@@ -80,6 +80,7 @@ def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, additional_m
     sfs_list = sfs_list_from_ms(ms_output,
                                 true_demo.n_at_leaves # tuple with n at each leaf deme
                                 )
+    ms_output.close()
 
     # log-likelihood surface
     surface = CompositeLogLikelihood(sfs_list, demo_func, theta=theta)
