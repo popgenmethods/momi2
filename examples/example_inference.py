@@ -71,7 +71,7 @@ def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, additional_m
     '''
     true_demo = demo_func(true_params)
 
-    print "# Simulating %d trees" % num_loci
+    print "# Simulating %d unlinked loci" % num_loci
     ## ms_output = file object containing the ms output
     ms_output = simulate_ms(true_demo, num_sims=num_loci, theta=theta, ms_path=ms_path, additional_ms_params = additional_ms_params)
 
