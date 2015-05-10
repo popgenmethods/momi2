@@ -72,12 +72,16 @@ def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, additional_m
     true_demo = demo_func(true_params)
 
     print "# Simulating %d trees" % num_loci
-    # simulate from ms. returns a file-like object containing the ms output
+    ## ms_output = file object containing the ms output
     ms_output = simulate_ms(true_demo, num_sims=num_loci, theta=theta, ms_path=ms_path, additional_ms_params = additional_ms_params)
-    # given a file object with ms output, and tuple with n at each leaf deme
-    # return observed SFS counts at each simulated locus
-    sfs_list = sfs_list_from_ms(ms_output, true_demo.n_at_leaves)
 
+    ## sfs_list = list of dictionaries
+    ## sfs_list[i][config] = count of config at simulated locus i
+    sfs_list = sfs_list_from_ms(ms_output,
+                                true_demo.n_at_leaves # tuple with n at each leaf deme
+                                )
+
+    # log-likelihood surface
     surface = CompositeLogLikelihood(sfs_list, demo_func, theta=theta)
 
     # construct the function to minimize, and its derivatives
