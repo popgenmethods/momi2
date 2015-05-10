@@ -3,7 +3,7 @@ import scipy.optimize
 import autograd.numpy as np
 from autograd import grad
 
-from momi import make_demography
+from momi import make_demography, simulate_ms, sfs_list_from_ms
 from momi import CompositeLogLikelihood as LogLik
 
 def test_joint_sfs_inference():
@@ -20,7 +20,9 @@ def test_joint_sfs_inference():
                                t1 / 2. * N0)
 
     true_demo = get_demo([t0])
-    sfs_list = true_demo.simulate_sfs(num_runs, theta=theta)
+
+    sfs_list = sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
+                                true_demo.n_at_leaves)
 
     log_lik = LogLik(sfs_list, get_demo, theta=theta)
 

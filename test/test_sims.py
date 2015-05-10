@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import make_demography, compute_sfs, aggregate_sfs
+from momi import make_demography, compute_sfs, aggregate_sfs, simulate_ms, sfs_list_from_ms
 import pytest
 import random
 import autograd.numpy as np
@@ -53,7 +53,8 @@ def test_tree_demo_4():
 def check_sfs_counts(demo, theta=default_theta, num_ms_samples=default_num_ms_samples):
     print demo.graph['cmd']
 
-    sfs_list = demo.simulate_sfs(num_ms_samples, theta=theta)
+    sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, theta=theta),
+                                demo.n_at_leaves)
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     
     sfs_vals,branch_len = compute_sfs(demo, config_list)

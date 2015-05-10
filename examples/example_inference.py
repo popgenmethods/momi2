@@ -1,7 +1,7 @@
 from __future__ import division
 import sys
 
-from momi import CompositeLogLikelihood, make_demography
+from momi import CompositeLogLikelihood, make_demography, simulate_ms, sfs_list_from_ms
 from momi.util import check_symmetric
 
 import scipy
@@ -72,7 +72,12 @@ def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, additional_m
     true_demo = demo_func(true_params)
 
     print "# Simulating %d trees" % num_loci
-    sfs_list = true_demo.simulate_sfs(num_loci, ms_path=ms_path, theta=theta, additional_ms_params=additional_ms_params)
+    # simulate from ms. returns a file-like object containing the ms output
+    ms_output = simulate_ms(true_demo, num_sims=num_loci, theta=theta, ms_path=ms_path, additional_ms_params = additional_ms_params)
+    # given a file object with ms output, and tuple with n at each leaf deme
+    # return observed SFS counts at each simulated locus
+    sfs_list = sfs_list_from_ms(ms_output, true_demo.n_at_leaves)
+
     surface = CompositeLogLikelihood(sfs_list, demo_func, theta=theta)
 
     # construct the function to minimize, and its derivatives

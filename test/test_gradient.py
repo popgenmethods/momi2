@@ -88,7 +88,7 @@ def piecewise_constant_demo(x, n_lins):
     assert n_lins.keys() == ['a']
     n = n_lins['a']
 
-    cmd = "-I 1 %d -n 1 $0" % n
+    cmd = "-I 1 %d -en 0.0 1 $0" % n
     args = [exp(x[0])]
     prev_time = 0.0
     var = 1

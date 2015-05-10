@@ -5,7 +5,7 @@ import autograd.numpy as np
 from autograd.numpy import sum
 from autograd import grad, hessian_vector_product
 
-from momi import compute_sfs, make_demography
+from momi import compute_sfs, make_demography, simulate_ms, sfs_list_from_ms
 from momi import CompositeLogLikelihood as LogLik
 
 
@@ -16,7 +16,9 @@ def test_regularization():
         return make_demography("-I 3 5 5 5 -ej $0 1 2 -ej $1 2 3", np.exp(t0),np.exp(t0) + np.exp(t1))
     true_x = np.array([np.log(.5),np.log(.2)])
     true_demo = get_demo(*true_x)
-    sfs_list = true_demo.simulate_sfs(num_runs, theta=theta)
+
+    sfs_list = sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
+                                true_demo.n_at_leaves)
 
     log_lik = LogLik(sfs_list, lambda x: get_demo(*x), theta=theta, eps=1e-6)
 

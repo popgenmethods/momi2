@@ -11,17 +11,78 @@ import random
 import subprocess
 import itertools
 from collections import Counter
-
+from cStringIO import StringIO
 
 '''
 This file contains helper functions for:
 1) Constructing demography from ms command line
 2) Using ms to simulate a SFS from a demographic scenario
-
-It is recommended to not call these directly, but instead use
-the functions make_demography and Demography.simulate_sfs
-in demography.py.
 '''
+
+def sfs_list_from_ms(ms_file, n_at_leaves):
+    '''
+    ms_file = file object containing output from ms
+    n_at_leaves[i] = n sampled in leaf deme i
+
+    Returns a list of empirical SFS's, one for each ms simulation
+    '''
+    lines = ms_file.readlines()
+
+    def f(x):
+        if x == "//":
+            f.i += 1
+        return f.i
+    f.i = 0
+    runs = itertools.groupby((line.strip() for line in lines), f)
+    next(runs)
+
+    pops_by_lin = []
+    for pop in range(len(n_at_leaves)):
+        for i in range(n_at_leaves[pop]):
+            pops_by_lin.append(pop)
+
+    return [_sfs_from_1_ms_sim(list(lines), len(n_at_leaves), pops_by_lin)
+            for i,lines in runs]
+
+def simulate_ms(demo, num_sims, theta, ms_path=None, seeds=None, additional_ms_params=""):
+    '''
+    Given a demography, simulate from it using ms
+
+    Returns a file-like object with the ms output
+    '''
+    if ms_path is None:
+        ms_path = default_ms_path()
+
+    if any([(x in additional_ms_params) for x in "-t","-T","seed"]):
+        raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
+
+    lins_per_pop = [demo.n_lineages(l) for l in sorted(demo.leaves)]
+    n = sum(lins_per_pop)
+
+    ms_args = demo.ms_cmd
+    if additional_ms_params:
+        ms_args = "%s %s" % (ms_args, additional_ms_params)
+
+    if seeds is None:
+        seeds = [random.randint(0,999999999) for _ in range(3)]
+    seeds = " ".join([str(s) for s in seeds])
+    ms_args = "%s -seed %s" % (ms_args, seeds)
+
+    assert ms_args.startswith("-I ")
+    ms_args = "-t %f %s" % (theta, ms_args)
+    ms_args = "%d %d %s" % (n, num_sims, ms_args)
+
+    try:
+        lines = subprocess.check_output([ms_path] + ms_args.split(),
+                                        stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError, e:
+        if e.returncode not in [0,16,17,18]:
+            raise IOError("call to ms failed", " ".join(e.cmd), "\n", 
+                          "return code:", e.returncode, "\n",
+                          e.output)
+        lines = e.output
+
+    return StringIO(lines)
 
 '''
 Helper functions for constructing demography from ms command line.
@@ -308,60 +369,7 @@ class MsCmdParser(object):
 Helper functions for simulating SFS with ms.
 '''
 
-def _simulate_sfs(demo, num_sims, theta, ms_path=None, seeds=None, additional_ms_params=""):
-    '''
-    Use demography.simulate_sfs instead of calling this function directly.
-    '''
-    if ms_path is None:
-        ms_path = default_ms_path()
-
-    if any([(x in additional_ms_params) for x in "-t","-T","seed"]):
-        raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
-
-    lins_per_pop = [demo.n_lineages(l) for l in sorted(demo.leaves)]
-    n = sum(lins_per_pop)
-    pops_by_lin = []
-    for pop in range(len(lins_per_pop)):
-        for i in range(lins_per_pop[pop]):
-            pops_by_lin.append(pop)
-    assert len(pops_by_lin) == int(n)
-
-    ms_args = demo.ms_cmd
-    if additional_ms_params:
-        ms_args = "%s %s" % (ms_args, additional_ms_params)
-
-    if seeds is None:
-        seeds = [random.randint(0,999999999) for _ in range(3)]
-    seeds = " ".join([str(s) for s in seeds])
-    ms_args = "%s -seed %s" % (ms_args, seeds)
-
-    assert ms_args.startswith("-I ")
-    ms_args = "-t %f %s" % (theta, ms_args)
-    ms_args = "%d %d %s" % (n, num_sims, ms_args)
-
-    try:
-        lines = subprocess.check_output([ms_path] + ms_args.split(),
-                                        stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError, e:
-        if e.returncode not in [0,16,17,18]:
-            raise IOError("call to ms failed", e.cmd, "\n", e.output)
-        lines = e.output
-
-    lines = lines.split("\n")
-
-    def f(x):
-        if x == "//":
-            f.i += 1
-        return f.i
-    f.i = 0
-    runs = itertools.groupby((line.strip() for line in lines), f)
-    next(runs)
-
-    return [read_empirical_sfs(list(lines), len(lins_per_pop), pops_by_lin)
-            for i,lines in runs]
-
-
-def read_empirical_sfs(lines, num_pops, pops_by_lin):
+def _sfs_from_1_ms_sim(lines, num_pops, pops_by_lin):
     currCounts = Counter()
     n = len(pops_by_lin)
 

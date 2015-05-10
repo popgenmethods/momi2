@@ -15,24 +15,24 @@ def make_demography(ms_cmd, *args, **kwargs):
 
 class Demography(nx.DiGraph):
     def __init__(self, to_copy, *args, **kwargs):
-        '''
-        to_copy: a networkx.DiGraph returned by parse_ms.to_nx(),
-                 or another Demography object
-        '''
         super(Demography, self).__init__(to_copy, *args, **kwargs)
         self.leaves = set([k for k, v in self.out_degree().items() if v == 0])
         self.event_tree = build_event_tree(self)
 
-    def simulate_sfs(self, num_sims, theta, ms_path=None, seeds=None, additional_ms_params=""):
-        '''
-        Simulates num_sims independent SFS's from the demography, using ms or
-        similar program (e.g. scrm, macs).
+    @property
+    def n_at_leaves(self):
+        return tuple(self.n_lineages(l) for l in sorted(self.leaves))
 
-        If ms_path is None, uses the system variable $MS_PATH.
+#     def simulate_sfs(self, num_sims, theta, ms_path=None, seeds=None, additional_ms_params=""):
+#         '''
+#         Simulates num_sims independent SFS's from the demography, using ms or
+#         similar program (e.g. scrm, macs).
 
-        returns list [{tuple(config) : count}] of length num_sims
-        '''
-        return parse_ms._simulate_sfs(self, num_sims, theta, ms_path, seeds, additional_ms_params)
+#         If ms_path is None, uses the system variable $MS_PATH.
+
+#         returns list [{tuple(config) : count}] of length num_sims
+#         '''
+#         return parse_ms._simulate_sfs(self, num_sims, theta, ms_path, seeds, additional_ms_params)
 
     @property
     def ms_cmd(self):

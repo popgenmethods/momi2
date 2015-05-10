@@ -1,6 +1,6 @@
 from __future__ import division
 import pytest
-from momi import make_demography, compute_sfs, aggregate_sfs
+from momi import make_demography, compute_sfs, aggregate_sfs, simulate_ms, sfs_list_from_ms
 
 from test_sims import simple_admixture_demo
 from test_gradient import simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model
@@ -55,7 +55,9 @@ if __name__=="__main__":
                 x = np.random.normal(size=m_val['params'])
                 demo = m_val['demo'](x, m_val['nlins'])
                 
-                sampled_sfs = demo.simulate_sfs(10)
+                sampled_sfs = sfs_list_from_ms(simulate_ms(demo, num_sims=100, theta=10.),
+                                               demo.n_at_leaves)
+
                 sampled_sfs = aggregate_sfs(sampled_sfs)
                 config_list = tuple(sorted(sampled_sfs.keys()))
                 
