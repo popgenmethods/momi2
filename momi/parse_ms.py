@@ -274,6 +274,20 @@ class MsCmdParser(object):
                 self._g(i, rate)
         return self.get_param(rate),
 
+    def _a(self, i, t):
+        ## flag designates leaf population i is archaic, starting at time t
+        assert self.roots
+        if self.events:
+            raise IOError(("-a should be called before any demographic changes", kwargs['cmd']))
+        assert not self.edges and len(self.nodes) == len(self.roots)
+
+        i,t = self.get_pop(i), self.get_param(t)
+        pop = self.roots[i]
+        assert len(self.nodes[pop]['sizes']) == 1
+        self.nodes[pop]['sizes'][0]['t'] = t
+
+        return i,t
+
     def _I(self, npop, *lins_per_pop):
         # -I should be called first, so everything should be empty
         assert all([not x for x in self.roots,self.events,self.edges,self.nodes])

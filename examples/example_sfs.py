@@ -11,8 +11,11 @@ Main differences with ms:
 0) only the demographic parameters are specified (no -t,-T,-r)
 1) the flag -I must always be specified
 2) flags for continuous migration not implemented
+3) an additional flag for ancient DNA:
+   -a i t: leaf population i starts at time t, instead of time 0
 '''
 demo = make_demography("-I 2 5 5"
+                       + " -a 2 .01"
                        + " -g 1 .1"
                        + " -es .5 1 .1 -ej .5 4 2"
                        + " -es .1 1 .05 -ej .1 3 2"
@@ -24,11 +27,12 @@ with the "$" sign, and provided as arguments to
 make_demography.
 '''
 demo2 = make_demography("-I 2 5 5"
+                        + " -a 2 $t_a"
                         + " -g 1 $g0"
                         + " -es $t1 1 $p1 -ej $t1 4 2"
                         + " -es $t2 1 $p2 -ej $t2 3 2"
                         + " -ej $t3 2 1 -eg $t3 1 0",
-                        g0=.1, t1=.5, p1=.1, t2=.1, p2=.05, t3=1.0)
+                        t_a = .01, g0=.1, t1=.5, p1=.1, t2=.1, p2=.05, t3=1.0)
 
 
 
@@ -43,11 +47,12 @@ use #. So in the previous example, replacing "3" by "#4" and
 "4" by "#3" yields the same demography, because $t1 > $t2.
 '''
 demo3 = make_demography("-I 2 5 5"
+                       + " -a 2 $t_a"
                        + " -g 1 $g0"
                        + " -es $t1 1 $p1 -ej $t1 #3 2"
                        + " -es $t2 1 $p2 -ej $t2 #4 2"
                        + " -ej $t3 2 1 -eg $t3 1 0",
-                       g0=.1, t1=.5, p1=.1, t2=.1, p2=.05, t3=1.0)
+                       t_a = .01, g0=.1, t1=.5, p1=.1, t2=.1, p2=.05, t3=1.0)
 
                       
 '''
