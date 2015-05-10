@@ -51,7 +51,6 @@ def check_gradient(f, x):
     log_within(grad1,grad2)
 
     ## check Hessian vector product
-    ## comented out cuz slow
     y = np.random.normal(size=x.shape)
     gdot = lambda u : np.dot(g(u), y)
     hess1, hess2 = grad(gdot)(x), Gradient(gdot)(x)
