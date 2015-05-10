@@ -2,6 +2,7 @@ from __future__ import division
 import bisect
 import networkx as nx
 
+from demography import Demography
 from size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 from util import default_ms_path
 
@@ -13,11 +14,13 @@ import itertools
 from collections import Counter
 from cStringIO import StringIO
 
-'''
-This file contains helper functions for:
-1) Constructing demography from ms command line
-2) Using ms to simulate a SFS from a demographic scenario
-'''
+def make_demography(ms_cmd, *args, **kwargs):
+    '''
+    Returns a demography from partial ms command line
+
+    See examples/example_sfs.py for more details
+    '''
+    return Demography(_to_nx(ms_cmd, *args, **kwargs))
 
 def sfs_list_from_ms(ms_file, n_at_leaves):
     '''

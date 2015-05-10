@@ -6,33 +6,17 @@ import scipy, scipy.misc
 import autograd.numpy as np
 
 from sum_product import compute_sfs
-
-import parse_ms
 import os, itertools
 
-def make_demography(ms_cmd, *args, **kwargs):
-    return Demography(parse_ms._to_nx(ms_cmd, *args, **kwargs))
-
 class Demography(nx.DiGraph):
+    '''
+    Use momi.make_demography to construct demography from ms command line
+    '''
     def __init__(self, to_copy, *args, **kwargs):
+        '''makes a copy of a demography object'''
         super(Demography, self).__init__(to_copy, *args, **kwargs)
         self.leaves = set([k for k, v in self.out_degree().items() if v == 0])
         self.event_tree = build_event_tree(self)
-
-    @property
-    def n_at_leaves(self):
-        return tuple(self.n_lineages(l) for l in sorted(self.leaves))
-
-#     def simulate_sfs(self, num_sims, theta, ms_path=None, seeds=None, additional_ms_params=""):
-#         '''
-#         Simulates num_sims independent SFS's from the demography, using ms or
-#         similar program (e.g. scrm, macs).
-
-#         If ms_path is None, uses the system variable $MS_PATH.
-
-#         returns list [{tuple(config) : count}] of length num_sims
-#         '''
-#         return parse_ms._simulate_sfs(self, num_sims, theta, ms_path, seeds, additional_ms_params)
 
     @property
     def ms_cmd(self):
@@ -42,6 +26,10 @@ class Demography(nx.DiGraph):
     @memoize_instance
     def n_lineages(self, node):
         return np.sum(self.node[l]['lineages'] for l in self.leaves_subtended_by(node))
+
+    @property
+    def n_at_leaves(self):
+        return tuple(self.n_lineages(l) for l in sorted(self.leaves))
 
     @memoize_instance
     def leaves_subtended_by(self, node):
