@@ -38,10 +38,14 @@ def example_pulse_demo(params):
     thus allowing the convenience of using unconstrained optimization.
 
     Note also that only math functions from autograd.numpy used, to allow for
-    automatic differentiation. 
+    automatic differentiation.
     
     autograd.numpy supports nearly all functions from numpy, and also 
     makes it easy to define your own differentiable functions as necessary.
+    But there are some restrictions:
+    1) avoid using numpy object methods, i.e. x.dot(y). Instead do anp.dot(x,y)
+    2) avoid doing x[i] += y. Instead do x[i] = x[i] + y
+    See the autograd github page for exactly what functions autograd supports
     '''
     growth, logit_pulse_prob, log_pulse_time, log_join_wait_time = params
 

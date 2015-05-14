@@ -60,23 +60,66 @@ Now create some configs (samples) to compute the SFS entries for.
 Each config is represented by a tuple (d_1,d_2,...), where d_i is
 the number of derived alleles in population i.
 '''
-config_list = [(1,3), (5,0), (0,5), (2,2)]
+config_list = [(1,0), (0,1) ,(1,3), (5,1), (1,5), (2,2)]
 
 '''
 Now compute the SFS.
 
-sfs = expected length of branches with (d_1,d_2) leafs in populations 1,2.
-branch_len = expected total branch length below TMRCA.
+sfs = expected branch length with (d_1,d_2) leafs in populations 1,2.
+normalizing_constant = expected total branch length
 
 All branch lengths are in ms-scaled units, which is off by a factor of 2
 from the more common scaling convention in population genetics.
 '''
-sfs, branch_len = compute_sfs(demo, config_list)
-for other_demo in (demo2,demo3):
-    other_sfs, other_branch_len = compute_sfs(other_demo, config_list)
-    assert np.all(sfs == other_sfs) and branch_len == other_branch_len
+sfs, normalizing_constant = compute_sfs(demo, config_list)
 
-print "SFS entries"
-for c,s in zip(config_list,sfs):
-    print str(c) + "\t" + str(s)
-print "Total branch length", branch_len
+'''
+Check that demo2, demo3 indeed give the same SFS
+'''
+for other_demo in (demo2,demo3):
+    other_sfs, other_normalizing_constant = compute_sfs(other_demo, config_list)
+    assert np.all(sfs == other_sfs) and normalizing_constant == other_normalizing_constant
+
+## print the SFS now
+print "Printing SFS without error model"
+def print_sfs(config_list, sfs, normalizing_constant):
+    print "\t".join(["Config", "ExpectedCount", "ConditionalProbability"])
+    for c,s in zip(config_list,sfs):
+        print "\t".join([str(c), str(s), str(s / normalizing_constant)])
+print_sfs(config_list, sfs, normalizing_constant)
+
+
+'''
+Errors & Ascertainment bias
+
+It is often important to account for errors in observations
+For example, rare mutations are likely to be missed, and this can affect demographic inference
+
+Here we give a simple example of a linear error model, which can be handled by passing in
+an error_matrices list to compute_sfs
+
+More complex models of error/sampling bias can be handled by using the function
+raw_compute_sfs directly, instead of the wrapper function compute_sfs.
+'''
+
+error_matrices = []
+for leaf in sorted(demo.leaves):
+    n_lins = demo.n_lineages(leaf)
+
+    # error_mat[i,j] = P(observing i derived in sample | actually j derived in sample)
+    error_mat = np.zeros((n_lins+1, n_lins+1))
+    for true_derived in range(n_lins+1):
+        # a similar error model to Gravel et al 2010
+        # probability of missing a SNP decays exponentially with derived count
+        # if SNP isn't missed, then its frequency is gotten exactly
+        unobserved_prob = np.exp(-true_derived)
+        error_mat[0,true_derived] += unobserved_prob
+        error_mat[true_derived, true_derived] += 1.0 - unobserved_prob
+    error_matrices.append(error_mat)
+
+sfs, normalizing_constant = compute_sfs(demo, config_list, error_matrices = error_matrices)
+print "\n\nPrinting SFS with simple linear error model"
+print_sfs(config_list, sfs, normalizing_constant)
+
+
+## TODO: give an example of using raw_compute_sfs, for error model where we only observe SNPs attaining a minimal frequency in at least one population
