@@ -79,10 +79,7 @@ def simulate_ms(demo, num_sims, theta, ms_path=None, seeds=None, additional_ms_p
         lines = subprocess.check_output([ms_path] + ms_args.split(),
                                         stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError, e:
-        if e.returncode not in [0,16,17,18]:
-            raise IOError("call to ms failed", " ".join(e.cmd), "\n", 
-                          "return code:", e.returncode, "\n",
-                          e.output)
+        ## ms gives really weird error codes, so ignore them
         lines = e.output
 
     return StringIO(lines)
