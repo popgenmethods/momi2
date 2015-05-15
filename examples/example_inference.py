@@ -87,7 +87,7 @@ def fit_log_likelihood_example(demo_func, ms_path, num_loci, theta, additional_m
     ms_output.close()
 
     # log-likelihood surface
-    surface = CompositeLogLikelihood(sfs_list, demo_func, theta=theta)
+    surface = CompositeLogLikelihood(sfs_list, theta=theta, demo_func=demo_func)
 
     # construct the function to minimize, and its derivatives
     f = lambda params: -surface.log_likelihood(params)

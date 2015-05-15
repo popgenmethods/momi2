@@ -20,7 +20,7 @@ class CompositeLogLikelihood(object):
     log_likelihood: returns the composite log likelihood
     max_covariance: estimates covariance matrix of composite MLE
     '''
-    def __init__(self, sfs_list, demo_func=lambda demo: demo, theta=None, theta_func=None, eps=1e-6):
+    def __init__(self, sfs_list, theta, demo_func=lambda demo: demo, eps=1e-6, *args, **kwargs):
         '''
         sfs_list: [{config : count}], a list of length num_loci,
                   with each entry a dictionary giving the SFS at the locus
@@ -29,23 +29,20 @@ class CompositeLogLikelihood(object):
                    by space of demographies).
                    Note derivatives and covariance estimation only work if
                    parameters are array-valued.
-        theta: a number or list of numbers, giving mutation rate at each locus.
-               Exactly one of theta or theta_func must be specified.
-        theta_func: a function that returns mutation rate(s) from the parameters
+        theta: One of the following:
+               (a) a number giving the mutation rate at each locus
+               (b) a list of numbers giving the mutation rate at each locus
+               (c) a function that takes in parameters, and returns (a) or (b)
         eps: add branch_len*eps/num_configs to each SFS entry, to avoid taking log(0) in
              case of underflow
+        args, kwargs: additional arguments for compute_sfs (e.g. error model)
         '''
         self.sfs_list = sfs_list
         self.config_list = list(set(sum([sfs.keys() for sfs in sfs_list],[])))
+        self.theta = theta
         self.demo_func = demo_func
         self.eps = eps
-
-        if (theta is None) == (theta_func is None):
-            raise Exception("Exactly one of theta,theta_func should be given")
-        if theta_func is None:
-            theta_func = lambda params: theta
-        # make sure theta_func returns theta for each locus
-        self.theta_func = lambda params: theta_func(params) * np.ones(len(self.sfs_list))
+        self.args, self.kwargs = args, kwargs
 
         # (i,j)th coordinate = count of config j in locus i
         self.counts_matrix = np.zeros((len(self.sfs_list), len(self.config_list)))
@@ -65,8 +62,8 @@ class CompositeLogLikelihood(object):
         If vector=True, return vector of composite-log-likelihoods at each locus.
         Otherwise, return the sum of this vector.
         '''
-        demo,theta = self.demo_func(params), self.theta_func(params)
-        sfs_vals, branch_len = compute_sfs(demo, self.config_list)
+        demo,theta = self.demo_func(params), self._get_theta(params)
+        sfs_vals, branch_len = compute_sfs(demo, self.config_list, *self.args, **self.kwargs)
         log_fact = self.logfactorial_rows
 
         # dimensions = (locus,config)
@@ -117,6 +114,14 @@ class CompositeLogLikelihood(object):
 
         ret = np.dot(h_inv, np.dot(g_out,h_inv))
         return check_symmetric(ret)
+
+    def _get_theta(self, params):
+        try:
+            theta = self.theta(params)
+        except TypeError:
+            theta = self.theta
+        # make sure there is a theta for each locus
+        return theta * np.ones(len(self.sfs_list))
 
     def _g_out(self, params):
         '''

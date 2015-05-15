@@ -98,7 +98,8 @@ It is often important to account for errors in observations
 Either because of poor coverage, or because rare mutations are missed entirely
 
 compute_sfs takes in two arguments relating to errors & sampling bias:
-(1) error_matrices: assume independent errors in each leaf population
+(1) error_matrices: matrices describing sampling errors in each leaf population. 
+                    Assumes independent errors in each leaf population
 (2) min_freqs: ignore SNPs with very low frequencies in all subpopulations.
 
 Arguments (1),(2) adjust the sfs entries and the normalizing constant to account
