@@ -43,9 +43,11 @@ def example_pulse_demo(params):
     autograd.numpy supports nearly all functions from numpy, and also 
     makes it easy to define your own differentiable functions as necessary.
     But there are some restrictions:
-    1) avoid using numpy object methods, i.e. x.dot(y). Instead do anp.dot(x,y)
-    2) avoid doing x[i] += y. Instead do x[i] = x[i] + y
-    See the autograd github page for exactly what functions autograd supports
+    1) avoid A.dot(B) notation. Instead use anp.dot(A,B)
+    2) avoid in place operations, x += y. Instead use x = x + y
+    3) avoid assignment to arrays, e.g. A[0,0] = x breaks if A or x are differentiable
+       indexing and slicing are OK though, e.g. x = A[0,0] is fine
+    See the autograd tutorial (on its github page) for more details
     '''
     growth, logit_pulse_prob, log_pulse_time, log_join_wait_time = params
 
