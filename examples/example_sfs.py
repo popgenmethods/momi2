@@ -60,7 +60,7 @@ Now create some configs (samples) to compute the SFS entries for.
 Each config is represented by a tuple (d_1,d_2,...), where d_i is
 the number of derived alleles in population i.
 '''
-config_list = [(1,0), (0,1) ,(1,3), (5,1), (1,5), (2,2)]
+config_list = [(1,0), (0,1) ,(1,3), (5,0), (0,5), (2,2)]
 
 '''
 Now compute the SFS.
@@ -81,11 +81,13 @@ for other_demo in (demo2,demo3):
     assert np.all(sfs == other_sfs) and normalizing_constant == other_normalizing_constant
 
 ## print the SFS now
-print "Printing SFS without error model"
+print "\nPrinting SFS without error model\n"
 def print_sfs(config_list, sfs, normalizing_constant):
+    print "\n"
     print "\t".join(["Config", "ExpectedCount", "ConditionalProbability"])
     for c,s in zip(config_list,sfs):
         print "\t".join([str(c), str(s), str(s / normalizing_constant)])
+    print "Normalizing constant: ", normalizing_constant
 print_sfs(config_list, sfs, normalizing_constant)
 
 
@@ -93,20 +95,25 @@ print_sfs(config_list, sfs, normalizing_constant)
 Errors & Ascertainment bias
 
 It is often important to account for errors in observations
-For example, rare mutations are likely to be missed, and this can affect demographic inference
+Either because of poor coverage, or because rare mutations are missed entirely
 
-Here we give a simple example of a linear error model, which can be handled by passing in
-an error_matrices list to compute_sfs
+compute_sfs takes in two arguments relating to errors & sampling bias:
+(1) error_matrices: assume independent errors in each leaf population
+(2) min_freqs: ignore SNPs with very low frequencies in all subpopulations.
+
+Arguments (1),(2) adjust the sfs entries and the normalizing constant to account
+for these errors.
 
 More complex models of error/sampling bias can be handled by using the function
 raw_compute_sfs directly, instead of the wrapper function compute_sfs.
 '''
+print "\n\nPrinting SFS with simple linear error model and minimum allele frequency\n"
 
-error_matrices = []
+# error_matrix_list[leaf_pop][i,j] = Prob(observing i derived in leaf_pop | actually j derived in leaf_pop)
+error_matrix_list = []
 for leaf in sorted(demo.leaves):
     n_lins = demo.n_lineages(leaf)
 
-    # error_mat[i,j] = P(observing i derived in sample | actually j derived in sample)
     error_mat = np.zeros((n_lins+1, n_lins+1))
     for true_derived in range(n_lins+1):
         # a similar error model to Gravel et al 2010
@@ -115,11 +122,17 @@ for leaf in sorted(demo.leaves):
         unobserved_prob = np.exp(-true_derived)
         error_mat[0,true_derived] += unobserved_prob
         error_mat[true_derived, true_derived] += 1.0 - unobserved_prob
-    error_matrices.append(error_mat)
+    error_matrix_list.append(error_mat)
 
-sfs, normalizing_constant = compute_sfs(demo, config_list, error_matrices = error_matrices)
-print "\n\nPrinting SFS with simple linear error model"
+# to be considered, each allele of SNP must attain frequency >= 3 in leaf pop 1, or frequency >= 1 in leaf pop 2
+min_freqs = [3,1]
+
+sfs, normalizing_constant = compute_sfs(demo, config_list, error_matrices = error_matrix_list, min_freqs = min_freqs)
+
+# note a warning is raised because there is a config that does not attain minimum frequency.
+# its entry is set to 0
+
 print_sfs(config_list, sfs, normalizing_constant)
 
 
-## TODO: give an example of using raw_compute_sfs, for error model where we only observe SNPs attaining a minimal frequency in at least one population
+

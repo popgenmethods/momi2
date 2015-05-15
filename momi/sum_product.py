@@ -1,12 +1,13 @@
 from __future__ import division
+import warnings
 import autograd.numpy as np
 import scipy
-from util import memoize_instance, memoize, truncate0, make_constant
+from util import memoize_instance, memoize, truncate0, make_constant, set0
 from math_functions import einsum2, fft_einsum, sum_antidiagonals, hypergeom_quasi_inverse
 from autograd.core import primitive
 from autograd import hessian
 
-def compute_sfs(demography, config_list, error_matrices=None):
+def compute_sfs(demography, config_list, error_matrices=None, min_freqs=1):
     '''
     Returns (sfs,normalizing_constant), where:
     sfs = array with sfs entry for each config given
@@ -16,22 +17,32 @@ def compute_sfs(demography, config_list, error_matrices=None):
     sfs / normalizing_constant = conditional probability of SNP
 
     Inputs are
-    demography: object returned by demography.make_demography
-    config_list: list of k-tuples of derived counts, 
-                 where k=number of leaf pops in demography
+    demography: object returned by momi.make_demography()
+    config_list: list of D-tuples of derived counts, 
+                 where D=number of leaf pops in demography
     error_matrices: list whose length is number of leaf populations
                     i-th entry is a matrix, with
                     error_matrices[i][j,k] = P(observe j derived in pop i | k actual derived in pop i)
                     if None, assume no errors in measure/observation
+    min_freqs: number or array-like whose length is the number of leaf populations
+               only SFS entries where the minor allele attains a minimum frequency in at least one subpopulation
+               are considered; all other SFS entries are assigned 0.
+               This is also reflected in the normalization constant
     '''
     data = np.array(config_list, ndmin=2)
     if data.ndim != 2 or data.shape[1] != len(demography.leaves):
         raise IOError("Invalid config_list.")
 
-    n = np.sum([demography.n_lineages(l) for l in demography.leaves])
-    data_rowsums = np.sum(data, axis=1)
-    if np.any(data_rowsums == n) or np.any(data_rowsums == 0):
-        raise IOError("Monomorphic sites in config_list.")
+    n_leaf_lins = np.array([demography.n_lineages(l) for l in demography.leaves])
+    #n = np.sum()
+    #data_rowsums = np.sum(data, axis=1)
+#     if np.any(data_rowsums == n) or np.any(data_rowsums == 0):
+#         raise IOError("Monomorphic sites in config_list.")
+
+    min_freqs = np.array(min_freqs) * np.ones(len(demography.leaves), dtype='i')
+    if np.any(min_freqs < 1) or np.any(min_freqs > n_leaf_lins):
+        raise Exception("Minimum frequencies must be in (0,num_lins] for each leaf pop")
+    max_freqs = n_leaf_lins - min_freqs
 
     leaf_liks = {}
     for col,leaf in enumerate(sorted(demography.leaves)):
@@ -40,7 +51,8 @@ def compute_sfs(demography, config_list, error_matrices=None):
         # an array of the likelihoods at the leaf population
         cur_lik = np.zeros( (data.shape[0] + 3, n_lins + 1) )
         cur_lik[0,:] = 1.0 # likelihood of all states
-        cur_lik[1,0] = cur_lik[2,n_lins] = 1.0 # likelihood of monomorphic ancestral, derived states
+        cur_lik[1,:(min_freqs[col])] = 1.0 # likelihood of derived not attaining minimum frequency
+        cur_lik[2,(max_freqs[col]+1):] = 1.0 # likelihood of ancestral not attaining minimum frequency
         cur_lik[zip(*enumerate(data[:,col], start=3))] = 1.0 # likelihoods for config_list
 
         if error_matrices is not None:
@@ -58,6 +70,14 @@ def compute_sfs(demography, config_list, error_matrices=None):
     # extract the normalizing constant
     normalizing_constant = sfs[0] - sfs[1] - sfs[2]
     sfs = sfs[3:]
+
+    # set entries not attaining minimum frequency to 0
+    attain_min_freq = np.logical_and(np.sum(data >= min_freqs, axis=1) > 0, # at least one entry above min_freqs
+                                     np.sum(data <= max_freqs, axis=1) > 0 # at least one entry below max_freqs
+                                     )
+    if not np.all(attain_min_freq):
+        warnings.warn("Entries that do not attain minimum minor allele frequency are set to 0.")
+        sfs = set0(sfs, np.logical_not(attain_min_freq))
 
     assert normalizing_constant >= 0.0 and np.all(sfs >= 0.0) and np.all(sfs <= normalizing_constant)
     return np.squeeze(sfs), normalizing_constant

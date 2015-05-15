@@ -26,14 +26,9 @@ def check_demo_normalization(demo, *args, **kwargs):
     leaves = sorted(list(demo.leaves))
     ranges = [range(demo.n_lineages(l)+1) for l in demo.leaves]
 
-    #totalSum = 0.0
-    config_list = []
-    for n_derived in itertools.product(*ranges):
-        if sum(n_derived) == 0 or sum(n_derived) == sum(map(lambda x: len(x) - 1, ranges)):
-            continue #skip monomorphic sites
-        config_list.append(n_derived)
+    config_list = list(itertools.product(*ranges))
     sfs, branch_len = compute_sfs(demo, config_list, *args, **kwargs)
-    assert abs(log(np.sum(sfs) / branch_len)) < 1e-12
+    assert abs(log(np.sum(sfs) / branch_len)) < 1e-10
 
 def test_tree_demo_normalization():
     lins_per_pop=2
@@ -48,11 +43,11 @@ def test_admixture_demo_normalization():
     check_demo_normalization(demo)
 
 def test_tree_demo_errors_normalization():
-    lins_per_pop=2
+    lins_per_pop=10
     num_leaf_pops=3
 
     error_matrices = [np.exp(np.random.randn(lins_per_pop+1,lins_per_pop+1)) for _ in range(num_leaf_pops)]
     error_matrices = [np.einsum('ij,j->ij', x, 1./np.sum(x, axis=0)) for x in error_matrices]
 
     demo = random_tree_demo(num_leaf_pops, lins_per_pop)
-    check_demo_normalization(demo, error_matrices=error_matrices)
+    check_demo_normalization(demo, error_matrices=error_matrices, min_freqs=[1,2,3])

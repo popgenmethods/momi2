@@ -48,6 +48,14 @@ def truncate0(x, axis=None):
 truncate0.defgrad(lambda ans,x,axis=None: lambda g: g)    
 
 @primitive
+def set0(x, indices):
+    y = np.array(x)
+    y[indices] = 0
+    return y
+set0.defgrad(lambda ans,x,indices: lambda g: set0(g,indices))
+    
+
+@primitive
 def make_constant(x):
     return x
 make_constant.defgrad_is_zero()
