@@ -13,8 +13,10 @@ class CompositeLogLikelihood(object):
     Composite log-likelihood surface, where data
     is a list of frequency spectra at unlinked loci.
 
-    Models SNP counts at each locus as a Poisson
-    distribution given by mutation rate and the expected SFS.
+    Depending on whether mutation rate (theta) is specified,
+    models SNP counts at each locus as either:
+    (1) a Poisson distribution given by mutation rate and the expected SFS
+    (2) multinomial distribution, with probabilities given by normalized SFS
 
     Methods:
     log_likelihood: returns the composite log likelihood
@@ -33,6 +35,7 @@ class CompositeLogLikelihood(object):
                (a) a number giving the mutation rate at each locus
                (b) a list of numbers giving the mutation rate at each locus
                (c) a function that takes in parameters, and returns (a) or (b)
+               (d) None. In this case uses multinomial probability, instead of Poisson Random Field
         eps: add branch_len*eps/num_configs to each SFS entry, to avoid taking log(0) in
              case of underflow
         args, kwargs: additional arguments for compute_sfs (e.g. error model)
@@ -62,9 +65,8 @@ class CompositeLogLikelihood(object):
         If vector=True, return vector of composite-log-likelihoods at each locus.
         Otherwise, return the sum of this vector.
         '''
-        demo,theta = self.demo_func(params), self._get_theta(params)
+        demo = self.demo_func(params)
         sfs_vals, branch_len = compute_sfs(demo, self.config_list, *self.args, **self.kwargs)
-        log_fact = self.logfactorial_rows
 
         # dimensions = (locus,config)
         if vector:
@@ -73,22 +75,45 @@ class CompositeLogLikelihood(object):
         else:
             # sum out the locus dimension
             counts = self.counts_columns
-            theta, log_fact = np.sum(theta), np.sum(log_fact)
             loc_dim = []
 
-        n_leaf_lins = np.array([demo.n_lineages(l) for l in demo.leaves])
-        num_configs = np.prod(n_leaf_lins + 1) - 2
+        num_configs = self._num_configs(demo)
 
         eps = self.eps*branch_len
-        # Return -theta*branch_length - log_factorial + counts * log(theta*sfs)
-        # first multiply theta*sfs along config ('c') dimension
-        log_theta_sfs = np.log(einsum2(theta, loc_dim, 
-                                       sfs_vals+eps/num_configs, ['c'], loc_dim+['c']))
-        # then multiply by counts and sum out config dimension
-        return -theta*(branch_len
-                       +eps) - log_fact + einsum2(counts, loc_dim+['c'], 
-                                                       log_theta_sfs, loc_dim+['c'],
-                                                       loc_dim)
+
+        if self.theta is not None:
+            theta = self._get_theta(params)
+            log_fact = self.logfactorial_rows
+            if not vector:
+                theta, log_fact = np.sum(theta), np.sum(log_fact)
+            # Return -theta*branch_length - log_factorial + counts * log(theta*sfs)
+            # first multiply theta*sfs along config ('c') dimension
+            log_theta_sfs = np.log(einsum2(theta, loc_dim, 
+                                           sfs_vals+eps/num_configs, ['c'], loc_dim+['c']))
+            # then multiply by counts and sum out config dimension
+            return -theta*(branch_len
+                           +eps) - log_fact + einsum2(counts, loc_dim+['c'], 
+                                                           log_theta_sfs, loc_dim+['c'],
+                                                           loc_dim)
+        else:
+            # Return counts * log(sfs / branch_len)
+            return einsum2(counts, loc_dim+['c'],
+                           np.log(sfs_vals + eps/num_configs) - np.log(branch_len + eps),
+                           ['c'], loc_dim)
+            
+
+    def _num_configs(self, demo):
+        try:
+            self.min_freqs = self.args[1]
+        except IndexError:
+            try:
+                self.min_freqs = self.kwargs['min_freqs']
+            except KeyError:
+                self.min_freqs = 1
+        n_leaf_lins = np.array([demo.n_lineages(l) for l in demo.leaves])
+        min_freqs = self.min_freqs * np.ones(len(n_leaf_lins))
+        assert np.all(min_freqs > 0) and np.all(min_freqs <= n_leaf_lins)
+        return np.prod(n_leaf_lins + 1) - 2 * np.prod(min_freqs)
 
     def max_covariance(self, true_params):
         '''

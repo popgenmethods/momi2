@@ -49,7 +49,9 @@ def compute_stats(demo, sampled_sfs):
     agg_sfs = aggregate_sfs(sampled_sfs)
     config_list = tuple(sorted(agg_sfs.keys()))
     surface = CompositeLogLikelihood(sampled_sfs, theta=10.)
-    return list(compute_sfs(demo,config_list)) + [surface.log_likelihood(demo), surface.log_likelihood(demo, vector=True)]
+    surface2 = CompositeLogLikelihood(sampled_sfs, theta=None)
+    log_liks = [[s.log_likelihood(demo), s.log_likelihood(demo,vector=True)] for s in surface,surface2]
+    return list(compute_sfs(demo,config_list)) + sum(log_liks,[])
 
 def from_dict(sampled_sfs):
     # make it hashable
