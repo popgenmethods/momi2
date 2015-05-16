@@ -1,6 +1,6 @@
 from __future__ import division
 import pytest
-from momi import make_demography, compute_sfs, aggregate_sfs, simulate_ms, sfs_list_from_ms
+from momi import make_demography, compute_sfs, aggregate_sfs, simulate_ms, sfs_list_from_ms, CompositeLogLikelihood
 
 from test_sims import simple_admixture_demo
 from test_gradient import simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model
@@ -32,19 +32,32 @@ def generate_sfs():
         sfs_dict = pickle.load(sfs_dict_file)
         ret = []
         for k,v in sfs_dict.iteritems():
-            m_name,params,configs = k
-            sfs,branch_len = v
+            m_name,params,sampled_sfs = k
 
             n_lin = MODELS[m_name]['nlins']
             demo = MODELS[m_name]['demo'](np.array(params),n_lin)
-            sfs2,branch_len2 = compute_sfs(demo, configs)
-            yield m_name,sfs,sfs2,branch_len,branch_len2
+            v2 = compute_stats(demo, sampled_sfs)
+            yield m_name,v,v2
 
-@pytest.mark.parametrize("m_name,sfs,sfs2,branch_len,branch_len2", generate_sfs())
-def test_generated_cases(m_name,sfs,sfs2,branch_len,branch_len2):
-    log_within( np.array(branch_len, ndmin=1), np.array(branch_len2, ndmin=1) , eps=1e-6)
-    log_within( sfs, sfs2, eps=1e-6)
+@pytest.mark.parametrize("m_name,v,v2", generate_sfs())
+def test_generated_cases(m_name,v,v2):
+    for stat1,stat2 in zip(v,v2):
+        assert np.allclose(stat1,stat2)
     
+def compute_stats(demo, sampled_sfs):
+    sampled_sfs = to_dict(sampled_sfs)
+    agg_sfs = aggregate_sfs(sampled_sfs)
+    config_list = tuple(sorted(agg_sfs.keys()))
+    surface = CompositeLogLikelihood(sampled_sfs, theta=10.)
+    return list(compute_sfs(demo,config_list)) + [surface.log_likelihood(demo), surface.log_likelihood(demo, vector=True)]
+
+def from_dict(sampled_sfs):
+    # make it hashable
+    return tuple([tuple(locus.iteritems()) for locus in sampled_sfs])
+
+def to_dict(sampled_sfs):
+    # make it a dictionary
+    return [dict(locus) for locus in sampled_sfs]
 
 if __name__=="__main__":
     if len(sys.argv) == 2 and sys.argv[1] == "generate":
@@ -57,11 +70,8 @@ if __name__=="__main__":
                 
                 sampled_sfs = sfs_list_from_ms(simulate_ms(demo, num_sims=100, theta=10.),
                                                demo.n_at_leaves)
-
-                sampled_sfs = aggregate_sfs(sampled_sfs)
-                config_list = tuple(sorted(sampled_sfs.keys()))
-                
-                results[(m_name, tuple(x), config_list)] = compute_sfs(demo, config_list)
+                sampled_sfs = from_dict(sampled_sfs)
+                results[(m_name, tuple(x), sampled_sfs)] = compute_stats(demo, sampled_sfs)
         pickle.dump(results, open(PICKLE, "wb"))
     elif len(sys.argv) == 1:
         pass

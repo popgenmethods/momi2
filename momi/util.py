@@ -11,8 +11,13 @@ def default_ms_path():
 
 def aggregate_sfs(sfs_list, fun=lambda x: x):
     config_list = set(sum([sfs.keys() for sfs in sfs_list], []))
-    aggregate_config = lambda config: sum([fun(sfs[config]) for sfs in sfs_list])
+    def sfs_config(sfs,config):
+        try:
+            return sfs[config]
+        except KeyError:
+            return 0
 
+    aggregate_config = lambda config: sum([fun(sfs_config(sfs,config)) for sfs in sfs_list])
     return {config: aggregate_config(config) for config in config_list}
 
 def polymorphic_configs(demo):

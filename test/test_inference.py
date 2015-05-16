@@ -24,7 +24,7 @@ def test_joint_sfs_inference():
     sfs_list = sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
                                 true_demo.n_at_leaves)
 
-    log_lik = LogLik(sfs_list, get_demo, theta=theta)
+    log_lik = LogLik(sfs_list, demo_func=get_demo, theta=theta)
 
     print(t0,t1)
     def f(join_time):

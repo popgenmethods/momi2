@@ -20,7 +20,7 @@ def test_regularization():
     sfs_list = sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
                                 true_demo.n_at_leaves)
 
-    log_lik = LogLik(sfs_list, lambda x: get_demo(*x), theta=theta, eps=1e-6)
+    log_lik = LogLik(sfs_list, demo_func=lambda x: get_demo(*x), theta=theta, eps=1e-6)
 
     f = lambda x: -log_lik.log_likelihood(x)
     g, hp = grad(f), hessian_vector_product(f)
