@@ -1,5 +1,5 @@
 __pycache__
 *.pyc
 *.swp
-
+*~
 momi.egg-info
