@@ -1,6 +1,6 @@
 from __future__ import division
 from util import memoize, truncate0
-from math_functions import einsum2, swapaxes
+from math_functions import einsum2
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
 import autograd.numpy as np
@@ -75,7 +75,7 @@ def moran_apply(f,v,axis, transpose=False):
     get Moran rate matrix (transpose), make v have appropriate shape, and call f(M,v)
     '''
     n = v.shape[axis]-1
-    v = swapaxes(v, 0, axis)
+    v = np.swapaxes(v, 0, axis)
     old_shape = v.shape    
 
     v = np.reshape(v, [v.shape[0],-1])
@@ -85,7 +85,7 @@ def moran_apply(f,v,axis, transpose=False):
 
     ret = f(M, v)
     ret = np.reshape(ret, old_shape)
-    ret = swapaxes(ret, 0, axis)
+    ret = np.swapaxes(ret, 0, axis)
 
     return ret
 

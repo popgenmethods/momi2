@@ -30,7 +30,7 @@ def sum_antidiagonals(arr, labels, axis0, axis1, new_axis):
     assert axis0 != axis1
     idx0,idx1 = labels.index(axis0), labels.index(axis1)
 
-    ret = swapaxes(swapaxes(arr, idx0, 0), idx1, 1)[::-1,...]
+    ret = np.swapaxes(np.swapaxes(arr, idx0, 0), idx1, 1)[::-1,...]
     ret = np.array([np.trace(ret,offset=k) 
                     for k in range(-ret.shape[0]+1,ret.shape[1])])    
 
@@ -41,12 +41,6 @@ def sum_antidiagonals(arr, labels, axis0, axis1, new_axis):
     labels = [new_axis] + labels[2:]
    
     return ret,labels
-
-@primitive
-def swapaxes(a, axis1, axis2):
-    return np.swapaxes(a, axis1, axis2)
-swapaxes.defgrad(lambda ans,a,axis1,axis2:
-                     lambda g: swapaxes(g, axis1,axis2))
 
 '''
 Returns
