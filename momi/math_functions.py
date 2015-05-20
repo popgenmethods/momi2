@@ -4,7 +4,6 @@ from autograd.core import primitive
 import scipy
 from util import memoize
 
-@primitive
 def einsum2(*args):
     '''
     like numpy.einsum, using format
@@ -26,25 +25,13 @@ def einsum2(*args):
     
     ## TODO: use np.tensordot instead (faster, easier to parallelize)
     return np.einsum(*args)
-def make_einsum_grad(argnum, ans, *args):
-    if argnum % 2 == 1:
-        raise Exception()
-    grad_args = list(args)
-    grad_args[-1] = args[argnum+1]
-    grad_args[argnum+1] = args[-1]
-    def grad(g):
-       curr_args = list(grad_args)
-       curr_args[argnum] = g
-       return einsum2(*curr_args)
-    return grad
-einsum2.gradmaker = make_einsum_grad
 
 def sum_antidiagonals(arr, labels, axis0, axis1, new_axis):
     assert axis0 != axis1
     idx0,idx1 = labels.index(axis0), labels.index(axis1)
 
     ret = swapaxes(swapaxes(arr, idx0, 0), idx1, 1)[::-1,...]
-    ret = np.array([trace(ret,offset=k) 
+    ret = np.array([np.trace(ret,offset=k) 
                     for k in range(-ret.shape[0]+1,ret.shape[1])])    
 
     # swap labels
@@ -60,19 +47,6 @@ def swapaxes(a, axis1, axis2):
     return np.swapaxes(a, axis1, axis2)
 swapaxes.defgrad(lambda ans,a,axis1,axis2:
                      lambda g: swapaxes(g, axis1,axis2))
-
-@primitive
-def trace(a, offset):
-    '''
-    autograd.numpy.trace gradient is broken.
-    TODO: submit pull request to autograd
-    '''
-    return np.trace(a, offset)
-trace.defgrad(lambda ans,a,offset:
-                  lambda g: einsum2(np.eye(a.shape[0], a.shape[1], k=offset),
-                                    [0,1],
-                                    g, range(2, len(a.shape)),
-                                    range(len(a.shape))))
 
 '''
 Returns
@@ -158,25 +132,11 @@ def fft_einsum(in1, labels1, in2, labels2, out_labels, fft_labels):
     out_slice = np.array([slice(None)] * len(out_labels))
     out_slice[fft_idx[0]] = np.array([slice(s) for s in fft_shapes])
     
-    ret = einsum2(fftn(in1, fshape, fft_idx[1]), labels1,
-                  fftn(in2, fshape, fft_idx[2]), labels2,
+    ret = einsum2(np.fft.fftn(in1, fshape, fft_idx[1]), labels1,
+                  np.fft.fftn(in2, fshape, fft_idx[2]), labels2,
                   out_labels)
     return np.real(np.fft.ifftn(ret, axes=fft_idx[0])[list(out_slice)])
                     
-@primitive
-def fftn(x, s, axes):
-    '''
-    autograd fftn currently broken for arguments s,axes
-    TODO: submit pull request to autograd
-    '''
-    return np.fft.fftn(x,s,axes)
-def fftngrad(ans,x,s,axes):
-    gslice = tuple(slice(0,int(sz)) for sz in x.shape)
-    g_s = tuple(np.array(map(max, zip(x.shape, ans.shape)))[axes])
-    return lambda g: fftn(g,g_s,axes)[gslice]
-fftn.defgrad(fftngrad)
-
-
 def _next_regular(target):
     """
     COPIED FROM SCIPY.SIGNAL
