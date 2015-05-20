@@ -82,22 +82,21 @@ def avg_pairwise_differences(sfs):
 def piecewise_exponential_demo(params):
     '''
     Function that returns a piecewise exponential demo from a parameter vector.
-    For a demography with n_epochs intervals (not including the ancestral interval of infinite length):
-    params is assumed to have length 3*n_epochs+1, where:
-    (1) first n_epochs+1 parameters are the start size at the bottom of each epoch.
-    (2) next n_epochs parameters are the time lengths of the epochs
-    (3) final n_epochs parameters are the growth rates within each epochs
+    params is assumed to have length 3*(n_epochs-1)+1, where:
+    (1) first n_epochs parameters are the start size at the bottom of each epoch.
+    (2) next n_epochs-1 parameters are the time lengths of the epochs
+    (3) final n_epochs-1 parameters are the growth rates within each epochs
     '''
     assert (len(params) -1) % 3 == 0
-    n_epochs = int((len(params) - 1) / 3)
-    # TODO: function doesn't work for n_epochs == 0 (constant size history)
-    assert n_epochs >= 1 
+    n_epochs = int((len(params) - 1) / 3)+1
+    # TODO: function doesn't work for n_epochs == 1 (constant size history)
+    assert n_epochs >= 2
 
-    # the first n_epochs+1 parameters are the epoch start sizes
-    start_sizes = params[:n_epochs+1]
-    params = params[n_epochs+1:]
-    # the next n_epoch parameters are epoch lengths, and then growth rates
-    epoch_lens, growth_rates = params[:n_epochs], params[n_epochs:]
+    # the first n_epochs parameters are the epoch start sizes
+    start_sizes = params[:n_epochs]
+    params = params[n_epochs:]
+    # the next n_epoch-1 parameters are epoch lengths, and then growth rates
+    epoch_lens, growth_rates = params[:n_epochs-1], params[n_epochs-1:]
 
     assert anp.all(start_sizes > 0) and anp.all(epoch_lens > 0)
 
@@ -144,12 +143,12 @@ def infer_params(sfs_list, theta_list, n_epochs):
        try:
            return -surface.log_likelihood(params)
        except:
-           # in case the basinhopping proposes parameters that are out-of-bounds or so extreme they cause overflow/stability issues. just return a very large number.
+           # in case parameters are out-of-bounds or so extreme they cause overflow/stability issues. just return a very large number. note the gradient will be 0 in this case and the gradient descent may stop.
            return 1e100
     g, hp = grad(f), hessian_vector_product(f)
 
-    # bounds for the L-BFGS. constrained so that population sizes, waiting times are positive. growth rates (the last n_epochs parameters) are unconstrained
-    bounds = [(1e-16,None)] * (2*n_epochs+1) + [(None,None)] * n_epochs
+    # bounds for the L-BFGS. constrained so that population sizes, waiting times are positive. growth rates (the last n_epochs-1 parameters) are unconstrained
+    bounds = [(1e-16,None)] * (2*(n_epochs-1)+1) + [(None,None)] * (n_epochs-1)
 
     # note that it is recommended to set the lower bound to 1e-16
     # instead of 0. otherwise L-BFGS will sometimes try values of
@@ -159,11 +158,11 @@ def infer_params(sfs_list, theta_list, n_epochs):
     # it gets a gradient of 0 at that point.
 
     # random initial parameters
-    init_lens = anp.random.exponential(size=n_epochs) / n_epochs
-    init_sizes = anp.random.exponential(size=n_epochs+1)
-    init_rates = anp.random.normal(size=n_epochs)
+    init_sizes = anp.random.exponential(size=n_epochs)
+    init_lens = anp.random.exponential(size=n_epochs-1) / n_epochs
+    init_rates = anp.random.normal(size=n_epochs-1)
 
-    init_params = anp.concatenate([init_lens, init_sizes, init_rates])
+    init_params = anp.concatenate([init_sizes, init_lens, init_rates])
 
     # print after every basinhopping iteration
     def print_fun(x, f, accepted):
@@ -179,4 +178,4 @@ def infer_params(sfs_list, theta_list, n_epochs):
     return optimize_res.x, optimize_res.fun
 
 if __name__=="__main__":
-    main("JXY_sfs.txt", 1)
+    main("JXY_sfs.txt", 3)
