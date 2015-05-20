@@ -172,6 +172,7 @@ def infer_params(sfs_list, theta_list, n_epochs):
     optimize_res = spopt.basinhopping(f, init_params,
                                       niter=100,
                                       interval=1,
+                                      T=1000,
                                       minimizer_kwargs={'jac':g,'bounds':bounds},
                                       callback=print_fun)
 
