@@ -47,17 +47,21 @@ class CompositeLogLikelihood(object):
         self.eps = eps
         self.args, self.kwargs = args, kwargs
 
-        # (i,j)th coordinate = count of config j in locus i
-        self.counts_matrix = np.zeros((len(self.sfs_list), len(self.config_list)))
+        # (i,j)th coordinate = at locus i, count of config j
+        self.counts_ij = np.zeros((len(self.sfs_list), len(self.config_list)))
         for i,sfs in enumerate(self.sfs_list):
             for j,config in enumerate(self.config_list):
                 try:
-                    self.counts_matrix[i,j] = sfs[config]
+                    self.counts_ij[i,j] = sfs[config]
                 except KeyError:
                     pass
+        self.counts_i = np.einsum('ij->i',self.counts_ij) 
+        self.counts_j = np.einsum('ij->j',self.counts_ij)
 
-        self.logfactorial_rows = np.sum(scipy.special.gammaln(self.counts_matrix+1), axis=1)
-        self.counts_columns = einsum2(self.counts_matrix, ['locus','config'], ['config'])
+        self.log_fact_num_i = scipy.special.gammaln(self.counts_i+1)
+        self.log_fact_denom_i = np.einsum('ij->i',scipy.special.gammaln(self.counts_ij+1))
+
+
 
     def log_likelihood(self, params, vector=False):
         '''
@@ -68,39 +72,29 @@ class CompositeLogLikelihood(object):
         demo = self.demo_func(params)
         sfs_vals, branch_len = compute_sfs(demo, self.config_list, *self.args, **self.kwargs)
 
-        # dimensions = (locus,config)
-        if vector:
-            counts = self.counts_matrix
-            loc_dim = ['loc']
-        else:
-            # sum out the locus dimension
-            counts = self.counts_columns
-            loc_dim = []
-
         num_configs = self._num_configs(demo)
 
         eps = self.eps*branch_len
 
+        # add on normalization & combinatorial terms
         if self.theta is not None:
+            # poisson case
             theta = self._get_theta(params)
-            log_fact = self.logfactorial_rows
-            if not vector:
-                theta, log_fact = np.sum(theta), np.sum(log_fact)
-            # Return -theta*branch_length - log_factorial + counts * log(theta*sfs)
-            # first multiply theta*sfs along config ('c') dimension
-            log_theta_sfs = np.log(einsum2(theta, loc_dim, 
-                                           sfs_vals+eps/num_configs, ['c'], loc_dim+['c']))
-            # then multiply by counts and sum out config dimension
-            return -theta*(branch_len
-                           +eps) - log_fact + einsum2(counts, loc_dim+['c'], 
-                                                           log_theta_sfs, loc_dim+['c'],
-                                                           loc_dim)
+            ret = -theta*(branch_len+eps) - self.log_fact_denom_i + self.counts_i * np.log(theta)
         else:
-            # Return counts * log(sfs / branch_len)
-            return einsum2(counts, loc_dim+['c'],
-                           np.log(sfs_vals + eps/num_configs) - np.log(branch_len + eps),
-                           ['c'], loc_dim)
-            
+            # multinomial case
+            ret = -self.counts_i * np.log(branch_len+eps) - self.log_fact_denom_i + self.log_fact_num_i
+
+        # add on unnormalized sfs entries
+        if not vector:
+            ret = np.sum(ret)
+            counts = self.counts_j
+        else:
+            counts = self.counts_ij
+        ret = ret + np.dot(counts,np.log(sfs_vals + eps/num_configs))
+
+        assert np.all(ret <= 0.0)
+        return ret
 
     def _num_configs(self, demo):
         try:
@@ -142,11 +136,10 @@ class CompositeLogLikelihood(object):
 
     def _get_theta(self, params):
         try:
-            theta = self.theta(params)
+            ret = self.theta(params)
         except TypeError:
-            theta = self.theta
-        # make sure there is a theta for each locus
-        return theta * np.ones(len(self.sfs_list))
+            ret = self.theta
+        return np.array(ret)
 
     def _g_out(self, params):
         '''
