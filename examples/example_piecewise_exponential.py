@@ -8,54 +8,36 @@ import autograd.numpy as anp
 ## Functions for computing derivatives
 from autograd import grad, hessian_vector_product
 
+'''
+This example fits a piecewise exponential size history
+to a single population.
+
+It provides an example of using Python I/O to read in
+a file of SFS counts.
+
+It also provides a different approach to optimization then
+example_inference.py, which uses second-order Newton algorithm
+on an unconstrained parameter space. By contrast, in this example:
+1) We use a bounded parameter space (population sizes, waiting times must be positive)
+2) We only provide first-order gradient. scipy defaults to using L-BFGS or BFGS algorithm in this case.
+3) We do the gradient descent within a larger global optimization algorithm, basinhopping, that is more robust to local minima.
+'''
+
 def main(sfs_file, n_epochs):
+    '''
+    Given a file with SFS counts and number of epochs, infer population size history.
+    '''
     sfs_list = read_data(sfs_file)
     theta_list = [avg_pairwise_differences(sfs) for sfs in sfs_list]
     x, fx = infer_params(sfs_list, theta_list, n_epochs)
     print fx
     print piecewise_exponential_demo(x).ms_cmd
 
-def infer_params(sfs_list, theta_list, n_epochs):
-    surface = CompositeLogLikelihood(sfs_list, theta=theta_list,
-                                     demo_func=piecewise_exponential_demo,
-                                     )
-
-    # construct the function to minimize, and its derivatives
-    def f(params):
-       try:
-           return -surface.log_likelihood(params)
-       except:
-           # in case the basinhopping proposes parameters that are out-of-bounds or so extreme they cause overflow/stability issues
-           return 1e100
-    g, hp = grad(f), hessian_vector_product(f)
-
-    # random initial parameters
-    init_lens = anp.random.exponential(size=n_epochs) / n_epochs
-    init_sizes = anp.random.exponential(size=n_epochs+1)
-    init_rates = anp.random.normal(size=n_epochs)
-
-    bounds = [(1e-16,None)] * (2*n_epochs+1) + [(None,None)] * n_epochs
-
-    init_params = anp.concatenate([init_lens, init_sizes, init_rates])
-
-    def print_fun(x, f, accepted):
-        print("at minima %.4f accepted %d" % (f, int(accepted)))
-
-    optimize_res = spopt.basinhopping(f, init_params,
-                                      niter=100,
-                                      interval=1,
-                                      minimizer_kwargs={'jac':g,'bounds':bounds},
-                                      callback=print_fun)
-
-    return optimize_res.x, optimize_res.fun
-                                      
-def avg_pairwise_differences(sfs):
-    total_pairwise_diffs = 0
-    for n_der, in sfs:
-        total_pairwise_diffs += n_der * (n - n_der) * sfs[(n_der,)]
-    return total_pairwise_diffs / (n * (n-1) / 2)
-
 def read_data(filename):
+    '''
+    Read in the SFS in file name, which is assumed to have the same format
+    as used in fastNeutrino.
+    '''
     f = open(filename)
     lines = f.readlines()
     f.close()
@@ -88,7 +70,24 @@ def read_data(filename):
 
     return sfs_list
 
+def avg_pairwise_differences(sfs):
+    '''
+    Gets the average pairwise differences, used to estimate theta.
+    '''
+    total_pairwise_diffs = 0
+    for n_der, in sfs:
+        total_pairwise_diffs += n_der * (n - n_der) * sfs[(n_der,)]
+    return total_pairwise_diffs / (n * (n-1) / 2)
+
 def piecewise_exponential_demo(params):
+    '''
+    Function that returns a piecewise exponential demo from a parameter vector.
+    For a demography with n_epochs intervals (not including the ancestral interval of infinite length):
+    params is assumed to have length 3*n_epochs+1, where:
+    (1) first n_epochs+1 parameters are the start size at the bottom of each epoch.
+    (2) next n_epochs parameters are the time lengths of the epochs
+    (3) final n_epochs parameters are the growth rates within each epochs
+    '''
     assert (len(params) -1) % 3 == 0
     n_epochs = int((len(params) - 1) / 3)
     # TODO: function doesn't work for n_epochs == 0 (constant size history)
@@ -127,6 +126,57 @@ def piecewise_exponential_demo(params):
 
     demo_string = " ".join(demo_string)
     return make_demography(demo_string, *args)
+
+def infer_params(sfs_list, theta_list, n_epochs):
+    '''
+    Infers a piecewise-exponential size history,
+    with n_epochs finite intervals.
+    (or n_epochs+1 total intervals, including the final epoch of infinite length)
+
+    Uses L-BFGS within basinhopping algorithm to infer the parameters.
+    '''
+    surface = CompositeLogLikelihood(sfs_list, theta=theta_list,
+                                     demo_func=piecewise_exponential_demo,
+                                     )
+
+    # construct the function to minimize, and its derivatives
+    def f(params):
+       try:
+           return -surface.log_likelihood(params)
+       except:
+           # in case the basinhopping proposes parameters that are out-of-bounds or so extreme they cause overflow/stability issues. just return a very large number.
+           return 1e100
+    g, hp = grad(f), hessian_vector_product(f)
+
+    # bounds for the L-BFGS. constrained so that population sizes, waiting times are positive. growth rates (the last n_epochs parameters) are unconstrained
+    bounds = [(1e-16,None)] * (2*n_epochs+1) + [(None,None)] * n_epochs
+
+    # note that it is recommended to set the lower bound to 1e-16
+    # instead of 0. otherwise L-BFGS will sometimes try values of
+    # 0-1e-16, which is within numerical precision of 0 but still
+    # an invalid parameter value since it is negative.
+    # In particular this will cause the L-BFGS to stop, because
+    # it gets a gradient of 0 at that point.
+
+    # random initial parameters
+    init_lens = anp.random.exponential(size=n_epochs) / n_epochs
+    init_sizes = anp.random.exponential(size=n_epochs+1)
+    init_rates = anp.random.normal(size=n_epochs)
+
+    init_params = anp.concatenate([init_lens, init_sizes, init_rates])
+
+    # print after every basinhopping iteration
+    def print_fun(x, f, accepted):
+        print("at minima %.4f accepted %d" % (f, int(accepted)))
+
+    # now do the inference
+    optimize_res = spopt.basinhopping(f, init_params,
+                                      niter=100,
+                                      interval=1,
+                                      minimizer_kwargs={'jac':g,'bounds':bounds},
+                                      callback=print_fun)
+
+    return optimize_res.x, optimize_res.fun
 
 if __name__=="__main__":
     main("JXY_sfs.txt", 1)
