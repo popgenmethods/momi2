@@ -99,7 +99,12 @@ class SumProduct_Chen(object):
                 n_ancestral = n_bottom - n_derived
                 p_bottom = self.partial_likelihood_bottom(node, n_ancestral, n_derived)
                 for n_top in range(1,n_bottom+1):
-                    ret += p_bottom * self.G.chen[node].ES_i(n_derived, n_bottom, n_top) * self.G.chen[node].g(n_bottom,n_top)
+                    try:
+                        ret += p_bottom * self.G.chen[node].ES_i(n_derived, n_bottom, n_top) * self.G.chen[node].g(n_bottom,n_top)
+                    except ZeroDivisionError:
+                        warnings.warn("divide by zero in hua chen formula")
+                        continue
+
 
         if self.G.is_leaf(node):
             return ret
