@@ -27,24 +27,27 @@ def main():
         create_table()
     
     pool = mp.Pool(processes=args.cores)
-    for _ in range(args.reps):
-        #time_runs(args.n_taxa, args.lineages_per_taxon, args.moranOnly)
-        pool.apply_async(time_runs, args=(args.n_taxa,args.lineages_per_taxon,args.moranOnly))
-    pool.close()
+    results_list = pool.map(time_runs, [(args.n_taxa,args.lineages_per_taxon,args.moranOnly)] * args.reps)
+    for results in results_list:
+        for entry in results:
+            store_result(*entry)
+    conn.commit()
     conn.close()
 
-def time_runs(n_taxa, lineages_per_taxon, moranOnly):
+def time_runs(args):
+    n_taxa, lineages_per_taxon, moranOnly = args
     # Get a random phylogeny
     tree = Demography.from_newick(random_binary_tree(n_taxa), lineages_per_taxon)
-    print tree.to_newick()
+    #print tree.to_newick()
     n = n_taxa * lineages_per_taxon
+    results = []
     for snp in range(100):
         state = (0,) * len(tree.leaves)
         while sum(state) == 0 or sum(state) == n:
             state = [random.randint(0, lineages_per_taxon) for l in tree.leaves]
         state = {l: {'derived':d,'ancestral':lineages_per_taxon-d} for l,d in zip(sorted(tree.leaves),
                                                                                        state)}
-        print(state)
+        #print(state)
         tree.update_state(state)
         rid = random.getrandbits(32)
 
@@ -52,12 +55,13 @@ def time_runs(n_taxa, lineages_per_taxon, moranOnly):
         if not moranOnly:
             sp_list += [("chen",SumProduct_Chen)]
         for name,method in sp_list:
-            print(name)
+            #print(name)
             with Timer() as t:
                 ret = method(tree).p()
-            print(ret)
-            store_result(name, n_taxa, lineages_per_taxon, snp, t.interval, ret, rid)
-    conn.commit()
+            #print(ret)
+            results.append((name,n_taxa, lineages_per_taxon, snp, t.interval, ret, rid))
+    return results
+
 
 conn = sqlite3.connect('.bench.db')
 cur = conn.cursor()
@@ -83,7 +87,7 @@ class Timer:
     def __exit__(self, *args):
         self.end = time.clock()
         self.interval = self.end - self.start
-        print('Call took %.03f sec.' % self.interval)
+        #print('Call took %.03f sec.' % self.interval)
 
 def random_binary_tree(n):
     g = nx.DiGraph()
