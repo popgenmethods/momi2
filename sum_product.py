@@ -3,7 +3,7 @@ import scipy.misc, scipy.signal
 import math
 import numpy as np
 
-from util import memoize_instance, memoize
+from util import memoize_instance, memoize, truncate0
 
 class SumProduct(object):
     ''' 
@@ -57,7 +57,10 @@ class SumProduct(object):
             return self.leaf_likelihood_bottom(node)
         liks = [self.partial_likelihood_top(node, child) * self.combinatorial_factors(child) 
                 for child in self.G[node]]
-        return scipy.signal.fftconvolve(*liks) / self.combinatorial_factors(node)
+        ret = scipy.signal.fftconvolve(*liks) 
+        # deal with very small negative numbers from fft
+        ret = truncate0(ret)
+        return ret / self.combinatorial_factors(node)
        
     @memoize_instance
     def joint_sfs(self, node):

@@ -81,3 +81,17 @@ class memoize_instance(object):
         except KeyError:
             res = cache[key] = self.func(*args, **kw)
         return res
+
+def truncate0(x, axis=None):
+    '''make sure everything in x is non-negative'''
+    mins = np.maximum(-np.amin(x,axis=axis), 0.0)
+    maxes = np.maximum(np.amax(x, axis=axis), 1e-300)
+    assert np.all(mins <= 1e-13 * maxes)
+
+    if axis is not None:
+        idx = [slice(None)] * x.ndim
+        idx[axis] = np.newaxis
+        mins = mins[idx]
+
+    x[x < mins] = 0.0
+    return x
