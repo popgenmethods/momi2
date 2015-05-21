@@ -30,6 +30,7 @@ def main():
     for _ in range(args.reps):
         #time_runs(args.n_taxa, args.lineages_per_taxon, args.moranOnly)
         pool.apply(time_runs, args=(args.n_taxa,args.lineages_per_taxon,args.moranOnly))
+    conn.close()
 
 def time_runs(n_taxa, lineages_per_taxon, moranOnly):
     # Get a random phylogeny
@@ -56,7 +57,6 @@ def time_runs(n_taxa, lineages_per_taxon, moranOnly):
             print(ret)
             store_result(name, n_taxa, lineages_per_taxon, snp, t.interval, ret, rid)
     conn.commit()
-    conn.close()
 
 conn = sqlite3.connect('.bench.db')
 cur = conn.cursor()
