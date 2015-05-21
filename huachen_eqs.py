@@ -6,6 +6,7 @@ import math
 import gmpy2
 from gmpy2 import mpz, mpfr
 from util import memoize_instance
+import warnings
 
 math_mod = gmpy2
 
@@ -98,7 +99,11 @@ class SumProduct_Chen(object):
             for n_bottom in range(n_derived, n_leaves+1):
                 n_ancestral = n_bottom - n_derived
                 p_bottom = self.partial_likelihood_bottom(node, n_ancestral, n_derived)
-                for n_top in range(1,n_bottom+1):
+                if self.G.chen.timeLen == float('inf'):
+                    max_top = 1
+                else:
+                    max_top = n_bottom
+                for n_top in range(1,max_top+1):
                     try:
                         ret += p_bottom * self.G.chen[node].ES_i(n_derived, n_bottom, n_top) * self.G.chen[node].g(n_bottom,n_top)
                     except ZeroDivisionError:
