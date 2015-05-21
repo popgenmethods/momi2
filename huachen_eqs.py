@@ -99,7 +99,7 @@ class SumProduct_Chen(object):
             for n_bottom in range(n_derived, n_leaves+1):
                 n_ancestral = n_bottom - n_derived
                 p_bottom = self.partial_likelihood_bottom(node, n_ancestral, n_derived)
-                if self.G.chen.timeLen == float('inf'):
+                if self.G.chen[node].timeLen == float('inf'):
                     max_top = 1
                 else:
                     max_top = n_bottom
