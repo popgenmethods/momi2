@@ -30,14 +30,15 @@ class SumProduct_Chen(object):
 
     @memoize_instance
     def partial_likelihood_top(self, node, n_ancestral_top, n_derived_top):
+        n_top = n_derived_top + n_ancestral_top
         n_leaves = self.G.n_lineages_subtended_by[node]
         ret = 0.0
-        for n_derived_bottom in range(n_derived_top, n_leaves + 1):
-            for n_ancestral_bottom in range(n_leaves - n_derived_bottom + 1):
-                n_bottom = n_derived_bottom + n_ancestral_bottom
-                n_top = n_derived_top + n_ancestral_top
 
-                if n_bottom < n_top or (n_derived_bottom > 0 and n_derived_top == 0):
+        for n_bottom in range(n_top,n_leaves+1):
+            for n_derived_bottom in range(n_derived_top, self.G.n_derived_subtended_by[node]+1):
+                n_ancestral_bottom = n_bottom - n_derived_bottom
+
+                if n_derived_bottom > 0 and n_derived_top == 0:
                     continue
 
                 p_bottom = self.partial_likelihood_bottom(node, n_ancestral_bottom, n_derived_bottom)
@@ -45,12 +46,11 @@ class SumProduct_Chen(object):
                     continue
                 p_top = p_bottom * self.G.chen[node].g(n_bottom,n_top)
 
-                if n_derived_bottom > 0:
-                    p_top *= math.exp(log_urn_prob(
-                            n_derived_top,
-                            n_ancestral_top,
-                            n_derived_bottom, 
-                            n_ancestral_bottom))
+                p_top *= math.exp(log_urn_prob(
+                        n_derived_top,
+                        n_ancestral_top,
+                        n_derived_bottom, 
+                        n_ancestral_bottom))
                 ret += p_top
         return ret
 
@@ -94,12 +94,11 @@ class SumProduct_Chen(object):
     def joint_sfs(self, node):
         n_leaves = self.G.n_lineages_subtended_by[node]
         ret = 0.0
-        for n_bottom in range(1, n_leaves+1):
-            for n_top in range(1, n_bottom+1):
-                for n_derived in range(1, n_bottom - n_top + 2):
-                    n_ancestral = n_bottom - n_derived
-
-                    p_bottom = self.partial_likelihood_bottom(node, n_ancestral, n_derived)
+        for n_derived in range(1, self.G.n_derived_subtended_by[node]+1):
+            for n_bottom in range(n_derived, n_leaves+1):
+                n_ancestral = n_bottom - n_derived
+                p_bottom = self.partial_likelihood_bottom(node, n_ancestral, n_derived)
+                for n_top in range(1,n_bottom+1):
                     ret += p_bottom * self.G.chen[node].ES_i(n_derived, n_bottom, n_top) * self.G.chen[node].g(n_bottom,n_top)
 
         if self.G.is_leaf(node):
@@ -188,7 +187,7 @@ def formula1(n, m, N_diploid, tau):
 def formula3(j, n, m, N_diploid, tau):
     # Switch argument to j here to stay consistent with the paper.
     j, n, m = map(mpz, [j, n, m])
-    N_diploid, tau = map(mpfr, [tau, N_diploid])
+    tau, N_diploid = map(mpfr, [tau, N_diploid])
     def expC2(kk):
         return math_mod.exp(-kk * (kk - 1) / 4 / N_diploid * tau)
     r = sum(gcoef(k, n, j, N_diploid, tau) * # was gcoef(k, n, j + 1, N_diploid, tau) * 
@@ -243,6 +242,7 @@ def p_n_k(i, n, k):
     if k == 1:
         return int(i == n)
     else:
+        #return scipy.misc.comb(n-i-1,k-2) / scipy.misc.comb(n-1,k-1)
         return math.exp(logbinom(n - i - 1, k - 2) - logbinom(n - 1, k - 1))
 
 def nChoose2(n):

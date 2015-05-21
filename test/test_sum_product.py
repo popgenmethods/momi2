@@ -3,6 +3,7 @@ import pytest
 from sum_product import SumProduct
 from demography import Demography
 from util import H, grouper
+from huachen_eqs import SumProduct_Chen
 
 import os
 TEST_CASES = os.path.join(os.path.dirname(os.path.realpath(__file__)), "test_cases.txt")
@@ -37,6 +38,7 @@ def demo_generator(fn=TEST_CASES):
 @pytest.mark.parametrize("demo,ret", demo_generator())
 def test_generated_cases(demo, ret):
     sp = SumProduct(demo)
+    #sp = SumProduct_Chen(demo)
     p = sp.p()
     assert abs(p - ret) / ret < 1e-4
 
