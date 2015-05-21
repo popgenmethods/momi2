@@ -96,11 +96,11 @@ class SumProduct_Chen(object):
         ret = 0.0
         for n_bottom in range(1, n_leaves+1):
             for n_top in range(1, n_bottom+1):
-                for n_derived in range(1, n_bottom - n_top + 1):
+                for n_derived in range(1, n_bottom - n_top + 2):
                     n_ancestral = n_bottom - n_derived
 
                     p_bottom = self.partial_likelihood_bottom(node, n_ancestral, n_derived)
-                    ret += p_bottom * self.G.chen[node].ES_i(n_derived, n_bottom, n_top)
+                    ret += p_bottom * self.G.chen[node].ES_i(n_derived, n_bottom, n_top) * self.G.chen[node].g(n_bottom,n_top)
 
         if self.G.is_leaf(node):
             return ret
