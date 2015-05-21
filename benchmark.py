@@ -11,39 +11,53 @@ from sum_product import SumProduct
 from huachen_eqs import SumProduct_Chen
 from demography import Demography
 
+import multiprocessing as mp
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("n_taxa", type=int)
     parser.add_argument("lineages_per_taxon", type=int)
+    parser.add_argument("reps", type=int)
+    parser.add_argument("cores", type=int)
     parser.add_argument("--reset", action="store_true", help="Reset results database")
+    parser.add_argument("--moranOnly", action="store_true", help="Only do Moran SFS")
     args = parser.parse_args()
     if args.reset:
         cur.execute("drop table results")
         create_table()
+    
+    pool = mp.Pool(processes=args.cores)
+    for _ in range(args.reps):
+        #time_runs(args.n_taxa, args.lineages_per_taxon, args.moranOnly)
+        pool.apply(time_runs, args=(args.n_taxa,args.lineages_per_taxon,args.moranOnly))
+
+def time_runs(n_taxa, lineages_per_taxon, moranOnly):
     # Get a random phylogeny
-    tree = Demography.from_newick(random_binary_tree(args.n_taxa), args.lineages_per_taxon)
+    tree = Demography.from_newick(random_binary_tree(n_taxa), lineages_per_taxon)
     print tree.to_newick()
-    n = args.n_taxa * args.lineages_per_taxon
+    n = n_taxa * lineages_per_taxon
     for snp in range(100):
         state = (0,) * len(tree.leaves)
         while sum(state) == 0 or sum(state) == n:
-            state = [random.randint(0, args.lineages_per_taxon) for l in tree.leaves]
-        state = {l: {'derived':d,'ancestral':args.lineages_per_taxon-d} for l,d in zip(sorted(tree.leaves),
+            state = [random.randint(0, lineages_per_taxon) for l in tree.leaves]
+        state = {l: {'derived':d,'ancestral':lineages_per_taxon-d} for l,d in zip(sorted(tree.leaves),
                                                                                        state)}
         print(state)
         tree.update_state(state)
         rid = random.getrandbits(32)
-        for method in SumProduct, SumProduct_Chen:
-            name = method.__name__
+
+        sp_list = [("moran",SumProduct)]
+        if not moranOnly:
+            sp_list += [("chen",SumProduct_Chen)]
+        for name,method in sp_list:
             print(name)
             with Timer() as t:
                 ret = method(tree).p()
             print(ret)
-            store_result(name, args.n_taxa, args.lineages_per_taxon, snp, t.interval, ret, rid)
+            store_result(name, n_taxa, lineages_per_taxon, snp, t.interval, ret, rid)
     conn.commit()
     conn.close()
 
-#conn = sqlite3.connect('.bench2.db')
 conn = sqlite3.connect('.bench.db')
 cur = conn.cursor()
 
