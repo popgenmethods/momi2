@@ -140,11 +140,7 @@ class SFS_Chen(object):
     def ES_i(self, i, n, m):
         '''TPB equation 4'''
         assert n >= m
-        ret = math.fsum([p_n_k(i, n, k) * k * self.ET(k, n, m) for k in range(m, n + 1)])
-        return ret
-
-def binom_exact(n, k):
-    return scipy.misc.comb(n, k, True)
+        return math.fsum([p_n_k(i, n, k) * k * self.ET(k, n, m) for k in range(m, n + 1)])
 
 def prod(l):
     return reduce(operator.mul, l + [1])
@@ -158,7 +154,8 @@ def falling(n, k):
 
 
 def gcoef(k, n, m, N_diploid, tau):
-    k, n, m, N_diploid = map(mpz, [k, n, m, N_diploid])
+    k, n, m = map(mpz, [k, n, m])
+    N_diploid = mpfr(N_diploid)
     tau = mpfr(tau)
     return (2*k - 1) * (-1)**(k - m) * rising(m, k-1) * falling(n, k) / math_mod.factorial(m) / math_mod.factorial(k - m) / rising(n, k) 
 
@@ -190,8 +187,8 @@ def formula1(n, m, N_diploid, tau):
 
 def formula3(j, n, m, N_diploid, tau):
     # Switch argument to j here to stay consistent with the paper.
-    j, n, m, N_diploid = map(mpz, [j, n, m, N_diploid])
-    tau = mpfr(tau)
+    j, n, m = map(mpz, [j, n, m])
+    N_diploid, tau = map(mpfr, [tau, N_diploid])
     def expC2(kk):
         return math_mod.exp(-kk * (kk - 1) / 4 / N_diploid * tau)
     r = sum(gcoef(k, n, j, N_diploid, tau) * # was gcoef(k, n, j + 1, N_diploid, tau) * 
@@ -215,7 +212,6 @@ def formula3(j, n, m, N_diploid, tau):
             )
     q = 4 * N_diploid / mpfr(g(n, m, N_diploid, tau))
     return float(q * r)
-
 
 def formula2(n, m, N_diploid, tau):
     def expC2(k):
@@ -247,7 +243,7 @@ def p_n_k(i, n, k):
     if k == 1:
         return int(i == n)
     else:
-        return binom_exact(n - i - 1, k - 2) / binom_exact(n - 1, k - 1)
+        return math.exp(logbinom(n - i - 1, k - 2) - logbinom(n - 1, k - 1))
 
 def nChoose2(n):
     return (n * (n-1)) / 2
@@ -256,6 +252,8 @@ def logfact(n):
     return math.lgamma(n + 1)
 
 def logbinom(n, k):
+    if k < 0 or k > n:
+        return -float('inf')
     return logfact(n) - logfact(n - k) - logfact(k)
 
 def log_urn_prob(n_parent_derived, n_parent_ancestral, n_child_derived, n_child_ancestral):
