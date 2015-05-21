@@ -1,7 +1,7 @@
 import networkx as nx
 from Bio import Phylo
 from cStringIO import StringIO
-from cached_property import cached_property
+from util import cached_property
 from size_history import ConstantTruncatedSizeHistory
 
 class Demography(nx.DiGraph):
