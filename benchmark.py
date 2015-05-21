@@ -29,7 +29,7 @@ def main():
     pool = mp.Pool(processes=args.cores)
     for _ in range(args.reps):
         #time_runs(args.n_taxa, args.lineages_per_taxon, args.moranOnly)
-        pool.apply(time_runs, args=(args.n_taxa,args.lineages_per_taxon,args.moranOnly))
+        pool.apply_async(time_runs, args=(args.n_taxa,args.lineages_per_taxon,args.moranOnly))
     conn.close()
 
 def time_runs(n_taxa, lineages_per_taxon, moranOnly):
