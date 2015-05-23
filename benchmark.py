@@ -13,6 +13,9 @@ from demography import Demography
 
 import multiprocessing as mp
 
+conn = sqlite3.connect('.bench.db')
+cur = conn.cursor()
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("n_taxa", type=int)
@@ -37,16 +40,16 @@ def main():
 def time_runs(args):
     n_taxa, lineages_per_taxon, moranOnly = args
     # Get a random phylogeny
-    tree = Demography.from_newick(random_binary_tree(n_taxa), lineages_per_taxon)
+    tree_str = random_binary_tree(n_taxa)
+    tree = Demography.from_newick(tree_str, lineages_per_taxon)
     #print tree.to_newick()
     n = n_taxa * lineages_per_taxon
     results = []
     for snp in range(100):
-        state = (0,) * len(tree.leaves)
-        while sum(state) == 0 or sum(state) == n:
-            state = [random.randint(0, lineages_per_taxon) for l in tree.leaves]
-        state = {l: {'derived':d,'ancestral':lineages_per_taxon-d} for l,d in zip(sorted(tree.leaves),
-                                                                                       state)}
+        state_tuple = (0,) * len(tree.leaves)
+        while sum(state_tuple) == 0 or sum(state_tuple) == n:
+            state_tuple = tuple([random.randint(0, lineages_per_taxon) for l in tree.leaves])
+        state = {l: {'derived':d,'ancestral':lineages_per_taxon-d} for l,d in zip(sorted(tree.leaves), state_tuple)}
         #print(state)
         tree.update_state(state)
         rid = random.getrandbits(32)
@@ -59,19 +62,15 @@ def time_runs(args):
             with Timer() as t:
                 ret = method(tree).p()
             #print(ret)
-            results.append((name,n_taxa, lineages_per_taxon, snp, t.interval, ret, rid))
+            results.append((name,n_taxa, lineages_per_taxon, snp, t.interval, ret, rid, str(state_tuple), tree_str))
     return results
-
-
-conn = sqlite3.connect('.bench.db')
-cur = conn.cursor()
 
 def create_table():
     cur.execute("""create table results (model varchar, n integer, """
-                 """lineages integer, site integer, time real, result real, run_id integer)""")
+                 """lineages integer, site integer, time real, result real, run_id integer, state varchar, tree varchar)""")
 
-def store_result(name, n, l, i, t, res, rid):
-    cur.execute("insert into results values (?, ?, ?, ?, ?, ?, ?)", (name, n, l, i, t, res, rid))
+def store_result(name, n, l, i, t, res, rid, state, tree):
+    cur.execute("insert into results values (?, ?, ?, ?, ?, ?, ?, ?, ?)", (name, n, l, i, t, res, rid, state, tree))
 
 try:
     create_table()
