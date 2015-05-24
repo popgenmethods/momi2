@@ -237,8 +237,7 @@ def _merge_clusters_likelihood(leaf_liks, G, event):
     lik, old_axes = sum_antidiagonals(lik, old_axes, child_pops[0], child_pops[1], newpop)
 
     axes = _lik_axes(G, event)    
-    lik = einsum2(lik, old_axes, axes)
-    lik = einsum2(lik, axes,
+    lik = einsum2(lik, old_axes,
                   1.0/combinatorial_factors(G.n_lineages(newpop)), [newpop],
                   axes)
 
