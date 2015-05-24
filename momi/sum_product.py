@@ -3,7 +3,7 @@ import warnings
 import autograd.numpy as np
 import scipy
 from util import memoize_instance, memoize, truncate0, make_constant, set0
-from math_functions import einsum2, fft_einsum, sum_antidiagonals, hypergeom_quasi_inverse
+from math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse
 from autograd.core import primitive
 from autograd import hessian
 
@@ -220,30 +220,24 @@ def _merge_subpops_likelihood(leaf_liks, G, event):
 def _merge_clusters_likelihood(leaf_liks, G, event):
     newpop, = G.parent_pops(event)
     child_liks = []
-    child_axes = []
-    
     for child_pop, child_event in G.child_pops(event).iteritems():
+        axes = _lik_axes(G, child_event)        
         lik,sfs = _partial_likelihood_top(leaf_liks, G, child_event, [child_pop])
-
-        axes = [newpop if x == child_pop else x for x in _lik_axes(G, child_event)]
-        child_axes.append(axes)
         lik = einsum2(lik, axes,
-                      combinatorial_factors(G.n_lineages(child_pop)), [newpop],
+                      combinatorial_factors(G.n_lineages(child_pop)), [child_pop],
                       axes)
+        child_liks.append((child_pop,axes,lik,sfs))
 
-        child_liks.append((lik,sfs))
+    child_pops,child_axes,child_liks,child_sfs = zip(*child_liks)
 
-    child_liks,child_sfs = zip(*child_liks)
-    axes = _lik_axes(G, event)
+    old_axes = sorted(list(set(child_axes[0] + child_axes[1])))
+    lik = einsum2(child_liks[0], child_axes[0],
+                  child_liks[1], child_axes[1],
+                  old_axes)
+    lik, old_axes = sum_antidiagonals(lik, old_axes, child_pops[0], child_pops[1], newpop)
 
-    lik = fft_einsum(child_liks[0], child_axes[0],
-                     child_liks[1], child_axes[1],
-                     axes,
-                     [newpop])
-    # deal with very small negative numbers from fft
-    newidx = axes.index(newpop)
-    lik = truncate0(lik, axis=newidx)
-
+    axes = _lik_axes(G, event)    
+    lik = einsum2(lik, old_axes, axes)
     lik = einsum2(lik, axes,
                   1.0/combinatorial_factors(G.n_lineages(newpop)), [newpop],
                   axes)

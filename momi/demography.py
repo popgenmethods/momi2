@@ -1,7 +1,7 @@
 from __future__ import division
 import networkx as nx
 from util import default_ms_path, memoize_instance, memoize, truncate0
-from math_functions import einsum2, fft_einsum
+from math_functions import einsum2, sum_antidiagonals
 import scipy, scipy.misc
 import autograd.numpy as np
 
@@ -123,12 +123,11 @@ def der_in_admixture_node(n_node):
     
     x = scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent)
 
-    ret = fft_einsum(x, [0, 1, 2],
-                     x[::-1,...], [0, 1, 3],
-                     [0,1,2,3], [1])[:,:(n_node+1),:,:]
-    # deal with small negative numbers from fft
-    ret = truncate0(ret, axis=1)
-    return ret
+    ret = np.einsum('ijk,ilm->ijklm', x, x[::-1,...])
+    ret,labels = sum_antidiagonals(ret, [c for c in 'ijklm'], 'j', 'l', 'n')
+    assert ''.join(labels) == 'nikm'
+    return np.einsum('nikm->inkm',ret[:(n_node+1),...])
+
 
 def build_event_tree(demo):
     eventEdgeList = []

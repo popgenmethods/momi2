@@ -53,6 +53,14 @@ def truncate0(x, axis=None):
 truncate0.defgrad(lambda ans,x,axis=None: lambda g: g)    
 
 @primitive
+def check_probs_matrix(x):
+    x = truncate0(x)
+    rowsums = np.einsum('ij->i',x)
+    assert np.allclose(rowsums,1.0)
+    return np.einsum('ij,i->ij',x,1.0/rowsums)
+check_probs_matrix.defgrad(lambda ans,x: lambda g: g)
+
+@primitive
 def set0(x, indices):
     y = np.array(x)
     y[indices] = 0

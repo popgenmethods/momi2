@@ -1,5 +1,5 @@
 from __future__ import division
-from util import memoize, truncate0
+from util import memoize, check_probs_matrix
 from math_functions import einsum2
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
@@ -10,10 +10,8 @@ from autograd.core import primitive
 @primitive
 def moran_action(t,v, axis=0):
     assert np.all(v >= 0.0) and t >= 0.0
-    ## fast, but has cancellation errors for small t
+    ## fast, but may have cancellation errors for small t
     ret = moran_action_eigen(t,v,axis)
-    # deal with small negative numbers from cancellation
-    ret = truncate0(ret, axis=axis)
 #     if np.any(ret < 0.0):
 #         ## more accurate, and theoretically lower complexity, but slower in practice
 #         ret = moran_al_mohy_higham(t,v,axis)
@@ -25,7 +23,7 @@ def moran_action_eigen(t, v, axis=0, transpose=False):
     P, d, Pinv = moran_eigensystem(n)
     D = diag(exp(t * d))
 
-    PDPinv = dot(P,dot(D,Pinv))
+    PDPinv = check_probs_matrix(dot(P,dot(D,Pinv)))
     if transpose:
         PDPinv = np.transpose(PDPinv)
 

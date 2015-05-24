@@ -28,19 +28,26 @@ def einsum2(*args):
 
 def sum_antidiagonals(arr, labels, axis0, axis1, new_axis):
     assert axis0 != axis1
-    idx0,idx1 = labels.index(axis0), labels.index(axis1)
 
-    ret = np.swapaxes(np.swapaxes(arr, idx0, 0), idx1, 1)[::-1,...]
-    ret = np.array([np.trace(ret,offset=k) 
-                    for k in range(-ret.shape[0]+1,ret.shape[1])])    
+    new_labels = list(labels)
+    for old_axis in axis0,axis1:
+        new_labels.remove(old_axis)
+    
+    ret = einsum2(arr, labels, [axis0,axis1] + new_labels)[::-1,...]
+    ret = multi_trace(ret)
+  
+    return ret,[new_axis] + new_labels
 
-    # swap labels
-    labels = list(labels)
-    for i,idx in list(enumerate((idx0,idx1))):
-        labels[i],labels[idx] = labels[idx],labels[i]
-    labels = [new_axis] + labels[2:]
-   
-    return ret,labels
+@primitive
+def multi_trace(arr):
+    return np.array([np.trace(arr,offset=k) 
+                    for k in range(-arr.shape[0]+1,arr.shape[1])])
+multi_trace.defgrad(lambda ans,arr: lambda g: np.einsum('kij,k...->ij...',
+                                                        multi_trace_gradmat(arr.shape[0],arr.shape[1]),
+                                                        g))
+@memoize
+def multi_trace_gradmat(i,j):
+    return np.array([np.eye(i,j,k=k) for k in range(-i+1,j)])
 
 '''
 Returns
@@ -109,74 +116,3 @@ def hypergeom_mat(N,n):
 def hypergeom_quasi_inverse(N,n):
     u,s,v = np.linalg.svd(hypergeom_mat(N,n), full_matrices=False)
     return np.dot(u, np.dot(np.diag(1/s), v))
-
-# like einsum, but for labels in fft_labels, does multiplication in fourier domain
-# (i.e. does convolution instead of multiplication for fft_labels)
-def fft_einsum(in1, labels1, in2, labels2, out_labels, fft_labels):
-    assert all([l in labels1 and l in labels2 for l in fft_labels])
-
-    labels = out_labels,labels1,labels2
-    fft_idx = []
-    for lab in labels:
-        fft_idx.append(np.array([lab.index(l) for l in fft_labels]))
-    
-    fft_shapes = np.array(in1.shape)[fft_idx[1]] + np.array(in2.shape)[fft_idx[2]] - 1
-    fshape = np.array([_next_regular(int(d)) for d in fft_shapes])
-
-    out_slice = np.array([slice(None)] * len(out_labels))
-    out_slice[fft_idx[0]] = np.array([slice(s) for s in fft_shapes])
-    
-    ret = einsum2(np.fft.fftn(in1, fshape, fft_idx[1]), labels1,
-                  np.fft.fftn(in2, fshape, fft_idx[2]), labels2,
-                  out_labels)
-    return np.real(np.fft.ifftn(ret, axes=fft_idx[0])[list(out_slice)])
-                    
-def _next_regular(target):
-    """
-    COPIED FROM SCIPY.SIGNAL
-    -----------------
-    Find the next regular number greater than or equal to target.
-    Regular numbers are composites of the prime factors 2, 3, and 5.
-    Also known as 5-smooth numbers or Hamming numbers, these are the optimal
-    size for inputs to FFTPACK.
-    Target must be a positive integer.
-    """
-    if target <= 6:
-        return target
-
-    # Quickly check if it's already a power of 2
-    if not (target & (target-1)):
-        return target
-
-    match = float('inf')  # Anything found will be smaller
-    p5 = 1
-    while p5 < target:
-        p35 = p5
-        while p35 < target:
-            # Ceiling integer division, avoiding conversion to float
-            # (quotient = ceil(target / p35))
-            quotient = -(-target // p35)
-
-            # Quickly find next power of 2 >= quotient
-            try:
-                p2 = 2**((quotient - 1).bit_length())
-            except AttributeError:
-                # Fallback for Python <2.7
-                p2 = 2**(len(bin(quotient - 1)) - 2)
-
-            N = p2 * p35
-            if N == target:
-                return N
-            elif N < match:
-                match = N
-            p35 *= 3
-            if p35 == target:
-                return p35
-        if p35 < match:
-            match = p35
-        p5 *= 5
-        if p5 == target:
-            return p5
-    if p5 < match:
-        match = p5
-    return match
