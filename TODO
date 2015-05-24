@@ -1,3 +1,5 @@
+Switch all convolutions to not use FFT!!! FFT can be numerically unstable!!!
+
 example_inference demography crashes for relative error
 [ -8.86325519  -7.02227025   0.96472679  15.44380017]
 [-0.73511953 -1.61559562  3.02101567 -1.86876264]
