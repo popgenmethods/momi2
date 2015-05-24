@@ -1,6 +1,6 @@
 from __future__ import division
 import networkx as nx
-from util import default_ms_path, memoize_instance, memoize, truncate0
+from util import default_ms_path, memoize_instance, memoize
 from math_functions import einsum2, sum_antidiagonals
 import scipy, scipy.misc
 import autograd.numpy as np
