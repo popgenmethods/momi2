@@ -3,19 +3,19 @@ import scipy.misc, scipy.signal
 import math
 import numpy as np
 
-from util import memoize_instance, memoize, truncate0
+from util import memoize_instance, memoize
 
 class SumProduct(object):
-    ''' 
+    '''
     compute joint SFS entry via a sum-product like algorithm,
     using Moran model to do transitions up the tree,
     and using Polanski Kimmel to compute frequency of mutations at each node in tree
     '''
-    def __init__(self, demography):
+    def __init__(self, demography, fftconvolve=False):
         self.G = demography
-         
+        self.fftconvolve = fftconvolve
         # assert self.n_derived_leafs(tree) > 0 and self.n_derived_leafs(tree) < self.n_leaf_lins(tree)
-        
+
     def p(self):
         '''Return joint SFS entry for the demography'''
         return self.joint_sfs(self.G.root)
@@ -43,8 +43,8 @@ class SumProduct(object):
         ''' Partial likelihood of data at top of node, i.e.
         i.e. = P(n_top) P(x | n_derived_top, n_ancestral_top)
         note n_top is fixed in Moran model, so P(n_top)=1
-        '''       
-        bottom_likelihood = self.partial_likelihood_bottom(bottom)       
+        '''
+        bottom_likelihood = self.partial_likelihood_bottom(bottom)
         return self.G.node_data[bottom]['model'].transition_prob(bottom_likelihood)
 
     @memoize_instance
@@ -55,26 +55,27 @@ class SumProduct(object):
         '''
         if self.G.is_leaf(node):
             return self.leaf_likelihood_bottom(node)
-        liks = [self.partial_likelihood_top(node, child) * self.combinatorial_factors(child) 
+        liks = [self.partial_likelihood_top(node, child) * self.combinatorial_factors(child)
                 for child in self.G[node]]
-        ret = scipy.signal.fftconvolve(*liks) 
-        # deal with very small negative numbers from fft
-        ret = truncate0(ret)
+        if self.fftconvolve:
+            ret = scipy.signal.fftconvolve(*liks)
+        else:
+            ret = scipy.signal.convolve(*liks)
         return ret / self.combinatorial_factors(node)
-       
+
     @memoize_instance
     def joint_sfs(self, node):
         '''The joint SFS entry for the configuration under this node'''
         # if no derived leafs, return 0
         if self.G.n_derived_subtended_by[node] == 0:
             return 0.0
-               
+
         # term for mutation occurring at this node
         ret = (self.partial_likelihood_bottom(node) * self.truncated_sfs(node)).sum()
-        
+
         if self.G.is_leaf(node):
             return ret
-        
+
         # add on terms for mutation occurring below this node
         # if no derived leafs on right, add on term from the left
         c1, c2 = self.G[node]
