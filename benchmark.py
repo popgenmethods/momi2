@@ -33,8 +33,11 @@ def main():
         cur.execute("drop table results")
         create_table()
     
-    pool = mp.Pool(processes=args.cores)
-    results_list = pool.map(time_runs, [(args.n_taxa,args.lineages_per_taxon,args.moranOnly)] * args.reps)
+    if args.cores > 1:
+        pool = mp.Pool(processes=args.cores)
+        results_list = pool.map(time_runs, [(args.n_taxa,args.lineages_per_taxon,args.moranOnly)] * args.reps)
+    else:
+        results_list = map(time_runs, [(args.n_taxa,args.lineages_per_taxon,args.moranOnly)] * args.reps)
     for results in results_list:
         for entry in results:
             store_result(*entry)

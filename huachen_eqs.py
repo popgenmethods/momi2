@@ -104,11 +104,7 @@ class SumProduct_Chen(object):
                 else:
                     max_top = n_bottom-n_derived+1
                 for n_top in range(1,max_top+1):
-                    try:
-                        ret += p_bottom * self.G.chen[node].ES_i(n_derived, n_bottom, n_top) * self.G.chen[node].g(n_bottom,n_top)
-                    except ZeroDivisionError:
-                        warnings.warn("divide by zero in hua chen formula")
-                        continue
+                    ret += p_bottom * self.G.chen[node].ES_i(n_derived, n_bottom, n_top) * self.G.chen[node].g(n_bottom,n_top)
 
 
         if self.G.is_leaf(node):
@@ -147,9 +143,14 @@ class SFS_Chen(object):
     def g(self, n, m):
         return g(n, m, self.N_diploid, self.timeLen)
 
+
     @memoize_instance
     def ET(self, i, n, m):
-        return ET(i, n, m, self.N_diploid, self.timeLen)
+        try:
+            return ET(i, n, m, self.N_diploid, self.timeLen)
+        except ZeroDivisionError:
+            warnings.warn("divide by zero in hua chen formula")
+            return 0.0
 
     @memoize_instance    
     def ES_i(self, i, n, m):
