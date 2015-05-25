@@ -102,7 +102,7 @@ class SumProduct_Chen(object):
                 if self.G.chen[node].timeLen == float('inf'):
                     max_top = 1
                 else:
-                    max_top = n_bottom
+                    max_top = n_bottom-n_derived+1
                 for n_top in range(1,max_top+1):
                     try:
                         ret += p_bottom * self.G.chen[node].ES_i(n_derived, n_bottom, n_top) * self.G.chen[node].g(n_bottom,n_top)
@@ -130,12 +130,18 @@ def attach_Chen(tree):
         tree.chen = {}
         for node in tree:
             size_model = tree.node_data[node]['model']
-            tree.chen[node] = SFS_Chen(size_model.N / 2.0, size_model.tau)
+            tree.chen[node] = SFS_Chen(size_model.N / 2.0, size_model.tau, tree.n_lineages_subtended_by[node])
 
 class SFS_Chen(object):
-    def __init__(self, N_diploid, timeLen):
+    def __init__(self, N_diploid, timeLen, max_n):
         self.timeLen = timeLen
         self.N_diploid = N_diploid
+        # precompute
+        for n in range(1,max_n+1):
+            for m in range(1,n+1):
+                self.g(n,m)
+                for i in range(1,(n-m+1)+1):
+                    self.ES_i(i,n,m)
             
     @memoize_instance    
     def g(self, n, m):

@@ -11,7 +11,11 @@ from sum_product import SumProduct
 from huachen_eqs import SumProduct_Chen
 from demography import Demography
 
+from collections import Counter, defaultdict
+import itertools
+
 import multiprocessing as mp
+import numpy as np
 
 conn = sqlite3.connect('.bench.db')
 cur = conn.cursor()
@@ -42,15 +46,14 @@ def time_runs(args):
     # Get a random phylogeny
     tree_str = random_binary_tree(n_taxa)
     tree = Demography.from_newick(tree_str, lineages_per_taxon)
-    #print tree.to_newick()
+    print tree.to_newick()
     n = n_taxa * lineages_per_taxon
     results = []
-    for snp in range(100):
-        state_tuple = (0,) * len(tree.leaves)
-        while sum(state_tuple) == 0 or sum(state_tuple) == n:
-            state_tuple = tuple([random.randint(0, lineages_per_taxon) for l in tree.leaves])
-        state = {l: {'derived':d,'ancestral':lineages_per_taxon-d} for l,d in zip(sorted(tree.leaves), state_tuple)}
+    snp_list = run_simulation(tree, 100, lineages_per_taxon)
+    for snp,state in enumerate(snp_list):
         #print(state)
+        state_tuple = tuple([v['derived'] for k,v in sorted(state.iteritems())])
+        print(state_tuple)
         tree.update_state(state)
         rid = random.getrandbits(32)
 
@@ -58,10 +61,10 @@ def time_runs(args):
         if not moranOnly:
             sp_list += [("chen",SumProduct_Chen)]
         for name,method in sp_list:
-            #print(name)
+            print(name)
             with Timer() as t:
                 ret = method(tree).p()
-            #print(ret)
+            print(ret)
             results.append((name,n_taxa, lineages_per_taxon, snp, t.interval, ret, rid, str(state_tuple), tree_str))
     return results
 
@@ -86,7 +89,7 @@ class Timer:
     def __exit__(self, *args):
         self.end = time.clock()
         self.interval = self.end - self.start
-        #print('Call took %.03f sec.' % self.interval)
+        print('Call took %.03f sec.' % self.interval)
 
 def random_binary_tree(n):
     g = nx.DiGraph()
@@ -129,5 +132,78 @@ def newick_helper(g, node):
             ret += ":%f" % el
         return ret
 
+SCRM_PATH = os.environ['SCRM_PATH']
+
+def build_command_line(demo, L, lineages_per_taxon):
+    '''Given a tree, build a scrm command line which will simulate from it.'''
+    ejopts = []
+    Iopts = []
+    
+    tfac = 0.5 
+    theta = 1.
+
+    lineages = []
+    lineage_map = {}
+    for i, leaf_node in list(enumerate(sorted(demo.leaves), 1)):
+        nsamp = lineages_per_taxon
+        Iopts.append(nsamp)
+        lineage_map[leaf_node] = i
+        lineages += [leaf_node] * nsamp
+        age = demo.node_data[leaf_node]['model'].tau * tfac
+
+        p, = demo.predecessors(leaf_node)
+        while True:
+            if p not in lineage_map:
+                lineage_map[p] = i
+                tau = demo.node_data[p]['model'].tau
+                #if p.edge_length == float("inf"):
+                if tau == float('inf'):
+                    break
+                age += tau * tfac
+                old_p = p
+                p, = demo.predecessors(p)
+            else:
+                # We have a join-on time
+                ejopts.append((age, i, lineage_map[p]))
+                break
+
+    cmdline = ["-I %d %s" % (len(Iopts), " ".join(map(str, Iopts)))]
+    for ej in ejopts:
+        cmdline.append("-ej %g %d %d" % ej)
+    cmdline = ["%s %d 1 -t %g" % (SCRM_PATH, sum(Iopts), theta)] + cmdline
+    print(cmdline)
+    return lineages, " ".join(cmdline)
+
+def run_simulation(tree, L, lineages_per_taxon):
+    lineages, cmd = build_command_line(tree, L, lineages_per_taxon)
+    species = list(set(lineages))
+    n_lineages = Counter(lineages)
+
+    print(cmd)
+    output = [l.strip() for l in check_output(cmd, shell=True).split("\n")]
+    def f(x):
+        if x == "//":
+            f.i += 1
+        return f.i
+    f.i = 0 
+    for k, lines in itertools.groupby(output, f):
+        if k == 0:
+            continue
+        # Skip preamble
+        next(lines)
+        # segsites
+        segsites = int(next(lines).split(" ")[1])
+        # positions
+        next(lines)
+        # at haplotypes
+        lin_counts = defaultdict(lambda: np.zeros(segsites, dtype=int))
+        for hap, lin in zip(lines, lineages):
+            hap = list(map(int, hap))
+            lin_counts[lin] += hap
+    return [{lin: {'derived':lin_counts[lin][i], 
+                   'ancestral':n_lineages[lin] - lin_counts[lin][i]}
+             for lin in lineages}
+            for i in range(segsites)]
+   
 if __name__=="__main__":
     main()
