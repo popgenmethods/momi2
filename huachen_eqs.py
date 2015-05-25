@@ -134,7 +134,11 @@ class SFS_Chen(object):
         self.N_diploid = N_diploid
         # precompute
         for n in range(1,max_n+1):
-            for m in range(1,n+1):
+            if timeLen == float('inf'):
+                max_top = 1
+            else:
+                max_top = n
+            for m in range(1,max_top+1):
                 self.g(n,m)
                 for i in range(1,(n-m+1)+1):
                     self.ES_i(i,n,m)

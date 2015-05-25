@@ -11,7 +11,7 @@ class SumProduct(object):
     using Moran model to do transitions up the tree,
     and using Polanski Kimmel to compute frequency of mutations at each node in tree
     '''
-    def __init__(self, demography, fftconvolve=True):
+    def __init__(self, demography, fftconvolve=False):
         self.G = demography
         self.fftconvolve = fftconvolve
         # assert self.n_derived_leafs(tree) > 0 and self.n_derived_leafs(tree) < self.n_leaf_lins(tree)
@@ -60,7 +60,7 @@ class SumProduct(object):
         if self.fftconvolve:
             ret = scipy.signal.fftconvolve(*liks)
         else:
-            ret = scipy.signal.convolve(*liks)
+            ret = np.convolve(*liks)
         return ret / self.combinatorial_factors(node)
 
     @memoize_instance
