@@ -49,14 +49,14 @@ def time_runs(args):
     # Get a random phylogeny
     tree_str = random_binary_tree(n_taxa)
     tree = Demography.from_newick(tree_str, lineages_per_taxon)
-    print tree.to_newick()
+    #print tree.to_newick()
     n = n_taxa * lineages_per_taxon
     results = []
     snp_list = run_simulation(tree, 100, lineages_per_taxon)
     for snp,state in enumerate(snp_list):
         #print(state)
         state_tuple = tuple([v['derived'] for k,v in sorted(state.iteritems())])
-        print(state_tuple)
+        #print(state_tuple)
         tree.update_state(state)
         rid = random.getrandbits(32)
 
@@ -64,10 +64,10 @@ def time_runs(args):
         if not moranOnly:
             sp_list += [("chen",SumProduct_Chen)]
         for name,method in sp_list:
-            print(name)
+            #print(name)
             with Timer() as t:
                 ret = method(tree).p()
-            print(ret)
+            #print(ret)
             results.append((name,n_taxa, lineages_per_taxon, snp, t.interval, ret, rid, str(state_tuple), tree_str))
     return results
 
@@ -92,7 +92,7 @@ class Timer:
     def __exit__(self, *args):
         self.end = time.clock()
         self.interval = self.end - self.start
-        print('Call took %.03f sec.' % self.interval)
+        #print('Call took %.03f sec.' % self.interval)
 
 def random_binary_tree(n):
     g = nx.DiGraph()
@@ -174,7 +174,7 @@ def build_command_line(demo, L, lineages_per_taxon):
     for ej in ejopts:
         cmdline.append("-ej %g %d %d" % ej)
     cmdline = ["%s %d 1 -t %g" % (SCRM_PATH, sum(Iopts), theta)] + cmdline
-    print(cmdline)
+    #print(cmdline)
     return lineages, " ".join(cmdline)
 
 def run_simulation(tree, L, lineages_per_taxon):
@@ -182,7 +182,7 @@ def run_simulation(tree, L, lineages_per_taxon):
     species = list(set(lineages))
     n_lineages = Counter(lineages)
 
-    print(cmd)
+    #print(cmd)
     output = [l.strip() for l in check_output(cmd, shell=True).split("\n")]
     def f(x):
         if x == "//":
