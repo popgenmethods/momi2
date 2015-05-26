@@ -64,7 +64,8 @@ Until momi becomes public, use
 ```
 python setup.py install
 ```
-instead.
+instead. Note you should install latest version of autograd from
+their github repository, and make sure numpy version >= 1.9.
 
 ## Examples
 
