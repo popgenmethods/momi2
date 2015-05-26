@@ -24,6 +24,8 @@ class TruncatedSizeHistory(object):
     def __init__(self, n_max, tau):
         self.n_max = n_max
         self.tau = tau
+        # precompute
+        self.sfs
 
     def freq(self, n_derived, n):
         if n_derived == 0:
@@ -45,15 +47,15 @@ class TruncatedSizeHistory(object):
         # compute entry for monomorphic site
         ret[(self.n_max, self.n_max)] = self._before_tmrca(ret)
 
-        # use recurrence to compute SFS for n < maxSampleSize
-        for n in range(self.n_max - 1, 0, -1):
-            for k in range(1, n + 1):
-                ret[(k, n)] = (ret[(k + 1, n + 1)] * (k + 1) / (n + 1) + 
-                        ret[(k, n + 1)] * (n + 1 - k) / (n + 1))
+        # # use recurrence to compute SFS for n < maxSampleSize
+        # for n in range(self.n_max - 1, 0, -1):
+        #     for k in range(1, n + 1):
+        #         ret[(k, n)] = (ret[(k + 1, n + 1)] * (k + 1) / (n + 1) + 
+        #                 ret[(k, n + 1)] * (n + 1 - k) / (n + 1))
 
-        # check accuracy
-        assert self.tau == ret[(1, 1)] or abs(log(self.tau / ret[(1, 1)])) < EPSILON, \
-                "%.16f, %.16f"  % (self.tau, ret[(1, 1)])
+        # # check accuracy
+        # assert self.tau == ret[(1, 1)] or abs(log(self.tau / ret[(1, 1)])) < EPSILON, \
+        #         "%.16f, %.16f"  % (self.tau, ret[(1, 1)])
         return ret
 
     def _before_tmrca(self, partial_sfs):
@@ -69,8 +71,8 @@ class TruncatedSizeHistory(object):
 class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
     '''Constant size population truncated to time tau.'''
     def __init__(self, n_max, tau, N):
-        super(ConstantTruncatedSizeHistory, self).__init__(n_max, tau)
         self.N = N
+        super(ConstantTruncatedSizeHistory, self).__init__(n_max, tau)
 
     @cached_property
     def etjj(self):
@@ -101,8 +103,8 @@ class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
         rate of coalescence (i.e., the inverse of the population size).
         f should accept and return vectors of times.
         '''
-        super(FunctionalTruncatedSizeHistory, self).__init__(n_max, tau)
         self._f = f
+        super(FunctionalTruncatedSizeHistory, self).__init__(n_max, tau)
 
     def _R(self, t):
         return scipy.integrate.quad(self._f, 0, t)[0]
