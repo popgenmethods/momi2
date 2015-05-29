@@ -322,7 +322,7 @@ class MsCmdParser(object):
         if not isinstance(ret, str):
             return ret
         if ret[0] == '#':
-            return self.pop_by_order[pop]
+            return self.pop_by_order[ret]
         return int(ret)
 
     def to_nx(self):
