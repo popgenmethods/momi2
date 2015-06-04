@@ -1,7 +1,7 @@
 from __future__ import division
 import networkx as nx
 from util import default_ms_path, memoize_instance, memoize
-from math_functions import einsum2, sum_antidiagonals
+from math_functions import einsum2, sum_antidiagonals, convolve_axes
 import scipy, scipy.misc
 import autograd.numpy as np
 
@@ -123,8 +123,7 @@ def der_in_admixture_node(n_node):
     
     x = scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent)
 
-    ret = np.einsum('ijk,ilm->ijklm', x, x[::-1,...])
-    ret,labels = sum_antidiagonals(ret, [c for c in 'ijklm'], 'j', 'l', 'n')
+    ret,labels = convolve_axes(x, x[::-1,...], [[c for c in 'ijk'], [c for c in 'ilm']], ['j','l'], 'n')
     assert ''.join(labels) == 'nikm'
     return np.einsum('nikm->inkm',ret[:(n_node+1),...])
 

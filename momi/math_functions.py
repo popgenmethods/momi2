@@ -23,31 +23,51 @@ def einsum2(*args):
     for argnum,idxs in zip(idx_argnum,idx_lists):
         args[argnum] = [idx_to_int[i] for i in idxs]
     
-    ## TODO: use np.tensordot instead (faster, easier to parallelize)
     return np.einsum(*args)
 
-def sum_antidiagonals(arr, labels, axis0, axis1, new_axis):
-    assert axis0 != axis1
-
-    new_labels = list(labels)
-    for old_axis in axis0,axis1:
-        new_labels.remove(old_axis)
-    
-    ret = einsum2(arr, labels, [axis0,axis1] + new_labels)[::-1,...]
-    ret = multi_trace(ret)
-  
-    return ret,[new_axis] + new_labels
-
-@primitive
-def multi_trace(arr):
-    return np.array([np.trace(arr,offset=k) 
-                    for k in range(-arr.shape[0]+1,arr.shape[1])])
-multi_trace.defgrad(lambda ans,arr: lambda g: np.einsum('kij,k...->ij...',
-                                                        multi_trace_gradmat(arr.shape[0],arr.shape[1]),
-                                                        g))
 @memoize
-def multi_trace_gradmat(i,j):
-    return np.array([np.eye(i,j,k=k) for k in range(-i+1,j)])
+def toeplitz_tensor(m,n):
+    '''
+    Toeplitz tensor is used for computing convolution
+    Theoretically, using toeplitz tensor is actually O(n^3)
+    instead of the usual O(n^2)
+    But in numpy/autograd, I've found using it to be faster and more memory efficient
+    than the usual approach, especially when computing gradients
+    (The fastest way to do convolution is FFT, but have found that to be too
+    numerically unstable)
+    TODO: write convolutions/gradients in C, to get good performance and scaling complexity
+    '''
+    return np.array([np.eye(m,n,k=k)[::-1,...] for k in range(-m+1,n)])
+
+def convolve_axes(arr0, arr1, labs, axes, out_axis):
+    lab0,lab1 = labs = [list(l) for l in labs]
+    axis0,axis1 = axes
+    idx0,idx1 = [l.index(a) for l,a in zip(labs,axes)]
+   
+    out_labs = set(lab0 + lab1)
+    for old_axis in axis0,axis1:
+        out_labs.remove(old_axis)
+    out_labs = [out_axis] + sorted(list(out_labs))
+
+    ret =  einsum2(toeplitz_tensor(arr0.shape[idx0], arr1.shape[idx1]),
+                   [out_axis, axis0, axis1],
+                   arr0, lab0, arr1, lab1,
+                   out_labs)
+
+    return ret, out_labs
+
+def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
+    idx0,idx1 = [labels.index(a) for a in axis0,axis1]
+    
+    out_labs = sorted(list(labels))
+    for old_axis in axis0,axis1:
+        out_labs.remove(old_axis)
+    out_labs = [out_axis] + out_labs
+
+    ret = einsum2(toeplitz_tensor(arr.shape[idx0], arr.shape[idx1]),
+                  [out_axis, axis0, axis1],
+                  arr, labels, out_labs)
+    return ret, out_labs
 
 '''
 Returns

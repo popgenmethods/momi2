@@ -3,7 +3,7 @@ import warnings
 import autograd.numpy as np
 import scipy
 from util import memoize_instance, memoize, truncate0, make_constant, set0
-from math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse
+from math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes
 from autograd.core import primitive
 from autograd import hessian
 
@@ -230,12 +230,9 @@ def _merge_clusters_likelihood(leaf_liks, G, event):
 
     child_pops,child_axes,child_liks,child_sfs = zip(*child_liks)
 
-    old_axes = sorted(list(set(child_axes[0] + child_axes[1])))
-    lik = einsum2(child_liks[0], child_axes[0],
-                  child_liks[1], child_axes[1],
-                  old_axes)
-    lik, old_axes = sum_antidiagonals(lik, old_axes, child_pops[0], child_pops[1], newpop)
-
+    lik, old_axes = convolve_axes(child_liks[0], child_liks[1],
+                                  child_axes, child_pops, newpop)
+    
     axes = _lik_axes(G, event)    
     lik = einsum2(lik, old_axes,
                   1.0/combinatorial_factors(G.n_lineages(newpop)), [newpop],
