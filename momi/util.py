@@ -36,21 +36,29 @@ def check_symmetric(X):
     assert np.allclose(X, Xt)
     return 0.5 * (X + Xt)
 
-@primitive
-def truncate0(x, axis=None):
+def truncate0(x, axis=None, strict=False, tol=1e-13):
     '''make sure everything in x is non-negative'''
-    mins = np.maximum(-np.amin(x,axis=axis), 0.0)
+    # the maximum along axis
     maxes = np.maximum(np.amax(x, axis=axis), 1e-300)
-    assert np.all(mins <= 1e-13 * maxes)
+    # the negative part of minimum along axis
+    mins = np.maximum(-np.amin(x,axis=axis), 0.0)
+
+    # assert the negative numbers are small (relative to maxes)
+    assert np.all(mins <= tol * maxes)
 
     if axis is not None:
         idx = [slice(None)] * x.ndim
         idx[axis] = np.newaxis
         mins = mins[idx]
-    
-    x[x < mins] = 0.0
-    return x
-truncate0.defgrad(lambda ans,x,axis=None: lambda g: g)    
+        maxes = maxes[idx]
+
+    if strict:
+        # set everything below the tolerance to 0
+        return set0(x, x < tol * maxes)
+    else:
+        # set everything of same magnitude as most negative number, to 0
+        return set0(x, x < 2*mins)
+
 
 @primitive
 def check_probs_matrix(x):

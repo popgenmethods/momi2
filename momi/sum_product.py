@@ -212,7 +212,7 @@ def _merge_subpops_likelihood(leaf_liks, G, event):
     lik = einsum2(lik, event_axes[:newidx] + [c1] + axes[(newidx+1):],
                   hypergeom_quasi_inverse(lik.shape[newidx]-1, G.n_lineages(newpop)),
                   [c1,newpop], axes)
-    truncate0(lik, axis=newidx)
+    lik = truncate0(lik, axis=newidx)
     assert lik.shape[newidx] == G.n_lineages(newpop)+1
 
     return lik,sfs

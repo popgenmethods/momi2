@@ -2,7 +2,7 @@ from __future__ import division
 import autograd.numpy as np
 from autograd.core import primitive
 import scipy
-from util import memoize
+from util import memoize, truncate0
 
 def einsum2(*args):
     '''
@@ -22,51 +22,53 @@ def einsum2(*args):
 
     for argnum,idxs in zip(idx_argnum,idx_lists):
         args[argnum] = [idx_to_int[i] for i in idxs]
-    
-    return np.einsum(*args)
 
-@memoize
-def toeplitz_tensor(m,n):
-    '''
-    Toeplitz tensor is used for computing convolution
-    Theoretically, using toeplitz tensor is actually O(n^3)
-    instead of the usual O(n^2)
-    But in numpy/autograd, I've found using it to be faster and more memory efficient
-    than the usual approach, especially when computing gradients
-    (The fastest way to do convolution is FFT, but have found that to be too
-    numerically unstable)
-    TODO: write convolutions/gradients in C, to get good performance and scaling complexity
-    '''
-    return np.array([np.eye(m,n,k=k)[::-1,...] for k in range(-m+1,n)])
+    # gradient of einsum doesn't work with repeated axes
+    # get rid of repeated axes, and replace by appropriate multiplication with Identity
+    additional_args=[]
+    next_idx = len(idx_to_int)
+    for argnum in idx_argnum[:-1]:
+        arr,idxs = args[argnum-1], args[argnum]
+        old_idxs,idxs = idxs,[]
+        for i,old_idx in enumerate(old_idxs):
+            if old_idx not in idxs:
+                idxs += [old_idx]
+            else:
+                prev_i = idxs.index(old_idx)
+                idxs += [next_idx]
+                additional_args += [np.eye(arr.shape[prev_i], arr.shape[i]), [old_idx, next_idx]]
+                next_idx += 1
+        args[argnum] = idxs
+                
+    return np.einsum(*(args[:-1] + additional_args + [args[-1]]))
 
 def convolve_axes(arr0, arr1, labs, axes, out_axis):
     lab0,lab1 = labs = [list(l) for l in labs]
     axis0,axis1 = axes
     idx0,idx1 = [l.index(a) for l,a in zip(labs,axes)]
-   
+    
     out_labs = set(lab0 + lab1)
     for old_axis in axis0,axis1:
         out_labs.remove(old_axis)
     out_labs = [out_axis] + sorted(list(out_labs))
 
-    ret =  einsum2(toeplitz_tensor(arr0.shape[idx0], arr1.shape[idx1]),
-                   [out_axis, axis0, axis1],
-                   arr0, lab0, arr1, lab1,
-                   out_labs)
-
+    lab0[idx0] = lab1[idx1] = out_axis
+    ret = fft_einsum(out_axis, arr0, lab0, arr1, lab1, out_labs)
+    
     return ret, out_labs
 
 def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
-    idx0,idx1 = [labels.index(a) for a in axis0,axis1]
-    
     out_labs = sorted(list(labels))
     for old_axis in axis0,axis1:
         out_labs.remove(old_axis)
     out_labs = [out_axis] + out_labs
 
-    ret = einsum2(toeplitz_tensor(arr.shape[idx0], arr.shape[idx1]),
-                  [out_axis, axis0, axis1],
-                  arr, labels, out_labs)
+    labels = list(labels)
+    for i,l in enumerate(labels):
+        if l in (axis0,axis1):
+            labels[i] = out_axis
+    ret = fft_einsum(out_axis, arr, labels, out_labs)
+    
     return ret, out_labs
 
 '''
@@ -136,3 +138,92 @@ def hypergeom_mat(N,n):
 def hypergeom_quasi_inverse(N,n):
     u,s,v = np.linalg.svd(hypergeom_mat(N,n), full_matrices=False)
     return np.dot(u, np.dot(np.diag(1/s), v))
+
+
+
+
+# like einsum2, but for fft_label, does multiplication in fourier domain
+# (i.e. does convolution instead of multiplication for fft_label)
+def fft_einsum(fft_label, *args):
+    args, out_labels = list(args[:-1]), args[-1]
+
+    assert len(args) % 2 == 0
+
+    fft_shapes = []
+    for i in range(int(len(args) / 2)):
+        arr, labels = args[2*i], args[2*i+1]
+        assert np.all(arr >= 0.0)
+        for j,l in enumerate(labels):
+            if l == fft_label:
+                fft_shapes += [arr.shape[j]-1]
+        
+    fft_shape = sum(fft_shapes) + 1
+    fshape = _next_regular(fft_shape)
+    
+    for i in range(int(len(args) / 2)):
+        arr, labels = args[2*i], args[2*i+1]
+        for j,l in enumerate(labels):
+            if l == fft_label:
+                arr = args[2*i] = np.fft.fftn(arr, [fshape], [j])
+
+    out_fft_idx, = [j for j,l in enumerate(out_labels) if l == fft_label]
+                
+    out_slice = [slice(None)] * len(out_labels)
+    out_slice[out_fft_idx] = slice(fft_shape)
+    
+    ret = einsum2(*(args + [out_labels]))
+    ret = np.real(np.fft.ifftn(ret, axes=[out_fft_idx])[out_slice])
+
+    ret = truncate0(ret, axis=out_fft_idx, strict=True)
+    return ret
+
+
+def _next_regular(target):
+    """
+    COPIED FROM SCIPY.SIGNAL
+    -----------------
+    Find the next regular number greater than or equal to target.
+    Regular numbers are composites of the prime factors 2, 3, and 5.
+    Also known as 5-smooth numbers or Hamming numbers, these are the optimal
+    size for inputs to FFTPACK.
+    Target must be a positive integer.
+    """
+    if target <= 6:
+        return target
+
+    # Quickly check if it's already a power of 2
+    if not (target & (target-1)):
+        return target
+
+    match = float('inf')  # Anything found will be smaller
+    p5 = 1
+    while p5 < target:
+        p35 = p5
+        while p35 < target:
+            # Ceiling integer division, avoiding conversion to float
+            # (quotient = ceil(target / p35))
+            quotient = -(-target // p35)
+
+            # Quickly find next power of 2 >= quotient
+            try:
+                p2 = 2**((quotient - 1).bit_length())
+            except AttributeError:
+                # Fallback for Python <2.7
+                p2 = 2**(len(bin(quotient - 1)) - 2)
+
+            N = p2 * p35
+            if N == target:
+                return N
+            elif N < match:
+                match = N
+            p35 *= 3
+            if p35 == target:
+                return p35
+        if p35 < match:
+            match = p35
+        p5 *= 5
+        if p5 == target:
+            return p5
+    if p5 < match:
+        match = p5
+    return match
