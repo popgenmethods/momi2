@@ -2,7 +2,7 @@ from __future__ import division
 import autograd.numpy as np
 from autograd.core import primitive
 import scipy
-from util import memoize, truncate0
+from util import memoize, truncate0, set0
 
 def einsum2(*args):
     '''
@@ -144,15 +144,34 @@ def hypergeom_quasi_inverse(N,n):
 
 # like einsum2, but for fft_label, does multiplication in fourier domain
 # (i.e. does convolution instead of multiplication for fft_label)
-def fft_einsum(fft_label, *args):
+def fft_einsum(fft_label, *args, **kwargs):
     args, out_labels = list(args[:-1]), args[-1]
-
     assert len(args) % 2 == 0
 
-    fft_shapes = []
     for i in range(int(len(args) / 2)):
         arr, labels = args[2*i], args[2*i+1]
         assert np.all(arr >= 0.0)
+
+    ## for numerical stability, split up fft into low-precision and high-precision parts
+    ## (a bit hacky, need to find a better solution)
+    tol = kwargs.get('tol', 1e-13)
+    sqrt_tol = np.sqrt(tol)
+    for i in range(int(len(args) / 2)):
+        arr, labels = args[2*i], args[2*i+1]
+        for j,l in enumerate(labels):
+            if l == fft_label:
+                # the maximum along axis
+                maxes = np.amax(arr, axis=j)[[slice(None)] * j + [np.newaxis]
+                                             + [slice(None)] * (arr.ndim -j-1) ]
+                if np.any(np.logical_and(arr < sqrt_tol * maxes, arr > 0)):
+                    args1, args2 = [list(args) + [out_labels] for _ in range(2)]
+                    args1[2*i] = set0(arr, arr < sqrt_tol * maxes)
+                    args2[2*i] = set0(arr, arr >= sqrt_tol * maxes)
+                    return fft_einsum(fft_label, *args1, **kwargs) + fft_einsum(fft_label, *args2, **kwargs)
+                    
+    fft_shapes = []
+    for i in range(int(len(args) / 2)):
+        arr, labels = args[2*i], args[2*i+1]
         for j,l in enumerate(labels):
             if l == fft_label:
                 fft_shapes += [arr.shape[j]-1]
@@ -174,7 +193,7 @@ def fft_einsum(fft_label, *args):
     ret = einsum2(*(args + [out_labels]))
     ret = np.real(np.fft.ifftn(ret, axes=[out_fft_idx])[out_slice])
 
-    ret = truncate0(ret, axis=out_fft_idx, strict=True)
+    ret = truncate0(ret, axis=out_fft_idx, tol=tol, strict=True)
     return ret
 
 
