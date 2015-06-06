@@ -2,8 +2,11 @@
 from distutils.core import setup
 from Cython.Build import cythonize
 from distutils.extension import Extension
+import numpy
 
-extensions = [Extension("convolution", sources=["convolution.pyx"])]
+extensions = [Extension("convolution",
+                        sources=["momi/convolution.pyx"],
+                        include_dirs=[numpy.get_include()])]
 
 setup(name='momi',
       version='0.1',
