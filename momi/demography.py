@@ -124,8 +124,7 @@ def der_in_admixture_node(n_node):
     x = scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent)
 
     ret,labels = convolve_axes(x, x[::-1,...], [[c for c in 'ijk'], [c for c in 'ilm']], ['j','l'], 'n')
-    assert ''.join(labels) == 'nikm'
-    return np.einsum('nikm->inkm',ret[:(n_node+1),...])
+    return np.einsum('%s->inkm' % ''.join(labels), ret[...,:(n_node+1)])
 
 
 def build_event_tree(demo):

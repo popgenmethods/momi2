@@ -1,6 +1,8 @@
 __pycache__
 *.pyc
 *.swp
+convolution.html
+convolution.c
 
 momi.egg-info
 build/
