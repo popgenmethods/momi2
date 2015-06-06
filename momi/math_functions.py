@@ -115,8 +115,8 @@ def expm1d_taylor(x):
 log_factorial = lambda n: scipy.special.gammaln(n+1)
 log_binom = lambda n,k: log_factorial(n) - log_factorial(k) - log_factorial(n-k)
 def hypergeom_mat(N,n):
-    K = np.outer(np.arange(N+1), np.ones(n+1))
-    k = np.outer(np.ones(N+1), np.arange(n+1))
+    K = np.outer(np.ones(n+1), np.arange(N+1))
+    k = np.outer(np.arange(n+1), np.ones(N+1))
     ret = log_binom(K,k)
     ret = ret + ret[::-1,::-1]
     ret = ret - log_binom(N,n)
@@ -124,5 +124,5 @@ def hypergeom_mat(N,n):
 
 @memoize
 def hypergeom_quasi_inverse(N,n):
-    u,s,v = np.linalg.svd(hypergeom_mat(N,n), full_matrices=False)
-    return np.dot(u, np.dot(np.diag(1/s), v))
+    return scipy.linalg.pinv(hypergeom_mat(N,n))
+    #return np.linalg.pinv(hypergeom_mat(N,n))
