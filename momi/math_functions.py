@@ -124,5 +124,9 @@ def hypergeom_mat(N,n):
 
 @memoize
 def hypergeom_quasi_inverse(N,n):
-    return scipy.linalg.pinv(hypergeom_mat(N,n))
+    #return scipy.linalg.pinv(hypergeom_mat(N,n))
     #return np.linalg.pinv(hypergeom_mat(N,n))
+
+    ## pinv2 seems more numerically stable than alternatives
+    ## TODO: use randomized numerical linear algebra?
+    return scipy.linalg.pinv2(hypergeom_mat(N,n))
