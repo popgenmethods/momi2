@@ -50,7 +50,7 @@ class TruncatedSizeHistory(object):
         # # use recurrence to compute SFS for n < maxSampleSize
         # for n in range(self.n_max - 1, 0, -1):
         #     for k in range(1, n + 1):
-        #         ret[(k, n)] = (ret[(k + 1, n + 1)] * (k + 1) / (n + 1) + 
+        #         ret[(k, n)] = (ret[(k + 1, n + 1)] * (k + 1) / (n + 1) +
         #                 ret[(k, n + 1)] * (n + 1 - k) / (n + 1))
 
         # # check accuracy
@@ -59,7 +59,7 @@ class TruncatedSizeHistory(object):
         return ret
 
     def _before_tmrca(self, partial_sfs):
-        ret = self.tau - fsum([partial_sfs[(b, self.n_max)] * b / self.n_max 
+        ret = self.tau - fsum([partial_sfs[(b, self.n_max)] * b / self.n_max
                                for b in range(1, self.n_max)])
         # TODO: add assertion back in
         return ret
@@ -82,7 +82,7 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
         num = -np.expm1(-scaled_time) # equals 1 - exp(-scaledTime)
         assert np.all([num >= 0.0, num <= 1.0, num <= scaled_time]), "numerator=%g, scaledTime=%g" % (num, scaled_time)
         return num / denom
-    
+
     @property
     def scaled_time(self):
         '''
@@ -97,7 +97,7 @@ class ConstantTruncatedSizeHistory(TruncatedSizeHistory):
 
 class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
     '''Size history parameterized by an arbitrary function f.'''
-    
+
     def __init__(self, n_max, tau, f):
         '''Initialize the model. For t > 0, f(t) >= is the instantaneous
         rate of coalescence (i.e., the inverse of the population size).
@@ -128,3 +128,56 @@ class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
     def scaled_time(self):
         return self._R(self.tau)
 
+
+class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
+    def __init__(self, n_max, tau, N_top, N_bottom):
+        self.N_top, self.N_bottom = N_top, N_bottom
+        # N_bottom = N_top * exp(tau * growth_rate)
+        self.growth_rate = log(N_bottom / N_top) / tau        
+        super(ExponentialTruncatedSizeHistory, self).__init__(n_max, tau)
+
+    @cached_property
+    def etjj(self):
+        j = np.arange(2, self.n_max+1)
+        ret = scipy.special.expi(- scipy.misc.comb(j,2) / self.N_bottom * np.exp(self.growth_rate * self.tau) / self.growth_rate)
+        ret = ret - scipy.special.expi(- scipy.misc.comb(j,2) / self.N_bottom / self.growth_rate)
+        ret = ret * (1.0 / self.growth_rate * np.exp(1.0 / self.growth_rate * scipy.misc.comb(j,2) / self.N_bottom))
+
+        assert np.all(np.ediff1d(ret) <= 0) # ret should be decreasing
+        assert np.all(ret >= 0)
+        assert np.all(ret <= self.tau)
+
+        return ret
+
+    @cached_property
+    def scaled_time(self):
+        '''
+        integral of 1/haploidN(t) from 0 to tau.
+        used for Moran model transitions
+        '''
+        return 1.0 / self.growth_rate / self.N_bottom * np.expm1(self.growth_rate * self.tau)
+
+
+class PiecewiseHistory(TruncatedSizeHistory):
+    def __init__(self, pieces):
+        n_max = pieces[0].n_max
+        assert all([p.n_max == n_max for p in pieces])
+        tau = sum([p.tau for p in pieces])
+        self.pieces = pieces
+        super(PiecewiseHistory, self).__init__(n_max, tau)
+
+    @cached_property
+    def etjj(self):
+        j = np.arange(2, self.n_max+1)
+        jChoose2 = scipy.misc.comb(j,2)
+
+        ret = np.zeros(len(j))
+        noCoalProb = np.ones(len(j))
+        for pop in self.pieces:
+            ret = ret + noCoalProb * pop.etjj
+            noCoalProb = noCoalProb * np.exp(- pop.scaled_time * jChoose2)
+        return ret
+
+    @cached_property
+    def scaled_time(self):
+        return sum([pop.scaled_time for pop in self.pieces])
