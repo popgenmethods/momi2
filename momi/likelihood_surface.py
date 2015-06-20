@@ -5,7 +5,6 @@ import autograd.numpy as np
 import scipy
 from sum_product import compute_sfs
 from scipy.stats import norm, chi2
-from scipy.optimize import minimize
 from math_functions import einsum2
 
 class CompositeLogLikelihood(object):
