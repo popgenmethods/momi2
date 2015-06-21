@@ -80,6 +80,13 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     myprint("# Start demography:")
     myprint(demo_func(init_opt_params).ms_cmd)
     myprint("# Performing optimization.")
+
+    def print_basinhopping(x,f,accepted):
+        myprint("\n***BASINHOPPING***")
+        x = transform_params(x)
+        myprint("at minima f(%s)=%f" % (str(x), f))
+        myprint("rel error = %s" % str((x - true_ms_params) / true_ms_params))
+        myprint("accepted %s\n" % str(accepted))
     
     #optimize_res = scipy.optimize.minimize(f_verbose, init_opt_params, jac=g_verbose, hessp=hp_verbose, method='newton-cg')
     optimize_res = scipy.optimize.basinhopping(f_verbose, init_opt_params,
@@ -88,7 +95,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
                                                minimizer_kwargs={'method':'newton-cg',
                                                                  'jac':g_verbose,
                                                                  'hessp':hp_verbose},
-                                               callback=lambda x,f,accepted: myprint("\n***BASINHOPPING***\nat minima f(%s)=%f\naccepted %d\n" % (str(transform_params(x)), f, int(accepted))))
+                                               callback=print_basinhopping)
     
     myprint(optimize_res)
     
