@@ -142,7 +142,7 @@ def infer_params(sfs_list, theta_list, n_epochs):
     def f(params):
        try:
            return -surface.log_likelihood(params)
-       except:
+       except Exception:
            # in case parameters are out-of-bounds or so extreme they cause overflow/stability issues. just return a very large number. note the gradient will be 0 in this case and the gradient descent may stop.
            return 1e100
     g, hp = grad(f), hessian_vector_product(f)

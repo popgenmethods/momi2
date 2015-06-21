@@ -52,6 +52,8 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
 
     total_snps = sum([x for sfs in sfs_list for _,x in sfs.iteritems()])
     myprint("# Total %d SNPs observed" % total_snps)
+
+    myprint("# %d unique SNPs observed" % len({x for sfs in sfs_list for x in sfs.keys()}))
     
     # log-likelihood surface
     surface = CompositeLogLikelihood(sfs_list, theta=theta, demo_func=demo_func)
@@ -60,7 +62,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     def f(params):
         try:
             return -surface.log_likelihood(params)
-        except:
+        except Exception:
            # in case parameters are out-of-bounds or so extreme they cause overflow/stability issues. just return a very large number. note the gradient will be 0 in this case and the gradient descent may stop.            
             return 1e100
 
