@@ -16,9 +16,9 @@ def main():
         ## If ms_path is None, momi uses system variable $MS_PATH
         ms_path = None
 
-    pulse_demo_str = " ".join(["-I 2 10 10 -g 1 $0",
-                               "-es $1 1 $2 -ej $1 3 2",
-                               "-ej $3 2 1 -eG $3 0.0"])
+    pulse_demo_str = " ".join(["-I 2 10 10 -g 1 $growth",
+                               "-es $split_t 1 $split_p -ej $split_t 3 2",
+                               "-ej $join_t 2 1 -eG $join_t 0.0"])
         
     simulate_inference(ms_path=ms_path,
                        num_loci=1000,
@@ -28,7 +28,8 @@ def main():
                        init_opt_params = anp.random.normal(size=4),
                        demo_str = pulse_demo_str,
                        transform_params = transform_pulse_params,
-                       verbosity = 1)
+                       n_iter = 1,
+                       verbosity = 2)
 
 def transform_pulse_params(params):
     '''
@@ -52,11 +53,12 @@ def transform_pulse_params(params):
     '''
     growth, logit_pulse_prob, log_pulse_time, log_join_wait_time = params
 
-    pulse_prob = anp.exp(logit_pulse_prob) / (anp.exp(logit_pulse_prob)+1)
-    pulse_time = anp.exp(log_pulse_time)
-    join_time = pulse_time + anp.exp(log_join_wait_time)
+    ret = {'growth' : growth,
+           'split_t' : anp.exp(log_pulse_time),
+           'split_p' : anp.exp(logit_pulse_prob) / (anp.exp(logit_pulse_prob)+1)}
+    ret['join_t'] = ret['split_t'] + anp.exp(log_join_wait_time)
 
-    return anp.array([growth, pulse_time, pulse_prob, join_time])
+    return ret
     
 if __name__=="__main__":
     main()
