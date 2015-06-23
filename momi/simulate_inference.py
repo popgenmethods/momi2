@@ -72,11 +72,19 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
            # in case parameters are out-of-bounds or so extreme they cause overflow/stability issues. just return a very large number. note the gradient will be 0 in this case and the gradient descent may stop.            
             return 1e100
 
+    def results_df(est_params, opt_space=True):
+        if opt_space:
+            est_params = transform_params(est_params)
+        return pd.DataFrame({'True': true_ms_params,
+                             'Est' : est_params,
+                             'Est/True': est_params / true_ms_params},
+                            columns=['True','Est','Est/True'])
+    
     g, hp = grad(f), hessian_vector_product(f)
     def f_verbose(params):
         # for verbose output during the gradient descent
-        myprint("Evaluating objective. Current relative error:",level=2)
-        myprint((transform_params(params) - true_ms_params) / true_ms_params,level=2)
+        myprint("Evaluating objective. Current position:",level=2)
+        myprint(results_df(params),level=2)
         return f(params)
     def g_verbose(params):
         myprint("Evaluating gradient",level=2)
@@ -91,9 +99,8 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
 
     def print_basinhopping(x,f,accepted):
         myprint("\n***BASINHOPPING***")
-        x = transform_params(x)
         myprint("at local minima %f" % f)
-        myprint(pd.DataFrame({'params': x, 'rel error': (x - true_ms_params) / true_ms_params}))
+        myprint(results_df(x))
         if accepted:
             myprint("Accepted")
         else:
@@ -131,11 +138,9 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     z = (inferred_ms_params - true_ms_params) / sd
     z_p = pd.Series((1.0 - scipy.stats.norm.cdf(np.abs(z))) * 2.0 , index=idx)
 
-    myprint(pd.DataFrame({'True': true_ms_params,
-                          'Est' : inferred_ms_params,
-                          'Rel error': (true_ms_params - inferred_ms_params) / true_ms_params,
-                          'p value': z_p},
-                         columns=['True','Est','Rel error','p value']))
+    coord_results = results_df(inferred_ms_params, opt_space=False)
+    coord_results['p value'] = z_p
+    myprint(coord_results)
     
     ## global p value
     resids = inferred_ms_params - true_ms_params
@@ -150,4 +155,5 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
             'est': inferred_ms_params,
             'sigma': sigma,
             'sigma_inv': sigma_inv,
-            'p_vals': {'z': z_p, 'wald': wald_p}}
+            'p_vals': {'z': z_p, 'wald': wald_p},
+            'opt_res': optimize_res}

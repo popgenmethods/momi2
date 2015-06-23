@@ -3,6 +3,8 @@ import sys
 
 from momi import simulate_inference
 
+import cPickle as pickle
+
 ## Thinly-wrapped numpy that supports automatic differentiation
 import autograd.numpy as anp
 
@@ -20,16 +22,18 @@ def main():
                                "-es $split_t 1 $split_p -ej $split_t 3 2",
                                "-ej $join_t 2 1 -eG $join_t 0.0"])
         
-    simulate_inference(ms_path=ms_path,
-                       num_loci=1000,
-                       theta=10.0,
-                       additional_ms_params='-r 10.0 10000',
-                       true_ms_params = transform_pulse_params(anp.array([1.0, -1.0, -1.0, 1.0])),
-                       init_opt_params = anp.random.normal(size=4),
-                       demo_str = pulse_demo_str,
-                       transform_params = transform_pulse_params,
-                       n_iter = 1,
-                       verbosity = 2)
+    res = simulate_inference(ms_path=ms_path,
+                             num_loci=1000,
+                             theta=10.0,
+                             additional_ms_params='-r 10.0 10000',
+                             true_ms_params = transform_pulse_params(anp.array([1.0, -1.0, -1.0, 1.0])),
+                             init_opt_params = anp.random.normal(size=4),
+                             demo_str = pulse_demo_str,
+                             transform_params = transform_pulse_params,
+                             n_iter = 1,
+                             verbosity = 2)
+    with open('example_inference.pickle','wb') as f:
+        pickle.dump(res, f)
 
 def transform_pulse_params(params):
     '''
