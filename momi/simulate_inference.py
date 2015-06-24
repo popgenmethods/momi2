@@ -33,7 +33,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
         level = kwargs.get('level',1)
         if level <= verbosity:
             print(*args)
-
+           
     true_ms_params = pd.Series(true_ms_params)
     old_transform_params = transform_params
     transform_params = lambda x: pd.Series(old_transform_params(x))
@@ -153,6 +153,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
 
     return {'truth': true_ms_params,
             'est': inferred_ms_params,
+            'init': transform_params(init_opt_params),
             'sigma': sigma,
             'sigma_inv': sigma_inv,
             'p_vals': {'z': z_p, 'wald': wald_p},
