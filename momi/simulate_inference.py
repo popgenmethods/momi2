@@ -13,7 +13,7 @@ import pandas as pd
 import autograd.numpy as np
 from autograd import grad, hessian_vector_product
 
-def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_str, n_iter=10, transform_params=lambda x:x, verbosity=0):
+def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0):
     '''
     Simulate a SFS, then estimate the demography via maximum composite
     likelihood, using first and second-order derivatives to search 
@@ -37,11 +37,17 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     true_ms_params = pd.Series(true_ms_params)
     old_transform_params = transform_params
     transform_params = lambda x: pd.Series(old_transform_params(x))
-            
-    def demo_func(params):
-        return make_demography(demo_str, **transform_params(params))
+
+    def demo_func_ms(**params):
+        try:
+            return demo_factory(**params)
+        except TypeError:
+            return make_demography(demo_factory, **params)
     
-    true_demo = make_demography(demo_str, **true_ms_params)
+    def demo_func_opt(params):
+        return demo_func_ms(**transform_params(params))
+    
+    true_demo = demo_func_ms(**true_ms_params)
     myprint("# True demography:")
     myprint(true_demo.ms_cmd)
     
@@ -62,7 +68,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     myprint("# %d unique SNPs observed" % len({x for sfs in sfs_list for x in sfs.keys()}))
     
     # log-likelihood surface
-    surface = CompositeLogLikelihood(sfs_list, theta=theta, demo_func=demo_func)
+    surface = CompositeLogLikelihood(sfs_list, theta=theta, demo_func=demo_func_opt)
 
     # construct the function to minimize, and its derivatives
     def f(params):
@@ -94,7 +100,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
         return hp(params, v)
 
     myprint("# Start demography:")
-    myprint(demo_func(init_opt_params).ms_cmd)
+    myprint(demo_func_opt(init_opt_params).ms_cmd)
     myprint("# Performing optimization.")
 
     def print_basinhopping(x,f,accepted):
@@ -122,10 +128,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     ## reparametrize surface by ms params
     idx = true_ms_params.index
     surface = CompositeLogLikelihood(sfs_list, theta=theta,
-                                     demo_func=lambda x: make_demography(demo_str,
-                                                                         **pd.Series(x,
-                                                                                     index=idx))
-                                     )
+                                     demo_func=lambda x: demo_func_ms(**pd.Series(x,index=idx)))
     ## estimate sigma hat at plugin
     sigma = surface.max_covariance(inferred_ms_params.values)
 
