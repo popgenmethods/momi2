@@ -39,9 +39,9 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     transform_params = lambda x: pd.Series(old_transform_params(x))
 
     def demo_func_ms(**params):
-        try:
+        if callable(demo_factory):
             return demo_factory(**params)
-        except TypeError:
+        else:
             return make_demography(demo_factory, **params)
     
     def demo_func_opt(params):
