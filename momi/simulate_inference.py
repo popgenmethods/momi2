@@ -13,7 +13,9 @@ import pandas as pd
 import autograd.numpy as np
 from autograd import grad, hessian_vector_product
 
-def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0):
+import time
+
+def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg'):
     '''
     Simulate a SFS, then estimate the demography via maximum composite
     likelihood, using first and second-order derivatives to search 
@@ -29,6 +31,8 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
                       to the values expected by make_demography
     verbosity: 0=no output, 1=medium output, 2=high output
     '''
+    start = time.clock()
+    
     def myprint(*args,**kwargs):
         level = kwargs.get('level',1)
         if level <= verbosity:
@@ -74,6 +78,9 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     def f(params):
         try:
             return -surface.log_likelihood(params)
+        except MemoryError:
+            raise
+        ## TODO: define a specific exception type for out-of-bounds or overflow errors
         except Exception:
            # in case parameters are out-of-bounds or so extreme they cause overflow/stability issues. just return a very large number. note the gradient will be 0 in this case and the gradient descent may stop.            
             return 1e100
@@ -116,10 +123,12 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     optimize_res = scipy.optimize.basinhopping(f_verbose, init_opt_params,
                                                niter=n_iter, interval=1,
                                                T=float(total_snps),
-                                               minimizer_kwargs={'method':'newton-cg',
+                                               minimizer_kwargs={'method':method,
                                                                  'jac':g_verbose,
                                                                  'hessp':hp_verbose},
                                                callback=print_basinhopping)
+
+    opt_end = time.clock()
     
     myprint("\n\n# Global minimum: %f" % optimize_res.fun)
     
@@ -154,10 +163,15 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     myprint("# X, 1-Chi2_cdf(X,df=%d)" % len(resids))    
     myprint(eps_norm, wald_p)
 
+    conf_end = time.clock()
+    
     return {'truth': true_ms_params,
             'est': inferred_ms_params,
             'init': transform_params(init_opt_params),
             'sigma': sigma,
             'sigma_inv': sigma_inv,
             'p_vals': {'z': z_p, 'wald': wald_p},
-            'opt_res': optimize_res}
+            'opt_res': optimize_res,
+            'time': {'opt': opt_end - start, 'conf': conf_end - opt_end,
+                     'total' : conf_end - start}
+            }
