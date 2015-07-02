@@ -69,7 +69,8 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     total_snps = sum([x for sfs in sfs_list for _,x in sfs.iteritems()])
     myprint("# Total %d SNPs observed" % total_snps)
 
-    myprint("# %d unique SNPs observed" % len({x for sfs in sfs_list for x in sfs.keys()}))
+    uniq_snps = len({x for sfs in sfs_list for x in sfs.keys()})
+    myprint("# %d unique SNPs observed" % uniq_snps)
     
     # log-likelihood surface
     surface = CompositeLogLikelihood(sfs_list, theta=theta, demo_func=demo_func_opt)
@@ -173,5 +174,6 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
             'p_vals': {'z': z_p, 'wald': wald_p},
             'opt_res': optimize_res,
             'time': {'opt': opt_end - start, 'conf': conf_end - opt_end,
-                     'total' : conf_end - start}
+                     'total' : conf_end - start},
+            'num_snps': {'total' : total_snps, 'unique': uniq_snps},
             }
