@@ -31,3 +31,446 @@
 ./benchmark.py 8 32 20 20
 ./benchmark.py 16 16 20 20
 ./benchmark.py 32 8 20 20
+Process PoolWorker-6:
+Traceback (most recent call last):
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 113, in worker
+    result = (True, func(*args, **kwds))
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 65, in mapstar
+    return map(*args)
+  File "./benchmark.py", line 69, in time_runs
+    ret = method(tree).p()
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 30, in __init__
+    attach_Chen(self.G)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 127, in attach_Chen
+    tree.chen[node] = SFS_Chen(size_model.N / 2.0, size_model.tau, tree.n_lineages_subtended_by[node])
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 136, in __init__
+    self.truncated_sfs(i,n)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 171, in truncated_sfs
+    ret += self.ES_i(i, n, m)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 161, in ES_i
+    return math.fsum([p_n_k(i, n, k) * k * self.ET(k, n, m) for k in range(m, n + 1)])
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 152, in ET
+    return ET(i, n, m, self.N_diploid, self.timeLen)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 268, in ET
+    return formula3(i, n, m, N_diploid, tau)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in formula3
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in <genexpr>
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 235, in <genexpr>
+    for ell in range(m, j)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 188, in gcoef
+    return (2*k - 1) * (-1)**(k - m) * math_mod.exp(log_rising(m, k-1) + log_falling(n, k) - log_factorial(m) - log_factorial(k - m) - log_rising(n, k))
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 182, in log_falling
+    return log_factorial(n) - log_factorial(n-k)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 176, in log_factorial
+    return math_mod.lgamma(n+1)
+KeyboardInterrupt
+Process PoolWorker-16:
+Traceback (most recent call last):
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+    self.run()
+Process PoolWorker-10:
+Process PoolWorker-13:
+Traceback (most recent call last):
+Process PoolWorker-19:
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+Process PoolWorker-14:
+Traceback (most recent call last):
+Process PoolWorker-7:
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+Traceback (most recent call last):
+Traceback (most recent call last):
+Process PoolWorker-12:
+    self._target(*self._args, **self._kwargs)
+Process PoolWorker-17:
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+Traceback (most recent call last):
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+Process PoolWorker-11:
+Traceback (most recent call last):
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+Process PoolWorker-9:
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+Process PoolWorker-18:
+Traceback (most recent call last):
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+Process PoolWorker-5:
+Traceback (most recent call last):
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self._target(*self._args, **self._kwargs)
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self.run()
+    self._target(*self._args, **self._kwargs)
+    self.run()
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 113, in worker
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self._target(*self._args, **self._kwargs)
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 113, in worker
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+    self.run()
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 113, in worker
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 113, in worker
+Process PoolWorker-4:
+Traceback (most recent call last):
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+    task = get()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+    task = get()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+    self.run()
+    task = get()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    result = (True, func(*args, **kwds))
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 65, in mapstar
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+    return map(*args)
+    task = get()
+    result = (True, func(*args, **kwds))
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 65, in mapstar
+  File "./benchmark.py", line 69, in time_runs
+    return map(*args)
+    result = (True, func(*args, **kwds))
+  File "./benchmark.py", line 69, in time_runs
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 65, in mapstar
+    return map(*args)
+  File "./benchmark.py", line 69, in time_runs
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 113, in worker
+Process PoolWorker-1:
+Process PoolWorker-15:
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+    task = get()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+    result = (True, func(*args, **kwds))
+    ret = method(tree).p()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 65, in mapstar
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 30, in __init__
+    ret = method(tree).p()
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 30, in __init__
+    return map(*args)
+  File "./benchmark.py", line 69, in time_runs
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+Process PoolWorker-2:
+Traceback (most recent call last):
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+    task = get()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+    task = get()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+    ret = method(tree).p()
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 30, in __init__
+    attach_Chen(self.G)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 127, in attach_Chen
+    tree.chen[node] = SFS_Chen(size_model.N / 2.0, size_model.tau, tree.n_lineages_subtended_by[node])
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 136, in __init__
+    self.truncated_sfs(i,n)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    result = (True, func(*args, **kwds))
+Process PoolWorker-8:
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 65, in mapstar
+Traceback (most recent call last):
+    return map(*args)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+  File "./benchmark.py", line 69, in time_runs
+    task = get()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+    ret = method(tree).p()
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 30, in __init__
+    attach_Chen(self.G)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 127, in attach_Chen
+    tree.chen[node] = SFS_Chen(size_model.N / 2.0, size_model.tau, tree.n_lineages_subtended_by[node])
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 136, in __init__
+    self.truncated_sfs(i,n)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+Process PoolWorker-3:
+Traceback (most recent call last):
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+    self.run()
+    task = get()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+    attach_Chen(self.G)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 127, in attach_Chen
+    tree.chen[node] = SFS_Chen(size_model.N / 2.0, size_model.tau, tree.n_lineages_subtended_by[node])
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 136, in __init__
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+    self.truncated_sfs(i,n)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 171, in truncated_sfs
+    ret += self.ES_i(i, n, m)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 161, in ES_i
+    return math.fsum([p_n_k(i, n, k) * k * self.ET(k, n, m) for k in range(m, n + 1)])
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 152, in ET
+    return ET(i, n, m, self.N_diploid, self.timeLen)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 268, in ET
+Process PoolWorker-20:
+    return formula3(i, n, m, N_diploid, tau)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in formula3
+Traceback (most recent call last):
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in <genexpr>
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 258, in _bootstrap
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 235, in <genexpr>
+    for ell in range(m, j)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 185, in gcoef
+    k, n, m = map(myint, [k, n, m])
+KeyboardInterrupt
+    ret = method(tree).p()
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 30, in __init__
+    self.run()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 113, in worker
+    task = get()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+    attach_Chen(self.G)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 127, in attach_Chen
+    tree.chen[node] = SFS_Chen(size_model.N / 2.0, size_model.tau, tree.n_lineages_subtended_by[node])
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 136, in __init__
+    self.truncated_sfs(i,n)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 171, in truncated_sfs
+    ret += self.ES_i(i, n, m)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 161, in ES_i
+    return math.fsum([p_n_k(i, n, k) * k * self.ET(k, n, m) for k in range(m, n + 1)])
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 152, in ET
+    return ET(i, n, m, self.N_diploid, self.timeLen)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 268, in ET
+    return formula3(i, n, m, N_diploid, tau)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in formula3
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in <genexpr>
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 235, in <genexpr>
+    for ell in range(m, j)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 188, in gcoef
+    return (2*k - 1) * (-1)**(k - m) * math_mod.exp(log_rising(m, k-1) + log_falling(n, k) - log_factorial(m) - log_factorial(k - m) - log_rising(n, k))
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 176, in log_factorial
+    return math_mod.lgamma(n+1)
+KeyboardInterrupt
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 171, in truncated_sfs
+    ret += self.ES_i(i, n, m)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 161, in ES_i
+    return math.fsum([p_n_k(i, n, k) * k * self.ET(k, n, m) for k in range(m, n + 1)])
+    task = get()
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 152, in ET
+    return ET(i, n, m, self.N_diploid, self.timeLen)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 268, in ET
+    return formula3(i, n, m, N_diploid, tau)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in formula3
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in <genexpr>
+    for k in range(j + 1, n + 1)
+    self.run()
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 235, in <genexpr>
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+    for ell in range(m, j)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 185, in gcoef
+    k, n, m = map(myint, [k, n, m])
+    attach_Chen(self.G)
+    self._target(*self._args, **self._kwargs)
+    result = (True, func(*args, **kwds))
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 127, in attach_Chen
+KeyboardInterrupt
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 65, in mapstar
+    tree.chen[node] = SFS_Chen(size_model.N / 2.0, size_model.tau, tree.n_lineages_subtended_by[node])
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 136, in __init__
+    return map(*args)
+    self.run()
+  File "./benchmark.py", line 69, in time_runs
+    self.truncated_sfs(i,n)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/process.py", line 114, in run
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    self._target(*self._args, **self._kwargs)
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/pool.py", line 102, in worker
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 171, in truncated_sfs
+    ret += self.ES_i(i, n, m)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 161, in ES_i
+    return math.fsum([p_n_k(i, n, k) * k * self.ET(k, n, m) for k in range(m, n + 1)])
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 152, in ET
+    return ET(i, n, m, self.N_diploid, self.timeLen)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 268, in ET
+    return formula3(i, n, m, N_diploid, tau)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in formula3
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in <genexpr>
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 235, in <genexpr>
+    for ell in range(m, j)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 188, in gcoef
+    return (2*k - 1) * (-1)**(k - m) * math_mod.exp(log_rising(m, k-1) + log_falling(n, k) - log_factorial(m) - log_factorial(k - m) - log_rising(n, k))
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 175, in log_factorial
+    def log_factorial(n):
+KeyboardInterrupt
+    ret = method(tree).p()
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 30, in __init__
+    racquire()
+    task = get()
+    racquire()
+KeyboardInterrupt
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 374, in get
+    racquire()
+KeyboardInterrupt
+    racquire()
+KeyboardInterrupt
+KeyboardInterrupt
+    racquire()
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 171, in truncated_sfs
+    ret += self.ES_i(i, n, m)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+KeyboardInterrupt
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 161, in ES_i
+    return math.fsum([p_n_k(i, n, k) * k * self.ET(k, n, m) for k in range(m, n + 1)])
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 152, in ET
+    racquire()
+    return ET(i, n, m, self.N_diploid, self.timeLen)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 268, in ET
+    return formula3(i, n, m, N_diploid, tau)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in formula3
+KeyboardInterrupt
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in <genexpr>
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 235, in <genexpr>
+    for ell in range(m, j)
+KeyboardInterrupt
+    task = get()
+  File "/export/home/jackkamm/anaconda/lib/python2.7/multiprocessing/queues.py", line 376, in get
+    racquire()
+KeyboardInterrupt
+    attach_Chen(self.G)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 127, in attach_Chen
+    tree.chen[node] = SFS_Chen(size_model.N / 2.0, size_model.tau, tree.n_lineages_subtended_by[node])
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 136, in __init__
+    self.truncated_sfs(i,n)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    return recv()
+KeyboardInterrupt
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 171, in truncated_sfs
+    ret += self.ES_i(i, n, m)
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 161, in ES_i
+    return math.fsum([p_n_k(i, n, k) * k * self.ET(k, n, m) for k in range(m, n + 1)])
+  File "/export/home/jackkamm/momi/util.py", line 82, in __call__
+    res = cache[key] = self.func(*args, **kw)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 152, in ET
+    return ET(i, n, m, self.N_diploid, self.timeLen)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 268, in ET
+    return formula3(i, n, m, N_diploid, tau)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in formula3
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 237, in <genexpr>
+    for k in range(j + 1, n + 1)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 235, in <genexpr>
+    for ell in range(m, j)
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 188, in gcoef
+    return (2*k - 1) * (-1)**(k - m) * math_mod.exp(log_rising(m, k-1) + log_falling(n, k) - log_factorial(m) - log_factorial(k - m) - log_rising(n, k))
+  File "/export/home/jackkamm/momi/huachen_eqs.py", line 178, in log_rising
+    def log_rising(n,k):
+KeyboardInterrupt
+    racquire()
+    racquire()
+    racquire()
+KeyboardInterrupt
+KeyboardInterrupt
+    racquire()
+KeyboardInterrupt
+KeyboardInterrupt
+    racquire()
+KeyboardInterrupt
+Terminated
+./benchmark.py 32 8 20 5 --moranOnly
+./benchmark.py 64 4 20 5 --moranOnly
+./benchmark.py 128 2 20 5 --moranOnly
+./benchmark.py 256 1 20 5 --moranOnly
