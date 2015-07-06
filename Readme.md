@@ -12,7 +12,11 @@ See example.py for an example of how to construct a population history and compu
 
 ## Upcoming features
 
-An upcoming paper will extend the Moran joint SFS algorithm to handle demographic histories with pulse migration, and
-will also include a method for fitting models via gradient descent.
-The user interface of momi will also be changing when migration and gradient descent are added.
-Stay tuned for updates!
+momi is under active development. Upcoming features include:
+* Pulse migration/admixture
+* Automatic differentiation for gradient descent, inference
+* Improved user interface
+
+We are currently writing a second
+paper to describe the extension of the momi algorithm
+to include pulse migration and gradient descent.
