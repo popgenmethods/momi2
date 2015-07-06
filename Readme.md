@@ -18,4 +18,4 @@ momi is under active development. Upcoming features include:
 * Improved user interface
 
 These updates will be released with a second paper that describes these extensions to the
-momi algorithm.
+momi algorithm. Stay tuned!
