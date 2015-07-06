@@ -10,6 +10,9 @@ approaches to computing the multipopulation SFS.
 
 See example.py for an example of how to construct a population history and compute its SFS entries.
 
+## Upcoming features
+
 An upcoming paper will extend the Moran joint SFS algorithm to handle demographic histories with pulse migration, and
 will also include a method for fitting models via gradient descent.
+The user interface of momi will also be changing when migration and gradient descent are added.
 Stay tuned for updates!
