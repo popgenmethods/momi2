@@ -13,47 +13,8 @@ class Demography(nx.DiGraph):
         for v0, v1, d in t.edges(data=True):
             n_sub = t.n_lineages_subtended_by[v1]
             nd = t.node_data[v1]
-            if 'model' not in nd or nd['model'] == "constant":
-                nd['model'] = ConstantTruncatedSizeHistory(
-                        N=nd.get('N', default_N),
-                        tau=d['branch_length'],
-                        n_max=n_sub)
-            elif nd['model'] == "exponential":
-                nd['model'] = ExponentialTruncatedSizeHistory(n_max=n_sub,
-                                                              tau=d['branch_length'],
-                                                              N_top=nd['N_top'],
-                                                              N_bottom=nd['N_bottom'])
-            elif nd['model'] == 'piecewise':
-                i = -1
-                epochs = []
-                while True:
-                    i += 1
-                    try:
-                        model = nd['model_'+str(i)]
-                    except KeyError:
-                        break
-                    if  model == 'constant':
-                        epochs.append(ConstantTruncatedSizeHistory(n_max=n_sub,
-                                                                   tau=nd['tau_'+str(i)],
-                                                                   N=nd['N_'+str(i)]))
-                    elif model == 'exponential':
-                        epochs.append(ExponentialTruncatedSizeHistory(n_max=n_sub,
-                                                                      tau=nd['tau_'+str(i)],
-                                                                      N_top=nd['N_top_'+str(i)],
-                                                                      N_bottom=nd['N_bottom_'+str(i)]))
-                    else:
-                        raise Exception("Unsupported model type: %s" % model)
-                nd['model'] = PiecewiseHistory(epochs)
-                if not np.allclose(nd['model'].tau , d['branch_length']):
-                    raise Exception("Sum of piecewise epoch lengths does not equal branch length")
-            else:
-                raise Exception("Unsupported model type: %s" % nd['model'])
-        nd = t.node_data[t.root]
-        # FIXME: all possible size histories for root
-        nd['model'] = ConstantTruncatedSizeHistory(
-                N=nd.get('N', default_N),
-                n_max=t.n_lineages_subtended_by[t.root],
-                tau=float("inf"))
+            _set_model(nd, n_sub, d['branch_length'], default_N=default_N)
+        _set_model(t.node_data[t.root], t.n_lineages_subtended_by[t.root], float('inf'), default_N=default_N)
         return t
 
     def __init__(self, *args, **kwargs):
@@ -173,3 +134,41 @@ def _to_newick(G, root):
         if edge_length:
             ret += ":" + edge_length
         return ret
+
+def _set_model(nd, n_sub, branch_length, default_N):
+    if 'model' not in nd or nd['model'] == "constant":
+        nd['model'] = ConstantTruncatedSizeHistory(
+                N=nd.get('N', default_N),
+                tau=branch_length,
+                n_max=n_sub)
+    elif nd['model'] == "exponential":
+        nd['model'] = ExponentialTruncatedSizeHistory(n_max=n_sub,
+                                                      tau=branch_length,
+                                                      N_top=nd['N_top'],
+                                                      N_bottom=nd['N_bottom'])
+    elif nd['model'] == 'piecewise':
+        i = -1
+        epochs = []
+        while True:
+            i += 1
+            try:
+                model = nd['model_'+str(i)]
+            except KeyError:
+                break
+            if  model == 'constant':
+                epochs.append(ConstantTruncatedSizeHistory(n_max=n_sub,
+                                                           tau=nd['tau_'+str(i)],
+                                                           N=nd['N_'+str(i)]))
+            elif model == 'exponential':
+                epochs.append(ExponentialTruncatedSizeHistory(n_max=n_sub,
+                                                              tau=nd['tau_'+str(i)],
+                                                              N_top=nd['N_top_'+str(i)],
+                                                              N_bottom=nd['N_bottom_'+str(i)]))
+            else:
+                raise Exception("Unsupported model type: %s" % model)
+        nd['model'] = PiecewiseHistory(epochs)
+        if not np.allclose(nd['model'].tau , branch_length):
+            raise Exception("Sum of piecewise epoch lengths does not equal branch length")
+    else:
+        raise Exception("Unsupported model type: %s" % nd['model'])
+

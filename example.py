@@ -50,7 +50,7 @@ a:.25[&&momi:lineages=10:model=constant:N=10.0],
 b:.3[&&momi:lineages=5:model=exponential:N_top=1.0:N_bottom=10.0]
 ):.1[&&momi:model=constant:N=1.5],
 c:.3[&&momi:lineages=8:model=piecewise:model_0=exponential:tau_0=.2:N_top_0=.1:N_bottom_0=1.0:model_1=constant:tau_1=.1:N_1=.3]
-)
+)[&&momi:N=3.0]
 """
 demo3 = Demography.from_newick(newick_str)
 

@@ -131,9 +131,11 @@ class FunctionalTruncatedSizeHistory(TruncatedSizeHistory):
 
 class ExponentialTruncatedSizeHistory(TruncatedSizeHistory):
     def __init__(self, n_max, tau, N_top, N_bottom):
+        if tau == float('inf'):
+            raise Exception("Exponential growth only permitted for finite time intervals")
         self.N_top, self.N_bottom = N_top, N_bottom
         # N_bottom = N_top * exp(tau * growth_rate)
-        self.growth_rate = log(N_bottom / N_top) / tau        
+        self.growth_rate = log(N_bottom / N_top) / tau
         super(ExponentialTruncatedSizeHistory, self).__init__(n_max, tau)
 
     @cached_property
