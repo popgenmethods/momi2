@@ -2,7 +2,8 @@ import networkx as nx
 from Bio import Phylo
 from cStringIO import StringIO
 from util import cached_property
-from size_history import ConstantTruncatedSizeHistory
+from size_history import ConstantTruncatedSizeHistory, ExponentialTruncatedSizeHistory, PiecewiseHistory
+import numpy as np
 
 class Demography(nx.DiGraph):
     @classmethod
@@ -15,15 +16,43 @@ class Demography(nx.DiGraph):
             if 'model' not in nd or nd['model'] == "constant":
                 nd['model'] = ConstantTruncatedSizeHistory(
                         N=nd.get('N', default_N),
-                        tau=d['branch_length'], 
+                        tau=d['branch_length'],
                         n_max=n_sub)
+            elif nd['model'] == "exponential":
+                nd['model'] = ExponentialTruncatedSizeHistory(n_max=n_sub,
+                                                              tau=d['branch_length'],
+                                                              N_top=nd['N_top'],
+                                                              N_bottom=nd['N_bottom'])
+            elif nd['model'] == 'piecewise':
+                i = -1
+                epochs = []
+                while True:
+                    i += 1
+                    try:
+                        model = nd['model_'+str(i)]
+                    except KeyError:
+                        break
+                    if  model == 'constant':
+                        epochs.append(ConstantTruncatedSizeHistory(n_max=n_sub,
+                                                                   tau=nd['tau_'+str(i)],
+                                                                   N=nd['N_'+str(i)]))
+                    elif model == 'exponential':
+                        epochs.append(ExponentialTruncatedSizeHistory(n_max=n_sub,
+                                                                      tau=nd['tau_'+str(i)],
+                                                                      N_top=nd['N_top_'+str(i)],
+                                                                      N_bottom=nd['N_bottom_'+str(i)]))
+                    else:
+                        raise Exception("Unsupported model type: %s" % model)
+                nd['model'] = PiecewiseHistory(epochs)
+                if not np.allclose(nd['model'].tau , d['branch_length']):
+                    raise Exception("Sum of piecewise epoch lengths does not equal branch length")
             else:
                 raise Exception("Unsupported model type: %s" % nd['model'])
         nd = t.node_data[t.root]
         # FIXME: all possible size histories for root
         nd['model'] = ConstantTruncatedSizeHistory(
                 N=nd.get('N', default_N),
-                n_max=t.n_lineages_subtended_by[t.root], 
+                n_max=t.n_lineages_subtended_by[t.root],
                 tau=float("inf"))
         return t
 
@@ -38,7 +67,7 @@ class Demography(nx.DiGraph):
         nds = [node for node, deg in self.in_degree().items() if deg == 0]
         assert len(nds) == 1
         return nds[0]
-    
+
     @cached_property
     def node_data(self):
         return dict(self.nodes(data=True))
@@ -83,8 +112,9 @@ class Demography(nx.DiGraph):
 
 
 _field_factories = {
-    "N": float, "lineages": int, "ancestral": int, 
-    "derived": int, "model": str
+    "N": float, "lineages": int, "ancestral": int,
+    "derived": int, "model": str, "n": int,
+    "tau": float,
     }
 def _extract_momi_fields(comment):
     for field in comment.split("&&"):
@@ -92,7 +122,7 @@ def _extract_momi_fields(comment):
             attrs = field.split(":")
             assert attrs[0] == "momi"
             attrs = [a.split("=") for a in attrs[1:]]
-            attrdict = dict((a, _field_factories[a](b)) for a, b in attrs)
+            attrdict = dict((a, _field_factories[a.split('_')[0]](b)) for a, b in attrs)
             return attrdict
     return {}
 

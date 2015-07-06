@@ -32,10 +32,10 @@ plot(p)
 ggsave('figures/timing_log.pdf')
 
 write.table(format(dcast(subset(dt.summary, initial=='Per SNP'), formula=n+D~method, value.var='avg_t'),digits=4,scientific=T),
-            file='per_snp.txt', quote=F, row.names=F, sep=' & ', eol=' \\\\ \\hline \n')
+            file='figures/per_snp.txt', quote=F, row.names=F, sep=' & ', eol=' \\\\ \\hline \n')
 
 write.table(format(dcast(subset(dt.summary, initial=='Precomputation'), formula=n+D~method, value.var='avg_t'),digits=4,scientific=T),
-            file='precomputation.txt', quote=F, row.names=F, sep=' & ', eol=' \\\\ \\hline \n')
+            file='figures/precomputation.txt', quote=F, row.names=F, sep=' & ', eol=' \\\\ \\hline \n')
 
 #dt$transformed.result <- sign(dt$result) * log10(1 + abs(dt$result))
 
