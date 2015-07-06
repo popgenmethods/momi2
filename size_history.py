@@ -30,6 +30,8 @@ class TruncatedSizeHistory(object):
     def freq(self, n_derived, n):
         if n_derived == 0:
             return 0.0
+        if (n_derived, n) not in self.sfs and n < self.n_max and n_derived > 0:
+            self._sfs_recurrence()
         return self.sfs[(n_derived, n)]
 
     @cached_property
@@ -47,16 +49,19 @@ class TruncatedSizeHistory(object):
         # compute entry for monomorphic site
         ret[(self.n_max, self.n_max)] = self._before_tmrca(ret)
 
-        # # use recurrence to compute SFS for n < maxSampleSize
-        # for n in range(self.n_max - 1, 0, -1):
-        #     for k in range(1, n + 1):
-        #         ret[(k, n)] = (ret[(k + 1, n + 1)] * (k + 1) / (n + 1) +
-        #                 ret[(k, n + 1)] * (n + 1 - k) / (n + 1))
-
-        # # check accuracy
-        # assert self.tau == ret[(1, 1)] or abs(log(self.tau / ret[(1, 1)])) < EPSILON, \
-        #         "%.16f, %.16f"  % (self.tau, ret[(1, 1)])
         return ret
+
+    def _sfs_recurrence(self):
+        # use recurrence to compute SFS for n < maxSampleSize
+        for n in range(self.n_max - 1, 0, -1):
+            for k in range(1, n + 1):
+                self.sfs[(k, n)] = (self.sfs[(k + 1, n + 1)] * (k + 1) / (n + 1) +
+                        self.sfs[(k, n + 1)] * (n + 1 - k) / (n + 1))
+
+        # check accuracy
+        assert self.tau == self.sfs[(1, 1)] or abs(log(self.tau / self.sfs[(1, 1)])) < EPSILON, \
+                "%.16f, %.16f"  % (self.tau, self.sfs[(1, 1)])
+
 
     def _before_tmrca(self, partial_sfs):
         ret = self.tau - fsum([partial_sfs[(b, self.n_max)] * b / self.n_max
