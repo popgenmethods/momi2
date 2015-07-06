@@ -14,9 +14,8 @@ See example.py for an example of how to construct a population history and compu
 
 momi is under active development. Upcoming features include:
 * Pulse migration/admixture
-* Automatic differentiation for gradient descent, inference
+* Parameter inference via gradient descent, automatic differentiation
 * Improved user interface
 
-We are currently writing a second
-paper to describe the extension of the momi algorithm
-to include pulse migration and gradient descent.
+We are currently writing another paper that describes these extensions to the
+momi algorithm.
