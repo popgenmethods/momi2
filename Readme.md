@@ -17,4 +17,4 @@ momi is under active development. Upcoming features include:
 * Parameter inference via gradient descent, automatic differentiation
 * Improved user interface
 
-These extensions and updates will be described in a future paper. Stay tuned!
+These extensions to momi will be described in a future paper. Stay tuned!
