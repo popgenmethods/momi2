@@ -16,6 +16,6 @@ setup(name='momi',
       packages=['momi'],
       install_requires=['numpy>=1.9','networkx','autograd>=1.02'],
       keywords=['population genetics','statistics','site frequency spectrum','coalescent'],
-      url='https://github.com/jackkamm/momi',
+      url='https://github.com/jackkamm/momi_private',
       ext_modules=cythonize(extensions),
       )
