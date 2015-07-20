@@ -7,7 +7,7 @@ import autograd.numpy as np
 from autograd.numpy import dot, diag, exp
 
 def moran_action(t,v, axis=0):
-    assert np.all(v >= 0.0) and t >= 0.0
+    assert t >= 0.0
 
     n = v.shape[axis] - 1
     P, d, Pinv = moran_eigensystem(n)
