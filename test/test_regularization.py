@@ -6,7 +6,7 @@ from autograd.numpy import sum
 from autograd import grad, hessian_vector_product
 
 from momi import compute_sfs, make_demography, simulate_ms, sfs_list_from_ms
-from momi import CompositeLogLikelihood as LogLik
+from momi import NegativeLogLikelihood as NegLogLik
 
 
 def test_regularization():
@@ -20,9 +20,9 @@ def test_regularization():
     sfs_list = sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
                                 true_demo.n_at_leaves)
 
-    log_lik = LogLik(sfs_list, demo_func=lambda x: get_demo(*x), theta=theta, eps=1e-6)
+    log_lik = NegLogLik(sfs_list, demo_func=lambda x: get_demo(*x), theta=theta, eps=1e-6)
 
-    f = lambda x: -log_lik.log_likelihood(x)
+    f = lambda x: log_lik.evaluate(x)
     g, hp = grad(f), hessian_vector_product(f)
     def f_verbose(x):
         # for verbose output during the gradient descent

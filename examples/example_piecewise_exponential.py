@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import make_demography, CompositeLogLikelihood
+from momi import make_demography, NegativeLogLikelihood
 import scipy as sp
 import scipy.optimize as spopt
 import scipy.stats
@@ -134,14 +134,14 @@ def infer_params(sfs_list, theta_list, n_epochs):
 
     Uses L-BFGS within basinhopping algorithm to infer the parameters.
     '''
-    surface = CompositeLogLikelihood(sfs_list, theta=theta_list,
+    surface = NegativeLogLikelihood(sfs_list, theta=theta_list,
                                      demo_func=piecewise_exponential_demo,
                                      )
 
     # construct the function to minimize, and its derivatives
     def f(params):
        try:
-           return -surface.log_likelihood(params)
+           return surface.evaluate(params)
        except Exception:
            # in case parameters are out-of-bounds or so extreme they cause overflow/stability issues. just return a very large number. note the gradient will be 0 in this case and the gradient descent may stop.
            return 1e100

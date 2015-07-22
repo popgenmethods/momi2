@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import CompositeLogLikelihood, make_demography, aggregate_sfs, simulate_ms, sfs_list_from_ms
+from momi import NegativeLogLikelihood, make_demography, aggregate_sfs, simulate_ms, sfs_list_from_ms
 import pytest
 import random
 import autograd.numpy as np
@@ -36,9 +36,9 @@ def check_surface_sum(demo, theta=default_theta, num_ms_samples=default_num_ms_s
                                 demo.n_at_leaves)
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
 
-    surface0 = CompositeLogLikelihood(sfs_list, theta=None)
-    surface1 = CompositeLogLikelihood(sfs_list, theta=theta)
+    surface0 = NegativeLogLikelihood(sfs_list, theta=None)
+    surface1 = NegativeLogLikelihood(sfs_list, theta=theta)
 
     for surface in (surface0,surface1):
-        assert np.allclose(np.sum(surface.log_likelihood(demo, vector=True)),
-                           surface.log_likelihood(demo))
+        assert np.allclose(np.sum(surface.evaluate(demo, vector=True)),
+                           surface.evaluate(demo))

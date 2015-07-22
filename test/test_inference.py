@@ -4,7 +4,7 @@ import autograd.numpy as np
 from autograd import grad
 
 from momi import make_demography, simulate_ms, sfs_list_from_ms
-from momi import CompositeLogLikelihood as LogLik
+from momi import NegativeLogLikelihood as NegLogLik
 
 def test_joint_sfs_inference():
     N0=1.0
@@ -24,13 +24,12 @@ def test_joint_sfs_inference():
     sfs_list = sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
                                 true_demo.n_at_leaves)
 
-    log_lik = LogLik(sfs_list, demo_func=get_demo, theta=theta)
+    log_lik = NegLogLik(sfs_list, demo_func=get_demo, theta=theta)
 
     print(t0,t1)
     def f(join_time):
         assert join_time.shape == (1,)
-        return -log_lik.log_likelihood(join_time)
-        #return -log_likelihood_prf(get_demo(join_time[0]), theta * num_runs, jsfs)
+        return log_lik.evaluate(join_time)
 
     x0 = np.array([random.uniform(0,t1)])
     g = grad(f)

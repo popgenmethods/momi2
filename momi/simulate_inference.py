@@ -1,6 +1,6 @@
 from __future__ import division, print_function
 
-from likelihood_surface import CompositeLogLikelihood
+from likelihood_surface import NegativeLogLikelihood, L2ErrorSurface
 from parse_ms import make_demography, simulate_ms, sfs_list_from_ms
 from util import check_symmetric
 
@@ -15,7 +15,7 @@ from autograd import grad, hessian_vector_product
 
 import time
 
-def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg'):
+def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', n_sfs_dirs=0):
     '''
     Simulate a SFS, then estimate the demography via maximum composite
     likelihood, using first and second-order derivatives to search 
@@ -73,12 +73,12 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     myprint("# %d unique SNPs observed" % uniq_snps)
     
     # log-likelihood surface
-    surface = CompositeLogLikelihood(sfs_list, theta=theta, demo_func=demo_func_opt)
+    surface = get_likelihood_surface(true_demo, sfs_list, theta, demo_func_opt, n_sfs_dirs)
 
     # construct the function to minimize, and its derivatives
     def f(params):
         try:
-            return -surface.log_likelihood(params)
+            return surface.evaluate(params)
         except MemoryError:
             raise
         ## TODO: define a specific exception type for out-of-bounds or overflow errors
@@ -137,8 +137,9 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
 
     ## reparametrize surface by ms params
     idx = true_ms_params.index
-    surface = CompositeLogLikelihood(sfs_list, theta=theta,
-                                     demo_func=lambda x: demo_func_ms(**pd.Series(x,index=idx)))
+    surface = get_likelihood_surface(true_demo, sfs_list, theta,
+                                     lambda x: demo_func_ms(**pd.Series(x,index=idx)),
+                                     n_sfs_dirs)
     ## estimate sigma hat at plugin
     sigma = surface.max_covariance(inferred_ms_params.values)
 
@@ -177,3 +178,13 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
                      'total' : conf_end - start},
             'num_snps': {'total' : total_snps, 'unique': uniq_snps},
             }
+
+
+def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, n_sfs_dirs=0):
+    if n_sfs_dirs <= 0:
+        return NegativeLogLikelihood(sfs_list, theta=theta, demo_func=demo_func)
+    else:
+        sfs_dirs = {}
+        for leaf in true_demo.leaves:
+            sfs_dirs[leaf] = np.random.normal(size=(n_sfs_dirs, true_demo.n_lineages(leaf)+1))
+        return L2ErrorSurface(sfs_list, sfs_dirs, theta, demo_func)

@@ -1,6 +1,6 @@
 from __future__ import division
 import pytest
-from momi import make_demography, compute_sfs, aggregate_sfs, simulate_ms, sfs_list_from_ms, CompositeLogLikelihood
+from momi import make_demography, compute_sfs, aggregate_sfs, simulate_ms, sfs_list_from_ms, NegativeLogLikelihood
 
 from test_sims import simple_admixture_demo
 from test_gradient import simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model
@@ -48,9 +48,9 @@ def compute_stats(demo, sampled_sfs):
     sampled_sfs = to_dict(sampled_sfs)
     agg_sfs = aggregate_sfs(sampled_sfs)
     config_list = tuple(sorted(agg_sfs.keys()))
-    surface = CompositeLogLikelihood(sampled_sfs, theta=10.)
-    surface2 = CompositeLogLikelihood(sampled_sfs, theta=None)
-    log_liks = [[s.log_likelihood(demo), s.log_likelihood(demo,vector=True)] for s in surface,surface2]
+    surface = NegativeLogLikelihood(sampled_sfs, theta=10.)
+    surface2 = NegativeLogLikelihood(sampled_sfs, theta=None)
+    log_liks = [[-s.evaluate(demo), -s.evaluate(demo,vector=True)] for s in surface,surface2]
     return list(compute_sfs(demo,config_list)) + sum(log_liks,[])
 
 def from_dict(sampled_sfs):
