@@ -48,9 +48,6 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
         else:
             return make_demography(demo_factory, **params)
     
-    def demo_func_opt(params):
-        return demo_func_ms(**transform_params(params))
-    
     true_demo = demo_func_ms(**true_ms_params)
     myprint("# True demography:")
     myprint(true_demo.ms_cmd)
@@ -72,13 +69,17 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     uniq_snps = len({x for sfs in sfs_list for x in sfs.keys()})
     myprint("# %d unique SNPs observed" % uniq_snps)
     
-    # log-likelihood surface
-    surface = get_likelihood_surface(true_demo, sfs_list, theta, demo_func_opt, n_sfs_dirs)
+    # m estimator surface
+    idx = true_ms_params.index
+    ## TODO: make calling demo_func less convoluted
+    surface = get_likelihood_surface(true_demo, sfs_list, theta,
+                                     lambda x: demo_func_ms(**pd.Series(x,index=idx)),
+                                     n_sfs_dirs)
 
     # construct the function to minimize, and its derivatives
     def f(params):
         try:
-            return surface.evaluate(params)
+            return surface.evaluate(pd.Series(transform_params(params), index=idx).values)
         except MemoryError:
             raise
         ## TODO: define a specific exception type for out-of-bounds or overflow errors
@@ -108,7 +109,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
         return hp(params, v)
 
     myprint("# Start demography:")
-    myprint(demo_func_opt(init_opt_params).ms_cmd)
+    myprint(demo_func_ms(**transform_params(init_opt_params)).ms_cmd)
     myprint("# Performing optimization.")
 
     def print_basinhopping(x,f,accepted):
@@ -135,11 +136,6 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     
     inferred_ms_params = transform_params(optimize_res.x)
 
-    ## reparametrize surface by ms params
-    idx = true_ms_params.index
-    surface = get_likelihood_surface(true_demo, sfs_list, theta,
-                                     lambda x: demo_func_ms(**pd.Series(x,index=idx)),
-                                     n_sfs_dirs)
     ## estimate sigma hat at plugin
     sigma = surface.max_covariance(inferred_ms_params.values)
 

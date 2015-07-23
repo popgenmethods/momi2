@@ -97,11 +97,12 @@ class L2ErrorSurface(MEstimatorSurface):
         theta = self._get_theta(params)
         theta = np.ones(self.empirical_projections.shape[1]) * theta # make sure theta has right dims
 
+        ## TODO: divide by number of loci?
         ret = np.outer(expectations, theta) - self.empirical_projections
         ret = np.sum(ret**2,axis=0)
         if not vector:
             ret = np.sum(ret)
-        ## TODO: use square root instead?
+        ## TODO: use square root?
         return ret
         
 class NegativeLogLikelihood(MEstimatorSurface):
