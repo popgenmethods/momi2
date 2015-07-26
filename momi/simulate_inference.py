@@ -2,7 +2,8 @@ from __future__ import division, print_function
 
 from likelihood_surface import NegativeLogLikelihood, L2ErrorSurface
 from parse_ms import make_demography, simulate_ms, sfs_list_from_ms
-from util import check_symmetric
+from util import check_symmetric, aggregate_sfs
+from tensor import greedy_hosvd, get_sfs_tensor
 
 import scipy
 import scipy.stats
@@ -15,7 +16,7 @@ from autograd import grad, hessian_vector_product
 
 import time
 
-def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', n_sfs_dirs=0):
+def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', n_sfs_dirs=0, tensor_method='greedy-hosvd'):
     '''
     Simulate a SFS, then estimate the demography via maximum composite
     likelihood, using first and second-order derivatives to search 
@@ -74,7 +75,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     ## TODO: make calling demo_func less convoluted
     surface = get_likelihood_surface(true_demo, sfs_list, theta,
                                      lambda x: demo_func_ms(**pd.Series(x,index=idx)),
-                                     n_sfs_dirs)
+                                     tensor_method, n_sfs_dirs)
 
     # construct the function to minimize, and its derivatives
     def f(params):
@@ -176,11 +177,21 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
             }
 
 
-def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, n_sfs_dirs=0):
+def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, method, n_sfs_dirs):
     if n_sfs_dirs <= 0:
         return NegativeLogLikelihood(sfs_list, theta=theta, demo_func=demo_func)
     else:
-        sfs_dirs = {}
-        for leaf in true_demo.leaves:
-            sfs_dirs[leaf] = np.random.normal(size=(n_sfs_dirs, true_demo.n_lineages(leaf)+1))
+        leaves = sorted(true_demo.leaves)
+        if method=='random':
+            sfs_dirs = {}
+            for leaf in leaves:
+                sfs_dirs[leaf] = np.random.normal(size=(n_sfs_dirs, true_demo.n_lineages(leaf)+1))
+        elif method=='greedy-hosvd':
+            sfs_dirs = zip(*greedy_hosvd(get_sfs_tensor(aggregate_sfs(sfs_list),
+                                                        [true_demo.n_lineages(l) for l in leaves]),
+                                         n_sfs_dirs, verbose=True))
+            sfs_dirs = [np.array(x) for x in sfs_dirs]
+            sfs_dirs = dict(zip(leaves, sfs_dirs))
+        else:
+            raise Exception("Unrecognized method")
         return L2ErrorSurface(sfs_list, sfs_dirs, theta, demo_func)
