@@ -28,6 +28,7 @@ class MEstimatorSurface(object):
         pass
         
     def _get_theta(self, params):
+        ## TODO: require same theta for all loci, until I figure out how to appropriately compute confidence intervals when using different theta
         try:
             ret = self.theta(params)
         except TypeError:
@@ -87,13 +88,14 @@ class L2ErrorSurface(MEstimatorSurface):
             self.empirical_projections.append(projection)
 
         self.empirical_projections = np.transpose(np.array(self.empirical_projections))
-
+        
     def evaluate(self, params, vector=False):
         demo = self.demo_func(params)
         expectations = raw_compute_sfs(self.sfs_directions, demo)
 
         ## TODO: allow theta = None
-        ## TODO: make this all cleaner and more efficient
+        ## TODO: make this all cleaner
+        ## TODO: make this faster for vector=False, by using MSE=Bias**2 + Variance
         theta = self._get_theta(params)
         theta = np.ones(self.empirical_projections.shape[1]) * theta # make sure theta has right dims
 
@@ -102,7 +104,6 @@ class L2ErrorSurface(MEstimatorSurface):
         ret = np.sum(ret**2,axis=0)
         if not vector:
             ret = np.sum(ret)
-        ## TODO: use square root?
         return ret
         
 class NegativeLogLikelihood(MEstimatorSurface):
