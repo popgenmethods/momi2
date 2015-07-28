@@ -32,12 +32,13 @@ def main():
                              additional_ms_params='-r 10.0 10000',
                              true_ms_params = transform_pulse_params(anp.array([1.0, -1.0, -1.0, 1.0])),
                              init_opt_params = anp.random.normal(size=4),
+                             #init_opt_params = anp.array([1.0, -1.0, -1.0, 1.0]),
                              #demo_factory = demo_factory,
                              demo_factory = pulse_demo_str,
                              transform_params = transform_pulse_params,
                              n_iter = 1,
                              verbosity = 2,
-                             n_sfs_dirs = 50)
+                             n_sfs_dirs = 10)
     with open('example_inference.pickle','wb') as f:
         pickle.dump(res, f)
         

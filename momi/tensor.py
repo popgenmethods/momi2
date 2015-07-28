@@ -1,47 +1,42 @@
 import numpy as np
 import sktensor as skt
 from sktensor.tucker import hosvd
-from Queue import PriorityQueue
+import pandas as pd
 
 def get_sfs_tensor(sfs, n_per_pop):
     idx, vals = zip(*(sfs.iteritems()))
     idx = tuple(np.array(x) for x in zip(*idx))
     return skt.sptensor(idx, vals, shape=tuple(n+1 for n in n_per_pop), dtype=np.float)
 
-def greedy_hosvd(sfs_tensor, n_steps, verbose=False):
+def greedy_hosvd(sfs_tensor, n_entries, verbose=False):
     U_list = hosvd(sfs_tensor, sfs_tensor.shape, compute_core=False)
-
-    searched = set([])
-    to_search = PriorityQueue()
-
-    def elem_vecs(elem):
-        return tuple([U[:,e] for U,e in zip(U_list, elem)])
+    total_energy = sfs_tensor.norm()**2
+    curr_entries = [(total_energy, [], [], sfs_tensor)]
     
-    def elem_priority(elem):
-        return -(sfs_tensor.ttv(elem_vecs(elem))**2)
+    for d in range(len(sfs_tensor.shape)):
+        prev_entries = curr_entries
+        curr_entries = []
         
-    def add_elem(elem):
-        if elem in searched or any([e < 0 for e in elem]):
-            return
-        try:
-            to_search.put((elem_priority(elem), elem))
-            searched.add(elem)
-        except IndexError:
-            pass
+        for prev_energy, prev_dirs, prev_idxs, prev_tens in prev_entries:
 
-    add_elem( tuple([0] * len(sfs_tensor.shape)))
-    for i in range(n_steps):
-        if to_search.empty():
-            break
-        _,next_elem = to_search.get()
-        for j in range(len(next_elem)):
-            to_add = list(next_elem)
-            to_add[j] += 1
-            add_elem(tuple(to_add))
+            energy_sum = 0.0
+            for next_idx, next_dir in enumerate(U_list[d].T):
+                next_tens = prev_tens.ttv((next_dir,) , (0,) )
+                try:
+                    energy = next_tens.norm()**2
+                except AttributeError:
+                    energy = next_tens**2
+                energy_sum += energy
+                curr_entries.append( (energy,
+                                      prev_dirs + [next_dir],
+                                      prev_idxs + [next_idx],
+                                      next_tens))
 
-    ret = [x for _,x in sorted([(elem_priority(elem), elem)
-                                for elem in searched])[:n_steps]]
+            curr_entries = sorted(curr_entries, key=lambda x: x[0], reverse=True)[:n_entries]
+            assert np.isclose(energy_sum, prev_energy)
     if verbose:
-        print "# Selected components:\n", ret
-    ret = [elem_vecs(x) for x in ret]
-    return ret
+        #print "# Selected components:\n", [idx for _,_,idx,_ in curr_entries]
+        to_print = pd.DataFrame([(idx, energy / total_energy) for energy,_,idx,_ in curr_entries],
+                                columns=['Component','Percent Energy'])
+        print "# Selected components:\n", to_print, "\n# Unselected percent energy:", 1.0-sum(to_print['Percent Energy'])
+    return [dirs for _,dirs,_,_ in curr_entries]
