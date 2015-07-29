@@ -142,6 +142,8 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
 
     # recommend to call check_symmetric on matrix inverse,
     # as linear algebra routines may not perfectly preserve symmetry due to numerical errors
+    ## TODO: what if sigma not full rank?
+    ## TODO: use eigh to compute inverse? (also in likelihood_surface)
     sigma_inv = check_symmetric(np.linalg.inv(sigma))
    
     ## marginal p values
