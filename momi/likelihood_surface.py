@@ -89,7 +89,9 @@ class L2ErrorSurface(MEstimatorSurface):
             self.empirical_projections.append(projection)
 
         self.empirical_projections = np.transpose(np.array(self.empirical_projections))
-        self.empirical_cov_inv = check_symmetric(np.linalg.inv(np.cov(self.empirical_projections)))
+        #self.empirical_cov_inv = check_symmetric(np.linalg.inv(np.cov(self.empirical_projections)))
+        ## TODO: differentiable version of pinv2?
+        self.empirical_cov_inv = check_symmetric(scipy.linalg.pinv2(np.cov(self.empirical_projections)))
         
     def evaluate(self, params, vector=False):
         demo = self.demo_func(params)
