@@ -75,6 +75,7 @@ class L2ErrorSurface(MEstimatorSurface):
         ## TODO: allow for error model? or is this already implicitly in sfs_directions?
         
         self.sfs_directions = sfs_directions
+        
         leaves = sorted(sfs_directions.keys())
         
         self.empirical_projections = [] # indexed by locus
@@ -88,11 +89,13 @@ class L2ErrorSurface(MEstimatorSurface):
             self.empirical_projections.append(projection)
 
         self.empirical_projections = np.transpose(np.array(self.empirical_projections))
+        self.empirical_cov_inv = check_symmetric(np.linalg.inv(np.cov(self.empirical_projections)))
         
     def evaluate(self, params, vector=False):
         demo = self.demo_func(params)
+       
         expectations = raw_compute_sfs(self.sfs_directions, demo)
-
+        
         ## TODO: allow theta = None
         ## TODO: make this all cleaner
         ## TODO: make this faster for vector=False, by using MSE=Bias**2 + Variance
@@ -101,7 +104,9 @@ class L2ErrorSurface(MEstimatorSurface):
 
         ## TODO: divide by number of loci?
         ret = np.outer(expectations, theta) - self.empirical_projections
-        ret = np.sum(ret**2,axis=0)
+        #ret = np.einsum('il,ij,jl->l', ret, self.empirical_cov_inv, ret)        
+        ret = np.einsum('il,il->l', ret ,
+                        np.einsum('ij,jl->il', self.empirical_cov_inv, ret))
         if not vector:
             ret = np.sum(ret)
         return ret
