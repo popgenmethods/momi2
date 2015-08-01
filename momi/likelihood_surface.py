@@ -74,45 +74,67 @@ class L2ErrorSurface(MEstimatorSurface):
 
         ## TODO: allow for error model? or is this already implicitly in sfs_directions?
         
-        self.sfs_directions = sfs_directions
+        self.augmented_sfs_directions = {l: np.vstack([[1.0]*s.shape[1], s])
+                                         for l,s in sfs_directions.iteritems()}
+        self.square_sfs_dirs = {l: s**2 for l,s in sfs_directions.iteritems()}
         
         leaves = sorted(sfs_directions.keys())
         
-        self.empirical_projections = [] # indexed by locus
+        projections_list = [] # indexed by locus
         for sfs in sfs_list: # go thru each locus
             projection = 0.
             ## TODO: vectorize for loop?
             for config,val in sfs.iteritems():
                 for leaf,i in zip(leaves, config):
-                    val = val * sfs_directions[leaf][:,i]
+                    val = val * self.augmented_sfs_directions[leaf][:,i]
                 projection = projection + val                
-            self.empirical_projections.append(projection)
+            projections_list.append(projection)
 
-        self.empirical_projections = np.transpose(np.array(self.empirical_projections))
-        #self.empirical_cov_inv = check_symmetric(np.linalg.inv(np.cov(self.empirical_projections)))
-        ## TODO: differentiable version of pinvh?
-        cov = check_symmetric(np.cov(self.empirical_projections))
-        self.empirical_cov_inv = check_symmetric(scipy.linalg.pinvh(cov))
+        projections_list = np.transpose(np.array(projections_list))
+        self.num_muts, self.empirical_projections = projections_list[0,:], projections_list[1:,:]
         
     def evaluate(self, params, vector=False):
         demo = self.demo_func(params)
        
-        expectations = raw_compute_sfs(self.sfs_directions, demo)
+        expectations = raw_compute_sfs(self.augmented_sfs_directions, demo)
+        branch_len, expectations = expectations[0], expectations[1:]
+
+        expectations = expectations / branch_len
+        sq_exps = raw_compute_sfs(self.square_sfs_dirs, demo) / branch_len
+        variances = sq_exps - expectations**2
+        assert np.all(variances >= 0.0)
         
         ## TODO: allow theta = None
         ## TODO: make this all cleaner
         ## TODO: make this faster for vector=False, by using MSE=Bias**2 + Variance
+
+        ## TODO: use empirical covariance instead???
+
         theta = self._get_theta(params)
         theta = np.ones(self.empirical_projections.shape[1]) * theta # make sure theta has right dims
+       
+        if vector:
+            ### TODO: this part is all broken/doesn't work. Don't trust p-values!!
+            ret = (self.empirical_projections - np.outer(expectations, self.num_muts))**2
+            ret = ret / (np.outer(variances, self.num_muts)) / 2.0
+            ret = -np.sum(ret, axis=0)
+            ret = ret - 0.5 * np.sum(np.log(np.outer(variances, self.num_muts)), axis=0)        
 
-        ## TODO: divide by number of loci?
-        ret = np.outer(expectations, theta) - self.empirical_projections
-        #ret = np.einsum('il,ij,jl->l', ret, self.empirical_cov_inv, ret)        
-        ret = np.einsum('il,il->l', ret ,
-                        np.einsum('ij,jl->il', self.empirical_cov_inv, ret))
-        if not vector:
-            ret = np.sum(ret)
-        return ret
+            ret = ret - theta * branch_len + self.num_muts * np.log(theta * branch_len)
+            ret = -ret
+
+            return ret
+        else:
+            theta = np.sum(theta)
+            projections = np.sum(self.empirical_projections, axis=1)
+            num_muts = np.sum(self.num_muts)
+            
+            ret = (projections - expectations * num_muts)**2
+            ret = - np.sum(ret / variances / num_muts / 2.0)
+
+            ret = ret - theta * branch_len + num_muts * np.log(theta * branch_len)
+            ret = ret - 0.5 * np.sum(np.log(variances * num_muts))
+            return -ret
         
 class NegativeLogLikelihood(MEstimatorSurface):
     '''
