@@ -3,6 +3,15 @@ import sktensor as skt
 from sktensor.tucker import hosvd
 import pandas as pd
 
+def sfs_eval_dirs(sfs, dirs):
+    projection = 0.
+    ## TODO: vectorize for loop?
+    for config,val in sfs.iteritems():
+        for leaf,i in zip(sorted(dirs.keys()), config):
+            val = val * dirs[leaf][:,i]
+        projection = projection + val
+    return projection
+
 def get_sfs_tensor(sfs, n_per_pop):
     idx, vals = zip(*(sfs.iteritems()))
     idx = tuple(np.array(x) for x in zip(*idx))

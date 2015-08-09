@@ -1,6 +1,6 @@
 from __future__ import division, print_function
 
-from likelihood_surface import NegativeLogLikelihood, L2ErrorSurface
+from likelihood_surface import NegativeLogLikelihood, PGSurface_Empirical, PGSurface_Diag, PGSurface_Exact, PoissonWishartSurface
 from parse_ms import make_demography, simulate_ms, sfs_list_from_ms
 from util import check_symmetric, aggregate_sfs
 from tensor import greedy_hosvd, get_sfs_tensor
@@ -16,7 +16,7 @@ from autograd import grad, hessian_vector_product
 
 import time
 
-def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', n_sfs_dirs=0, tensor_method='greedy-hosvd'):
+def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', surface_type='kl', n_sfs_dirs=0, tensor_method='greedy-hosvd', conf_intervals=False):
     '''
     Simulate a SFS, then estimate the demography via maximum composite
     likelihood, using first and second-order derivatives to search 
@@ -75,18 +75,20 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     ## TODO: make calling demo_func less convoluted
     surface = get_likelihood_surface(true_demo, sfs_list, theta,
                                      lambda x: demo_func_ms(**pd.Series(x,index=idx)),
+                                     surface_type,
                                      tensor_method, n_sfs_dirs)
 
     # construct the function to minimize, and its derivatives
     def f(params):
-        try:
-            return surface.evaluate(pd.Series(transform_params(params), index=idx).values)
-        except MemoryError:
-            raise
-        ## TODO: define a specific exception type for out-of-bounds or overflow errors
-        except Exception:
-           # in case parameters are out-of-bounds or so extreme they cause overflow/stability issues. just return a very large number. note the gradient will be 0 in this case and the gradient descent may stop.            
-            return 1e100
+        return surface.evaluate(pd.Series(transform_params(params), index=idx).values)        
+        # try:
+        #     return surface.evaluate(pd.Series(transform_params(params), index=idx).values)
+        # except MemoryError:
+        #     raise
+        # ## TODO: define a specific exception type for out-of-bounds or overflow errors
+        # except Exception:
+        #    # in case parameters are out-of-bounds or so extreme they cause overflow/stability issues. just return a very large number. note the gradient will be 0 in this case and the gradient descent may stop.            
+        #     return 1e100
 
     def results_df(est_params, opt_space=True):
         if opt_space:
@@ -133,67 +135,85 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
 
     opt_end = time.clock()
     
-    myprint("\n\n# Global minimum: %f" % optimize_res.fun)
+    myprint("\n\n# Global minimum: %f" % optimize_res.fun, level=0)
+    myprint(results_df(optimize_res.x),level=0)
     
     inferred_ms_params = transform_params(optimize_res.x)
 
-    ## estimate sigma hat at plugin
-    sigma = surface.max_covariance(inferred_ms_params.values)
+    ret = {'truth': true_ms_params,
+           'est': inferred_ms_params,
+           'init': transform_params(init_opt_params),
+           'opt_res': optimize_res,
+           'time': {'opt': opt_end - start},
+           'num_snps': {'total' : total_snps, 'unique': uniq_snps},
+           }
 
-    # recommend to call check_symmetric on matrix inverse,
-    # as linear algebra routines may not perfectly preserve symmetry due to numerical errors
-    ## TODO: what if sigma not full rank?
-    ## TODO: use eigh to compute inverse? (also in likelihood_surface)
-    sigma_inv = check_symmetric(np.linalg.inv(sigma))
-   
-    ## marginal p values
-    sd = np.sqrt(np.diag(sigma))
-    z = (inferred_ms_params - true_ms_params) / sd
-    z_p = pd.Series((1.0 - scipy.stats.norm.cdf(np.abs(z))) * 2.0 , index=idx)
+    if conf_intervals:
+        ## estimate sigma hat at plugin
+        sigma = surface.max_covariance(inferred_ms_params.values)
 
-    coord_results = results_df(inferred_ms_params, opt_space=False)
-    coord_results['p value'] = z_p
-    myprint(coord_results)
-    
-    ## global p value
-    resids = inferred_ms_params - true_ms_params
-    eps_norm = np.dot(resids, np.dot(sigma_inv, resids))
-    wald_p = 1.0 - scipy.stats.chi2.cdf(eps_norm, df=len(resids))
-    
-    myprint("# Chi2 test for params=true_params")
-    myprint("# X, 1-Chi2_cdf(X,df=%d)" % len(resids))    
-    myprint(eps_norm, wald_p)
+        # recommend to call check_symmetric on matrix inverse,
+        # as linear algebra routines may not perfectly preserve symmetry due to numerical errors
+        ## TODO: what if sigma not full rank?
+        ## TODO: use eigh to compute inverse? (also in likelihood_surface)
+        sigma_inv = check_symmetric(np.linalg.inv(sigma))
 
-    conf_end = time.clock()
-    
-    return {'truth': true_ms_params,
-            'est': inferred_ms_params,
-            'init': transform_params(init_opt_params),
-            'sigma': sigma,
-            'sigma_inv': sigma_inv,
-            'p_vals': {'z': z_p, 'wald': wald_p},
-            'opt_res': optimize_res,
-            'time': {'opt': opt_end - start, 'conf': conf_end - opt_end,
-                     'total' : conf_end - start},
-            'num_snps': {'total' : total_snps, 'unique': uniq_snps},
-            }
+        ## marginal p values
+        sd = np.sqrt(np.diag(sigma))
+        z = (inferred_ms_params - true_ms_params) / sd
+        z_p = pd.Series((1.0 - scipy.stats.norm.cdf(np.abs(z))) * 2.0 , index=idx)
 
+        coord_results = results_df(inferred_ms_params, opt_space=False)
+        coord_results['p value'] = z_p
+        myprint(coord_results)
 
-def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, method, n_sfs_dirs):
-    if n_sfs_dirs <= 0:
+        ## global p value
+        resids = inferred_ms_params - true_ms_params
+        eps_norm = np.dot(resids, np.dot(sigma_inv, resids))
+        wald_p = 1.0 - scipy.stats.chi2.cdf(eps_norm, df=len(resids))
+
+        myprint("# Chi2 test for params=true_params")
+        myprint("# X, 1-Chi2_cdf(X,df=%d)" % len(resids))    
+        myprint(eps_norm, wald_p)
+
+        conf_end = time.clock()
+
+        ret.update({'sigma': sigma,
+                    'sigma_inv': sigma_inv,
+                    'p_vals': {'z': z_p, 'wald': wald_p},
+                    })
+        ret['time']['conf'] = conf_end - opt_end
+
+    return ret
+
+def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, surface_type, tensor_method, n_sfs_dirs):
+    if surface_type == 'kl' and n_sfs_dirs <= 0:
         return NegativeLogLikelihood(sfs_list, theta=theta, demo_func=demo_func)
+
+    if surface_type == 'kl' or n_sfs_dirs <= 0:
+        raise Exception("Either must use KL divergence, or must specify number of directions")
+    
+    leaves = sorted(true_demo.leaves)
+    if tensor_method=='random':
+        sfs_dirs = {}
+        for leaf in leaves:
+            sfs_dirs[leaf] = np.random.normal(size=(n_sfs_dirs, true_demo.n_lineages(leaf)+1))
+    elif tensor_method=='greedy-hosvd':
+        sfs_dirs = zip(*greedy_hosvd(get_sfs_tensor(aggregate_sfs(sfs_list),
+                                                    [true_demo.n_lineages(l) for l in leaves]),
+                                     n_sfs_dirs, verbose=True))
+        sfs_dirs = [np.array(x) for x in sfs_dirs]
+        sfs_dirs = dict(zip(leaves, sfs_dirs))
     else:
-        leaves = sorted(true_demo.leaves)
-        if method=='random':
-            sfs_dirs = {}
-            for leaf in leaves:
-                sfs_dirs[leaf] = np.random.normal(size=(n_sfs_dirs, true_demo.n_lineages(leaf)+1))
-        elif method=='greedy-hosvd':
-            sfs_dirs = zip(*greedy_hosvd(get_sfs_tensor(aggregate_sfs(sfs_list),
-                                                        [true_demo.n_lineages(l) for l in leaves]),
-                                         n_sfs_dirs, verbose=True))
-            sfs_dirs = [np.array(x) for x in sfs_dirs]
-            sfs_dirs = dict(zip(leaves, sfs_dirs))
-        else:
-            raise Exception("Unrecognized method")
-        return L2ErrorSurface(sfs_list, sfs_dirs, theta, demo_func)
+        raise Exception("Unrecognized tensor_method")
+
+    if surface_type == 'pgs-diag':
+        return PGSurface_Diag(sfs_list, sfs_dirs, theta, demo_func)
+    elif surface_type == 'pgs-exact':
+        return PGSurface_Exact(sfs_list, sfs_dirs, theta, demo_func)
+    elif surface_type == 'pgs-emp':
+        return PGSurface_Empirical(sfs_list, sfs_dirs, theta, demo_func)
+    elif surface_type == 'pws':
+        return PoissonWishartSurface(sfs_list, sfs_dirs, theta, demo_func)
+    else:
+        raise Exception("Unrecognized surface type")

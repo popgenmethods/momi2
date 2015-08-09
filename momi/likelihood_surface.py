@@ -1,11 +1,12 @@
 from __future__ import division
-from util import make_constant, check_symmetric
+from util import make_constant, check_symmetric, aggregate_sfs
 from autograd import hessian, grad, hessian_vector_product, jacobian
 import autograd.numpy as np
 import scipy
 from sum_product import compute_sfs, raw_compute_sfs
 from scipy.stats import norm, chi2
-from math_functions import einsum2
+from math_functions import einsum2, symmetric_matrix, log_wishart_pdf, slogdet_pos
+from tensor import sfs_eval_dirs
 
 class MEstimatorSurface(object):
     def __init__(self, theta, demo_func=lambda demo: demo):
@@ -68,74 +69,6 @@ class MEstimatorSurface(object):
 #         j = jacobian(lambda x: self.evaluate(x, vector=True))(params)
 #         return np.einsum("ij,ik",j,j)
 
-class L2ErrorSurface(MEstimatorSurface):
-    def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
-        super(L2ErrorSurface, self).__init__(theta, demo_func)
-
-        ## TODO: allow for error model? or is this already implicitly in sfs_directions?
-        
-        self.augmented_sfs_directions = {l: np.vstack([[1.0]*s.shape[1], s])
-                                         for l,s in sfs_directions.iteritems()}
-        self.square_sfs_dirs = {l: s**2 for l,s in sfs_directions.iteritems()}
-        
-        leaves = sorted(sfs_directions.keys())
-        
-        projections_list = [] # indexed by locus
-        for sfs in sfs_list: # go thru each locus
-            projection = 0.
-            ## TODO: vectorize for loop?
-            for config,val in sfs.iteritems():
-                for leaf,i in zip(leaves, config):
-                    val = val * self.augmented_sfs_directions[leaf][:,i]
-                projection = projection + val                
-            projections_list.append(projection)
-
-        projections_list = np.transpose(np.array(projections_list))
-        self.num_muts, self.empirical_projections = projections_list[0,:], projections_list[1:,:]
-        
-    def evaluate(self, params, vector=False):
-        demo = self.demo_func(params)
-       
-        expectations = raw_compute_sfs(self.augmented_sfs_directions, demo)
-        branch_len, expectations = expectations[0], expectations[1:]
-
-        expectations = expectations / branch_len
-        sq_exps = raw_compute_sfs(self.square_sfs_dirs, demo) / branch_len
-        variances = sq_exps - expectations**2
-        assert np.all(variances >= 0.0)
-        
-        ## TODO: allow theta = None
-        ## TODO: make this all cleaner
-        ## TODO: make this faster for vector=False, by using MSE=Bias**2 + Variance
-
-        ## TODO: use empirical covariance instead???
-
-        theta = self._get_theta(params)
-        theta = np.ones(self.empirical_projections.shape[1]) * theta # make sure theta has right dims
-       
-        if vector:
-            ### TODO: this part is all broken/doesn't work. Don't trust p-values!!
-            ret = (self.empirical_projections - np.outer(expectations, self.num_muts))**2
-            ret = ret / (np.outer(variances, self.num_muts)) / 2.0
-            ret = -np.sum(ret, axis=0)
-            ret = ret - 0.5 * np.sum(np.log(np.outer(variances, self.num_muts)), axis=0)        
-
-            ret = ret - theta * branch_len + self.num_muts * np.log(theta * branch_len)
-            ret = -ret
-
-            return ret
-        else:
-            theta = np.sum(theta)
-            projections = np.sum(self.empirical_projections, axis=1)
-            num_muts = np.sum(self.num_muts)
-            
-            ret = (projections - expectations * num_muts)**2
-            ret = - np.sum(ret / variances / num_muts / 2.0)
-
-            ret = ret - theta * branch_len + num_muts * np.log(theta * branch_len)
-            ret = ret - 0.5 * np.sum(np.log(variances * num_muts))
-            return -ret
-        
 class NegativeLogLikelihood(MEstimatorSurface):
     '''
     Negative of composite log-likelihood surface, where data
@@ -230,3 +163,100 @@ class NegativeLogLikelihood(MEstimatorSurface):
         min_freqs = self.min_freqs * np.ones(len(n_leaf_lins))
         assert np.all(min_freqs > 0) and np.all(min_freqs <= n_leaf_lins)
         return np.prod(n_leaf_lins + 1) - 2 * np.prod(min_freqs)
+
+class PoisGaussSurface(MEstimatorSurface):
+    def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
+        super(PoisGaussSurface, self).__init__(theta, demo_func)
+
+        self.n_dirs = list(sfs_directions.values())[0].shape[0]
+        self.sfs_directions = {l: np.vstack([[1.0]*s.shape[1], s])
+                                         for l,s in sfs_directions.iteritems()}
+               
+        self.n_loci = len(sfs_list)
+        
+        self.sfs_aggregated = aggregate_sfs(sfs_list)
+        leaves = sfs_directions.keys()
+        projection = sfs_eval_dirs(self.sfs_aggregated, self.sfs_directions)
+
+        self.num_muts, projection = projection[0], projection[1:]
+        self.means = projection / self.num_muts
+
+    def inv_cov_mat(self, demo, branch_len, expectations):
+        pass
+
+    def evaluate(self, params, vector=False):
+        if vector:
+            raise Exception("Vectorized likelihood not implemented")
+        
+        demo = self.demo_func(params)        
+
+        expectations = raw_compute_sfs(self.sfs_directions, demo)
+        branch_len, expectations = expectations[0], expectations[1:]
+        expectations = expectations / branch_len
+        
+        theta = self._get_theta(params)
+        theta = np.ones(self.n_loci) * theta
+        theta = np.sum(theta)
+
+        resids =  expectations - self.means
+        Sigma_inv = self.inv_cov_mat(demo, branch_len, expectations)
+
+        return self.neg_log_lik(theta * branch_len, self.num_muts, resids, Sigma_inv)
+
+    def neg_log_lik(self, expected_snps, n_snps, resids, Sigma_inv):
+        return expected_snps - n_snps * np.log(expected_snps) + 0.5 * n_snps * np.dot(resids, np.dot(Sigma_inv, resids)) - 0.5 * slogdet_pos(Sigma_inv * n_snps)
+    
+def get_cross_dirs(sfs_directions, n_dirs):
+    cross_dirs = {}
+    for leaf,dirs in sfs_directions.iteritems():
+        assert n_dirs == dirs.shape[0]
+
+        idx0, idx1 = np.triu_indices(n_dirs)
+        cross_dirs[leaf] = np.einsum('ik,jk->ijk',
+                                     dirs, dirs)[idx0,idx1,:]
+    return cross_dirs
+    
+class PGSurface_Empirical(PoisGaussSurface):
+    def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
+        super(PGSurface_Empirical, self).__init__(sfs_list, sfs_directions, theta, demo_func)
+       
+        cross_means = sfs_eval_dirs(self.sfs_aggregated, get_cross_dirs(sfs_directions, self.n_dirs)) / self.num_muts
+        cross_means = symmetric_matrix(cross_means, self.n_dirs)
+        
+        cov_mat = cross_means - np.outer(self.means, self.means)
+
+        self.Sigma_inv = np.linalg.inv(cov_mat)
+
+    def inv_cov_mat(self, demo, branch_len, means):
+        return self.Sigma_inv
+
+class PGSurface_Diag(PoisGaussSurface):
+    def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
+        super(PGSurface_Diag, self).__init__(sfs_list, sfs_directions, theta, demo_func)
+       
+        self.square_sfs_dirs = {l: s**2 for l,s in sfs_directions.iteritems()}
+       
+    def inv_cov_mat(self, demo, branch_len, means):
+        return np.diag(1./ (raw_compute_sfs(self.square_sfs_dirs, demo) / branch_len - means**2))
+
+class PGSurface_Exact(PoisGaussSurface):
+    def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
+        super(PGSurface_Exact, self).__init__(sfs_list, sfs_directions, theta, demo_func)
+
+        self.cross_dirs = get_cross_dirs(sfs_directions, self.n_dirs)
+        cross_means = sfs_eval_dirs(self.sfs_aggregated, self.cross_dirs) / self.num_muts
+        cross_means = symmetric_matrix(cross_means, self.n_dirs)
+        
+        self.empirical_covariance = cross_means - np.outer(self.means, self.means)
+
+    def inv_cov_mat(self, demo, branch_len, means):
+        cross_means = raw_compute_sfs(self.cross_dirs, demo) / branch_len
+        cross_means = symmetric_matrix(cross_means, self.n_dirs)
+        
+        return np.linalg.inv(cross_means - np.outer(means, means))
+    
+class PoissonWishartSurface(PGSurface_Exact):
+    def neg_log_lik(self, expected_snps, n_snps, resids, Sigma_inv):
+        ret = super(PoissonWishartSurface, self).neg_log_lik(expected_snps, n_snps, resids, Sigma_inv)
+        return ret - log_wishart_pdf(self.empirical_covariance * self.num_muts,
+                                     np.linalg.inv(Sigma_inv), self.num_muts-1, self.n_dirs)

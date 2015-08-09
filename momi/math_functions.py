@@ -130,3 +130,27 @@ def hypergeom_quasi_inverse(N,n):
     ## pinv2 seems more numerically stable than alternatives
     ## TODO: use randomized numerical linear algebra?
     return scipy.linalg.pinv2(hypergeom_mat(N,n))
+
+@primitive
+def symmetric_matrix(arr, n):
+    if len(arr) != n * (n+1) / 2:
+        raise Exception("Array must have dimensions n*(n+1)/2")
+    ret = np.zeros((n,n))
+    idx = np.triu_indices(n)
+    
+    ret[idx] = arr
+    ret[tuple(reversed(idx))] = arr
+    
+    assert np.all(ret == ret.T)
+    return ret
+symmetric_matrix.defgrad(lambda ans, arr, n: lambda g: g[np.triu_indices(n)])
+
+def slogdet_pos(X):
+    sgn,slogdet = np.linalg.slogdet(X)
+    if sgn <= 0:
+        raise Exception("X determinant is nonpositive")
+    return slogdet
+
+def log_wishart_pdf(X,V,n,p):
+    # correct up to constant of proportionality
+    return (n-p-1)/2 * slogdet_pos(X) - n/2 * slogdet_pos(V) - 0.5 * np.trace(np.dot(np.linalg.inv(V), X))
