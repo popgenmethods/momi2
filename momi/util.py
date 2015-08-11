@@ -128,3 +128,11 @@ class memoize_instance(object):
         except KeyError:
             res = cache[key] = self.func(*args, **kw)
         return res
+
+def smooth_pos_map(x):
+    # a smooth (up to second derivative) map from R to R+
+    f1 = np.exp(x)
+    f2 = -(x**3) / 6. + (x**2) / 2. + x + 1.0
+    f3 = 1.5 * x + 5. / 6.
+    
+    return (x < 0) * f1 + np.logical_and(x >= 0, x < 1) * f2 + (x >= 1) * f3

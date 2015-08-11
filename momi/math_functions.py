@@ -154,3 +154,4 @@ def slogdet_pos(X):
 def log_wishart_pdf(X,V,n,p):
     # correct up to constant of proportionality
     return (n-p-1)/2 * slogdet_pos(X) - n/2 * slogdet_pos(V) - 0.5 * np.trace(np.dot(np.linalg.inv(V), X))
+

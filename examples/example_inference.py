@@ -2,6 +2,7 @@ from __future__ import division, print_function
 import sys
 
 from momi import simulate_inference, make_demography
+from momi.util import smooth_pos_map
 
 import cPickle as pickle
 
@@ -30,7 +31,7 @@ def main():
                              num_loci=1000,
                              theta=10.0,
                              additional_ms_params='-r 10.0 10000',
-                             true_ms_params = transform_pulse_params(anp.array([1.0, -1.0, -1.0, 1.0])),
+                             true_ms_params = transform_pulse_params(anp.array([-2.5, -1.0, -1.0, 1.0])),
                              init_opt_params = anp.random.normal(size=4),
                              #init_opt_params = anp.array([1.0, -1.0, -1.0, 1.0]),
                              #demo_factory = demo_factory,
@@ -38,9 +39,10 @@ def main():
                              transform_params = transform_pulse_params,
                              n_iter = 1,
                              verbosity = 2,
-                             n_sfs_dirs = 100,
-                             surface_type = 'pgs-emp',
-                             tensor_method = 'random',
+                             method='L-BFGS-B',
+                             #n_sfs_dirs = 100,
+                             #surface_type = 'pgs-emp',
+                             #tensor_method = 'random',
                              )
     with open('example_inference.pickle','wb') as f:
         pickle.dump(res, f)
@@ -65,13 +67,16 @@ def transform_pulse_params(params):
        indexing and slicing are OK though, e.g. x = A[0,0] is fine
     See the autograd tutorial (on its github page) for more details
     '''
-    growth, logit_pulse_prob, log_pulse_time, log_join_wait_time = params
-
-    ret = {'growth' : growth,
-           'split_t' : anp.exp(log_pulse_time),
+    pre_anc_size, logit_pulse_prob, pre_pulse_time, pre_join_wait_time = params
+   
+    ret = {'split_t' : smooth_pos_map(pre_pulse_time),
            'split_p' : anp.exp(logit_pulse_prob) / (anp.exp(logit_pulse_prob)+1)}
-    ret['join_t'] = ret['split_t'] + anp.exp(log_join_wait_time)
+    ret['join_t'] = ret['split_t'] + smooth_pos_map(pre_join_wait_time)
 
+    anc_size = smooth_pos_map(pre_anc_size)
+    # 1.0 = anc_size * exp(join_t * growth)
+    ret['growth'] = -anp.log(anc_size) / ret['join_t']
+    
     return ret
     
 if __name__=="__main__":
