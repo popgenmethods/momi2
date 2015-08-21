@@ -3,8 +3,7 @@ import scipy.optimize
 import autograd.numpy as np
 from autograd import grad
 
-from momi import make_demography, simulate_ms, sfs_list_from_ms
-from momi import NegativeLogLikelihood as NegLogLik
+from momi import make_demography, simulate_ms, sfs_list_from_ms, unlinked_log_likelihood, aggregate_sfs
 
 def test_joint_sfs_inference():
     N0=1.0
@@ -21,19 +20,13 @@ def test_joint_sfs_inference():
 
     true_demo = get_demo([t0])
 
-    sfs_list = sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
-                                true_demo.n_at_leaves)
-
-    log_lik = NegLogLik(sfs_list, demo_func=get_demo, theta=theta)
-
+    sfs = aggregate_sfs(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
+                                         true_demo.n_at_leaves))
+    neg_log_lik = lambda t: -unlinked_log_likelihood(sfs, get_demo(t), theta * num_runs)
+    
     print(t0,t1)
-    def f(join_time):
-        assert join_time.shape == (1,)
-        return log_lik.evaluate(join_time)
-
     x0 = np.array([random.uniform(0,t1)])
-    g = grad(f)
-    res = scipy.optimize.minimize(f, x0, method='L-BFGS-B', jac=g, bounds=((0,t1),))
+    res = scipy.optimize.minimize(neg_log_lik, x0, method='L-BFGS-B', jac=grad(neg_log_lik), bounds=((0,t1),))
     print res.jac
     assert abs(res.x - t0) / t0 < .05
 

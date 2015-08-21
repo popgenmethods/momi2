@@ -43,6 +43,7 @@ def main():
                              #n_sfs_dirs = 100,
                              #surface_type = 'pgs-emp',
                              #tensor_method = 'random',
+                             conf_intervals = True
                              )
     with open('example_inference.pickle','wb') as f:
         pickle.dump(res, f)

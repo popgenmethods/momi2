@@ -1,3 +1,16 @@
-example_inference demography crashes for relative error
-[ -8.86325519  -7.02227025   0.96472679  15.44380017]
-[-0.73511953 -1.61559562  3.02101567 -1.86876264]
+move tensor stuff (including L2 error) into own file
+make scikit-tensor dependency optional?
+fix installation scripts
+use tuple/list instead of dictionary for raw_compute_sfs and sfs_projection
+make sure everything is 0-indexed
+rename raw_compute_sfs to sfs_projection
+write pydocs
+have branch_len be its own function (rather than returned with compute_sfs)
+remove min_freqs from compute_sfs
+rename aggregate_sfs to sum_sfs_list
+rewrite example_inference.py
+clean up simulate_inference.py
+clean up tensor.py
+functions to compute marginal p-values and Wald tests. (include these in See Also of composite_mle_approx_covariance)
+have simulate_inference use callback instead of f_verbose
+require make_demography to have all differentiable parameters specified with $

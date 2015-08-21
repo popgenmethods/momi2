@@ -5,32 +5,40 @@ import autograd.numpy as np
 from autograd.numpy import sum
 from autograd import grad, hessian_vector_product
 
-from momi import compute_sfs, make_demography, simulate_ms, sfs_list_from_ms
-from momi import NegativeLogLikelihood as NegLogLik
-
+from momi import compute_sfs, make_demography, simulate_ms, sfs_list_from_ms, aggregate_sfs
+from momi import unlinked_log_likelihood
+#from momi.likelihood_surface import unlinked_mle_search1
+from momi.likelihood_surface import unlinked_mle_search2
 
 def test_regularization():
     num_runs = 1000
     theta=10.0
-    def get_demo(t0,t1):
+    def get_demo(t):
+        print t
+        t0,t1 = t
         return make_demography("-I 3 5 5 5 -ej $0 1 2 -ej $1 2 3", np.exp(t0),np.exp(t0) + np.exp(t1))
     true_x = np.array([np.log(.5),np.log(.2)])
-    true_demo = get_demo(*true_x)
+    true_demo = get_demo(true_x)
 
-    sfs_list = sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
-                                true_demo.n_at_leaves)
+    sfs = aggregate_sfs(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
+                                         true_demo.n_at_leaves))
+    
+    # f = lambda x: -unlinked_log_likelihood(sfs, demo=get_demo(*x), theta=theta * num_runs)
+    # g, hp = grad(f), hessian_vector_product(f)
+    # ## TODO: use callback instead
+    # def f_verbose(x):
+    #     # for verbose output during the gradient descent
+    #     print np.exp(x)
+    #     #print (x - true_x) / true_x
+    #     ret = f(x)
+    #     print ret
+    #     return ret
 
-    log_lik = NegLogLik(sfs_list, demo_func=lambda x: get_demo(*x), theta=theta, eps=1e-6)
-
-    f = lambda x: log_lik.evaluate(x)
-    g, hp = grad(f), hessian_vector_product(f)
-    def f_verbose(x):
-        # for verbose output during the gradient descent
-        print (x - true_x) / true_x
-        return f(x)
-
-    optimize_res = minimize(f_verbose, np.array([np.log(.1),np.log(100.)]), jac=g, hessp=hp, method='newton-cg')
+    # optimize_res = minimize(f_verbose, np.array([np.log(0.1),np.log(100.0)]), jac=g, hessp=hp, method='newton-cg')
+    optimize_res = unlinked_mle_search2(sfs, get_demo, theta * num_runs, np.array([np.log(0.1),np.log(100.0)]))
     print optimize_res
+    #optimize_res =
+    
     inferred_x = optimize_res.x
     error = (true_x - inferred_x) / true_x
     print "# Truth:\n", true_x

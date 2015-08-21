@@ -1,9 +1,9 @@
 from __future__ import division, print_function
 
-from likelihood_surface import NegativeLogLikelihood, PGSurface_Empirical, PGSurface_Diag, PGSurface_Exact, PoissonWishartSurface
+from likelihood_surface import unlinked_log_likelihood, composite_mle_approx_covariance
 from parse_ms import make_demography, simulate_ms, sfs_list_from_ms
-from util import check_symmetric, aggregate_sfs
-from tensor import greedy_hosvd, get_sfs_tensor
+from util import check_symmetric, aggregate_sfs, make_function
+from tensor import greedy_hosvd, get_sfs_tensor, PGSurface_Empirical, PGSurface_Diag, PGSurface_Exact, PoissonWishartSurface
 
 import scipy
 import scipy.stats
@@ -73,14 +73,14 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     # m estimator surface
     idx = true_ms_params.index
     ## TODO: make calling demo_func less convoluted
-    surface = get_likelihood_surface(true_demo, sfs_list, theta,
-                                     lambda x: demo_func_ms(**pd.Series(x,index=idx)),
-                                     surface_type,
-                                     tensor_method, n_sfs_dirs)
+    f_surface, f_cov = get_likelihood_surface(true_demo, sfs_list, theta,
+                                      lambda x: demo_func_ms(**pd.Series(x,index=idx)),
+                                      surface_type,
+                                      tensor_method, n_sfs_dirs)
 
     # construct the function to minimize, and its derivatives
     def f(params):
-        return surface.evaluate(pd.Series(transform_params(params), index=idx).values)        
+        return f_surface(pd.Series(transform_params(params), index=idx).values)        
         # try:
         #     return surface.evaluate(pd.Series(transform_params(params), index=idx).values)
         # except MemoryError:
@@ -150,7 +150,8 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
 
     if conf_intervals:
         ## estimate sigma hat at plugin
-        sigma = surface.max_covariance(inferred_ms_params.values)
+        #sigma = surface.max_covariance(inferred_ms_params.values)
+        sigma = f_cov(inferred_ms_params.values)
 
         # recommend to call check_symmetric on matrix inverse,
         # as linear algebra routines may not perfectly preserve symmetry due to numerical errors
@@ -188,7 +189,11 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
 
 def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, surface_type, tensor_method, n_sfs_dirs):
     if surface_type == 'kl' and n_sfs_dirs <= 0:
-        return NegativeLogLikelihood(sfs_list, theta=theta, demo_func=demo_func)
+        sfs = aggregate_sfs(sfs_list)
+        theta = make_function(theta)
+        f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), theta(params) * len(sfs_list), adjust_probs = 1e-80)
+        f_cov = lambda params: composite_mle_approx_covariance(params, sfs_list, demo_func, theta)
+        return f, f_cov       
 
     if surface_type == 'kl' or n_sfs_dirs <= 0:
         raise Exception("Either must use KL divergence, or must specify number of directions")
@@ -208,12 +213,14 @@ def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, surface_type, 
         raise Exception("Unrecognized tensor_method")
 
     if surface_type == 'pgs-diag':
-        return PGSurface_Diag(sfs_list, sfs_dirs, theta, demo_func)
+        ret = PGSurface_Diag(sfs_list, sfs_dirs, theta, demo_func).evaluate
     elif surface_type == 'pgs-exact':
-        return PGSurface_Exact(sfs_list, sfs_dirs, theta, demo_func)
+        ret = PGSurface_Exact(sfs_list, sfs_dirs, theta, demo_func).evaluate
     elif surface_type == 'pgs-emp':
-        return PGSurface_Empirical(sfs_list, sfs_dirs, theta, demo_func)
+        ret = PGSurface_Empirical(sfs_list, sfs_dirs, theta, demo_func).evaluate
     elif surface_type == 'pws':
-        return PoissonWishartSurface(sfs_list, sfs_dirs, theta, demo_func)
+        ret = PoissonWishartSurface(sfs_list, sfs_dirs, theta, demo_func).evaluate
     else:
-        raise Exception("Unrecognized surface type")
+        Exception("Unrecognized surface type")
+
+    return ret,None
