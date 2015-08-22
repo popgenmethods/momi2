@@ -2,7 +2,7 @@ from __future__ import division, print_function
 
 from likelihood_surface import unlinked_log_likelihood, composite_mle_approx_covariance
 from parse_ms import make_demography, simulate_ms, sfs_list_from_ms
-from util import check_symmetric, aggregate_sfs, make_function
+from util import check_symmetric, sum_sfs_list, make_function
 from tensor import greedy_hosvd, get_sfs_tensor, PGSurface_Empirical, PGSurface_Diag, PGSurface_Exact, PoissonWishartSurface
 
 import scipy
@@ -189,7 +189,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
 
 def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, surface_type, tensor_method, n_sfs_dirs):
     if surface_type == 'kl' and n_sfs_dirs <= 0:
-        sfs = aggregate_sfs(sfs_list)
+        sfs = sum_sfs_list(sfs_list)
         theta = make_function(theta)
         f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), theta(params) * len(sfs_list), adjust_probs = 1e-80)
         f_cov = lambda params: composite_mle_approx_covariance(params, sfs_list, demo_func, theta)
@@ -204,7 +204,7 @@ def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, surface_type, 
         for leaf in leaves:
             sfs_dirs[leaf] = np.random.normal(size=(n_sfs_dirs, true_demo.n_lineages(leaf)+1))
     elif tensor_method=='greedy-hosvd':
-        sfs_dirs = zip(*greedy_hosvd(get_sfs_tensor(aggregate_sfs(sfs_list),
+        sfs_dirs = zip(*greedy_hosvd(get_sfs_tensor(sum_sfs_list(sfs_list),
                                                     [true_demo.n_lineages(l) for l in leaves]),
                                      n_sfs_dirs, verbose=True))
         sfs_dirs = [np.array(x) for x in sfs_dirs]

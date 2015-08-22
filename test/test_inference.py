@@ -3,7 +3,7 @@ import scipy.optimize
 import autograd.numpy as np
 from autograd import grad
 
-from momi import make_demography, simulate_ms, sfs_list_from_ms, unlinked_log_likelihood, aggregate_sfs
+from momi import make_demography, simulate_ms, sfs_list_from_ms, unlinked_log_likelihood, sum_sfs_list
 
 def test_joint_sfs_inference():
     N0=1.0
@@ -20,8 +20,8 @@ def test_joint_sfs_inference():
 
     true_demo = get_demo([t0])
 
-    sfs = aggregate_sfs(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
-                                         true_demo.n_at_leaves))
+    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
+                                        true_demo.n_at_leaves))
     neg_log_lik = lambda t: -unlinked_log_likelihood(sfs, get_demo(t), theta * num_runs)
     
     print(t0,t1)

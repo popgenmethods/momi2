@@ -1,16 +1,28 @@
-move tensor stuff (including L2 error) into own file
-make scikit-tensor dependency optional?
-fix installation scripts
+write pydocs
+
+refactor sum_product so that don't use an extra object; just pass in a boolean parameter to be probs/positive
+
+rename raw_compute_sfs to expected_sfs_tensordot, and sfs_projection to observed_sfs_tensordot or empirical_sfs_tensordot or just sfs_tensordot
+rename compute_sfs to expected_sfs
+
 use tuple/list instead of dictionary for raw_compute_sfs and sfs_projection
 make sure everything is 0-indexed
-rename raw_compute_sfs to sfs_projection
-write pydocs
+
 have branch_len be its own function (rather than returned with compute_sfs)
-remove min_freqs from compute_sfs
-rename aggregate_sfs to sum_sfs_list
-rewrite example_inference.py
+
+remove min_freqs from compute_sfs (but keep it for branch_len function)
+
+fix installation scripts
+make scikit-tensor dependency optional?
+
 clean up simulate_inference.py
-clean up tensor.py
-functions to compute marginal p-values and Wald tests. (include these in See Also of composite_mle_approx_covariance)
 have simulate_inference use callback instead of f_verbose
+clean up tensor.py
+
+rewrite example_inference.py
+functions to compute marginal p-values and Wald tests. (include these in See Also of composite_mle_approx_covariance)
+
 require make_demography to have all differentiable parameters specified with $
+
+what should be name of demography leaves? maybe "leaf0", "leaf1", etc?
+reorganize parse_ms.py and demography.py

@@ -1,5 +1,5 @@
 from __future__ import division
-from util import make_constant, check_symmetric, aggregate_sfs, make_function
+from util import make_constant, check_symmetric, make_function
 from autograd import hessian, grad, hessian_vector_product, jacobian
 import autograd.numpy as np
 import scipy
@@ -115,7 +115,7 @@ def unlinked_mle_search1(sfs, demo_func, theta, start_params, bounds, sfs_kwargs
     composite_mle_approx_covariance : approximate covariance matrix of the
          composite MLE, used for constructing approximate confidence
          intervals.
-    aggregate_sfs : combine SFS's of multiple loci into one SFS, before
+    sum_sfs_list : combine SFS's of multiple loci into one SFS, before
          passing into this function
     """
     if bounds is None or any([x is None for bd in bounds for x in bd]):
@@ -184,7 +184,7 @@ def unlinked_mle_search2(sfs, demo_func, theta, start_params, sfs_kwargs = {}, a
     composite_mle_approx_covariance : approximate covariance matrix of the
          composite MLE, used for constructing approximate confidence
          intervals.
-    aggregate_sfs : combine SFS's of multiple loci into one SFS, before
+    sum_sfs_list : combine SFS's of multiple loci into one SFS, before
          passing into this function
     """    
     return unlinked_mle_search(sfs, demo_func, theta, start_params, derivs = ['jac', 'hessp'], opt_kwargs = {'method' : 'trust-ncg'}, sfs_kwargs = sfs_kwargs, adjust_probs = adjust_probs)
@@ -381,7 +381,7 @@ def unlinked_mle_search(sfs, demo_func, theta, start_params, derivs = ['jac'], o
     composite_mle_approx_covariance : approximate covariance matrix of the
          composite MLE, used for constructing approximate confidence
          intervals.
-    aggregate_sfs : combine SFS's of multiple loci into one SFS, before
+    sum_sfs_list : combine SFS's of multiple loci into one SFS, before
          passing into this function
     """        
     theta = make_function(theta)

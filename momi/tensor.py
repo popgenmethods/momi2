@@ -2,7 +2,7 @@ import autograd.numpy as np
 import sktensor as skt
 from sktensor.tucker import hosvd
 import pandas as pd
-from util import aggregate_sfs
+from util import sum_sfs_list
 from math_functions import symmetric_matrix, log_wishart_pdf, slogdet_pos
 from sum_product import raw_compute_sfs
 
@@ -92,7 +92,7 @@ class PoisGaussSurface(MEstimatorSurface):
                
         self.n_loci = len(sfs_list)
         
-        self.sfs_aggregated = aggregate_sfs(sfs_list)
+        self.sfs_aggregated = sum_sfs_list(sfs_list)
         leaves = sfs_directions.keys()
         projection = sfs_eval_dirs(self.sfs_aggregated, self.sfs_directions)
 

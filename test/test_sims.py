@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import make_demography, compute_sfs, aggregate_sfs, simulate_ms, sfs_list_from_ms
+from momi import make_demography, compute_sfs, simulate_ms, sfs_list_from_ms
 import pytest
 import random
 import autograd.numpy as np

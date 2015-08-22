@@ -5,20 +5,28 @@ from functools import partial
 from autograd.core import primitive
 import os
 import itertools
+from collections import Counter
 
 def default_ms_path():
     return os.environ["MS_PATH"]
 
-def aggregate_sfs(sfs_list, fun=lambda x: x):
-    config_list = set(sum([sfs.keys() for sfs in sfs_list], []))
-    def sfs_config(sfs,config):
-        try:
-            return sfs[config]
-        except KeyError:
-            return 0
+def sum_sfs_list(sfs_list):
+    """
+    Combines a list of SFS's into a single SFS by summing their entries.
 
-    aggregate_config = lambda config: sum([fun(sfs_config(sfs,config)) for sfs in sfs_list])
-    return {config: aggregate_config(config) for config in config_list}
+    Parameters
+    ----------
+    sfs_list : list of dict
+         A list where each entry is a dict mapping configs (tuples) to
+         frequencies (floats or ints).
+
+    Returns
+    -------
+    combined_sfs : dict
+         The combined SFS, represented as a dict mapping configs (tuples)
+         to frequencies (floats or ints).
+    """
+    return sum([Counter(sfs) for sfs in sfs_list], Counter())
 
 def polymorphic_configs(demo):
     n = sum([demo.n_lineages(l) for l in demo.leaves])
