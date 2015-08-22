@@ -4,14 +4,45 @@ from sktensor.tucker import hosvd
 import pandas as pd
 from util import sum_sfs_list
 from math_functions import symmetric_matrix, log_wishart_pdf, slogdet_pos
-from sum_product import raw_compute_sfs
+from sum_product import expected_sfs_tensor_times
 
-def sfs_eval_dirs(sfs, dirs):
+def sfs_tensor_times(sfs, dirs):
+    """
+    Viewing the SFS as a D-tensor (where D is the number of demes), this
+    returns a vector whose j-th entry is a summary statistic given by the
+    tensor-vector multiplication:
+
+    v[j] = \sum_{(i0,i1,...)} sfs[(i0,i1,...)] * dirs[0][j,i0] * dirs[1][j, i1] * ...
+
+    Parameters
+    ----------
+    sfs : dict
+         maps configs (tuples) to frequencies (floats or ints).
+         sfs is viewed as a tensor whose indices are given by the configs,
+         and whose entries are given by the frequencies.
+    dirs : list of 2-dimensional numpy.ndarray
+         a list of length D, where D is the number of demes in the sample.
+         dirs[k] is 2-dimensional array, with constant number of rows, and
+         with n[k]+1 columns, where n[k] is the number of samples in the
+         k-th deme. The row vectors dirs[k][j,:] are multiplied against
+         the SFS along the k-th mode, to obtain v[j].
+    
+    Returns
+    -------
+    v : numpy.ndarray (1-dimensional)
+        v[j] is the tensor multiplication of the sfs against the vectors
+        dirs[0][j,:], dirs[1][j,:], ... along its tensor modes.
+
+    See Also
+    --------
+    expected_sfs_tensor_times : compute the expectation of sfs_tensor_times for a
+         randomly sampled sfs.
+    """
     projection = 0.
     ## TODO: vectorize for loop?
     for config,val in sfs.iteritems():
-        for leaf,i in zip(sorted(dirs.keys()), config):
-            val = val * dirs[leaf][:,i]
+        for d,i in zip(dirs, config):
+            val = val * d[:,i]
         projection = projection + val
     return projection
 
@@ -86,15 +117,14 @@ class PoisGaussSurface(MEstimatorSurface):
     def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
         super(PoisGaussSurface, self).__init__(theta, demo_func)
 
-        self.n_dirs = list(sfs_directions.values())[0].shape[0]
-        self.sfs_directions = {l: np.vstack([[1.0]*s.shape[1], s])
-                                         for l,s in sfs_directions.iteritems()}
+        self.n_dirs = sfs_directions[0].shape[0]
+        self.sfs_directions = [np.vstack([[1.0]*s.shape[1], s])
+                               for s in sfs_directions]
                
         self.n_loci = len(sfs_list)
         
         self.sfs_aggregated = sum_sfs_list(sfs_list)
-        leaves = sfs_directions.keys()
-        projection = sfs_eval_dirs(self.sfs_aggregated, self.sfs_directions)
+        projection = sfs_tensor_times(self.sfs_aggregated, self.sfs_directions)
 
         self.num_muts, projection = projection[0], projection[1:]
         self.means = projection / self.num_muts
@@ -108,7 +138,7 @@ class PoisGaussSurface(MEstimatorSurface):
         
         demo = self.demo_func(params)        
 
-        expectations = raw_compute_sfs(self.sfs_directions, demo)
+        expectations = expected_sfs_tensor_times(self.sfs_directions, demo)
         branch_len, expectations = expectations[0], expectations[1:]
         expectations = expectations / branch_len
         
@@ -125,20 +155,20 @@ class PoisGaussSurface(MEstimatorSurface):
         return expected_snps - n_snps * np.log(expected_snps) + 0.5 * n_snps * np.dot(resids, np.dot(Sigma_inv, resids)) - 0.5 * slogdet_pos(Sigma_inv * n_snps)
     
 def get_cross_dirs(sfs_directions, n_dirs):
-    cross_dirs = {}
-    for leaf,dirs in sfs_directions.iteritems():
+    cross_dirs = []
+    for dirs in sfs_directions:
         assert n_dirs == dirs.shape[0]
 
         idx0, idx1 = np.triu_indices(n_dirs)
-        cross_dirs[leaf] = np.einsum('ik,jk->ijk',
-                                     dirs, dirs)[idx0,idx1,:]
+        cross_dirs += [np.einsum('ik,jk->ijk',
+                                 dirs, dirs)[idx0,idx1,:]]
     return cross_dirs
     
 class PGSurface_Empirical(PoisGaussSurface):
     def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
         super(PGSurface_Empirical, self).__init__(sfs_list, sfs_directions, theta, demo_func)
        
-        cross_means = sfs_eval_dirs(self.sfs_aggregated, get_cross_dirs(sfs_directions, self.n_dirs)) / self.num_muts
+        cross_means = sfs_tensor_times(self.sfs_aggregated, get_cross_dirs(sfs_directions, self.n_dirs)) / self.num_muts
         cross_means = symmetric_matrix(cross_means, self.n_dirs)
         
         cov_mat = cross_means - np.outer(self.means, self.means)
@@ -152,23 +182,23 @@ class PGSurface_Diag(PoisGaussSurface):
     def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
         super(PGSurface_Diag, self).__init__(sfs_list, sfs_directions, theta, demo_func)
        
-        self.square_sfs_dirs = {l: s**2 for l,s in sfs_directions.iteritems()}
+        self.square_sfs_dirs = [s**2 for s in sfs_directions]
        
     def inv_cov_mat(self, demo, branch_len, means):
-        return np.diag(1./ (raw_compute_sfs(self.square_sfs_dirs, demo) / branch_len - means**2))
+        return np.diag(1./ (expected_sfs_tensor_times(self.square_sfs_dirs, demo) / branch_len - means**2))
 
 class PGSurface_Exact(PoisGaussSurface):
     def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
         super(PGSurface_Exact, self).__init__(sfs_list, sfs_directions, theta, demo_func)
 
         self.cross_dirs = get_cross_dirs(sfs_directions, self.n_dirs)
-        cross_means = sfs_eval_dirs(self.sfs_aggregated, self.cross_dirs) / self.num_muts
+        cross_means = sfs_tensor_times(self.sfs_aggregated, self.cross_dirs) / self.num_muts
         cross_means = symmetric_matrix(cross_means, self.n_dirs)
         
         self.empirical_covariance = cross_means - np.outer(self.means, self.means)
 
     def inv_cov_mat(self, demo, branch_len, means):
-        cross_means = raw_compute_sfs(self.cross_dirs, demo) / branch_len
+        cross_means = expected_sfs_tensor_times(self.cross_dirs, demo) / branch_len
         cross_means = symmetric_matrix(cross_means, self.n_dirs)
         
         return np.linalg.inv(cross_means - np.outer(means, means))

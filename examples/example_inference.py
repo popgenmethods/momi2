@@ -40,7 +40,7 @@ def main():
                              n_iter = 1,
                              verbosity = 2,
                              method='L-BFGS-B',
-                             #n_sfs_dirs = 100,
+                             #n_sfs_dirs = 10,
                              #surface_type = 'pgs-emp',
                              #tensor_method = 'random',
                              conf_intervals = True

@@ -1,13 +1,10 @@
 write pydocs
 
-rename raw_compute_sfs to expected_sfs_tensordot, and sfs_projection to observed_sfs_tensordot or empirical_sfs_tensordot or just sfs_tensordot
 rename compute_sfs to expected_sfs
 
-use tuple/list instead of dictionary for raw_compute_sfs and sfs_projection
 make sure everything is 0-indexed
 
 have branch_len be its own function (rather than returned with compute_sfs)
-
 remove min_freqs from compute_sfs (but keep it for branch_len function)
 
 fix installation scripts

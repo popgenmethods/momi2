@@ -200,15 +200,15 @@ def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, surface_type, 
     
     leaves = sorted(true_demo.leaves)
     if tensor_method=='random':
-        sfs_dirs = {}
+        sfs_dirs = []
         for leaf in leaves:
-            sfs_dirs[leaf] = np.random.normal(size=(n_sfs_dirs, true_demo.n_lineages(leaf)+1))
+            sfs_dirs += [np.random.normal(size=(n_sfs_dirs, true_demo.n_lineages(leaf)+1))]
     elif tensor_method=='greedy-hosvd':
         sfs_dirs = zip(*greedy_hosvd(get_sfs_tensor(sum_sfs_list(sfs_list),
                                                     [true_demo.n_lineages(l) for l in leaves]),
                                      n_sfs_dirs, verbose=True))
         sfs_dirs = [np.array(x) for x in sfs_dirs]
-        sfs_dirs = dict(zip(leaves, sfs_dirs))
+        #sfs_dirs = dict(zip(leaves, sfs_dirs))
     else:
         raise Exception("Unrecognized tensor_method")
 

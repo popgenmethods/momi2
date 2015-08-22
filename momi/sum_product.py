@@ -46,7 +46,7 @@ def compute_sfs(demography, config_list, error_matrices=None, min_freqs=1):
         raise Exception("Minimum frequencies must be in (0,num_lins] for each leaf pop")
     max_freqs = n_leaf_lins - min_freqs
 
-    leaf_states = {}
+    dirs = []
     for col,leaf in enumerate(sorted(demography.leaves)):
         n_lins = demography.n_lineages(leaf)
 
@@ -65,9 +65,9 @@ def compute_sfs(demography, config_list, error_matrices=None, min_freqs=1):
                               err, ['n_der_observed','n_der_actual'],
                               ['entry','n_der_actual'])
 
-        leaf_states[leaf] = cur_lik
+        dirs += [cur_lik]
 
-    sfs = raw_compute_sfs(leaf_states, demography)
+    sfs = expected_sfs_tensor_times(dirs, demography)
 
     # extract the normalizing constant
     normalizing_constant = sfs[0] - sfs[1] - sfs[2]
@@ -84,19 +84,39 @@ def compute_sfs(demography, config_list, error_matrices=None, min_freqs=1):
     assert normalizing_constant >= 0.0 and np.all(sfs >= 0.0) and np.all(sfs <= normalizing_constant)
     return np.squeeze(sfs), normalizing_constant
 
-def raw_compute_sfs(leaf_states, demography):
-    '''
-    Similar to compute_sfs (and in fact is called by it),
-    but can be used to compute SFS under more complicated error/ascertainment models
+def expected_sfs_tensor_times(dirs, demography):
+    """
+    Viewing the SFS as a D-tensor (where D is the number of demes), this
+    returns a vector whose j-th entry is a certain summary statistic of the
+    expected SFS, given by the following tensor-vector multiplication:
 
-    leaf_states = dictionary whose keys are the leaf populations of demography
-    leaf_states[i] = matrix with dimensions (S , n_at_leaf_i)
-    leaf_states[i][s,d] = likelihood of d derived alleles in leaf population i for the s-th configuration
+    v[j] = \sum_{(i0,i1,...)} E[sfs[(i0,i1,...)]] * dirs[0][j,i0] * dirs[1][j, i1] * ...
 
-    The s-th configuration can essentially be viewed as a rank-1 tensor, given by the outer product
-    leaf_states[0][s,:] * leaf_states[1][s,:] * ...
-    '''
-    leaf_states = dict(leaf_states)
+    where E[sfs[(i0,i1,...)]] is the expected SFS entry for config
+    (i0,i1,...), as given by compute_sfs
+
+    Parameters
+    ----------
+    dirs : list of 2-dimensional numpy.ndarray
+         a length-D list, where D is the number of demes in the demography.
+         dirs[k] is 2-dimensional array, with constant number of rows, and
+         with n[k]+1 columns, where n[k] is the number of samples in the
+         k-th deme. The row vector dirs[k][j,:] is multiplied against
+         the expected SFS along the k-th mode, to obtain v[j].
+    demo : a Demography object, as returned by make_demography()
+    
+    Returns
+    -------
+    v : numpy.ndarray (1-dimensional)
+        v[j] is the tensor multiplication of the sfs against the vectors
+        dirs[0][j,:], dirs[1][j,:], ... along its tensor modes.
+
+    See Also
+    --------
+    sfs_tensor_times : compute the same summary statistics for a specific SFS
+    compute_sfs : compute individual SFS entries
+    """
+    leaf_states = dict(zip(sorted(demography.leaves), dirs))
     
     for leaf in leaf_states.keys():
         n = leaf_states[leaf].shape[1] - 1
