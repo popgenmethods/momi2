@@ -1,7 +1,5 @@
 write pydocs
 
-refactor sum_product so that don't use an extra object; just pass in a boolean parameter to be probs/positive
-
 rename raw_compute_sfs to expected_sfs_tensordot, and sfs_projection to observed_sfs_tensordot or empirical_sfs_tensordot or just sfs_tensordot
 rename compute_sfs to expected_sfs
 

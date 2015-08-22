@@ -105,8 +105,12 @@ def raw_compute_sfs(leaf_states, demography):
                                        np.array([0.0]*n + [1.0]), # all derived state
                                        leaf_states[leaf]])
 
-    _,sfs = _partial_likelihood(LeafStates(leaf_states),
-                                demography, demography.event_root)
+    non_neg = all([np.all(l >= 0.0) for l in leaf_states.values()])
+    is_prob = non_neg and all([np.all(l <= 1.0) for l in leaf_states.values()])
+    
+    _,sfs = _partial_likelihood(leaf_states,
+                                demography, demography.event_root,
+                                non_neg, is_prob)
 
     # subtract out mass for all ancestral/derived state
     for k in (0,1):
@@ -115,28 +119,15 @@ def raw_compute_sfs(leaf_states, demography):
     # remove monomorphic states
     sfs = sfs[2:]
     return sfs
-
-class LeafStates(dict):
-    def __init__(self, *args, **kwargs):
-        super(LeafStates, self).__init__(*args, **kwargs)
-        self.non_negative = all([np.all(l >= 0.0) for l in self.values()])
-        self.is_probability = self.non_negative and all([np.all(l <= 1.0) for l in self.values()])
-
-    def check_liks(self, lik, sfs):
-        if self.non_negative:
-            assert np.all(lik >= 0.0) and np.all(sfs >= 0.0)
-        
-        if self.is_probability:
-            assert np.all(np.logical_or(lik <= 1.0, np.isclose(lik, 1.0)))
-
-def _partial_likelihood(leaf_states, G, event):
+          
+def _partial_likelihood(leaf_states, G, event, non_neg, is_prob):
     ''' 
     Partial likelihood of data at event,
     P(x | n_derived_node, n_ancestral_node)
     with all subpopulation nodes at their initial time.
     '''
     lik_fun = _event_lik_fun(G, event)
-    lik,sfs = lik_fun(leaf_states, G, event)
+    lik,sfs = lik_fun(leaf_states, G, event, non_neg, is_prob)
 
     # add on sfs entry at this event
     axes = _lik_axes(G, event)
@@ -151,20 +142,20 @@ def _partial_likelihood(leaf_states, G, event):
                             trunc_sfs, [newpop],
                             [''])
 
-    leaf_states.check_liks(lik, sfs)       
+    _check_liks(lik, sfs, non_neg, is_prob)
     return lik,sfs
 
-def _partial_likelihood_top(leaf_states, G, event, popList):
+def _partial_likelihood_top(leaf_states, G, event, popList, non_neg, is_prob):
     ''' 
     Partial likelihood of data at top of nodes in popList,
     P(x | n_derived_top, n_ancestral_top)
     '''       
-    lik,sfs = _partial_likelihood(leaf_states, G, event)
+    lik,sfs = _partial_likelihood(leaf_states, G, event, non_neg, is_prob)
     for pop in popList:
         idx = (_lik_axes(G, event)).index(pop)
         lik = G.apply_transition(pop, lik, idx)
 
-    leaf_states.check_liks(lik, sfs)
+    _check_liks(lik, sfs, non_neg, is_prob)
     return lik,sfs
 
 def combinatorial_factors(n):
@@ -193,16 +184,16 @@ def _event_lik_fun(G, event):
     else:
         raise Exception("Unrecognized event type.")
 
-def _leaf_likelihood(leaf_states, G, event):
+def _leaf_likelihood(leaf_states, G, event, non_neg, is_prob):
     leaf, = G.parent_pops(event)
     return leaf_states[leaf],0.
 
-def _admixture_likelihood(leaf_states, G, event):
+def _admixture_likelihood(leaf_states, G, event, non_neg, is_prob):
     child_pop, = G.child_pops(event).keys()
     p1,p2 = G.parent_pops(event)
 
     child_event, = G.event_tree[event]
-    lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, [child_pop])
+    lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, [child_pop], non_neg, is_prob)
 
     admixture_prob, admixture_idxs = G.admixture_prob(child_pop)
     lik = einsum2(lik, _lik_axes(G, child_event),
@@ -211,12 +202,13 @@ def _admixture_likelihood(leaf_states, G, event):
 
     return lik,sfs
 
-def _merge_subpops_likelihood(leaf_states, G, event):
+def _merge_subpops_likelihood(leaf_states, G, event, non_neg, is_prob):
     newpop, = G.parent_pops(event)
     child_pops = G[newpop]
     child_event, = G.event_tree[event]
 
-    lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, child_pops)
+    lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, child_pops,
+                                      non_neg, is_prob)
 
     c1,c2 = child_pops
     child_axes = _lik_axes(G, child_event)
@@ -239,19 +231,19 @@ def _merge_subpops_likelihood(leaf_states, G, event):
     lik = einsum2(lik, event_axes[:newidx] + [c1] + axes[(newidx+1):],
                   hypergeom_quasi_inverse(lik.shape[newidx]-1, G.n_lineages(newpop)),
                   [c1,newpop], axes)
-    if leaf_states.non_negative:
+    if non_neg:
         # make sure likelihoods are non negative
         lik = truncate0(lik, axis=newidx)
     assert lik.shape[newidx] == G.n_lineages(newpop)+1
 
     return lik,sfs
 
-def _merge_clusters_likelihood(leaf_states, G, event):
+def _merge_clusters_likelihood(leaf_states, G, event, non_neg, is_prob):
     newpop, = G.parent_pops(event)
     child_liks = []
     for child_pop, child_event in G.child_pops(event).iteritems():
         axes = _lik_axes(G, child_event)        
-        lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, [child_pop])
+        lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, [child_pop], non_neg, is_prob)
         lik = einsum2(lik, axes,
                       combinatorial_factors(G.n_lineages(child_pop)), [child_pop],
                       axes)
@@ -271,3 +263,11 @@ def _merge_clusters_likelihood(leaf_states, G, event):
     for freq, other_lik in zip(child_sfs, child_liks[::-1]):
         sfs = sfs + freq * np.squeeze(other_lik[[slice(None)] + [0] * (other_lik.ndim-1)])
     return lik, sfs
+
+
+def _check_liks(lik, sfs, non_neg, is_prob):
+    if non_neg:
+        assert np.all(lik >= 0.0) and np.all(sfs >= 0.0)
+
+    if is_prob:
+        assert np.all(np.logical_or(lik <= 1.0, np.isclose(lik, 1.0)))
