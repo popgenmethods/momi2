@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import make_demography, compute_sfs, expected_sfs_tensor_times, get_sfs_tensor, sfs_tensor_times
+from momi import make_demography, compute_sfs, expected_sfs_tensor_prod, get_sfs_tensor, sfs_tensor_prod
 import pytest
 import random
 import autograd.numpy as np
@@ -20,20 +20,10 @@ def check_random_tensor(demo, *args, **kwargs):
     tensor_components = [np.random.normal(size=(1,demo.n_lineages(l)+1)) for l in demo.leaves]
     #tensor_components_list = tuple(v[0,:] for _,v in sorted(tensor_components.iteritems()))
 
-    #tensor = get_sfs_tensor(dict(zip(config_list,sfs)), [demo.n_lineages(l) for l in leaves])
-    #sfs_tensor_prod = tensor.ttv(tensor_components_list)
-    sfs_tensor_prod = sfs_tensor_times(dict(zip(config_list,sfs)), tensor_components)
+    prod1 = sfs_tensor_prod(dict(zip(config_list,sfs)), tensor_components)
+    prod2 = expected_sfs_tensor_prod(tensor_components, demo)
     
-    # sfs_tensor_prod = 0.0
-    # for config, val in zip(config_list, sfs):
-    #     for i,j in enumerate(config):
-    #         val = val * tensor_components[leaves[i]][0,j]
-    #     sfs_tensor_prod += val
-
-    sfs_tensor_prod2 = expected_sfs_tensor_times(tensor_components, demo)
-    #print sfs_tensor_prod, sfs_tensor_prod2
-    
-    assert np.allclose(sfs_tensor_prod, sfs_tensor_prod2)
+    assert np.allclose(prod1, prod2)
 
 
 def test_tree_demo_rank1tensor():

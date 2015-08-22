@@ -106,7 +106,7 @@ Arguments (1),(2) adjust the sfs entries and the normalizing constant to account
 for these errors.
 
 More complex models of error/sampling bias can be handled by using the function
-expected_sfs_tensor_mult directly, instead of the wrapper function compute_sfs.
+expected_sfs_tensor_prod directly, instead of the wrapper function compute_sfs.
 '''
 print "\n\nPrinting SFS with simple linear error model and minimum allele frequency\n"
 

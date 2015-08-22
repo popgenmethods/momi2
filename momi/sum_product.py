@@ -67,7 +67,7 @@ def compute_sfs(demography, config_list, error_matrices=None, min_freqs=1):
 
         dirs += [cur_lik]
 
-    sfs = expected_sfs_tensor_times(dirs, demography)
+    sfs = expected_sfs_tensor_prod(dirs, demography)
 
     # extract the normalizing constant
     normalizing_constant = sfs[0] - sfs[1] - sfs[2]
@@ -84,39 +84,39 @@ def compute_sfs(demography, config_list, error_matrices=None, min_freqs=1):
     assert normalizing_constant >= 0.0 and np.all(sfs >= 0.0) and np.all(sfs <= normalizing_constant)
     return np.squeeze(sfs), normalizing_constant
 
-def expected_sfs_tensor_times(dirs, demography):
+def expected_sfs_tensor_prod(vecs, demography):
     """
     Viewing the SFS as a D-tensor (where D is the number of demes), this
-    returns a vector whose j-th entry is a certain summary statistic of the
+    returns a 1d array whose j-th entry is a certain summary statistic of the
     expected SFS, given by the following tensor-vector multiplication:
 
-    v[j] = \sum_{(i0,i1,...)} E[sfs[(i0,i1,...)]] * dirs[0][j,i0] * dirs[1][j, i1] * ...
+    res[j] = \sum_{(i0,i1,...)} E[sfs[(i0,i1,...)]] * vecs[0][j,i0] * vecs[1][j, i1] * ...
 
     where E[sfs[(i0,i1,...)]] is the expected SFS entry for config
     (i0,i1,...), as given by compute_sfs
 
     Parameters
     ----------
-    dirs : list of 2-dimensional numpy.ndarray
+    vecs : list of 2-dimensional numpy.ndarray
          a length-D list, where D is the number of demes in the demography.
-         dirs[k] is 2-dimensional array, with constant number of rows, and
+         vecs[k] is 2-dimensional array, with constant number of rows, and
          with n[k]+1 columns, where n[k] is the number of samples in the
-         k-th deme. The row vector dirs[k][j,:] is multiplied against
-         the expected SFS along the k-th mode, to obtain v[j].
+         k-th deme. The row vector vecs[k][j,:] is multiplied against
+         the expected SFS along the k-th mode, to obtain res[j].
     demo : a Demography object, as returned by make_demography()
     
     Returns
     -------
-    v : numpy.ndarray (1-dimensional)
-        v[j] is the tensor multiplication of the sfs against the vectors
-        dirs[0][j,:], dirs[1][j,:], ... along its tensor modes.
+    res : numpy.ndarray (1-dimensional)
+        res[j] is the tensor multiplication of the sfs against the vectors
+        vecs[0][j,:], vecs[1][j,:], ... along its tensor modes.
 
     See Also
     --------
-    sfs_tensor_times : compute the same summary statistics for a specific SFS
+    sfs_tensor_prod : compute the same summary statistics for a specific SFS
     compute_sfs : compute individual SFS entries
     """
-    leaf_states = dict(zip(sorted(demography.leaves), dirs))
+    leaf_states = dict(zip(sorted(demography.leaves), vecs))
     
     for leaf in leaf_states.keys():
         n = leaf_states[leaf].shape[1] - 1
@@ -128,17 +128,17 @@ def expected_sfs_tensor_times(dirs, demography):
     non_neg = all([np.all(l >= 0.0) for l in leaf_states.values()])
     is_prob = non_neg and all([np.all(l <= 1.0) for l in leaf_states.values()])
     
-    _,sfs = _partial_likelihood(leaf_states,
+    _,res = _partial_likelihood(leaf_states,
                                 demography, demography.event_root,
                                 non_neg, is_prob)
 
     # subtract out mass for all ancestral/derived state
     for k in (0,1):
-        sfs = sfs - sfs[k] * np.prod([l[:,-k] for l in leaf_states.values()], axis=0)
-        assert np.isclose(sfs[k], 0.0)
+        res = res - res[k] * np.prod([l[:,-k] for l in leaf_states.values()], axis=0)
+        assert np.isclose(res[k], 0.0)
     # remove monomorphic states
-    sfs = sfs[2:]
-    return sfs
+    res = res[2:]
+    return res
           
 def _partial_likelihood(leaf_states, G, event, non_neg, is_prob):
     ''' 

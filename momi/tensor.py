@@ -4,15 +4,15 @@ from sktensor.tucker import hosvd
 import pandas as pd
 from util import sum_sfs_list
 from math_functions import symmetric_matrix, log_wishart_pdf, slogdet_pos
-from sum_product import expected_sfs_tensor_times
+from sum_product import expected_sfs_tensor_prod
 
-def sfs_tensor_times(sfs, dirs):
+def sfs_tensor_prod(sfs, vecs):
     """
     Viewing the SFS as a D-tensor (where D is the number of demes), this
-    returns a vector whose j-th entry is a summary statistic given by the
+    returns a 1d array whose j-th entry is a summary statistic given by the
     tensor-vector multiplication:
 
-    v[j] = \sum_{(i0,i1,...)} sfs[(i0,i1,...)] * dirs[0][j,i0] * dirs[1][j, i1] * ...
+    res[j] = \sum_{(i0,i1,...)} sfs[(i0,i1,...)] * vecs[0][j,i0] * vecs[1][j, i1] * ...
 
     Parameters
     ----------
@@ -20,31 +20,31 @@ def sfs_tensor_times(sfs, dirs):
          maps configs (tuples) to frequencies (floats or ints).
          sfs is viewed as a tensor whose indices are given by the configs,
          and whose entries are given by the frequencies.
-    dirs : list of 2-dimensional numpy.ndarray
+    vecs : list of 2-dimensional numpy.ndarray
          a list of length D, where D is the number of demes in the sample.
-         dirs[k] is 2-dimensional array, with constant number of rows, and
+         vecs[k] is 2-dimensional array, with constant number of rows, and
          with n[k]+1 columns, where n[k] is the number of samples in the
-         k-th deme. The row vectors dirs[k][j,:] are multiplied against
-         the SFS along the k-th mode, to obtain v[j].
+         k-th deme. The row vectors vecs[k][j,:] are multiplied against
+         the SFS along the k-th mode, to obtain res[j].
     
     Returns
     -------
-    v : numpy.ndarray (1-dimensional)
-        v[j] is the tensor multiplication of the sfs against the vectors
-        dirs[0][j,:], dirs[1][j,:], ... along its tensor modes.
+    res : numpy.ndarray (1-dimensional)
+        res[j] is the tensor multiplication of the sfs against the vectors
+        vecs[0][j,:], vecs[1][j,:], ... along its tensor modes.
 
     See Also
     --------
-    expected_sfs_tensor_times : compute the expectation of sfs_tensor_times for a
+    expected_sfs_tensor_prod : compute the expectation of sfs_tensor_prod for a
          randomly sampled sfs.
     """
-    projection = 0.
+    res = 0.
     ## TODO: vectorize for loop?
     for config,val in sfs.iteritems():
-        for d,i in zip(dirs, config):
+        for d,i in zip(vecs, config):
             val = val * d[:,i]
-        projection = projection + val
-    return projection
+        res = res + val
+    return res
 
 def get_sfs_tensor(sfs, n_per_pop):
     idx, vals = zip(*(sfs.iteritems()))
@@ -60,7 +60,7 @@ def greedy_hosvd(sfs_tensor, n_entries, verbose=False):
         prev_entries = curr_entries
         curr_entries = []
         
-        for prev_energy, prev_dirs, prev_idxs, prev_tens in prev_entries:
+        for prev_energy, prev_vecs, prev_idxs, prev_tens in prev_entries:
 
             energy_sum = 0.0
             for next_idx, next_dir in enumerate(U_list[d].T):
@@ -71,7 +71,7 @@ def greedy_hosvd(sfs_tensor, n_entries, verbose=False):
                     energy = next_tens**2
                 energy_sum += energy
                 curr_entries.append( (energy,
-                                      prev_dirs + [next_dir],
+                                      prev_vecs + [next_dir],
                                       prev_idxs + [next_idx],
                                       next_tens))
 
@@ -82,7 +82,7 @@ def greedy_hosvd(sfs_tensor, n_entries, verbose=False):
         to_print = pd.DataFrame([(idx, energy / total_energy) for energy,_,idx,_ in curr_entries],
                                 columns=['Component','Percent Energy'])
         print "# Selected components:\n", to_print, "\n# Unselected percent energy:", 1.0-sum(to_print['Percent Energy'])
-    return [dirs for _,dirs,_,_ in curr_entries]
+    return [vecs for _,vecs,_,_ in curr_entries]
 
 
 class MEstimatorSurface(object):
@@ -117,14 +117,14 @@ class PoisGaussSurface(MEstimatorSurface):
     def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
         super(PoisGaussSurface, self).__init__(theta, demo_func)
 
-        self.n_dirs = sfs_directions[0].shape[0]
+        self.n_vecs = sfs_directions[0].shape[0]
         self.sfs_directions = [np.vstack([[1.0]*s.shape[1], s])
                                for s in sfs_directions]
                
         self.n_loci = len(sfs_list)
         
         self.sfs_aggregated = sum_sfs_list(sfs_list)
-        projection = sfs_tensor_times(self.sfs_aggregated, self.sfs_directions)
+        projection = sfs_tensor_prod(self.sfs_aggregated, self.sfs_directions)
 
         self.num_muts, projection = projection[0], projection[1:]
         self.means = projection / self.num_muts
@@ -138,7 +138,7 @@ class PoisGaussSurface(MEstimatorSurface):
         
         demo = self.demo_func(params)        
 
-        expectations = expected_sfs_tensor_times(self.sfs_directions, demo)
+        expectations = expected_sfs_tensor_prod(self.sfs_directions, demo)
         branch_len, expectations = expectations[0], expectations[1:]
         expectations = expectations / branch_len
         
@@ -154,22 +154,22 @@ class PoisGaussSurface(MEstimatorSurface):
     def neg_log_lik(self, expected_snps, n_snps, resids, Sigma_inv):
         return expected_snps - n_snps * np.log(expected_snps) + 0.5 * n_snps * np.dot(resids, np.dot(Sigma_inv, resids)) - 0.5 * slogdet_pos(Sigma_inv * n_snps)
     
-def get_cross_dirs(sfs_directions, n_dirs):
-    cross_dirs = []
-    for dirs in sfs_directions:
-        assert n_dirs == dirs.shape[0]
+def get_cross_vecs(sfs_directions, n_vecs):
+    cross_vecs = []
+    for vecs in sfs_directions:
+        assert n_vecs == vecs.shape[0]
 
-        idx0, idx1 = np.triu_indices(n_dirs)
-        cross_dirs += [np.einsum('ik,jk->ijk',
-                                 dirs, dirs)[idx0,idx1,:]]
-    return cross_dirs
+        idx0, idx1 = np.triu_indices(n_vecs)
+        cross_vecs += [np.einsum('ik,jk->ijk',
+                                 vecs, vecs)[idx0,idx1,:]]
+    return cross_vecs
     
 class PGSurface_Empirical(PoisGaussSurface):
     def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
         super(PGSurface_Empirical, self).__init__(sfs_list, sfs_directions, theta, demo_func)
        
-        cross_means = sfs_tensor_times(self.sfs_aggregated, get_cross_dirs(sfs_directions, self.n_dirs)) / self.num_muts
-        cross_means = symmetric_matrix(cross_means, self.n_dirs)
+        cross_means = sfs_tensor_prod(self.sfs_aggregated, get_cross_vecs(sfs_directions, self.n_vecs)) / self.num_muts
+        cross_means = symmetric_matrix(cross_means, self.n_vecs)
         
         cov_mat = cross_means - np.outer(self.means, self.means)
 
@@ -182,24 +182,24 @@ class PGSurface_Diag(PoisGaussSurface):
     def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
         super(PGSurface_Diag, self).__init__(sfs_list, sfs_directions, theta, demo_func)
        
-        self.square_sfs_dirs = [s**2 for s in sfs_directions]
+        self.square_sfs_vecs = [s**2 for s in sfs_directions]
        
     def inv_cov_mat(self, demo, branch_len, means):
-        return np.diag(1./ (expected_sfs_tensor_times(self.square_sfs_dirs, demo) / branch_len - means**2))
+        return np.diag(1./ (expected_sfs_tensor_prod(self.square_sfs_vecs, demo) / branch_len - means**2))
 
 class PGSurface_Exact(PoisGaussSurface):
     def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
         super(PGSurface_Exact, self).__init__(sfs_list, sfs_directions, theta, demo_func)
 
-        self.cross_dirs = get_cross_dirs(sfs_directions, self.n_dirs)
-        cross_means = sfs_tensor_times(self.sfs_aggregated, self.cross_dirs) / self.num_muts
-        cross_means = symmetric_matrix(cross_means, self.n_dirs)
+        self.cross_vecs = get_cross_vecs(sfs_directions, self.n_vecs)
+        cross_means = sfs_tensor_prod(self.sfs_aggregated, self.cross_vecs) / self.num_muts
+        cross_means = symmetric_matrix(cross_means, self.n_vecs)
         
         self.empirical_covariance = cross_means - np.outer(self.means, self.means)
 
     def inv_cov_mat(self, demo, branch_len, means):
-        cross_means = expected_sfs_tensor_times(self.cross_dirs, demo) / branch_len
-        cross_means = symmetric_matrix(cross_means, self.n_dirs)
+        cross_means = expected_sfs_tensor_prod(self.cross_vecs, demo) / branch_len
+        cross_means = symmetric_matrix(cross_means, self.n_vecs)
         
         return np.linalg.inv(cross_means - np.outer(means, means))
     
@@ -207,4 +207,4 @@ class PoissonWishartSurface(PGSurface_Exact):
     def neg_log_lik(self, expected_snps, n_snps, resids, Sigma_inv):
         ret = super(PoissonWishartSurface, self).neg_log_lik(expected_snps, n_snps, resids, Sigma_inv)
         return ret - log_wishart_pdf(self.empirical_covariance * self.num_muts,
-                                     np.linalg.inv(Sigma_inv), self.num_muts-1, self.n_dirs)
+                                     np.linalg.inv(Sigma_inv), self.num_muts-1, self.n_vecs)
