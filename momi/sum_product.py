@@ -82,7 +82,6 @@ def compute_sfs(demography, config_list, error_matrices=None, min_freqs=1):
     
     return np.squeeze(sfs), normalizing_constant
 
-
 def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
     """
     The expected sum of SFS entries for all configs (as given by
@@ -122,9 +121,9 @@ def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
 
     See Also
     --------
-    expected_sfs_tensor_prod : more general class of summary statistics
-         (of which this function is a special case)
     compute_sfs : individual SFS entries
+    expected_tmrca, expected_deme_tmrca : other interesting statistics
+    expected_sfs_tensor_prod : compute general class of summary statistics
     """
     vecs = [np.ones(demography.n_lineages(l)+1) for l in sorted(demography.leaves)]
 
@@ -154,7 +153,61 @@ def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
 
     return total - np.sum(expected_sfs_tensor_prod(vecs, demography))
 
-        
+def expected_tmrca(demography):
+    """
+    The expected time to most recent common ancestor of the sample,
+    in ms-scaled units.
+
+    Parameters
+    ----------
+    demography : Demography
+         object returned by make_demography
+
+    Returns
+    -------
+    tmrca : float-like
+
+    See Also
+    --------
+    expected_deme_tmrca : tmrca of subsample within a deme
+    expected_sfs_tensor_prod : compute general class of summary statistics
+    """
+    vecs = [np.ones(demography.n_lineages(l)+1) for l in sorted(demography.leaves)]
+    n0 = len(vecs[0])-1
+    vecs[0] = np.arange(n0+1) / n0
+    return expected_sfs_tensor_prod(vecs, demography)
+
+def expected_deme_tmrca(demography, deme_ms_label):
+    """
+    The expected time to most recent common ancestor, of the samples within
+    a particular deme. Returned time is in ms-scaled units.
+
+    Parameters
+    ----------
+    demography : Demography
+         object returned by make_demography
+    deme_ms_label : int
+         the deme label in the ms command line
+         NOTE this is indexed starting at 1, not 0!
+
+    Returns
+    -------
+    tmrca : float
+
+    See Also
+    --------
+    expected_tmrca : the tmrca of the whole sample
+    expected_sfs_tensor_prod : compute general class of summary statistics    
+    """
+    vecs = [np.ones(demography.n_lineages(l)+1) for l in sorted(demography.leaves)]
+
+    i = deme_ms_label - 1 # ms demes indexed starting at 1
+    n = len(vecs[i])-1
+    vecs[i] = np.arange(n+1) / n
+    vecs[i][-1] = 0.0
+    
+    return expected_sfs_tensor_prod(vecs, demography)
+
 def expected_sfs_tensor_prod(vecs, demography):
     """
     Viewing the SFS as a D-tensor (where D is the number of demes), this
@@ -187,7 +240,8 @@ def expected_sfs_tensor_prod(vecs, demography):
     --------
     sfs_tensor_prod : compute the same summary statistics for a specific SFS
     compute_sfs : compute individual SFS entries
-    expected_total_branch_len : a summary statistic that uses this function
+    expected_total_branch_len, expected_tmrca, expected_deme_tmrca : 
+         examples of coalescent statistics that use this function
     """
     leaf_states = dict(zip(sorted(demography.leaves), vecs))
     
@@ -212,12 +266,6 @@ def expected_sfs_tensor_prod(vecs, demography):
     # remove monomorphic states
     res = res[2:]
     return res
-
-def _apply_error_matrices(vecs, error_matrices):
-    if not all([np.allclose(np.sum(err, axis=0), 1.0) for err in error_matrices]):
-        raise Exception("Columns of error matrix should sum to 1")
-    
-    return [np.dot(v, err) for v,err in zip(vecs, error_matrices)]
 
 def _partial_likelihood(leaf_states, G, event, non_neg, is_prob):
     ''' 
@@ -363,10 +411,15 @@ def _merge_clusters_likelihood(leaf_states, G, event, non_neg, is_prob):
         sfs = sfs + freq * np.squeeze(other_lik[[slice(None)] + [0] * (other_lik.ndim-1)])
     return lik, sfs
 
-
 def _check_liks(lik, sfs, non_neg, is_prob):
     if non_neg:
         assert np.all(lik >= 0.0) and np.all(sfs >= 0.0)
 
     if is_prob:
         assert np.all(np.logical_or(lik <= 1.0, np.isclose(lik, 1.0)))
+
+def _apply_error_matrices(vecs, error_matrices):
+    if not all([np.allclose(np.sum(err, axis=0), 1.0) for err in error_matrices]):
+        raise Exception("Columns of error matrix should sum to 1")
+    
+    return [np.dot(v, err) for v,err in zip(vecs, error_matrices)]

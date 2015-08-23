@@ -9,7 +9,7 @@ add verbose option to unlinked_mle_search1 and unlinked_mle_search2
 rewrite example_inference.py
 functions to compute marginal p-values and Wald tests. (include these in See Also of composite_mle_approx_covariance)
 
-rename files (likelihood_surace.py should just be likelihood.py)
+rename files (likelihood_surace.py should just be likelihood.py, sum_product should be compute_sfs.py)
 
 fix installation scripts
 make scikit-tensor dependency optional?
@@ -20,4 +20,4 @@ clean up tensor.py
 
 make sure expected_sfs works for just a single config
 
-functions for expected_tmrca, expected_deme_tmrca
+reorganize tests; in particular have some utility functions for creating demographies, and other useful things for many tests
