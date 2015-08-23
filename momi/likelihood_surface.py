@@ -3,7 +3,7 @@ from util import make_constant, check_symmetric, make_function
 from autograd import hessian, grad, hessian_vector_product, jacobian
 import autograd.numpy as np
 import scipy
-from sum_product import compute_sfs
+from sum_product import compute_sfs, expected_total_branch_len
 from math_functions import einsum2
 
 def unlinked_log_likelihood(sfs, demo, theta, adjust_probs = 0.0, **kwargs):
@@ -301,7 +301,7 @@ def unlinked_log_lik_vector(sfs_list, demo, theta, adjust_probs = 0.0, **kwargs)
 
     # get the expected counts for each config
     E_counts, E_total = compute_sfs(demo, config_list, **kwargs)
-
+    
     # a function to return the log factorial
     lnfact = lambda x: scipy.special.gammaln(x+1)
 

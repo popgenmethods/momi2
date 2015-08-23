@@ -6,7 +6,7 @@ from demography import Demography
 from size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 from util import default_ms_path
 
-from autograd.numpy import isnan, exp,min
+from autograd.numpy import isnan, exp
 
 import random
 import subprocess

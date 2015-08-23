@@ -43,6 +43,12 @@ def test_admixture_demo_normalization():
     check_demo_normalization(demo)
 
 def test_tree_demo_errors_normalization():
+    check_tree_demo_errors_normalization([1,2,3])
+
+def test_tree_demo_errors_normalization2():
+    check_tree_demo_errors_normalization(1)    
+    
+def check_tree_demo_errors_normalization(min_freqs):
     lins_per_pop=10
     num_leaf_pops=3
 
@@ -50,4 +56,4 @@ def test_tree_demo_errors_normalization():
     error_matrices = [np.einsum('ij,j->ij', x, 1./np.sum(x, axis=0)) for x in error_matrices]
 
     demo = random_tree_demo(num_leaf_pops, lins_per_pop)
-    check_demo_normalization(demo, error_matrices=error_matrices, min_freqs=[1,2,3])
+    check_demo_normalization(demo, error_matrices=error_matrices, min_freqs=min_freqs)
