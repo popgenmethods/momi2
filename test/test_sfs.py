@@ -1,6 +1,6 @@
 from __future__ import division
 import pytest
-from momi import make_demography, compute_sfs, sum_sfs_list, simulate_ms, sfs_list_from_ms
+from momi import make_demography, expected_sfs, expected_total_branch_len, sum_sfs_list, simulate_ms, sfs_list_from_ms
 
 from test_sims import simple_admixture_demo
 from test_gradient import simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model
@@ -48,7 +48,7 @@ def compute_stats(demo, sampled_sfs):
     sampled_sfs = to_dict(sampled_sfs)
     agg_sfs = sum_sfs_list(sampled_sfs)
     config_list = tuple(sorted(agg_sfs.keys()))
-    return compute_sfs(demo,config_list)
+    return expected_sfs(demo,config_list), expected_total_branch_len(demo)
 
 def from_dict(sampled_sfs):
     # make it hashable

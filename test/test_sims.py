@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import make_demography, compute_sfs, simulate_ms, sfs_list_from_ms
+from momi import make_demography, expected_sfs, expected_total_branch_len, simulate_ms, sfs_list_from_ms
 import pytest
 import random
 import autograd.numpy as np
@@ -57,7 +57,7 @@ def check_sfs_counts(demo, theta=default_theta, num_ms_samples=default_num_ms_sa
                                 demo.n_at_leaves)
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     
-    sfs_vals,branch_len = compute_sfs(demo, config_list)
+    sfs_vals,branch_len = expected_sfs(demo, config_list), expected_total_branch_len(demo)
     theoretical = sfs_vals * theta
 
     observed = np.zeros((len(config_list), len(sfs_list)))

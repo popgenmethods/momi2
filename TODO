@@ -1,13 +1,10 @@
 write pydocs
 
-rename compute_sfs to expected_sfs
-have branch_len be its own function (rather than returned with compute_sfs)
-remove min_freqs from compute_sfs (but keep it for branch_len function)
-
-add verbose option to unlinked_mle_search1 and unlinked_mle_search2
+rewrite example_sfs.py
 
 rewrite example_inference.py
 functions to compute marginal p-values and Wald tests. (include these in See Also of composite_mle_approx_covariance)
+add verbose option to unlinked_mle_search1 and unlinked_mle_search2
 
 rename files (likelihood_surace.py should just be likelihood.py, sum_product should be compute_sfs.py)
 
@@ -18,6 +15,7 @@ clean up simulate_inference.py
 have simulate_inference use callback instead of f_verbose
 clean up tensor.py
 
-make sure expected_sfs works for just a single config
-
 reorganize tests; in particular have some utility functions for creating demographies, and other useful things for many tests
+also clean up things like log_within(), etc.
+
+write tests for tensor surfaces

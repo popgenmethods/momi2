@@ -1,4 +1,4 @@
-from momi import make_demography, compute_sfs
+from momi import make_demography, expected_sfs, expected_total_branch_len
 import numpy as np
 
 '''
@@ -71,13 +71,13 @@ normalizing_constant = expected total branch length
 All branch lengths are in ms-scaled units, which is off by a factor of 2
 from the more common scaling convention in population genetics.
 '''
-sfs, normalizing_constant = compute_sfs(demo, config_list)
+sfs, normalizing_constant = expected_sfs(demo, config_list), expected_total_branch_len(demo)
 
 '''
 Check that demo2, demo3 indeed give the same SFS
 '''
 for other_demo in (demo2,demo3):
-    other_sfs, other_normalizing_constant = compute_sfs(other_demo, config_list)
+    other_sfs, other_normalizing_constant = expected_sfs(other_demo, config_list), expected_total_branch_len(other_demo)
     assert np.all(sfs == other_sfs) and normalizing_constant == other_normalizing_constant
 
 ## print the SFS now
@@ -97,7 +97,7 @@ Errors & Ascertainment bias
 It is often important to account for errors in observations
 Either because of poor coverage, or because rare mutations are missed entirely
 
-compute_sfs takes in two arguments relating to errors & sampling bias:
+expected_sfs and expected_total_branch_len takes in two arguments relating to errors & sampling bias:
 (1) error_matrices: matrices describing sampling errors in each leaf population. 
                     Assumes independent errors in each leaf population
 (2) min_freqs: ignore SNPs with very low frequencies in all subpopulations.
@@ -106,7 +106,7 @@ Arguments (1),(2) adjust the sfs entries and the normalizing constant to account
 for these errors.
 
 More complex models of error/sampling bias can be handled by using the function
-expected_sfs_tensor_prod directly, instead of the wrapper function compute_sfs.
+expected_sfs_tensor_prod directly, instead of the wrapper function expected_sfs.
 '''
 print "\n\nPrinting SFS with simple linear error model and minimum allele frequency\n"
 
@@ -128,10 +128,7 @@ for leaf in sorted(demo.leaves):
 # to be considered, each allele of SNP must attain frequency >= 3 in leaf pop 1, or frequency >= 1 in leaf pop 2
 min_freqs = [3,1]
 
-sfs, normalizing_constant = compute_sfs(demo, config_list, error_matrices = error_matrix_list, min_freqs = min_freqs)
-
-# note a warning is raised because there is a config that does not attain minimum frequency.
-# its entry is set to 0
+sfs, normalizing_constant = expected_sfs(demo, config_list, error_matrices = error_matrix_list), expected_total_branch_len(demo, error_matrices = error_matrix_list, min_freqs = min_freqs)
 
 print_sfs(config_list, sfs, normalizing_constant)
 

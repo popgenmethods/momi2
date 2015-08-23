@@ -7,85 +7,78 @@ from math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, 
 from autograd.core import primitive
 from autograd import hessian
 
-## TODO: clean up this function!
-## make a separate function that returns the normalization constant, handles min_freqs, etc.
-def compute_sfs(demography, config_list, error_matrices=None, min_freqs=1):
-    '''
-    Returns (sfs,normalizing_constant), where:
-    sfs = array with sfs entry for each config given
-    normalizing_constant = sum of all possible sfs entries
-    i.e.,
-    sfs = expected count of SNP
-    sfs / normalizing_constant = conditional probability of SNP
+def expected_sfs(demography, config_list, normalized=False, error_matrices=None):
+    """
+    Expected sample frequency spectrum (SFS) entries for the specified
+    demography and configs. The expected SFS is the expected number of
+    observed mutations for a configuration when theta=1, or equivalently,
+    the expected branch length (in ms-scaled units) subtending a
+    configuration.
 
-    Inputs are
-    demography: object returned by momi.make_demography()
-    config_list: list of D-tuples of derived counts, 
-                 where D=number of leaf pops in demography
-    error_matrices: list whose length is number of leaf populations
-                    i-th entry is a matrix, with
-                    error_matrices[i][j,k] = P(observe j derived in pop i | k actual derived in pop i)
-                    if None, assume no errors in measure/observation
-    min_freqs: number or array-like whose length is the number of leaf populations
-               only SFS entries where the minor allele attains a minimum frequency in at least one subpopulation
-               are considered; all other SFS entries are assigned 0.
-               This is also reflected in the normalization constant
-    '''
+    Parameters
+    ----------
+    demography : Demography
+         object returned by make_demography
+    config_list : list of tuples
+         list of the configs to compute the SFS entries for.
+         If there are D sampled populations, then each config is
+         represented by a D-tuple (i_1,i_2,...,i_D), where i_j is the
+         number of derived mutants in deme j.
+
+         WARNING: in python, tuples are indexed starting at 0, whereas
+         in ms, populations are indexed starting at 1. So config[j] =
+         the number of derived mutants in the deme labeled j+1.
+    normalized : optional, bool
+         if True, divide the SFS by the expected total branch length.
+         The returned values then represent probabilities, that a given
+         mutation will segregate according to the specified configurations.
+
+    Returns
+    -------
+    sfs : 1d numpy.ndarray
+         sfs[j] is the SFS entry corresponding to config_list[j]
+
+    Other Parameters
+    ----------------
+    error_matrices : optional, sequence of 2-dimensional numpy.ndarray
+         length-D sequence, where D = number of demes in demography.
+         error_matrices[i] describes the sampling error in deme i as:
+
+         error_matrices[i][j,k] = P(observe j mutants in deme i | k mutants in deme i)
+
+         If error_matrices is not None, then the returned value is adjusted
+         to account for this sampling error, in particular the effect it
+         has on the total number of observed mutations.
+
+    See Also
+    --------
+    expected_total_branch_len : sum of all expected SFS entries
+    expected_sfs_tensor_prod : compute summary statistics of SFS
+    """
     data = np.array(config_list, ndmin=2)
     if data.ndim != 2 or data.shape[1] != len(demography.leaves):
         raise IOError("Invalid config_list.")
 
-    n_leaf_lins = np.array([demography.n_lineages(l) for l in demography.leaves])
-    #n = np.sum()
-    #data_rowsums = np.sum(data, axis=1)
-#     if np.any(data_rowsums == n) or np.any(data_rowsums == 0):
-#         raise IOError("Monomorphic sites in config_list.")
-
-    min_freqs = np.array(min_freqs) * np.ones(len(demography.leaves), dtype='i')
-    if np.any(min_freqs < 1) or np.any(min_freqs > n_leaf_lins):
-        raise Exception("Minimum frequencies must be in (0,num_lins] for each leaf pop")
-    max_freqs = n_leaf_lins - min_freqs
-
-    vecs = []
-    for col,leaf in enumerate(sorted(demography.leaves)):
-        n_lins = demography.n_lineages(leaf)
-
-        # an array of the likelihoods at the leaf population
-        cur_lik = np.zeros( (data.shape[0] + 3, n_lins + 1) )
-        cur_lik[0,:] = 1.0 # likelihood of all states
-        cur_lik[1,:(min_freqs[col])] = 1.0 # likelihood of derived not attaining minimum frequency
-        cur_lik[2,(max_freqs[col]+1):] = 1.0 # likelihood of ancestral not attaining minimum frequency
-        cur_lik[zip(*enumerate(data[:,col], start=3))] = 1.0 # likelihoods for config_list
-
-        vecs += [cur_lik]
-
+    # the likelihoods at the leaf populations
+    leaf_liks = [np.zeros((data.shape[0], demography.n_lineages(leaf)+1))
+                 for leaf in sorted(demography.leaves)]
+    for i in range(len(leaf_liks)):
+        leaf_liks[i][zip(*enumerate(data[:,i]))] = 1.0 # likelihoods for config_list
+    
     if error_matrices is not None:
-        vecs = _apply_error_matrices(vecs, error_matrices)
+        leaf_liks = _apply_error_matrices(leaf_liks, error_matrices)
         
-    sfs = expected_sfs_tensor_prod(vecs, demography)
-
-    # extract the normalizing constant
-    normalizing_constant = sfs[0] - sfs[1] - sfs[2]
-    sfs = sfs[3:]
-
-    # set entries not attaining minimum frequency to 0
-    attain_min_freq = np.logical_and(np.sum(data >= min_freqs, axis=1) > 0, # at least one entry above min_freqs
-                                     np.sum(data <= max_freqs, axis=1) > 0 # at least one entry below max_freqs
-                                     )
-    if not np.all(attain_min_freq):
-        warnings.warn("Entries that do not attain minimum minor allele frequency are set to 0.")
-        sfs = set0(sfs, np.logical_not(attain_min_freq))
-
-    assert normalizing_constant >= 0.0 and np.all(sfs >= 0.0) and np.all(sfs <= normalizing_constant)
-    
-    assert normalizing_constant == expected_total_branch_len(demography, error_matrices, min_freqs)
-    
-    return np.squeeze(sfs), normalizing_constant
+    sfs = expected_sfs_tensor_prod(leaf_liks, demography)
+    assert np.all(sfs >= 0.0)
+    if normalized:
+        sfs = sfs / expected_total_branch_len(demography, error_matrices=error_matrices)
+        
+    return sfs
 
 def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
     """
     The expected sum of SFS entries for all configs (as given by
-    compute_sfs). Equivalently, the expected number of observed mutations
+    expected_sfs). Equivalently, the expected number of observed mutations
     when theta=1, or the expected total branch length of the sample
     genealogy (in ms-scaled units).
 
@@ -121,7 +114,7 @@ def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
 
     See Also
     --------
-    compute_sfs : individual SFS entries
+    expected_sfs : individual SFS entries
     expected_tmrca, expected_deme_tmrca : other interesting statistics
     expected_sfs_tensor_prod : compute general class of summary statistics
     """
@@ -217,7 +210,7 @@ def expected_sfs_tensor_prod(vecs, demography):
     res[j] = \sum_{(i0,i1,...)} E[sfs[(i0,i1,...)]] * vecs[0][j,i0] * vecs[1][j, i1] * ...
 
     where E[sfs[(i0,i1,...)]] is the expected SFS entry for config
-    (i0,i1,...), as given by compute_sfs
+    (i0,i1,...), as given by expected_sfs
 
     Parameters
     ----------
@@ -239,7 +232,7 @@ def expected_sfs_tensor_prod(vecs, demography):
     See Also
     --------
     sfs_tensor_prod : compute the same summary statistics for a specific SFS
-    compute_sfs : compute individual SFS entries
+    expected_sfs : compute individual SFS entries
     expected_total_branch_len, expected_tmrca, expected_deme_tmrca : 
          examples of coalescent statistics that use this function
     """

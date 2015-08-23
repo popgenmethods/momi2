@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import make_demography, compute_sfs, expected_sfs_tensor_prod, get_sfs_tensor, sfs_tensor_prod
+from momi import make_demography, expected_sfs, expected_sfs_tensor_prod, get_sfs_tensor, sfs_tensor_prod
 import pytest
 import random
 import autograd.numpy as np
@@ -15,7 +15,7 @@ def check_random_tensor(demo, *args, **kwargs):
     ranges = [range(demo.n_lineages(l)+1) for l in demo.leaves]
 
     config_list = list(itertools.product(*ranges))
-    sfs,_ = compute_sfs(demo, config_list, *args, **kwargs)
+    sfs = expected_sfs(demo, config_list, *args, **kwargs)
 
     tensor_components = [np.random.normal(size=(1,demo.n_lineages(l)+1)) for l in demo.leaves]
     #tensor_components_list = tuple(v[0,:] for _,v in sorted(tensor_components.iteritems()))

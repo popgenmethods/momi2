@@ -5,7 +5,6 @@ from math_functions import einsum2, sum_antidiagonals, convolve_axes
 import scipy, scipy.misc
 import autograd.numpy as np
 
-from sum_product import compute_sfs
 import os, itertools
 
 class Demography(nx.DiGraph):

@@ -10,7 +10,7 @@ import random
 from numdifftools import Gradient, Hessian
 from test_sims import simple_admixture_demo
 
-from momi import make_demography, compute_sfs
+from momi import make_demography, expected_sfs, expected_total_branch_len
 
 EPS=1e-8
 
@@ -119,10 +119,10 @@ def sfs_func(demo_func, n_lins, normalized=True):
     def f(x):
         demo = demo_func(x, n_lins)
         #print demo.graph['cmd']
-        sfs, branch_len = compute_sfs(demo,states)
+        sfs, branch_len = expected_sfs(demo,states), expected_total_branch_len(demo)
         if normalized:
-            return sfs/branch_len
-        return sfs
+            return np.squeeze(sfs/branch_len)
+        return np.squeeze(sfs)
     return f
 
 def test_admixture():

@@ -3,20 +3,27 @@ from util import make_constant, check_symmetric, make_function
 from autograd import hessian, grad, hessian_vector_product, jacobian
 import autograd.numpy as np
 import scipy
-from sum_product import compute_sfs, expected_total_branch_len
+from sum_product import expected_sfs, expected_total_branch_len
 from math_functions import einsum2
 
 def unlinked_log_likelihood(sfs, demo, theta, adjust_probs = 0.0, **kwargs):
     """
     Compute the log likelihood for a collection of SNPs, assuming they are
-    unlinked (independent). Calls compute_sfs to compute the individual SFS
+    unlinked (independent). Calls expected_sfs to compute the individual SFS
     entries.
     
     Parameters
     ----------
     sfs : dict
-        maps configs (tuples) to their observed counts (ints or floats)
-        See compute_sfs for additional details
+        maps configs (tuples) to their observed counts (ints or floats).
+
+        If there are D sampled populations, then each config is
+        represented by a D-tuple (i_1,i_2,...,i_D), where i_j is the
+        number of derived mutants in deme j.
+
+        WARNING: in python, tuples are indexed starting at 0, whereas
+        in ms, populations are indexed starting at 1. So config[j] =
+        the number of derived mutants in the deme labeled j+1.
     demo : Demography
         object created using the function make_demography
     theta : float or None
@@ -40,12 +47,12 @@ def unlinked_log_likelihood(sfs, demo, theta, adjust_probs = 0.0, **kwargs):
         potential numerical underflow errors, and can improve parameter
         search behavior, especially in regions of very low likelihood.
     **kwargs : optional
-        Additional optional arguments to be passed to compute_sfs
+        Additional optional arguments to be passed to expected_sfs
         (e.g. error_matrices)
 
     See Also
     --------
-    compute_sfs : compute SFS of individual entries
+    expected_sfs : compute SFS of individual entries
     unlinked_log_lik_vector : efficiently compute log-likelihoods for each
                               of several loci
     """
@@ -70,7 +77,7 @@ def unlinked_mle_search1(sfs, demo_func, theta, start_params, bounds, sfs_kwargs
     ----------
     sfs : dict
         maps configs (tuples) to their observed counts (ints or floats)
-        See compute_sfs for additional details
+        See unlinked_log_likelihood for details
     demo_func : function
         a function returning a valid demography object (as created by
         make_demography) for every parameter value within bounds
@@ -144,7 +151,7 @@ def unlinked_mle_search2(sfs, demo_func, theta, start_params, sfs_kwargs = {}, a
     ----------
     sfs : dict
         maps configs (tuples) to their observed counts (ints or floats)
-        See compute_sfs for additional details
+        See unlinked_log_likelihood for additional details
     demo_func : function
         a function returning a valid demography object (as created by
         make_demography) for every parameter value within R^p, where
@@ -277,7 +284,7 @@ def unlinked_log_lik_vector(sfs_list, demo, theta, adjust_probs = 0.0, **kwargs)
     adjust_probs : float, optional
         See unlinked_log_likelihood for description.
     **kwargs : optional
-        Additional optional arguments to be passed to compute_sfs
+        Additional optional arguments to be passed to expected_sfs
         (e.g. error_matrices)
 
 
@@ -300,7 +307,8 @@ def unlinked_log_lik_vector(sfs_list, demo, theta, adjust_probs = 0.0, **kwargs)
     counts_i = np.einsum('ij->i',counts_ij)
 
     # get the expected counts for each config
-    E_counts, E_total = compute_sfs(demo, config_list, **kwargs)
+    E_counts = expected_sfs(demo, config_list, **kwargs)
+    E_total = expected_total_branch_len(demo, **kwargs)
     
     # a function to return the log factorial
     lnfact = lambda x: scipy.special.gammaln(x+1)
@@ -333,7 +341,7 @@ def unlinked_mle_search(sfs, demo_func, theta, start_params, derivs = ['jac'], o
     ----------
     sfs : dict
         maps configs (tuples) to their observed counts (ints or floats)
-        See compute_sfs for additional details
+        See unlinked_log_likelihood for details
     demo_func : function
         a function returning a valid demography object (as created by
         make_demography) for every parameter value within R^p, where

@@ -5,7 +5,7 @@ import autograd.numpy as np
 from autograd.numpy import sum
 from autograd import grad, hessian_vector_product
 
-from momi import compute_sfs, make_demography, simulate_ms, sfs_list_from_ms, sum_sfs_list
+from momi import make_demography, simulate_ms, sfs_list_from_ms, sum_sfs_list
 from momi import unlinked_log_likelihood
 #from momi.likelihood_surface import unlinked_mle_search1
 from momi.likelihood_surface import unlinked_mle_search2
