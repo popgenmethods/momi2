@@ -2,7 +2,7 @@ from __future__ import division
 import bisect
 import networkx as nx
 
-from demography import Demography
+from demography import Demography, demo_from_ms_cmd
 from size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 from util import default_ms_path
 
@@ -20,7 +20,8 @@ def make_demography(ms_cmd, *args, **kwargs):
 
     See examples/example_sfs.py for more details
     '''
-    return Demography(_to_nx(ms_cmd, *args, **kwargs))
+    #return Demography(_to_nx(ms_cmd, *args, **kwargs))
+    return demo_from_ms_cmd(ms_cmd, *args, **kwargs)
 
 def sfs_list_from_ms(ms_file, n_at_leaves):
     '''
@@ -118,17 +119,17 @@ class MsCmdParser(object):
             self.params_dict[str(i)] = x
 
         self.events,self.edges,self.nodes = [],[],{}
-        # roots is the set of nodes currently at the root of the graph
+        # roots is the set of nodes currently at the root of the graph, as we build it up
         self.roots = {}
         self.prev_time = 0.0
-        self.cmd_list = []
+        #self.cmd_list = []
 
     def add_event(self, event_flag, *args):
         args = getattr(self, '_' + event_flag)(*args)
         t = self.get_time(event_flag, *args)
         assert t >= self.prev_time
         self.prev_time = t
-        self.cmd_list.append("-%s %s" % (event_flag, " ".join(map(str,args))))
+        #self.cmd_list.append("-%s %s" % (event_flag, " ".join(map(str,args))))
 
     def sort_cmd_add_pops(self, unsorted_cmd):
         '''Sort the cmd and store the ordering of the populations'''
@@ -335,8 +336,9 @@ class MsCmdParser(object):
         node, = self.roots
         self.set_sizes(self.nodes[node], float('inf'))
 
-        cmd = " ".join(self.cmd_list)
-        ret = nx.DiGraph(self.edges, cmd=cmd, events=self.events)
+        #cmd = " ".join(self.cmd_list)
+        #ret = nx.DiGraph(self.edges, cmd=cmd, events=self.events)
+        ret = nx.DiGraph(self.edges, events=self.events)
         for v in self.nodes:
             ret.add_node(v, **(self.nodes[v]))
         return ret

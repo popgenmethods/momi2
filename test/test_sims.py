@@ -51,7 +51,7 @@ def test_tree_demo_4():
 
 
 def check_sfs_counts(demo, theta=default_theta, num_ms_samples=default_num_ms_samples):
-    print demo.graph['cmd']
+    print demo.ms_cmd
 
     sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, theta=theta),
                                 demo.n_at_leaves)

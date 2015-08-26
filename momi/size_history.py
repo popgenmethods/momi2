@@ -59,6 +59,9 @@ class ConstantHistory(SizeHistory):
         ret = num / denom
         return ret
 
+    def ms_cmd(self, pop_id, start_time):
+        return "-en %f %d %f" % (start_time, pop_id, self.N)
+    
 class ExponentialHistory(SizeHistory):
     def __init__(self, tau, growth_rate, N_bottom):
         if tau == float('inf'):
@@ -82,6 +85,9 @@ class ExponentialHistory(SizeHistory):
 
         return ret
 
+    def ms_cmd(self, pop_id, start_time):
+        return "-en %f %d %f -eg %f %d %f" % (start_time, pop_id, self.N_bottom, start_time, pop_id, self.growth_rate)
+
 class PiecewiseHistory(SizeHistory):
     def __init__(self, pieces):
         tau = sum([p.tau for p in pieces])
@@ -102,6 +108,14 @@ class PiecewiseHistory(SizeHistory):
                 assert pop is self.pieces[-1]
         return ret
 
+    def ms_cmd(self, pop_id, start_time):
+        curr = start_time
+        ret = []
+        for pop in self.pieces:
+            ret += [pop.ms_cmd(pop_id, curr)]
+            curr += pop.tau
+        return " ".join(ret)
+    
 @memoize
 def W(n, b, j):
     if j == 2:

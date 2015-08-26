@@ -170,7 +170,7 @@ def expected_tmrca(demography):
     vecs[0] = np.arange(n0+1) / n0
     return expected_sfs_tensor_prod(vecs, demography)
 
-def expected_deme_tmrca(demography, deme_ms_label):
+def expected_deme_tmrca(demography, deme):
     """
     The expected time to most recent common ancestor, of the samples within
     a particular deme. Returned time is in ms-scaled units.
@@ -179,9 +179,8 @@ def expected_deme_tmrca(demography, deme_ms_label):
     ----------
     demography : Demography
          object returned by make_demography
-    deme_ms_label : int
-         the deme label in the ms command line
-         NOTE this is indexed starting at 1, not 0!
+    deme : int
+         the deme
 
     Returns
     -------
@@ -194,10 +193,9 @@ def expected_deme_tmrca(demography, deme_ms_label):
     """
     vecs = [np.ones(demography.n_lineages(l)+1) for l in sorted(demography.leaves)]
 
-    i = deme_ms_label - 1 # ms demes indexed starting at 1
-    n = len(vecs[i])-1
-    vecs[i] = np.arange(n+1) / n
-    vecs[i][-1] = 0.0
+    n = len(vecs[deme])-1
+    vecs[deme] = np.arange(n+1) / n
+    vecs[deme][-1] = 0.0
     
     return expected_sfs_tensor_prod(vecs, demography)
 
