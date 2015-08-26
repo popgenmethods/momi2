@@ -1,24 +1,11 @@
 write pydocs
 
-write a new make_demography, that uses standard coalescent scaling and populations indexed by 0
-# new format will have following options:
-# -s (== -es), -j (== -ej), -n (== -en), -g (== -en)
-# -g t * == -eG t, -n t * == -eN t
-# -N == default population size
-# -D == -I
-make everything internally use standard coalescent scaling
-keep old make_demography as make_demography_ms
-# Steps:
-# make some tests use ms command line to simulate directly, to make sure demography_from_ms is correct
-# have function that takes ms command line, sorts it by time, replaces flag names, then pass it on to new make_demography, with options to scale_time=2.0 and add_pop_idx=1
+change time scaling back to coalescent scaling (use option scale_time=2.0 in make_ms_demography)
 
-in the meantime, if the above new make_demography is too much:
-# just rename old make_demography to make_demography_ms
-# change to coalescent scaling; change leaf indexing to 0-based
-# in documentation/tutorial, note deficiencies of make_demography_ms,
-# note new make_demography format is upcoming
+rename make_demography to demo_from_ms, and replace most calls to it to use the new format
 
 rewrite example_sfs.py
+make sure to check str(demo) returns something that looks like the original ms cmd (in terms of indexing and flags after -es)
 
 rewrite example_inference.py
 functions to compute marginal p-values and Wald tests. (include these in See Also of composite_mle_approx_covariance)

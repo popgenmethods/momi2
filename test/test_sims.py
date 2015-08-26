@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import make_demography, expected_sfs, expected_total_branch_len, simulate_ms, sfs_list_from_ms
+from momi import make_demography, expected_sfs, expected_total_branch_len, simulate_ms, sfs_list_from_ms, run_ms
 import pytest
 import random
 import autograd.numpy as np
@@ -7,37 +7,32 @@ import scipy, scipy.stats
 import itertools
 import sys
 
-default_theta = 10.0
-default_num_ms_samples = 1000
-
 def simple_admixture_demo(x, n_lins):
     t = np.cumsum(np.exp(x[:5]))
-    #for i in range(1,len(t)):
-    #    t[i] += t[i-1]
     p = 1.0 / (1.0 + np.exp(x[5:]))
     return make_demography("-I 2 %d %d -es $2 2 $3 -es $0 2 $1 -ej $4 #3 #4 -ej $t3 #4 1 -ej $t4 2 1" % (n_lins['1'], n_lins['2']), 
                            t[0], p[0], t[1], p[1], t[2], t3=t[3], t4=t[4])
 
 def test_admixture():
-    n = {'1':5,'2':5}
-    check_sfs_counts(simple_admixture_demo(np.random.normal(size=7),n))
+    x = np.random.normal(size=7)
+    t = np.cumsum(np.exp(x[:5]))
+    p = 1.0 / (1.0 + np.exp(x[5:]))
+
+    ms_cmd = "-I 2 5 5 -es %f 2 %f -es %f 2 %f -ej %f 3 4 -ej %f 4 1 -ej %f 2 1" % (t[0], p[0], t[1], p[1], t[2], t[3], t[4])
+    check_sfs_counts(ms_cmd)
 
 def test_exp_growth():
     n = 10
     growth_rate = random.uniform(-50,50)
     N_bottom = random.uniform(0.1,10.0)
     tau = .01
-    demo = make_demography("-I 1 %d -G $0 -eG $1 0.0" % n,
-                           growth_rate,
-                           tau)
-    check_sfs_counts(demo)
+    demo_cmd = "-I 1 %d -G %f -eG %f 0.0" % (n, growth_rate, tau)
+    check_sfs_counts(demo_cmd)
 
 
 def test_tree_demo_2():
-    n = [4,4]
-    demo = make_demography("-I %d %s -ej $0 2 1" % (len(n), " ".join(map(str,n))), 
-                           2 * np.random.random() + 0.1)
-    check_sfs_counts(demo)
+    demo_cmd = "-I 2 4 4 -ej %f 2 1" % (2 * np.random.random() + 0.1,)
+    check_sfs_counts(demo_cmd)
 
 def test_tree_demo_4():
     n = [2,2,2,2]
@@ -46,15 +41,22 @@ def test_tree_demo_4():
     for i in range(1,len(times)):
         times[i] += times[i-1]
 
-    demo = make_demography("-I %d %s -ej $0 2 1 -ej $1 3 1 -ej $2 4 1" % (len(n), " ".join(map(str,n))), *times)
-    check_sfs_counts(demo)
+    demo_cmd = "-I %d %s -ej %f 2 1 -ej %f 3 1 -ej %f 4 1" % tuple([len(n), " ".join(map(str,n))] + list(times))
+    check_sfs_counts(demo_cmd)
 
 
-def check_sfs_counts(demo, theta=default_theta, num_ms_samples=default_num_ms_samples):
-    print demo.ms_cmd
+def check_sfs_counts(demo_ms_cmd, theta=10.0, num_ms_samples=1000):
+    demo = make_demography(demo_ms_cmd)
+    n = sum(demo.n_at_leaves)
 
-    sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, theta=theta),
-                                demo.n_at_leaves)
+    ms_cmd = "%d %d -t %f %s -seed %s" % (n, num_ms_samples, theta, demo_ms_cmd,
+                                          " ".join([str(random.randint(0,999999999))
+                                                    for _ in range(3)]))
+    
+    sfs_list = sfs_list_from_ms(run_ms(ms_cmd), demo.n_at_leaves)
+    #sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, theta=theta),
+    #                            demo.n_at_leaves)
+    
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     
     sfs_vals,branch_len = expected_sfs(demo, config_list), expected_total_branch_len(demo)

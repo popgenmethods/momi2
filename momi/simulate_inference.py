@@ -51,7 +51,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     
     true_demo = demo_func_ms(**true_ms_params)
     myprint("# True demography:")
-    myprint(true_demo.ms_cmd)
+    myprint(true_demo)
     
     myprint("# Simulating %d unlinked loci" % num_loci)
     ## ms_output = file object containing the ms output
@@ -112,7 +112,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
         return hp(params, v)
 
     myprint("# Start demography:")
-    myprint(demo_func_ms(**transform_params(init_opt_params)).ms_cmd)
+    myprint(demo_func_ms(**transform_params(init_opt_params)))
     myprint("# Performing optimization.")
 
     def print_basinhopping(x,f,accepted):

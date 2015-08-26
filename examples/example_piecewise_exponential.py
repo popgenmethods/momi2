@@ -31,7 +31,7 @@ def main(sfs_file, n_epochs):
     theta_list = [avg_pairwise_differences(sfs) for sfs in sfs_list]
     x, fx = infer_params(sfs_list, theta_list, n_epochs)
     print fx
-    print piecewise_exponential_demo(x).ms_cmd
+    print piecewise_exponential_demo(x)
 
 def read_data(filename):
     '''
