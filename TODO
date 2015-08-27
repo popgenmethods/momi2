@@ -11,6 +11,9 @@ rewrite example_inference.py
 functions to compute marginal p-values and Wald tests. (include these in See Also of composite_mle_approx_covariance)
 add verbose option to unlinked_mle_search1 and unlinked_mle_search2
 
+write unlinked_mle_search0 that doesn't use derivatives (for demo functions that are not differentiable)
+in comments for unlinked_mle_search1,2, note that the function must only use operations that are differentiable by autograd!
+
 rename files (likelihood_surace.py should just be likelihood.py, sum_product should be compute_sfs.py)
 
 fix installation scripts
@@ -22,5 +25,5 @@ clean up tensor.py
 
 reorganize tests; in particular have some utility functions for creating demographies, and other useful things for many tests
 also clean up things like log_within(), etc.
-
+rename test_sims to test_ms?
 write tests for tensor surfaces

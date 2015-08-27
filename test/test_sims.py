@@ -13,28 +13,28 @@ def simple_admixture_demo(x, n_lins):
     return make_demography("-I 2 %d %d -es $2 2 $3 -es $0 2 $1 -ej $4 #3 #4 -ej $t3 #4 1 -ej $t4 2 1" % (n_lins['1'], n_lins['2']), 
                            t[0], p[0], t[1], p[1], t[2], t3=t[3], t4=t[4])
 
-def test_admixture():
+def admixture_demo_str():
     x = np.random.normal(size=7)
     t = np.cumsum(np.exp(x[:5]))
     p = 1.0 / (1.0 + np.exp(x[5:]))
 
     ms_cmd = "-I 2 5 5 -es %f 2 %f -es %f 2 %f -ej %f 3 4 -ej %f 4 1 -ej %f 2 1" % (t[0], p[0], t[1], p[1], t[2], t[3], t[4])
-    check_sfs_counts(ms_cmd)
-
-def test_exp_growth():
+    return ms_cmd
+    
+def exp_growth_str():
     n = 10
     growth_rate = random.uniform(-50,50)
     N_bottom = random.uniform(0.1,10.0)
     tau = .01
     demo_cmd = "-I 1 %d -G %f -eG %f 0.0" % (n, growth_rate, tau)
-    check_sfs_counts(demo_cmd)
+    return demo_cmd
 
 
-def test_tree_demo_2():
+def tree_demo_2_str():
     demo_cmd = "-I 2 4 4 -ej %f 2 1" % (2 * np.random.random() + 0.1,)
-    check_sfs_counts(demo_cmd)
+    return demo_cmd
 
-def test_tree_demo_4():
+def tree_demo_4_str():
     n = [2,2,2,2]
 
     times = np.random.random(len(n)-1) * 2.0 + 0.1
@@ -42,20 +42,39 @@ def test_tree_demo_4():
         times[i] += times[i-1]
 
     demo_cmd = "-I %d %s -ej %f 2 1 -ej %f 3 1 -ej %f 4 1" % tuple([len(n), " ".join(map(str,n))] + list(times))
-    check_sfs_counts(demo_cmd)
+    return demo_cmd
+
+demo_funcs = (admixture_demo_str, exp_growth_str, tree_demo_2_str, tree_demo_4_str)
+demo_funcs = {f.__name__ : f for f in demo_funcs}
+
+@pytest.mark.parametrize("k", 
+                         demo_funcs.keys())
+def test_sfs_counts1(k):
+    """Test to make sure converting ms cmd to momi demography works"""
+    check_sfs_counts(demo_ms_cmd=demo_funcs[k]())
+
+@pytest.mark.parametrize("k", 
+                         demo_funcs.keys())    
+def test_sfs_counts2(k):
+    """Test to make sure converting momi demography to ms cmd works"""
+    check_sfs_counts(demo=make_demography(demo_funcs[k]()))
 
 
-def check_sfs_counts(demo_ms_cmd, theta=10.0, num_ms_samples=1000):
-    demo = make_demography(demo_ms_cmd)
-    n = sum(demo.n_at_leaves)
+def check_sfs_counts(demo_ms_cmd=None, demo=None, theta=10.0, num_ms_samples=1000):
+    assert (demo_ms_cmd is None) != (demo is None)
 
-    ms_cmd = "%d %d -t %f %s -seed %s" % (n, num_ms_samples, theta, demo_ms_cmd,
-                                          " ".join([str(random.randint(0,999999999))
-                                                    for _ in range(3)]))
-    
-    sfs_list = sfs_list_from_ms(run_ms(ms_cmd), demo.n_at_leaves)
-    #sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, theta=theta),
-    #                            demo.n_at_leaves)
+    if demo is None:
+        demo = make_demography(demo_ms_cmd)
+        n = sum(demo.n_at_leaves)
+
+        ms_cmd = "%d %d -t %f %s -seed %s" % (n, num_ms_samples, theta, demo_ms_cmd,
+                                              " ".join([str(random.randint(0,999999999))
+                                                        for _ in range(3)]))
+
+        sfs_list = sfs_list_from_ms(run_ms(ms_cmd), demo.n_at_leaves)
+    elif demo_ms_cmd is None:        
+        sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, theta=theta),
+                                    demo.n_at_leaves)
     
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     
