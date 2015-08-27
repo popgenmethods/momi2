@@ -1,7 +1,10 @@
 write pydocs
-write docstrings for parse_ms
+write docstrings for parse_ms, demography, __init__
+
+change demo format to use mu and growth_rate, instead of theta and 2*growth_rate
 
 rename make_demography to demo_from_ms, and replace most calls to it to use the new format
+remove # symbol from ms command lines
 
 rewrite example_sfs.py
 make sure to check str(demo) returns something that looks like the original ms cmd (in terms of indexing and flags after -es)
