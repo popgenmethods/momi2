@@ -27,9 +27,9 @@ def unlinked_log_likelihood(sfs, demo, theta, adjust_probs = 0.0, **kwargs):
     demo : Demography
         object created using the function make_demography
     theta : float or None
-        The mutation rate. If None, the number of SNPs is assumed to be
+        theta/2 = mutation rate. If None, the number of SNPs is assumed to be
         fixed and a multinomial distribution is used. Otherwise the number
-        of SNPs is assumed to be Poisson with parameter theta*E[branch_len]
+        of SNPs is assumed to be Poisson with parameter (theta/2)*E[branch_len]
 
     Returns
     -------
@@ -82,10 +82,10 @@ def unlinked_mle_search1(sfs, demo_func, theta, start_params, bounds, sfs_kwargs
         a function returning a valid demography object (as created by
         make_demography) for every parameter value within bounds
     theta : None or float or function
-        The mutation rate, or a function that takes in the parameters
-        and returns the mutation rate. If None, uses a multinomial
-        distribution; if a float, uses a Poisson random field. See
-        unlinked_log_likelihood for additional details.
+        theta/2 = mutation rate. If None, uses a multinomial
+        distribution; if a float, uses a Poisson random field.
+        Can also be a function that takes in parameters and returns 
+        theta.  See unlinked_log_likelihood for additional details.
     start_params : numpy.ndarray
         The starting point for the parameter search.
     bounds : list of tuples
@@ -157,10 +157,10 @@ def unlinked_mle_search2(sfs, demo_func, theta, start_params, sfs_kwargs = {}, a
         make_demography) for every parameter value within R^p, where
         p is the number of parameters.
     theta : None or float or function
-        The mutation rate, or a function that takes in the parameters
-        and returns the mutation rate. If None, uses a multinomial
-        distribution; if a float, uses a Poisson random field. See
-        unlinked_log_likelihood for additional details.
+        theta/2 = mutation rate. If None, uses a multinomial
+        distribution; if a float, uses a Poisson random field.
+        Can also be a function that takes in parameters and returns 
+        theta.  See unlinked_log_likelihood for additional details.
     start_params : numpy.ndarray
         The starting point for the parameter search.
 
@@ -223,10 +223,11 @@ def composite_mle_approx_covariance(params, sfs_list, demo_func, theta):
          expectations accurately.
     demo_func : function
          Function that maps parameter values to demographies
-    theta : function or numpy.ndarray or float or None
-         The mutation rate at each locus, or a function mapping parameters
-         to the mutation rates, or None (if using multinomial instead of
-         Poisson).
+    theta : None or float or function
+        theta/2 = mutation rate. If None, uses a multinomial
+        distribution; if a float, uses a Poisson random field.
+        Can also be a function that takes in parameters and returns 
+        theta.  See unlinked_log_likelihood for additional details.
     """    
     theta = make_function(theta)
         
@@ -267,10 +268,10 @@ def unlinked_log_lik_vector(sfs_list, demo, theta, adjust_probs = 0.0, **kwargs)
     demo : Demography
         object created using the function make_demography
     theta : float or numpy.ndarray or None
-        The mutation rate. If None, the number of SNPs is assumed to be
-        fixed and a multinomial distribution is used. If a numpy.ndarray,
-        the number of SNPs at locus i is assumed to be Poisson with
-        parameter theta[i]*E[branch_len]. If a float, the mutation rate at
+        theta/2 = mutation rate. If None, the number of SNPs is assumed to be
+        fixed and a multinomial distribution is used. Otherwise the number
+        of SNPs at locus i is assumed to be Poisson with parameter 
+        (theta[i]/2)*E[branch_len]. If a float, the mutation rate at
         all loci are assumed to be equal.
 
     Returns
@@ -317,7 +318,7 @@ def unlinked_log_lik_vector(sfs_list, demo, theta, adjust_probs = 0.0, **kwargs)
     log_lik = np.dot(counts_ij, np.log(E_counts/ E_total + adjust_probs)) - np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
     # add on log likelihood of poisson distribution for total number of SNPs
     if theta is not None:
-        lambd = theta * E_total
+        lambd = theta/2. * E_total
         log_lik = log_lik - lambd + counts_i * np.log(lambd) - lnfact(counts_i)
 
     return log_lik
@@ -347,10 +348,10 @@ def unlinked_mle_search(sfs, demo_func, theta, start_params, derivs = ['jac'], o
         make_demography) for every parameter value within R^p, where
         p is the number of parameters.
     theta : None or float or function
-        The mutation rate, or a function that takes in the parameters
-        and returns the mutation rate. If None, uses a multinomial
-        distribution; if a float, uses a Poisson random field. See
-        unlinked_log_likelihood for additional details.
+        theta/2 = mutation rate. If None, uses a multinomial
+        distribution; if a float, uses a Poisson random field.
+        Can also be a function that takes in parameters and returns 
+        theta.  See unlinked_log_likelihood for additional details.
     start_params : numpy.ndarray
         The starting point for the parameter search.
     derivs : collection, optional

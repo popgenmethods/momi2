@@ -1,6 +1,5 @@
 write pydocs
-
-change time scaling back to coalescent scaling (use option scale_time=2.0 in make_ms_demography)
+write docstrings for parse_ms
 
 rename make_demography to demo_from_ms, and replace most calls to it to use the new format
 
@@ -12,7 +11,8 @@ functions to compute marginal p-values and Wald tests. (include these in See Als
 add verbose option to unlinked_mle_search1 and unlinked_mle_search2
 
 write unlinked_mle_search0 that doesn't use derivatives (for demo functions that are not differentiable)
-in comments for unlinked_mle_search1,2, note that the function must only use operations that are differentiable by autograd!
+in comments for unlinked_mle_search1,2,etc note that the function must only use operations that are differentiable by autograd!
+write something in docs about what makes a function differentiable (at least, "see the tutorial for discussion of autograd differentiation")
 
 rename files (likelihood_surace.py should just be likelihood.py, sum_product should be compute_sfs.py)
 

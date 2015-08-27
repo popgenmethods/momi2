@@ -20,7 +20,7 @@ def to_ms_cmd(demo):
     # the events and their data in depth-first ordering
     events = [(e,demo.event_tree.node[e]) for e in nx.dfs_postorder_nodes(demo.event_tree)]
     # add times, and sort according to times; preserve original ordering for same times
-    time_event_list = sorted([(d['t'],e,d) for e,d in events],
+    time_event_list = sorted([(d['t']/2.0,e,d) for e,d in events],
                              key=itemgetter(0))
 
     # pre-checking of the leaf events
@@ -87,7 +87,7 @@ def make_demography(ms_cmd, *args, **kwargs):
 
     See examples/example_sfs.py for more details
     '''
-    params = _ParamsMap(*args, **kwargs)
+    params = _ParamsMap(args, kwargs)
     
     cmd_list = _get_cmd_list(ms_cmd)
     
@@ -100,7 +100,7 @@ def make_demography(ms_cmd, *args, **kwargs):
     for cmd in cmd_list:
         if cmd[0] == 'es':
             n_pops += 1
-            pops_by_time += [(params.get(cmd[1]), n_pops)]
+            pops_by_time += [(params.time(cmd[1]), n_pops)]
     pops_by_time = [p[1] for p in sorted(pops_by_time, key=itemgetter(0))]
 
     pops_map = dict(zip(pops_by_time, range(1, len(pops_by_time)+1)))
@@ -114,7 +114,7 @@ def make_demography(ms_cmd, *args, **kwargs):
     non_events = [cmd for cmd in cmd_list if cmd[0][0] != 'e']
     events = [cmd for cmd in cmd_list if cmd[0][0] == 'e']
     
-    time_events = [(params.get(cmd[1]), cmd) for cmd in events]
+    time_events = [(params.time(cmd[1]), cmd) for cmd in events]
     time_events = sorted(time_events, key=itemgetter(0))
     
     events = [cmd for t,cmd in time_events]
@@ -141,7 +141,7 @@ def make_demography(ms_cmd, *args, **kwargs):
             cmd.insert(2, "*")
         cmd[0] = "-" + cmd[0]
             
-    return _make_demo(" ".join(sum(cmd_list, [])), args, kwargs, add_pop_idx=-1)
+    return _make_demo(" ".join(sum(cmd_list, [])), args, kwargs, add_pop_idx=-1, scale_time=2.0)
 
 
 def sfs_list_from_ms(ms_file, n_at_leaves):
