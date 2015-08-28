@@ -186,11 +186,9 @@ def _make_demo(demo_string, demo_args, demo_kwargs, **kwargs):
     parser = _DemographyStringParser(demo_args, demo_kwargs, **kwargs)
     
     cmd_list = _get_cmd_list(demo_string)
-    if cmd_list[0][0] != "d":
-        cmd_list = [("d", "1.0")] + cmd_list
 
     if cmd_list[0][0] != "d" or cmd_list[1][0] != "n" or any([cmd[0] in "dn" for cmd in cmd_list[2:]]):
-        raise IOError("Demography string must begin with -d (optional) followed by -n (required)")
+        raise IOError("Demography string must begin with -d followed by -n")
     
     for i in range(len(cmd_list)):
         if cmd_list[i][0] == "a" and cmd_list[i-1][0].isupper():

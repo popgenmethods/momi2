@@ -140,7 +140,8 @@ def make_demography(ms_cmd, *args, **kwargs):
             cmd.insert(1, "0.0")
             cmd.insert(2, "*")
         cmd[0] = "-" + cmd[0]
-            
+
+    cmd_list = [['-d','1']] + cmd_list
     return _make_demo(" ".join(sum(cmd_list, [])), args, kwargs, add_pop_idx=-1)
 
 
