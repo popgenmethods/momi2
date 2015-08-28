@@ -45,12 +45,12 @@ class ConstantHistory(SizeHistory):
         if N <= 0.0:
             raise Exception("N must be positive")
         self.N = N
-        super(ConstantHistory, self).__init__(tau, tau / N)
+        super(ConstantHistory, self).__init__(tau, 2.0 * tau / N)
 
     def etjj(self, n):
         j = np.arange(2, n + 1)
 
-        denom = binom(j, 2) / self.N
+        denom = binom(j, 2) / self.N * 2.0
         if self.tau == float('inf'):
             return 1.0 / denom
 
@@ -63,30 +63,30 @@ class ConstantHistory(SizeHistory):
         return "-en %f %d %f" % (start_time, pop_id, self.N)
     
 class ExponentialHistory(SizeHistory):
-    def __init__(self, tau, alpha, N_bottom):
+    def __init__(self, tau, growth_rate, N_bottom):
         if tau == float('inf'):
             ## TODO: make tau=inf work with automatic differentiation
-            raise Exception("Exponential growth in final epoch not implemented. Try setting final growth rate to the constant 0.0, i.e. -G t i 0.0. Setting final growth rate to a variable (-G t i $0) will break, even if the variable equals 0.0.")
-        self.N_bottom, self.alpha = N_bottom, alpha
-        self.total_growth = tau * alpha / 2.0
+            raise Exception("Exponential growth in final epoch not implemented. Try setting final growth rate to the constant 0.0, i.e. -eG t 0.0. Setting final growth rate to a variable (-eG t $0) will break, even if the variable equals 0.0.")
+        self.N_bottom, self.growth_rate = N_bottom, growth_rate
+        self.total_growth = tau * growth_rate
         self.N_top = N_bottom * exp(-self.total_growth)
 
-        super(ExponentialHistory, self).__init__(tau, expm1d(self.total_growth) * tau / self.N_bottom)
+        super(ExponentialHistory, self).__init__(tau, expm1d(self.total_growth) * tau / self.N_bottom * 2.0)
 
     def etjj(self, n):
         j = np.arange(2, n+1)
         jChoose2 = binom(j,2)
 
-        pow0, pow1 = self.N_bottom/jChoose2 , self.total_growth
-        ret = -transformed_expi(pow0 * self.alpha/2. / exp(pow1))
+        pow0, pow1 = self.N_bottom/jChoose2/2.0 , self.total_growth
+        ret = -transformed_expi(pow0 * self.growth_rate / exp(pow1))
         ret = ret * exp(-expm1d(pow1) * self.tau / pow0 - pow1)
-        ret = ret + transformed_expi(pow0 * self.alpha/2.)
+        ret = ret + transformed_expi(pow0 * self.growth_rate)
         ret = ret * pow0
 
         return ret
 
     def ms_cmd(self, pop_id, start_time):
-        return "-en %f %d %f -eg %f %d %f" % (start_time, pop_id, self.N_bottom, start_time, pop_id, self.alpha)
+        return "-en %f %d %f -eg %f %d %f" % (start_time, pop_id, self.N_bottom, start_time, pop_id, self.growth_rate)
 
 class PiecewiseHistory(SizeHistory):
     def __init__(self, pieces):
@@ -113,7 +113,7 @@ class PiecewiseHistory(SizeHistory):
         ret = []
         for pop in self.pieces:
             ret += [pop.ms_cmd(pop_id, curr)]
-            curr += pop.tau/2.0
+            curr += pop.tau
         return " ".join(ret)
     
 @memoize
@@ -156,7 +156,7 @@ def sfs_recurrence(sfs, tau):
 class FunctionalHistory(SizeHistory):
     '''Size history parameterized by an arbitrary function f.'''
     def __init__(self, tau, f):
-        '''Initialize the model. For t > 0, f(t) is the instantaneous
+        '''Initialize the model. For t > 0, f(t) >= is the instantaneous
         rate of coalescence (i.e., the inverse of the population size).
         f should accept and return vectors of times.
         '''

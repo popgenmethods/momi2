@@ -79,7 +79,7 @@ def check_sfs_counts(demo_ms_cmd=None, demo=None, theta=10.0, num_ms_samples=100
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     
     sfs_vals,branch_len = expected_sfs(demo, config_list), expected_total_branch_len(demo)
-    theoretical = sfs_vals * theta / 2.0
+    theoretical = sfs_vals * theta
 
     observed = np.zeros((len(config_list), len(sfs_list)))
     for j,sfs in enumerate(sfs_list):

@@ -202,8 +202,9 @@ def _make_demo(demo_string, demo_args, demo_kwargs, **kwargs):
 
 class _DemographyStringParser(object):
     def __init__(self, demo_args, demo_kwargs, scale_time=1.0, add_pop_idx=0):
-        self.params = _ParamsMap(demo_args, demo_kwargs, scale_time=scale_time)
+        self.params = _ParamsMap(*demo_args, **demo_kwargs)
 
+        self.scale_time = scale_time
         self.add_pop_idx = add_pop_idx
 
         self.events,self.edges,self.nodes = [],[],{}
@@ -230,10 +231,10 @@ class _DemographyStringParser(object):
             assert i != "*" # avoid infinite recursion
             if self.roots[i] is not None:
                 func(t,str(i-self.add_pop_idx),x)
-        return (self.params.time(t), "*", self.params._get(x))
+        return (self.params.get(t), "*", self.params.get(x))
 
     def _S(self, t,i,p):
-        t,p = self.params.time(t), self.params.pulse(p)
+        t,p = map(self.params.get, (t,p))
         i = self.get_pop(i)
 
         child = self.roots[i]
@@ -258,7 +259,7 @@ class _DemographyStringParser(object):
         return t,i,p
     
     def _J(self, t,i,j):
-        t = self.params.time(t)
+        t = self.params.get(t)
         i,j = map(self.get_pop, [i,j])
 
         for k in i,j:
@@ -284,7 +285,7 @@ class _DemographyStringParser(object):
     def _N(self, t,i,N):
         if i == "*":
             return self._apply_all_pops(self._N, t, N)
-        t,N = self.params.time(t), self.params.size(N)
+        t,N = map(self.params.get, (t,N))
         i = self.get_pop(i)
         self.nodes[self.roots[i]]['sizes'].append({'t':t,'N':N,'alpha':None})
         return t,i,N        
@@ -293,12 +294,12 @@ class _DemographyStringParser(object):
         if i=="*":
             return self._apply_all_pops(self._G, t, alpha)
         
-        if self.params.growth(alpha) == 0.0 and alpha[0] != "$":
+        if self.params.get(alpha) == 0.0 and alpha[0] != "$":
             alpha = None
         else:
-            alpha = self.params.growth(alpha)
+            alpha = self.params.get(alpha)
             
-        t,i = self.params.time(t), self.get_pop(i)
+        t,i = self.params.get(t), self.get_pop(i)
         self.nodes[self.roots[i]]['sizes'].append({'t':t,'alpha':alpha})
 
         if alpha is None:
@@ -312,7 +313,7 @@ class _DemographyStringParser(object):
             raise IOError("-a should be called before any demographic changes")
         assert not self.edges and len(self.nodes) == len(self.roots)
 
-        i,t = self.get_pop(i), self.params.time(t)
+        i,t = self.get_pop(i), self.params.get(t)
         pop = self.roots[i]
         assert len(self.nodes[pop]['sizes']) == 1
         self.nodes[pop]['sizes'][0]['t'] = t
@@ -335,7 +336,7 @@ class _DemographyStringParser(object):
     def _d(self, default_N):
         assert all([not x for x in self.roots,self.events,self.edges,self.nodes])
         
-        self.default_N = self.params.size(default_N)
+        self.default_N = self.params.get(default_N)
         return self.default_N,
 
     def to_nx(self):
@@ -374,7 +375,7 @@ class _DemographyStringParser(object):
             N = sizes[i]['N']
 
             if alpha is not None:
-                pieces.append(ExponentialHistory(tau=tau,alpha=alpha,N_bottom=N))
+                pieces.append(ExponentialHistory(tau=tau,growth_rate=alpha,N_bottom=N))
                 N = pieces[-1].N_top
             else:
                 pieces.append(ConstantHistory(tau=tau, N=N))
@@ -392,25 +393,12 @@ class _DemographyStringParser(object):
             node_data['model'] = PiecewiseHistory(pieces)
 
 class _ParamsMap(dict):
-    def __init__(self, demo_args, demo_kwargs, scale_time=1.0):
-        super(_ParamsMap, self).__init__(**demo_kwargs)
-        for i,x in enumerate(demo_args):
+    def __init__(self, *args, **kwargs):
+        super(_ParamsMap, self).__init__(kwargs)
+        for i,x in enumerate(args):
             self[str(i)] = x
-        self.scale_time = scale_time
-
-    def time(self, var):
-        return self.scale_time * self._get(var)
-
-    def growth(self,var):
-        return self._get(var)
-
-    def pulse(self,var):
-        return self._get(var)
-
-    def size(self,var):
-        return self._get(var)
             
-    def _get(self, var):
+    def get(self, var):
         if var[0] == "$":
             ret = self[var[1:]]
         else:
