@@ -199,8 +199,8 @@ def _make_demo(demo_string, demo_args, demo_kwargs, **kwargs):
     return Demography(parser.to_nx())
 
 class _DemographyStringParser(object):
-    def __init__(self, demo_args, demo_kwargs, scale_time=1.0, add_pop_idx=0):
-        self.params = _ParamsMap(demo_args, demo_kwargs, scale_time=scale_time)
+    def __init__(self, demo_args, demo_kwargs, gens_per_time=1.0, add_pop_idx=0):
+        self.params = _ParamsMap(demo_args, demo_kwargs, gens_per_time=gens_per_time)
 
         self.add_pop_idx = add_pop_idx
 
@@ -222,13 +222,13 @@ class _DemographyStringParser(object):
     def get_pop(self, i):
         return int(i) + self.add_pop_idx
 
-    def _apply_all_pops(self, func, t, x):
+    def _apply_all_pops(self, func, t, x, xfunc):
         assert self.roots
         for i in self.roots:
             assert i != "*" # avoid infinite recursion
             if self.roots[i] is not None:
                 func(t,str(i-self.add_pop_idx),x)
-        return (self.params.time(t), "*", self.params._get(x))
+        return (self.params.time(t), "*", xfunc(x))
 
     def _S(self, t,i,p):
         t,p = self.params.time(t), self.params.pulse(p)
@@ -281,7 +281,7 @@ class _DemographyStringParser(object):
     
     def _N(self, t,i,N):
         if i == "*":
-            return self._apply_all_pops(self._N, t, N)
+            return self._apply_all_pops(self._N, t, N, self.params.size)
         t,N = self.params.time(t), self.params.size(N)
         i = self.get_pop(i)
         self.nodes[self.roots[i]]['sizes'].append({'t':t,'N':N,'growth_rate':None})
@@ -289,7 +289,7 @@ class _DemographyStringParser(object):
 
     def _G(self, t,i,growth_rate):
         if i=="*":
-            return self._apply_all_pops(self._G, t, growth_rate)
+            return self._apply_all_pops(self._G, t, growth_rate, self.params.growth)
         
         if self.params.growth(growth_rate) == 0.0 and growth_rate[0] != "$":
             growth_rate = None
@@ -390,23 +390,23 @@ class _DemographyStringParser(object):
             node_data['model'] = PiecewiseHistory(pieces)
 
 class _ParamsMap(dict):
-    def __init__(self, demo_args, demo_kwargs, scale_time=1.0):
+    def __init__(self, demo_args, demo_kwargs, gens_per_time=1.0):
         super(_ParamsMap, self).__init__(**demo_kwargs)
         for i,x in enumerate(demo_args):
             self[str(i)] = x
-        self.scale_time = scale_time
+        self.gens_per_time = gens_per_time
 
     def time(self, var):
-        return self.scale_time * self._get(var)
+        return self.gens_per_time * self._get(var)
 
     def growth(self,var):
-        return self._get(var)
+        return self._get(var) / self.gens_per_time
 
     def pulse(self,var):
         return self._get(var)
 
     def size(self,var):
-        return self._get(var)
+        return self._get(var) * self.gens_per_time
             
     def _get(self, var):
         if var[0] == "$":
