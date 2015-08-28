@@ -3,10 +3,9 @@ write docstrings for parse_ms, demography, __init__
 change likelihood docs/signatures to use mu instead of theta
 in make_demography docstring, add a section "Comments" that discusses some time scaling issues. but otherwise just assume everything is in per-generation units
 
-change demo format to use mu and growth_rate, instead of theta and 2*growth_rate
-
 change make_demography to demo_from_ms, demography
-change to_ms_cmd to take in a scale_time or gens_per_time parameter
+change unlinked_log_likelihood and simulate_ms to use mu instead of theta
+change to_ms_cmd and simulate_ms to take in a scale_time or gens_per_time parameter
 
 rename make_demography to demo_from_ms, and replace most calls to it to use the new format
 remove # symbol from ms command lines
@@ -15,6 +14,11 @@ rewrite example_sfs.py
 make sure to check str(demo) returns something that looks like the original ms cmd (in terms of indexing and flags after -es)
 
 rewrite example_inference.py
+# first create demos without params. then compute statistics. then compute sfs.
+# then simulate with ms. then compute log likelihood.
+# then create demos with params. then do mle search 0
+# then create demos with params in a differentiable way. have probabilities be in logit scale for illustration. then do mle search 1.
+# then do confidence intervals, etc.
 functions to compute marginal p-values and Wald tests. (include these in See Also of composite_mle_approx_covariance)
 add verbose option to unlinked_mle_search1 and unlinked_mle_search2
 
