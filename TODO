@@ -1,7 +1,12 @@
 write pydocs
 write docstrings for parse_ms, demography, __init__
+change likelihood docs/signatures to use mu instead of theta
+in make_demography docstring, add a section "Comments" that discusses some time scaling issues. but otherwise just assume everything is in per-generation units
 
 change demo format to use mu and growth_rate, instead of theta and 2*growth_rate
+
+change make_demography to demo_from_ms, demography
+change to_ms_cmd to take in a scale_time or gens_per_time parameter
 
 rename make_demography to demo_from_ms, and replace most calls to it to use the new format
 remove # symbol from ms command lines

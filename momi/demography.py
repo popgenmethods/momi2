@@ -202,9 +202,8 @@ def _make_demo(demo_string, demo_args, demo_kwargs, **kwargs):
 
 class _DemographyStringParser(object):
     def __init__(self, demo_args, demo_kwargs, scale_time=1.0, add_pop_idx=0):
-        self.params = _ParamsMap(*demo_args, **demo_kwargs)
+        self.params = _ParamsMap(demo_args, demo_kwargs, scale_time=scale_time)
 
-        self.scale_time = scale_time
         self.add_pop_idx = add_pop_idx
 
         self.events,self.edges,self.nodes = [],[],{}
@@ -231,10 +230,10 @@ class _DemographyStringParser(object):
             assert i != "*" # avoid infinite recursion
             if self.roots[i] is not None:
                 func(t,str(i-self.add_pop_idx),x)
-        return (self.params.get(t), "*", self.params.get(x))
+        return (self.params.time(t), "*", self.params._get(x))
 
     def _S(self, t,i,p):
-        t,p = map(self.params.get, (t,p))
+        t,p = self.params.time(t), self.params.pulse(p)
         i = self.get_pop(i)
 
         child = self.roots[i]
@@ -246,8 +245,8 @@ class _DemographyStringParser(object):
         self.nodes[child]['splitprobs'] = {par : prob for par,prob in zip(parents, [p,1-p])}
 
         prev = self.nodes[child]['sizes'][-1]
-        self.nodes[parents[0]] = {'sizes':[{'t':t,'N':prev['N_top'], 'alpha':prev['alpha']}]}
-        self.nodes[parents[1]] = {'sizes':[{'t':t,'N':self.default_N, 'alpha':None}]}
+        self.nodes[parents[0]] = {'sizes':[{'t':t,'N':prev['N_top'], 'growth_rate':prev['growth_rate']}]}
+        self.nodes[parents[1]] = {'sizes':[{'t':t,'N':self.default_N, 'growth_rate':None}]}
 
         new_edges = tuple([(par, child) for par in parents])
         self.events.append( new_edges )
@@ -259,11 +258,11 @@ class _DemographyStringParser(object):
         return t,i,p
     
     def _J(self, t,i,j):
-        t = self.params.get(t)
+        t = self.params.time(t)
         i,j = map(self.get_pop, [i,j])
 
         for k in i,j:
-            # sets the TruncatedSizeHistory, and N_top and alpha for all epochs
+            # sets the TruncatedSizeHistory, and N_top and growth_rate for all epochs
             self.set_sizes(self.nodes[self.roots[k]], t)
 
         new_pop = (self.roots[i], self.roots[j])
@@ -272,7 +271,7 @@ class _DemographyStringParser(object):
 
         assert new_pop not in self.nodes
         prev = self.nodes[self.roots[j]]['sizes'][-1]
-        self.nodes[new_pop] = {'sizes':[{'t':t,'N':prev['N_top'], 'alpha':prev['alpha']}]}
+        self.nodes[new_pop] = {'sizes':[{'t':t,'N':prev['N_top'], 'growth_rate':prev['growth_rate']}]}
 
         self.edges += [(new_pop, self.roots[i]), (new_pop, self.roots[j])]
 
@@ -285,26 +284,26 @@ class _DemographyStringParser(object):
     def _N(self, t,i,N):
         if i == "*":
             return self._apply_all_pops(self._N, t, N)
-        t,N = map(self.params.get, (t,N))
+        t,N = self.params.time(t), self.params.size(N)
         i = self.get_pop(i)
-        self.nodes[self.roots[i]]['sizes'].append({'t':t,'N':N,'alpha':None})
+        self.nodes[self.roots[i]]['sizes'].append({'t':t,'N':N,'growth_rate':None})
         return t,i,N        
 
-    def _G(self, t,i,alpha):
+    def _G(self, t,i,growth_rate):
         if i=="*":
-            return self._apply_all_pops(self._G, t, alpha)
+            return self._apply_all_pops(self._G, t, growth_rate)
         
-        if self.params.get(alpha) == 0.0 and alpha[0] != "$":
-            alpha = None
+        if self.params.growth(growth_rate) == 0.0 and growth_rate[0] != "$":
+            growth_rate = None
         else:
-            alpha = self.params.get(alpha)
+            growth_rate = self.params.growth(growth_rate)
             
-        t,i = self.params.get(t), self.get_pop(i)
-        self.nodes[self.roots[i]]['sizes'].append({'t':t,'alpha':alpha})
+        t,i = self.params.time(t), self.get_pop(i)
+        self.nodes[self.roots[i]]['sizes'].append({'t':t,'growth_rate':growth_rate})
 
-        if alpha is None:
-            alpha=0.0
-        return t,i,alpha
+        if growth_rate is None:
+            growth_rate=0.0
+        return t,i,growth_rate
 
     def _a(self, i, t):
         ## flag designates leaf population i is archaic, starting at time t
@@ -313,7 +312,7 @@ class _DemographyStringParser(object):
             raise IOError("-a should be called before any demographic changes")
         assert not self.edges and len(self.nodes) == len(self.roots)
 
-        i,t = self.get_pop(i), self.params.get(t)
+        i,t = self.get_pop(i), self.params.time(t)
         pop = self.roots[i]
         assert len(self.nodes[pop]['sizes']) == 1
         self.nodes[pop]['sizes'][0]['t'] = t
@@ -329,14 +328,14 @@ class _DemographyStringParser(object):
         lins_per_pop = map(int, lins_per_pop)
 
         for i in range(npop):
-            self.nodes[i] = {'sizes':[{'t':0.0,'N':self.default_N,'alpha':None}],'lineages':lins_per_pop[i]}
+            self.nodes[i] = {'sizes':[{'t':0.0,'N':self.default_N,'growth_rate':None}],'lineages':lins_per_pop[i]}
             self.roots[i] = i
         return lins_per_pop
 
     def _d(self, default_N):
         assert all([not x for x in self.roots,self.events,self.edges,self.nodes])
         
-        self.default_N = self.params.get(default_N)
+        self.default_N = self.params.size(default_N)
         return self.default_N,
 
     def to_nx(self):
@@ -362,20 +361,20 @@ class _DemographyStringParser(object):
         sizes.append({'t': end_time})
 
         # do some processing
-        N, alpha = sizes[0]['N'], sizes[0]['alpha']
+        N, growth_rate = sizes[0]['N'], sizes[0]['growth_rate']
         pieces = []
         for i in range(len(sizes) - 1):
             sizes[i]['tau'] = tau = (sizes[i+1]['t'] - sizes[i]['t'])
 
             if 'N' not in sizes[i]:
                 sizes[i]['N'] = N
-            if 'alpha' not in sizes[i]:
-                sizes[i]['alpha'] = alpha
-            alpha = sizes[i]['alpha']
+            if 'growth_rate' not in sizes[i]:
+                sizes[i]['growth_rate'] = growth_rate
+            growth_rate = sizes[i]['growth_rate']
             N = sizes[i]['N']
 
-            if alpha is not None:
-                pieces.append(ExponentialHistory(tau=tau,growth_rate=alpha,N_bottom=N))
+            if growth_rate is not None:
+                pieces.append(ExponentialHistory(tau=tau,growth_rate=growth_rate,N_bottom=N))
                 N = pieces[-1].N_top
             else:
                 pieces.append(ConstantHistory(tau=tau, N=N))
@@ -393,12 +392,25 @@ class _DemographyStringParser(object):
             node_data['model'] = PiecewiseHistory(pieces)
 
 class _ParamsMap(dict):
-    def __init__(self, *args, **kwargs):
-        super(_ParamsMap, self).__init__(kwargs)
-        for i,x in enumerate(args):
+    def __init__(self, demo_args, demo_kwargs, scale_time=1.0):
+        super(_ParamsMap, self).__init__(**demo_kwargs)
+        for i,x in enumerate(demo_args):
             self[str(i)] = x
+        self.scale_time = scale_time
+
+    def time(self, var):
+        return self.scale_time * self._get(var)
+
+    def growth(self,var):
+        return self._get(var)
+
+    def pulse(self,var):
+        return self._get(var)
+
+    def size(self,var):
+        return self._get(var)
             
-    def get(self, var):
+    def _get(self, var):
         if var[0] == "$":
             ret = self[var[1:]]
         else:

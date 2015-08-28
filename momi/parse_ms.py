@@ -87,7 +87,7 @@ def make_demography(ms_cmd, *args, **kwargs):
 
     See examples/example_sfs.py for more details
     '''
-    params = _ParamsMap(*args, **kwargs)
+    params = _ParamsMap(args, kwargs)
     
     cmd_list = _get_cmd_list(ms_cmd)
     
@@ -100,7 +100,7 @@ def make_demography(ms_cmd, *args, **kwargs):
     for cmd in cmd_list:
         if cmd[0] == 'es':
             n_pops += 1
-            pops_by_time += [(params.get(cmd[1]), n_pops)]
+            pops_by_time += [(params.time(cmd[1]), n_pops)]
     pops_by_time = [p[1] for p in sorted(pops_by_time, key=itemgetter(0))]
 
     pops_map = dict(zip(pops_by_time, range(1, len(pops_by_time)+1)))
@@ -114,7 +114,7 @@ def make_demography(ms_cmd, *args, **kwargs):
     non_events = [cmd for cmd in cmd_list if cmd[0][0] != 'e']
     events = [cmd for cmd in cmd_list if cmd[0][0] == 'e']
     
-    time_events = [(params.get(cmd[1]), cmd) for cmd in events]
+    time_events = [(params.time(cmd[1]), cmd) for cmd in events]
     time_events = sorted(time_events, key=itemgetter(0))
     
     events = [cmd for t,cmd in time_events]
