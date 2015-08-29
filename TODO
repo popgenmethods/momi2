@@ -3,6 +3,25 @@ write docstrings for parse_ms, demography, __init__
 change likelihood docs/signatures to use mu instead of theta
 in make_demography docstring, add a section "Comments" that discusses some time scaling issues. but otherwise just assume everything is in per-generation units
 
+
+
+Demography constructor is broken if events are not in sorted order!
+To fix this:
+in the constructor:
+remember the population labels/order
+sort the events by time
+process the event in sorted order
+
+
+
+add initial "-ms <N>" flag to demo_cmd in momi.Demography to mimic ms command line
+then momi.Demography calls functions to parse the command, and decides to rescale and add_pop_idx as necessary
+note -ms flag in docstring, but don't detail it, instead reference "help(demo_from_ms_cmd)"
+demo_from_ms_cmd becomes a wrapper for calling Demography
+in its docstring, note that it is equivalent to using Demography("-ms <default_N_diploid> ...")
+
+
+
 change make_demography to demo_from_ms, demography
 change unlinked_log_likelihood and simulate_ms to use mu instead of theta
 change to_ms_cmd and simulate_ms to take in a scale_time or gens_per_time parameter
@@ -10,16 +29,11 @@ change to_ms_cmd and simulate_ms to take in a scale_time or gens_per_time parame
 rename make_demography to demo_from_ms, and replace most calls to it to use the new format
 remove # symbol from ms command lines
 
-rewrite example_sfs.py, rename it as tutorial.py
-also show help function
-make sure to check str(demo) returns something that looks like the original ms cmd (in terms of indexing and flags after -es)
-# first create demos without params. then compute statistics. then compute sfs.
-# then simulate with ms. then compute log likelihood.
-# then create demos with params. then do mle search 0
-# then create demos with params in a differentiable way. have probabilities be in logit scale for illustration. then do mle search 1.
-# then do confidence intervals, etc.
+finish writing tutorial.py.
+delete example_sfs.py and example_inference.py
+
 functions to compute marginal p-values and Wald tests. (include these in See Also of composite_mle_approx_covariance)
-add verbose option to unlinked_mle_search1 and unlinked_mle_search2
+
 
 write unlinked_mle_search0 that doesn't use derivatives (for demo functions that are not differentiable)
 in comments for unlinked_mle_search1,2,etc note that the function must only use operations that are differentiable by autograd!
@@ -29,6 +43,14 @@ rename files (likelihood_surace.py should just be likelihood.py, sum_product sho
 
 fix installation scripts
 make scikit-tensor dependency optional?
+
+don't make Demography a subclass of networkx.DiGraph:
+it allows users to make changes to the graph,
+and also clutters up the documentation
+
+clean up Demography construction code
+add an optional -scaled flag at the beginning, to make the demo_from_ms cleaner
+(demo_from_ms can just add on a -scaled flag at the beginning of string, and then pass it immediately to Demography constructor)
 
 clean up simulate_inference.py
 have simulate_inference use callback instead of f_verbose
