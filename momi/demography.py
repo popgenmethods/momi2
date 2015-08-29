@@ -12,12 +12,18 @@ import os, itertools
 from operator import itemgetter
 
 class Demography(nx.DiGraph):
+    @classmethod
+    def from_ms(cls, default_N_diploid, ms_cmd, *args, **kwargs):
+        return Demography("-msformat $%d %s" % (len(args), ms_cmd),
+                          *(list(args) + [default_N_diploid]),
+                          **kwargs)
+    
     def __init__(self, demo_str, *args, **kwargs):
         cmd_list = _get_cmd_list(demo_str)
-        if cmd_list[0][0] == "ms_cmd":
+        if cmd_list[0][0] == "msformat":
             params = _ParamsMap(args, kwargs)
+            N_e = params.size(cmd_list[0][1])
             
-            N_e = _ParamsMap(args, kwargs).size(cmd_list[0][1])
             cmd_list = _convert_ms_cmd(cmd_list[1:], params)
             
             parser = _DemographyStringParser(args, kwargs, add_pop_idx=-1, gens_per_time=N_e)
@@ -423,4 +429,4 @@ class _ParamsMap(dict):
         return ret
 
 def make_demography(ms_cmd, *args, **kwargs):
-    return Demography("-ms_cmd 1 %s" % ms_cmd, *args, **kwargs)
+    return Demography.from_ms(1, ms_cmd, *args, **kwargs)
