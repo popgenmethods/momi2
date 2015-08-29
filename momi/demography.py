@@ -11,12 +11,17 @@ import os, itertools
 from operator import itemgetter
 
 class Demography(nx.DiGraph):
-    '''
-    Use momi.make_demography to construct demography from ms command line
-    '''
-    def __init__(self, to_copy, *args, **kwargs):
-        '''makes a copy of a demography object'''
-        super(Demography, self).__init__(to_copy, *args, **kwargs)
+    def __init__(self, demo, *args, **kwargs):
+        if isinstance(demo, nx.DiGraph):
+            ## make a copy of demography object
+            if len(args) != 0 or len(kwargs) != 0:
+                raise ValueError("Too many arguments for copying Demography object")
+            super(Demography, self).__init__(demo)           
+        else:
+            ## construct demography from string
+            demo = _demo_graph_from_str(demo, args, kwargs)
+            super(Demography, self).__init__(demo)
+        ## set leaves and event_tree
         self.leaves = set([k for k, v in self.out_degree().items() if v == 0])
         self.event_tree = _build_event_tree(self)
 
@@ -24,7 +29,7 @@ class Demography(nx.DiGraph):
         return str(self)
 
     def __str__(self):
-        return "demography('%s')" % self.graph['cmd']
+        return "Demography('%s')" % self.graph['cmd']
 
     @memoize_instance
     def n_lineages(self, node):
@@ -171,6 +176,9 @@ def _build_event_tree(demo):
 
     return ret
 
+### methods for constructing demography from string
+## TODO: clean up this code!
+
 def _get_cmd_list(cmd):
     cmd_list = []
     for arg in cmd.split():
@@ -181,26 +189,25 @@ def _get_cmd_list(cmd):
             curr_args.append(arg)       
     return cmd_list
 
-## TODO: make this constructor for Demography
-def _make_demo(demo_string, demo_args, demo_kwargs, **kwargs):
+def _demo_graph_from_str(demo_string, demo_args, demo_kwargs, **kwargs):
     parser = _DemographyStringParser(demo_args, demo_kwargs, **kwargs)
     
     cmd_list = _get_cmd_list(demo_string)
 
     if cmd_list[0][0] != "d" or cmd_list[1][0] != "n" or any([cmd[0] in "dn" for cmd in cmd_list[2:]]):
-        raise IOError("Demography string must begin with -d followed by -n")
+        raise ValueError("Demography string must begin with -d followed by -n")
     
     for i in range(len(cmd_list)):
         if cmd_list[i][0] == "a" and cmd_list[i-1][0].isupper():
-            raise IOError("-a flag must precede all other flags except for -d and -n")
+            raise ValueError("-a flag must precede all other flags except for -d and -n")
 
     for event in cmd_list:
         parser.add_event(*event)
-    return Demography(parser.to_nx())
+    return parser.to_nx()
 
 class _DemographyStringParser(object):
-    def __init__(self, demo_args, demo_kwargs, gens_per_time=1.0, add_pop_idx=0):
-        self.params = _ParamsMap(demo_args, demo_kwargs, gens_per_time=gens_per_time)
+    def __init__(self, demo_args, demo_kwargs, add_pop_idx=0, **kwargs):
+        self.params = _ParamsMap(demo_args, demo_kwargs, **kwargs)
 
         self.add_pop_idx = add_pop_idx
 
@@ -307,7 +314,7 @@ class _DemographyStringParser(object):
         ## flag designates leaf population i is archaic, starting at time t
         assert self.roots
         if self.events:
-            raise IOError("-a should be called before any demographic changes")
+            raise ValueError("-a should be called before any demographic changes")
         assert not self.edges and len(self.nodes) == len(self.roots)
 
         i,t = self.get_pop(i), self.params.time(t)
@@ -341,7 +348,7 @@ class _DemographyStringParser(object):
         self.roots = [r for _,r in self.roots.iteritems() if r is not None]
 
         if len(self.roots) != 1:
-            raise IOError("Must have a single root population")
+            raise ValueError("Must have a single root population")
 
         node, = self.roots
         self.set_sizes(self.nodes[node], float('inf'))
@@ -380,7 +387,7 @@ class _DemographyStringParser(object):
             sizes[i]['N_top'] = N
 
             if not all([sizes[i][x] >= 0.0 for x in 'tau','N','N_top']):
-                raise IOError("Negative time or population size. (Were events specified in correct order?")
+                raise ValueError("Negative time or population size. (Were events specified in correct order?")
         sizes.pop() # remove the final dummy epoch
 
         assert len(pieces) > 0

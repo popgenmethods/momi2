@@ -2,7 +2,7 @@ from __future__ import division
 import bisect
 import networkx as nx
 
-from demography import Demography, _make_demo, _get_cmd_list, _ParamsMap
+from demography import Demography, _demo_graph_from_str, _get_cmd_list, _ParamsMap
 from size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 from util import default_ms_path
 
@@ -142,7 +142,7 @@ def make_demography(ms_cmd, *args, **kwargs):
         cmd[0] = "-" + cmd[0]
 
     cmd_list = [['-d','1']] + cmd_list
-    return _make_demo(" ".join(sum(cmd_list, [])), args, kwargs, add_pop_idx=-1)
+    return Demography(_demo_graph_from_str(" ".join(sum(cmd_list, [])), args, kwargs, add_pop_idx=-1))
 
 
 def sfs_list_from_ms(ms_file, n_at_leaves):
