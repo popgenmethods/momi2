@@ -6,22 +6,36 @@ import scipy, scipy.misc
 import autograd.numpy as np
 
 from size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
+from parse_ms import _convert_ms_cmd
 
 import os, itertools
 from operator import itemgetter
 
 class Demography(nx.DiGraph):
-    def __init__(self, demo, *args, **kwargs):
-        if isinstance(demo, nx.DiGraph):
-            ## make a copy of demography object
-            if len(args) != 0 or len(kwargs) != 0:
-                raise ValueError("Too many arguments for copying Demography object")
-            super(Demography, self).__init__(demo)           
+    def __init__(self, demo_str, *args, **kwargs):
+        cmd_list = _get_cmd_list(demo_str)
+        if cmd_list[0][0] == "ms_cmd":
+            params = _ParamsMap(args, kwargs)
+            
+            N_e = _ParamsMap(args, kwargs).size(cmd_list[0][1])
+            cmd_list = _convert_ms_cmd(cmd_list[1:], params)
+            
+            parser = _DemographyStringParser(args, kwargs, add_pop_idx=-1, gens_per_time=N_e)
         else:
-            ## construct demography from string
-            demo = _demo_graph_from_str(demo, args, kwargs)
-            super(Demography, self).__init__(demo)
-        ## set leaves and event_tree
+            parser = _DemographyStringParser(args, kwargs)
+
+        if cmd_list[0][0] != "d" or cmd_list[1][0] != "n" or any([cmd[0] in "dn" for cmd in cmd_list[2:]]):
+            raise ValueError("Demography string must begin with -d followed by -n")
+
+        for i in range(len(cmd_list)):
+            if cmd_list[i][0] == "a" and cmd_list[i-1][0].isupper():
+                raise ValueError("-a flag must precede all other flags except for -d and -n")
+
+        for event in cmd_list:
+            parser.add_event(*event)
+        
+        super(Demography, self).__init__(parser.to_nx())
+        
         self.leaves = set([k for k, v in self.out_degree().items() if v == 0])
         self.event_tree = _build_event_tree(self)
 
@@ -188,22 +202,6 @@ def _get_cmd_list(cmd):
         else:
             curr_args.append(arg)       
     return cmd_list
-
-def _demo_graph_from_str(demo_string, demo_args, demo_kwargs, **kwargs):
-    parser = _DemographyStringParser(demo_args, demo_kwargs, **kwargs)
-    
-    cmd_list = _get_cmd_list(demo_string)
-
-    if cmd_list[0][0] != "d" or cmd_list[1][0] != "n" or any([cmd[0] in "dn" for cmd in cmd_list[2:]]):
-        raise ValueError("Demography string must begin with -d followed by -n")
-    
-    for i in range(len(cmd_list)):
-        if cmd_list[i][0] == "a" and cmd_list[i-1][0].isupper():
-            raise ValueError("-a flag must precede all other flags except for -d and -n")
-
-    for event in cmd_list:
-        parser.add_event(*event)
-    return parser.to_nx()
 
 class _DemographyStringParser(object):
     def __init__(self, demo_args, demo_kwargs, add_pop_idx=0, **kwargs):
@@ -423,3 +421,6 @@ class _ParamsMap(dict):
         if np.isnan(ret):
             raise Exception("nan in params %s" % (str(self.params_dict)))
         return ret
+
+def make_demography(ms_cmd, *args, **kwargs):
+    return Demography("-ms_cmd 1 %s" % ms_cmd, *args, **kwargs)

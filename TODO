@@ -3,8 +3,6 @@ write docstrings for parse_ms, demography, __init__
 change likelihood docs/signatures to use mu instead of theta
 in make_demography docstring, add a section "Comments" that discusses some time scaling issues. but otherwise just assume everything is in per-generation units
 
-
-
 Demography constructor is broken if events are not in sorted order!
 To fix this:
 in the constructor:
@@ -12,17 +10,12 @@ remember the population labels/order
 sort the events by time
 process the event in sorted order
 
+rename make_demography to demo_from_ms_cmd
+in docstring, note it is equivalent to using Demography("-ms_cmd <default_N_diploid> ...")
+have demo_from_ms_cmd take in a parameter N_e
+reference "help(demo_from_ms_cmd)" in description of "-ms_cmd" flag in Demography docstring
 
 
-add initial "-ms <N>" flag to demo_cmd in momi.Demography to mimic ms command line
-then momi.Demography calls functions to parse the command, and decides to rescale and add_pop_idx as necessary
-note -ms flag in docstring, but don't detail it, instead reference "help(demo_from_ms_cmd)"
-demo_from_ms_cmd becomes a wrapper for calling Demography
-in its docstring, note that it is equivalent to using Demography("-ms <default_N_diploid> ...")
-
-
-
-change make_demography to demo_from_ms, demography
 change unlinked_log_likelihood and simulate_ms to use mu instead of theta
 change to_ms_cmd and simulate_ms to take in a scale_time or gens_per_time parameter
 

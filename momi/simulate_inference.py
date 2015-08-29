@@ -1,7 +1,8 @@
 from __future__ import division, print_function
 
 from likelihood_surface import unlinked_log_likelihood, composite_mle_approx_covariance
-from parse_ms import make_demography, simulate_ms, sfs_list_from_ms
+from demography import make_demography
+from parse_ms import simulate_ms, sfs_list_from_ms
 from util import check_symmetric, sum_sfs_list, make_function
 from tensor import greedy_hosvd, get_sfs_tensor, PGSurface_Empirical, PGSurface_Diag, PGSurface_Exact, PoissonWishartSurface
 

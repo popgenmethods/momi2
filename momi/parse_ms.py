@@ -2,7 +2,6 @@ from __future__ import division
 import bisect
 import networkx as nx
 
-from demography import Demography, _demo_graph_from_str, _get_cmd_list, _ParamsMap
 from size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 from util import default_ms_path
 
@@ -79,18 +78,9 @@ def to_ms_cmd(demo):
             ret += [demo.node[p]['model'].ms_cmd(pops[p], pop_times[p])]
             
     return " ".join(ret)
-    
 
-def make_demography(ms_cmd, *args, **kwargs):
-    '''
-    Returns a demography from partial ms command line
-
-    See examples/example_sfs.py for more details
-    '''
-    params = _ParamsMap(args, kwargs)
-    
-    cmd_list = _get_cmd_list(ms_cmd)
-    
+def _convert_ms_cmd(cmd_list, params):
+    cmd_list = list(cmd_list)
     if cmd_list[0][0] != 'I':
         raise IOError("ms command must begin with -I to specify samples per population")
     n_pops = int(cmd_list[0][1])
@@ -139,11 +129,10 @@ def make_demography(ms_cmd, *args, **kwargs):
         elif cmd[0] == "G":
             cmd.insert(1, "0.0")
             cmd.insert(2, "*")
-        cmd[0] = "-" + cmd[0]
+        #cmd[0] = "-" + cmd[0]
 
-    cmd_list = [['-d','1']] + cmd_list
-    return Demography(_demo_graph_from_str(" ".join(sum(cmd_list, [])), args, kwargs, add_pop_idx=-1))
-
+    cmd_list = [['d','1']] + cmd_list
+    return cmd_list
 
 def sfs_list_from_ms(ms_file, n_at_leaves):
     '''
