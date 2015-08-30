@@ -123,7 +123,7 @@ def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
     if error_matrices is not None:
         vecs = _apply_error_matrices(vecs, error_matrices)
 
-    total = expected_sfs_tensor_prod(vecs, demography)
+    total = np.squeeze(expected_sfs_tensor_prod(vecs, demography))
     ## return in the simple case, without errors or minimum frequencies
     if np.all(min_freqs == 1) and error_matrices is None:
         return total
@@ -168,7 +168,7 @@ def expected_tmrca(demography):
     vecs = [np.ones(demography.n_lineages(l)+1) for l in sorted(demography.leaves)]
     n0 = len(vecs[0])-1
     vecs[0] = np.arange(n0+1) / n0
-    return expected_sfs_tensor_prod(vecs, demography)
+    return np.squeeze(expected_sfs_tensor_prod(vecs, demography))
 
 def expected_deme_tmrca(demography, deme):
     """
@@ -197,7 +197,7 @@ def expected_deme_tmrca(demography, deme):
     vecs[deme] = np.arange(n+1) / n
     vecs[deme][-1] = 0.0
     
-    return expected_sfs_tensor_prod(vecs, demography)
+    return np.squeeze(expected_sfs_tensor_prod(vecs, demography))
 
 def expected_sfs_tensor_prod(vecs, demography):
     """
@@ -256,7 +256,7 @@ def expected_sfs_tensor_prod(vecs, demography):
         assert np.isclose(res[k], 0.0)
     # remove monomorphic states
     res = res[2:]
-    return np.squeeze(res)
+    return res
 
 def _partial_likelihood(leaf_states, G, event, non_neg, is_prob):
     ''' 
