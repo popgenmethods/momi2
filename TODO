@@ -44,3 +44,5 @@ reorganize tests; in particular have some utility functions for creating demogra
 also clean up things like log_within(), etc.
 rename test_sims to test_ms?
 write tests for tensor surfaces
+
+write test to check expected_tmrca (simulate from ms, and check the TMRCA's of the trees)
