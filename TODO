@@ -4,14 +4,6 @@ change likelihood docs/signatures to use mu instead of theta
 in make_demography docstring, add a section "Comments" that discusses some time scaling issues. but otherwise just assume everything is in per-generation units
 
 
-Demography constructor is broken if events are not in sorted order!
-To fix this:
-in the constructor:
-remember the population labels/order
-sort the events by time
-process the event in sorted order
-
-
 remove make_demography
 in docstring, note Demography.from_ms is equivalent to using Demography("-ms $%d %s" % (len(args), ms_cmd), *(args + [default_N_diploid]), **kwargs)
 reference "help(demo_from_ms_cmd)" in description of "-ms_cmd" flag in Demography docstring

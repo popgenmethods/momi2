@@ -256,7 +256,7 @@ def expected_sfs_tensor_prod(vecs, demography):
         assert np.isclose(res[k], 0.0)
     # remove monomorphic states
     res = res[2:]
-    return res
+    return np.squeeze(res)
 
 def _partial_likelihood(leaf_states, G, event, non_neg, is_prob):
     ''' 

@@ -20,12 +20,12 @@ class Demography(nx.DiGraph):
     
     def __init__(self, demo_str, *args, **kwargs):
         cmd_list = _get_cmd_list(demo_str)
-        if cmd_list[0][0] == "msformat":
-            params = _ParamsMap(args, kwargs)
+        params = _ParamsMap(args, kwargs)
+        
+        if cmd_list[0][0] == "msformat":           
             N_e = params.size(cmd_list[0][1])
-            
+           
             cmd_list = _convert_ms_cmd(cmd_list[1:], params)
-            
             parser = _DemographyStringParser(args, kwargs, add_pop_idx=-1, gens_per_time=N_e)
         else:
             parser = _DemographyStringParser(args, kwargs)
@@ -37,6 +37,25 @@ class Demography(nx.DiGraph):
             if cmd_list[i][0] == "a" and cmd_list[i-1][0].isupper():
                 raise ValueError("-a flag must precede all other flags except for -d and -n")
 
+        non_events = [cmd for cmd in cmd_list if not cmd[0].isupper()]
+        events = [cmd for cmd in cmd_list if cmd[0].isupper()]
+
+        ## label new pops by their order in the cmd
+        npops = len(cmd_list[1][1:])
+        for e in events:
+            if e[0] == "S":
+                ## add extra param giving the pop label
+                ## this is the TRUE momi label, as an int
+                ## (not the ms label even if its from ms cmd line)
+                ## TODO: this code is very opaque, clean it up!                
+                e.append(npops)
+                npops += 1
+
+        ## sort events by time
+        events = sorted(events, key=lambda x: params.time(x[1]))
+
+        ## process all events
+        cmd_list = non_events + list(events)
         for event in cmd_list:
             parser.add_event(*event)
         
@@ -233,18 +252,18 @@ class _DemographyStringParser(object):
     def get_pop(self, i):
         return int(i) + self.add_pop_idx
 
-    def _apply_all_pops(self, func, t, x, xfunc):
+    def _apply_all_pops(self, func, t, x):
         assert self.roots
         for i in self.roots:
             assert i != "*" # avoid infinite recursion
             if self.roots[i] is not None:
-                func(t,str(i-self.add_pop_idx),x)
-        return (self.params.time(t), "*", xfunc(x))
+                _,_,xval = func(t,str(i-self.add_pop_idx),x)
+        return (self.params.time(t), "*", xval)
 
-    def _S(self, t,i,p):
+    def _S(self, t,i,p, new_label):
         t,p = self.params.time(t), self.params.pulse(p)
         i = self.get_pop(i)
-
+        
         child = self.roots[i]
         self.set_sizes(self.nodes[child], t)
 
@@ -262,7 +281,9 @@ class _DemographyStringParser(object):
         self.edges += list(new_edges)
 
         self.roots[i] = parents[0]
-        self.roots[len(self.roots)] = parents[1]
+        
+        assert new_label not in self.roots
+        self.roots[new_label] = parents[1]
         
         return t,i,p
     
@@ -292,7 +313,7 @@ class _DemographyStringParser(object):
     
     def _N(self, t,i,N):
         if i == "*":
-            return self._apply_all_pops(self._N, t, N, self.params.size)
+            return self._apply_all_pops(self._N, t, N)
         t,N = self.params.time(t), self.params.size(N)
         i = self.get_pop(i)
         self.nodes[self.roots[i]]['sizes'].append({'t':t,'N':N,'growth_rate':None})
@@ -300,7 +321,7 @@ class _DemographyStringParser(object):
 
     def _G(self, t,i,growth_rate):
         if i=="*":
-            return self._apply_all_pops(self._G, t, growth_rate, self.params.growth)
+            return self._apply_all_pops(self._G, t, growth_rate)
         
         if self.params.growth(growth_rate) == 0.0 and growth_rate[0] != "$":
             growth_rate = None
