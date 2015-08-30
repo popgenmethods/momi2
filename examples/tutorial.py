@@ -14,7 +14,8 @@ help(momi)
 Creating Demographies
 ---------------------
 Let's start by creating a demographic history. 
-momi uses a command line format loosely based on the program ms.
+momi uses a command line format loosely based on the program ms,
+that specifies events in the demographic history going backwards in time.
 
 Users who prefer the original ms command line can also use that format, but be warned:
 the ms command line follows different conventions from the rest of momi,
@@ -32,7 +33,7 @@ demo = momi.Demography(
     "-N 0 1 5000 " +
     # at t=3500 generations, 75% of lineages in deme 0 migrate to a new deme 2
     "-S 3500 0 .25 " +
-    # deme 2 joins onto deme 1 (so effect is a pulse from deme 1 to deme 0)
+    # deme 2 joins onto deme 1 (so effect is a pulse from deme 1 to deme 0, forward in time)
     "-J 3500 2 1 " +
     # at t=15000 generations, deme 1 joins onto deme 0
     "-J 15000 1 0 " +
