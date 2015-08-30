@@ -89,12 +89,13 @@ We illustrate some functions for computing statistics of the multipopulation coa
 """
 
 eTmrca = momi.expected_tmrca(demo)
-eTmrca_0 = momi.expected_deme_tmrca(demo, 0)
-eL = momi.expected_total_branch_len(demo)
-
 print "Expected TMRCA: ", eTmrca, "generations"
+
+eTmrca_0 = momi.expected_deme_tmrca(demo, 0)
 print "Expected TMRCA of samples in deme 0: ", eTmrca_0, "generations"
-print "Expected total branch length: ", eL
+
+eL = momi.expected_total_branch_len(demo)
+print "Expected total branch length: ", eL, "generations"
 
 # check that demo2 has the same values for these statistics
 # use numpy.isclose to check equality of floating point numbers
