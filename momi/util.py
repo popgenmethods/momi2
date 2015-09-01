@@ -26,7 +26,7 @@ def sum_sfs_list(sfs_list):
          The combined SFS, represented as a dict mapping configs (tuples)
          to frequencies (floats or ints).
     """
-    return sum([Counter(sfs) for sfs in sfs_list], Counter())
+    return dict(sum([Counter(sfs) for sfs in sfs_list], Counter()))
 
 def polymorphic_configs(demo):
     n = sum([demo.n_lineages(l) for l in demo.leaves])

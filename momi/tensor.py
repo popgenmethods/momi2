@@ -86,36 +86,36 @@ def greedy_hosvd(sfs_tensor, n_entries, verbose=False):
 
 
 class MEstimatorSurface(object):
-    def __init__(self, theta, demo_func=lambda demo: demo):
+    def __init__(self, mu, demo_func=lambda demo: demo):
         '''
         demo_func: a function that returns demography from the parameters.
                    Default is the identity function (so surface is parametrized
                    by space of demographies).
                    Note derivatives and covariance estimation only work if
                    parameters are array-valued.
-        theta: One of the following:
+        mu: One of the following:
                (a) a number giving the mutation rate at each locus
                (b) a list of numbers giving the mutation rate at each locus
                (c) a function that takes in parameters, and returns (a) or (b)
                (d) None. In this case uses multinomial probability, instead of Poisson Random Field
         '''
-        self.theta = theta
+        self.mu = mu
         self.demo_func = demo_func
 
     def evaluate(self, params, vector=False):
         pass
         
-    def _get_theta(self, params):
-        ## TODO: require same theta for all loci, until I figure out how to appropriately compute confidence intervals when using different theta
+    def _get_mu(self, params):
+        ## TODO: require same mu for all loci, until I figure out how to appropriately compute confidence intervals when using different mu
         try:
-            ret = self.theta(params)
+            ret = self.mu(params)
         except TypeError:
-            ret = self.theta
+            ret = self.mu
         return np.array(ret)
 
 class PoisGaussSurface(MEstimatorSurface):
-    def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
-        super(PoisGaussSurface, self).__init__(theta, demo_func)
+    def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):    
+        super(PoisGaussSurface, self).__init__(mu, demo_func)
 
         self.n_vecs = sfs_directions[0].shape[0]
         self.sfs_directions = [np.vstack([[1.0]*s.shape[1], s])
@@ -142,14 +142,14 @@ class PoisGaussSurface(MEstimatorSurface):
         branch_len, expectations = expectations[0], expectations[1:]
         expectations = expectations / branch_len
         
-        theta = self._get_theta(params)
-        theta = np.ones(self.n_loci) * theta
-        theta = np.sum(theta)
+        mu = self._get_mu(params)
+        mu = np.ones(self.n_loci) * mu
+        mu = np.sum(mu)
 
         resids =  expectations - self.means
         Sigma_inv = self.inv_cov_mat(demo, branch_len, expectations)
 
-        return self.neg_log_lik(theta * branch_len, self.num_muts, resids, Sigma_inv)
+        return self.neg_log_lik(mu * branch_len, self.num_muts, resids, Sigma_inv)
 
     def neg_log_lik(self, expected_snps, n_snps, resids, Sigma_inv):
         return expected_snps - n_snps * np.log(expected_snps) + 0.5 * n_snps * np.dot(resids, np.dot(Sigma_inv, resids)) - 0.5 * slogdet_pos(Sigma_inv * n_snps)
@@ -165,8 +165,8 @@ def get_cross_vecs(sfs_directions, n_vecs):
     return cross_vecs
     
 class PGSurface_Empirical(PoisGaussSurface):
-    def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
-        super(PGSurface_Empirical, self).__init__(sfs_list, sfs_directions, theta, demo_func)
+    def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):    
+        super(PGSurface_Empirical, self).__init__(sfs_list, sfs_directions, mu, demo_func)
        
         cross_means = sfs_tensor_prod(self.sfs_aggregated, get_cross_vecs(sfs_directions, self.n_vecs)) / self.num_muts
         cross_means = symmetric_matrix(cross_means, self.n_vecs)
@@ -179,8 +179,8 @@ class PGSurface_Empirical(PoisGaussSurface):
         return self.Sigma_inv
 
 class PGSurface_Diag(PoisGaussSurface):
-    def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
-        super(PGSurface_Diag, self).__init__(sfs_list, sfs_directions, theta, demo_func)
+    def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):    
+        super(PGSurface_Diag, self).__init__(sfs_list, sfs_directions, mu, demo_func)
        
         self.square_sfs_vecs = [s**2 for s in sfs_directions]
        
@@ -188,8 +188,8 @@ class PGSurface_Diag(PoisGaussSurface):
         return np.diag(1./ (expected_sfs_tensor_prod(self.square_sfs_vecs, demo) / branch_len - means**2))
 
 class PGSurface_Exact(PoisGaussSurface):
-    def __init__(self, sfs_list, sfs_directions, theta, demo_func=lambda demo: demo):    
-        super(PGSurface_Exact, self).__init__(sfs_list, sfs_directions, theta, demo_func)
+    def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):    
+        super(PGSurface_Exact, self).__init__(sfs_list, sfs_directions, mu, demo_func)
 
         self.cross_vecs = get_cross_vecs(sfs_directions, self.n_vecs)
         cross_means = sfs_tensor_prod(self.sfs_aggregated, self.cross_vecs) / self.num_muts

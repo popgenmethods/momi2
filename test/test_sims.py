@@ -60,26 +60,26 @@ def test_sfs_counts2(k):
     check_sfs_counts(demo=make_demography(demo_funcs[k]()))
 
 
-def check_sfs_counts(demo_ms_cmd=None, demo=None, theta=10.0, num_ms_samples=1000):
+def check_sfs_counts(demo_ms_cmd=None, demo=None, mu=10.0, num_ms_samples=1000):
     assert (demo_ms_cmd is None) != (demo is None)
 
     if demo is None:
         demo = make_demography(demo_ms_cmd)
         n = sum(demo.n_at_leaves)
 
-        ms_cmd = "%d %d -t %f %s -seed %s" % (n, num_ms_samples, theta, demo_ms_cmd,
+        ms_cmd = "%d %d -t %f %s -seed %s" % (n, num_ms_samples, mu, demo_ms_cmd,
                                               " ".join([str(random.randint(0,999999999))
                                                         for _ in range(3)]))
 
         sfs_list = sfs_list_from_ms(run_ms(ms_cmd), demo.n_at_leaves)
     elif demo_ms_cmd is None:        
-        sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, theta=theta),
+        sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, mu=mu),
                                     demo.n_at_leaves)
     
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     
     sfs_vals,branch_len = expected_sfs(demo, config_list), expected_total_branch_len(demo)
-    theoretical = sfs_vals * theta
+    theoretical = sfs_vals * mu
 
     observed = np.zeros((len(config_list), len(sfs_list)))
     for j,sfs in enumerate(sfs_list):
@@ -130,4 +130,4 @@ def my_t_test(labels, theoretical, observed, min_samples=25):
 
 if  __name__=="__main__":
     demo = make_demography(" ".join(sys.argv[3:]))
-    check_sfs_counts(demo, theta=float(sys.argv[2]), num_ms_samples=int(sys.argv[1]))
+    check_sfs_counts(demo, mu=float(sys.argv[2]), num_ms_samples=int(sys.argv[1]))

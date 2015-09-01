@@ -1,5 +1,6 @@
 import momi
-from numpy import isclose
+from numpy import isclose, allclose
+import pandas
 
 """
 This tutorial gives an overview of the momi package.
@@ -14,8 +15,7 @@ help(momi)
 Creating Demographies
 ---------------------
 Let's start by creating a demographic history. 
-momi uses a command line format loosely based on the program ms,
-that specifies events in the demographic history going backwards in time.
+momi uses a command line format loosely based on the program ms.
 
 Users who prefer the original ms command line can also use that format, but be warned:
 the ms command line follows different conventions from the rest of momi,
@@ -31,13 +31,13 @@ demo = momi.Demography(
     "-G 0 0 5e-5 " +
     # at present (t=0), deme 1 has diploid pop size of 5000
     "-N 0 1 5000 " +
-    # at t=3500 generations, 75% of lineages in deme 0 migrate to a new deme 2
+    # at t=3500 generations ago, 75% of lineages in deme 0 migrate to a new deme 2
     "-S 3500 0 .25 " +
     # deme 2 joins onto deme 1 (so effect is a pulse from deme 1 to deme 0, forward in time)
     "-J 3500 2 1 " +
-    # at t=15000 generations, deme 1 joins onto deme 0
+    # at t=15000 generations ago, deme 1 joins onto deme 0
     "-J 15000 1 0 " +
-    # at t=15000 generations, deme 0 has growth rate set to 0
+    # at t=15000 generations ago, deme 0 has growth rate set to 0
     "-G 15000 0 0"
 )
 
@@ -67,13 +67,14 @@ the momi and ms formats:
    whereas in ms populations are indexed starting at 1.
    (So population 0 in momi corresponds to population 1 in ms)
 
-There is a third major difference, not illustrated here,
-that we will revisit in more detail later (in the Inference section):
+There is a third major difference, that we will revisit in more detail later:
 3) In momi, new populations created by -S are labeled according to their position in the command line.
    In ms, new populations created by -es are labeled according to the time of the admixture event.
 
    In this example, there is only one admixture event, 
    so the ordering of populations is the same in both commands.
+
+   We will cover this difference in tutorial section "Inference"
 
 See also:
 help(momi.Demography.__init__) for info on the momi format
@@ -86,8 +87,9 @@ help(momi.Demography) for info on the Demography object
 """
 Coalescent Statistics
 ---------------------
-We illustrate some functions for computing statistics of the multipopulation coalescent.
+Let's examine some statistics of the above demography.
 """
+print "\n"
 
 eTmrca = momi.expected_tmrca(demo)
 print "Expected TMRCA: ", eTmrca, "generations"
@@ -113,34 +115,100 @@ of summary statistics of the expected SFS and the coalescent.
 """
 
 """
-Expected Site Frequency Spectrum (SFS)
+Expected Sample Frequency Spectrum (SFS)
 --------------------------------------
+The expected SFS for configuration (i_0,i_1,...) is the expected length of branches with
+i_0 descendants in pop 0, i_1 descendants in pop 1, etc.
+
+So, the expected number of mutations with 
+i_0 derived alleles in pop 0, i_1 derived alleles in pop 1, etc.,
+is equal to the mutation rate multiplied by the expected SFS.
+
+Furthermore, for a given mutation, the probability that it has
+i_0 descendants in pop 0, i_1 descendants in pop 1, etc., is
+equal to the expected SFS, divided by the expected total branch length.
+"""
+print "\n"
+
+# a list of configs
+config_list = [(1,0), (0,1), (1,3), (10,0), (0,7), (2,2)]
+# an array of the SFS entries corresponding to each config in config_list
+eSFS = momi.expected_sfs(demo, config_list)
+# the SFS renormalized to be probabilities
+eSFS_normalized = momi.expected_sfs(demo, config_list, normalized=True)
+
+# use numpy.allclose to check equality of vectors
+assert allclose(eSFS_normalized, eSFS / eL)
+
+print pandas.DataFrame({"Config": config_list, "E[SFS]": eSFS, "Prob": eSFS_normalized})
+
+"""
+momi.expected_sfs also includes options for dealing with sampling error and ascertainment bias.
+See help(momi.expected_sfs) for more details.
 """
 
-# ## sfs
+"""
+Observed SFS
+------------
+The observed SFS gives the number of observed SNPs for each configuration.
+Its expected value is the total mutation rate, times the expected SFS (previous section).
 
-# config_list = ...
-# print expected_sfs(config_list, demo)
+momi represents the observed SFS as a dictionary, mapping configs (tuples) to counts (ints).
+
+Here, we use ms to simulate a dataset, read in the output,
+and then construct the observed SFS using momi.sfs_list_from_ms().
+We then print out the SFS and some statistics for illustration.
+"""
+print "\n"
+
+print "Reading dataset from ms\n"
+
+# file of output from ms
+ms_output = momi.simulate_ms(demo, num_sims=1000, mu=1e-3, additional_ms_params="-r 1e-3 10000")
+
+# get a list with the observed SFS at each locus
+sfs_list = momi.sfs_list_from_ms(ms_output, demo.n_at_leaves)
+
+# aggregate into a single SFS for the whole dataset
+combined_sfs = momi.sum_sfs_list(sfs_list)
+
+# The observed SFS is represented as a dictionary, mapping configs (tuples) to their counts
+print "Observed SFS for locus 0:\n", sfs_list[0], "\n"
+print "Observed SFS for all loci:\n", combined_sfs, "\n"
+
+print "Number of singleton mutations:\n", combined_sfs[(1,0)] + combined_sfs[(0,1)], "\n"
+print "Total number of mutations:\n", sum(combined_sfs.values()), "\n"
 
 
-# ## simulate/read in data from ms
-
-# ms_file = file(...)
-# ## UNCOMMENT next 2 lines to generate a new dataset. note user must make sure ms_path is pointing to ms or scrm!
-# # ms_path = momi.default_ms_path() ##
-# # ms_file = momi.simulate_ms(ms_path = ms_path...)
-
-# sfs_list = momi.sfs_list_from_ms(ms_file)
-# print sfs_list
-
-# # combine into a single sfs
-# combined_sfs = momi.sum_sfs_list(sfs_list)
-# print combined_sfs
+## TODO rescale simulate_ms? it's a bit confusing with the -r parameter (make sure to update mu_per_locus below)
+## TODO save an ms file in repository and read that in
+## TODO: change API of sfs_list_from_ms, simulate_ms to use list of lines, instead of file object?
+## TODO: change sfs_list_from_ms so it doesn't need demo.n_at_leaves
 
 
-# ## compute log likelihood of combined sfs
+"""
+Composite likelihood
+--------------------
+We construct a composite likelihood by using a Poisson random field (PRF) approximation.
 
-# print unlinked_log_likelihood(...)
+This assumes that the number of observed SNPs for each configuration 
+are independent Poisson with rate lambda == mutation_rate * expected_sfs.
+"""
+
+# get the mutation rate for the whole dataset (the sum of mutation rates for each locus)
+n_loci, mu_per_locus = 1000, 1e-3
+combined_mu = n_loci * mu_per_locus
+
+# compute the composite likelihood
+composite_log_lik = momi.unlinked_log_likelihood(combined_sfs, demo, mu=combined_mu)
+
+print "Log likelihood of Poisson random field approximation:", composite_log_lik
+
+"""
+If mutation rate mu is set to None, then unlinked_log_likelihood() uses a multinomial distribution instead of a Poisson random field.
+See help(momi.unlinked_log_likelihood).
+"""
+
 
 
 # ## now inference
@@ -148,6 +216,7 @@ Expected Site Frequency Spectrum (SFS)
 
 # ## later we will want to make sure this function also works with automatic differentiation,
 # ## but let's worry about that later
+## to make the function non-differentiable, insert parameters as string
 # def demo_func():
 #     x += 3 ## NOTE for later this line is not differentiable!
 

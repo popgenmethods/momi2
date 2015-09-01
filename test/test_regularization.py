@@ -12,7 +12,7 @@ from momi.likelihood_surface import unlinked_mle_search2
 
 def test_regularization():
     num_runs = 1000
-    theta=10.0
+    mu=10.0
     def get_demo(t):
         print t
         t0,t1 = t
@@ -20,10 +20,10 @@ def test_regularization():
     true_x = np.array([np.log(.5),np.log(.2)])
     true_demo = get_demo(true_x)
 
-    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
+    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, mu=mu),
                                         true_demo.n_at_leaves))
     
-    # f = lambda x: -unlinked_log_likelihood(sfs, demo=get_demo(*x), theta=theta * num_runs)
+    # f = lambda x: -unlinked_log_likelihood(sfs, demo=get_demo(*x), mu=mu * num_runs)
     # g, hp = grad(f), hessian_vector_product(f)
     # ## TODO: use callback instead
     # def f_verbose(x):
@@ -35,7 +35,7 @@ def test_regularization():
     #     return ret
 
     # optimize_res = minimize(f_verbose, np.array([np.log(0.1),np.log(100.0)]), jac=g, hessp=hp, method='newton-cg')
-    optimize_res = unlinked_mle_search2(sfs, get_demo, theta * num_runs, np.array([np.log(0.1),np.log(100.0)]))
+    optimize_res = unlinked_mle_search2(sfs, get_demo, mu * num_runs, np.array([np.log(0.1),np.log(100.0)]))
     print optimize_res
     #optimize_res =
     

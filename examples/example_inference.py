@@ -29,7 +29,7 @@ def main():
     
     res = simulate_inference(ms_path=ms_path,
                              num_loci=1000,
-                             theta=10.0,
+                             mu=10.0,
                              additional_ms_params='-r 10.0 10000',
                              true_ms_params = transform_pulse_params(anp.array([-2.5, -1.0, -1.0, 1.0])),
                              init_opt_params = anp.random.normal(size=4),

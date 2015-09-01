@@ -11,7 +11,7 @@ def expected_sfs(demography, config_list, normalized=False, error_matrices=None)
     """
     Expected sample frequency spectrum (SFS) entries for the specified
     demography and configs. The expected SFS is the expected number of
-    observed mutations for a configuration when theta=1, or equivalently,
+    observed mutations for a configuration when mu=1, or equivalently,
     the expected branch length (in ms-scaled units) subtending a
     configuration.
 
@@ -79,7 +79,7 @@ def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
     """
     The expected sum of SFS entries for all configs (as given by
     expected_sfs). Equivalently, the expected number of observed mutations
-    when theta=1, or the expected total branch length of the sample
+    when mu=1, or the expected total branch length of the sample
     genealogy (in ms-scaled units).
 
     Parameters

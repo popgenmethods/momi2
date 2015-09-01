@@ -7,7 +7,7 @@ from momi import make_demography, simulate_ms, sfs_list_from_ms, unlinked_log_li
 
 def test_joint_sfs_inference():
     N0=1.0
-    theta=1.0
+    mu=1.0
     t0=random.uniform(.25,2.5)
     t1= t0 + random.uniform(.5,5.0)
     num_runs = 10000
@@ -20,9 +20,9 @@ def test_joint_sfs_inference():
 
     true_demo = get_demo([t0])
 
-    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, theta=theta),
+    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, mu=mu),
                                         true_demo.n_at_leaves))
-    neg_log_lik = lambda t: -unlinked_log_likelihood(sfs, get_demo(t), theta * num_runs)
+    neg_log_lik = lambda t: -unlinked_log_likelihood(sfs, get_demo(t), mu * num_runs)
     
     print(t0,t1)
     x0 = np.array([random.uniform(0,t1)])

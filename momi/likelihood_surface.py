@@ -6,7 +6,7 @@ import scipy
 from sum_product import expected_sfs, expected_total_branch_len
 from math_functions import einsum2
 
-def unlinked_log_likelihood(sfs, demo, theta, adjust_probs = 0.0, **kwargs):
+def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, **kwargs):
     """
     Compute the log likelihood for a collection of SNPs, assuming they are
     unlinked (independent). Calls expected_sfs to compute the individual SFS
@@ -26,10 +26,10 @@ def unlinked_log_likelihood(sfs, demo, theta, adjust_probs = 0.0, **kwargs):
         the number of derived mutants in the deme labeled j+1.
     demo : Demography
         object created using the function make_demography
-    theta : float or None
+    mu : float or None
         The mutation rate. If None, the number of SNPs is assumed to be
         fixed and a multinomial distribution is used. Otherwise the number
-        of SNPs is assumed to be Poisson with parameter theta*E[branch_len]
+        of SNPs is assumed to be Poisson with parameter mu*E[branch_len]
 
     Returns
     -------
@@ -56,10 +56,10 @@ def unlinked_log_likelihood(sfs, demo, theta, adjust_probs = 0.0, **kwargs):
     unlinked_log_lik_vector : efficiently compute log-likelihoods for each
                               of several loci
     """
-    return unlinked_log_lik_vector([sfs], demo, theta, adjust_probs = adjust_probs, **kwargs)
+    return np.squeeze(unlinked_log_lik_vector([sfs], demo, mu, adjust_probs = adjust_probs, **kwargs))
 
 
-def unlinked_mle_search1(sfs, demo_func, theta, start_params, bounds, sfs_kwargs = {}, adjust_probs = 1e-80):
+def unlinked_mle_search1(sfs, demo_func, mu, start_params, bounds, sfs_kwargs = {}, adjust_probs = 1e-80):
     """
     Search for the MLE, assuming all sites are unlinked. Uses
     unlinked_log_likelihood to compute log-likelihoods and
@@ -81,7 +81,7 @@ def unlinked_mle_search1(sfs, demo_func, theta, start_params, bounds, sfs_kwargs
     demo_func : function
         a function returning a valid demography object (as created by
         make_demography) for every parameter value within bounds
-    theta : None or float or function
+    mu : None or float or function
         The mutation rate, or a function that takes in the parameters
         and returns the mutation rate. If None, uses a multinomial
         distribution; if a float, uses a Poisson random field. See
@@ -128,10 +128,10 @@ def unlinked_mle_search1(sfs, demo_func, theta, start_params, bounds, sfs_kwargs
     if bounds is None or any([x is None for bd in bounds for x in bd]):
         raise Exception("Finite bounds required for all parameters")
     
-    return unlinked_mle_search(sfs, demo_func, theta, start_params, opt_kwargs = {'bounds': bounds}, sfs_kwargs = sfs_kwargs, adjust_probs = adjust_probs)
+    return unlinked_mle_search(sfs, demo_func, mu, start_params, opt_kwargs = {'bounds': bounds}, sfs_kwargs = sfs_kwargs, adjust_probs = adjust_probs)
 
 
-def unlinked_mle_search2(sfs, demo_func, theta, start_params, sfs_kwargs = {}, adjust_probs = 1e-80):
+def unlinked_mle_search2(sfs, demo_func, mu, start_params, sfs_kwargs = {}, adjust_probs = 1e-80):
     """
     Search for the MLE, assuming all sites are unlinked. Uses
     unlinked_log_likelihood to compute log-likelihoods and
@@ -156,7 +156,7 @@ def unlinked_mle_search2(sfs, demo_func, theta, start_params, sfs_kwargs = {}, a
         a function returning a valid demography object (as created by
         make_demography) for every parameter value within R^p, where
         p is the number of parameters.
-    theta : None or float or function
+    mu : None or float or function
         The mutation rate, or a function that takes in the parameters
         and returns the mutation rate. If None, uses a multinomial
         distribution; if a float, uses a Poisson random field. See
@@ -194,10 +194,10 @@ def unlinked_mle_search2(sfs, demo_func, theta, start_params, sfs_kwargs = {}, a
     sum_sfs_list : combine SFS's of multiple loci into one SFS, before
          passing into this function
     """    
-    return unlinked_mle_search(sfs, demo_func, theta, start_params, derivs = ['jac', 'hessp'], opt_kwargs = {'method' : 'trust-ncg'}, sfs_kwargs = sfs_kwargs, adjust_probs = adjust_probs)
+    return unlinked_mle_search(sfs, demo_func, mu, start_params, derivs = ['jac', 'hessp'], opt_kwargs = {'method' : 'trust-ncg'}, sfs_kwargs = sfs_kwargs, adjust_probs = adjust_probs)
 
 
-def composite_mle_approx_covariance(params, sfs_list, demo_func, theta):
+def composite_mle_approx_covariance(params, sfs_list, demo_func, mu):
     """
     Approximate covariance matrix for the composite MLE, i.e. the inverse
     'Godambe Information'. Under certain conditions, the composite MLE
@@ -223,14 +223,14 @@ def composite_mle_approx_covariance(params, sfs_list, demo_func, theta):
          expectations accurately.
     demo_func : function
          Function that maps parameter values to demographies
-    theta : function or numpy.ndarray or float or None
+    mu : function or numpy.ndarray or float or None
          The mutation rate at each locus, or a function mapping parameters
          to the mutation rates, or None (if using multinomial instead of
          Poisson).
     """    
-    theta = make_function(theta)
+    mu = make_function(mu)
         
-    f_vec = lambda x: unlinked_log_lik_vector(sfs_list, demo_func(x), theta(x))
+    f_vec = lambda x: unlinked_log_lik_vector(sfs_list, demo_func(x), mu(x))
     # the sum of f_vec
     f_sum = lambda x: np.sum(f_vec(x))
 
@@ -253,7 +253,7 @@ def composite_mle_approx_covariance(params, sfs_list, demo_func, theta):
     return check_symmetric(ret)
 
 
-def unlinked_log_lik_vector(sfs_list, demo, theta, adjust_probs = 0.0, **kwargs):
+def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, **kwargs):
     """
     Return a vector of log likelihoods for a collection of loci. Equivalent
     to, but much more efficient than, calling unlinked_log_likelihood on
@@ -266,11 +266,11 @@ def unlinked_log_lik_vector(sfs_list, demo, theta, adjust_probs = 0.0, **kwargs)
         mapping configs (tuples) to observed counts (floats or ints)
     demo : Demography
         object created using the function make_demography
-    theta : float or numpy.ndarray or None
+    mu : float or numpy.ndarray or None
         The mutation rate. If None, the number of SNPs is assumed to be
         fixed and a multinomial distribution is used. If a numpy.ndarray,
         the number of SNPs at locus i is assumed to be Poisson with
-        parameter theta[i]*E[branch_len]. If a float, the mutation rate at
+        parameter mu[i]*E[branch_len]. If a float, the mutation rate at
         all loci are assumed to be equal.
 
     Returns
@@ -316,14 +316,14 @@ def unlinked_log_lik_vector(sfs_list, demo, theta, adjust_probs = 0.0, **kwargs)
     # log likelihood of the multinomial distribution for observed SNPs
     log_lik = np.dot(counts_ij, np.log(E_counts/ E_total + adjust_probs)) - np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
     # add on log likelihood of poisson distribution for total number of SNPs
-    if theta is not None:
-        lambd = theta * E_total
+    if mu is not None:
+        lambd = mu * E_total
         log_lik = log_lik - lambd + counts_i * np.log(lambd) - lnfact(counts_i)
 
     return log_lik
 
 
-def unlinked_mle_search(sfs, demo_func, theta, start_params, derivs = ['jac'], opt_kwargs = {}, sfs_kwargs = {}, adjust_probs = 1e-80):
+def unlinked_mle_search(sfs, demo_func, mu, start_params, derivs = ['jac'], opt_kwargs = {}, sfs_kwargs = {}, adjust_probs = 1e-80):
     """
     Search for the MLE, assuming all sites are unlinked. Uses
     unlinked_log_likelihood to compute log-likelihoods and
@@ -346,7 +346,7 @@ def unlinked_mle_search(sfs, demo_func, theta, start_params, derivs = ['jac'], o
         a function returning a valid demography object (as created by
         make_demography) for every parameter value within R^p, where
         p is the number of parameters.
-    theta : None or float or function
+    mu : None or float or function
         The mutation rate, or a function that takes in the parameters
         and returns the mutation rate. If None, uses a multinomial
         distribution; if a float, uses a Poisson random field. See
@@ -392,8 +392,8 @@ def unlinked_mle_search(sfs, demo_func, theta, start_params, derivs = ['jac'], o
     sum_sfs_list : combine SFS's of multiple loci into one SFS, before
          passing into this function
     """        
-    theta = make_function(theta)
-    f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), theta(params), adjust_probs = adjust_probs, **sfs_kwargs)
+    mu = make_function(mu)
+    f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), mu(params), adjust_probs = adjust_probs, **sfs_kwargs)
 
     derivs = list(derivs)
     opt_kwargs = dict(opt_kwargs)

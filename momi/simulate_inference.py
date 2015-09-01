@@ -17,7 +17,7 @@ from autograd import grad, hessian_vector_product
 
 import time
 
-def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', surface_type='kl', n_sfs_dirs=0, tensor_method='greedy-hosvd', conf_intervals=False):
+def simulate_inference(ms_path, num_loci, mu, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', surface_type='kl', n_sfs_dirs=0, tensor_method='greedy-hosvd', conf_intervals=False):
     '''
     Simulate a SFS, then estimate the demography via maximum composite
     likelihood, using first and second-order derivatives to search 
@@ -26,7 +26,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     num_loci: number of unlinked loci to simulate
     true_ms_params: dictionary of true parameters, in ms parameter space
     init_opt_params: array of initial parameters, in optimization parameter space
-    theta: mutation rate per locus.
+    mu: mutation rate per locus.
     demo_str: a string given the demography in ms-format
     n_iter: number of iterations to use in basinhopping
     transform_params: a function transforming the parameters in optimization space,
@@ -56,7 +56,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     
     myprint("# Simulating %d unlinked loci" % num_loci)
     ## ms_output = file object containing the ms output
-    ms_output = simulate_ms(true_demo, num_sims=num_loci, theta=theta, ms_path=ms_path, additional_ms_params = additional_ms_params)
+    ms_output = simulate_ms(true_demo, num_sims=num_loci, mu=mu, ms_path=ms_path, additional_ms_params = additional_ms_params)
 
     ## sfs_list = list of dictionaries
     ## sfs_list[i][config] = count of config at simulated locus i
@@ -74,7 +74,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     # m estimator surface
     idx = true_ms_params.index
     ## TODO: make calling demo_func less convoluted
-    f_surface, f_cov = get_likelihood_surface(true_demo, sfs_list, theta,
+    f_surface, f_cov = get_likelihood_surface(true_demo, sfs_list, mu,
                                       lambda x: demo_func_ms(**pd.Series(x,index=idx)),
                                       surface_type,
                                       tensor_method, n_sfs_dirs)
@@ -188,12 +188,12 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
 
     return ret
 
-def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, surface_type, tensor_method, n_sfs_dirs):
+def get_likelihood_surface(true_demo, sfs_list, mu, demo_func, surface_type, tensor_method, n_sfs_dirs):
     if surface_type == 'kl' and n_sfs_dirs <= 0:
         sfs = sum_sfs_list(sfs_list)
-        theta = make_function(theta)
-        f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), theta(params) * len(sfs_list), adjust_probs = 1e-80)
-        f_cov = lambda params: composite_mle_approx_covariance(params, sfs_list, demo_func, theta)
+        mu = make_function(mu)
+        f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), mu(params) * len(sfs_list), adjust_probs = 1e-80)
+        f_cov = lambda params: composite_mle_approx_covariance(params, sfs_list, demo_func, mu)
         return f, f_cov       
 
     if surface_type == 'kl' or n_sfs_dirs <= 0:
@@ -214,13 +214,13 @@ def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, surface_type, 
         raise Exception("Unrecognized tensor_method")
 
     if surface_type == 'pgs-diag':
-        ret = PGSurface_Diag(sfs_list, sfs_dirs, theta, demo_func).evaluate
+        ret = PGSurface_Diag(sfs_list, sfs_dirs, mu, demo_func).evaluate
     elif surface_type == 'pgs-exact':
-        ret = PGSurface_Exact(sfs_list, sfs_dirs, theta, demo_func).evaluate
+        ret = PGSurface_Exact(sfs_list, sfs_dirs, mu, demo_func).evaluate
     elif surface_type == 'pgs-emp':
-        ret = PGSurface_Empirical(sfs_list, sfs_dirs, theta, demo_func).evaluate
+        ret = PGSurface_Empirical(sfs_list, sfs_dirs, mu, demo_func).evaluate
     elif surface_type == 'pws':
-        ret = PoissonWishartSurface(sfs_list, sfs_dirs, theta, demo_func).evaluate
+        ret = PoissonWishartSurface(sfs_list, sfs_dirs, mu, demo_func).evaluate
     else:
         Exception("Unrecognized surface type")
 

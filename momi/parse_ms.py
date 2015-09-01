@@ -159,7 +159,7 @@ def sfs_list_from_ms(ms_file, n_at_leaves):
     return [_sfs_from_1_ms_sim(list(lines), len(n_at_leaves), pops_by_lin)
             for i,lines in runs]
 
-def simulate_ms(demo, num_sims, theta, ms_path=default_ms_path(), seeds=None, additional_ms_params=""):
+def simulate_ms(demo, num_sims, mu, ms_path=default_ms_path(), seeds=None, additional_ms_params=""):
     '''
     Given a demography, simulate from it using ms
 
@@ -184,7 +184,7 @@ def simulate_ms(demo, num_sims, theta, ms_path=default_ms_path(), seeds=None, ad
     ms_args = "%s -seed %s" % (ms_args, seeds)
 
     assert ms_args.startswith("-I ")
-    ms_args = "-t %f %s" % (theta, ms_args)
+    ms_args = "-t %f %s" % (mu, ms_args)
     ms_args = "%d %d %s" % (n, num_sims, ms_args)
 
     return run_ms(ms_args)
@@ -225,4 +225,4 @@ def _sfs_from_1_ms_sim(lines, num_pops, pops_by_lin):
             dd[pops_by_lin[i]] += int(line[column])
         assert sum(dd) > 0
         currCounts[tuple(dd)] += 1
-    return currCounts
+    return dict(currCounts)
