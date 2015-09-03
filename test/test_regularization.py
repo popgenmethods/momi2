@@ -7,8 +7,7 @@ from autograd import grad, hessian_vector_product
 
 from momi import make_demography, simulate_ms, sfs_list_from_ms, sum_sfs_list
 from momi import unlinked_log_likelihood
-#from momi.likelihood_surface import unlinked_mle_search1
-from momi.likelihood_surface import unlinked_mle_search2
+from momi import unlinked_mle_search
 
 def test_regularization():
     num_runs = 1000
@@ -23,21 +22,8 @@ def test_regularization():
     sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, mu=mu),
                                         true_demo.n_at_leaves))
     
-    # f = lambda x: -unlinked_log_likelihood(sfs, demo=get_demo(*x), mu=mu * num_runs)
-    # g, hp = grad(f), hessian_vector_product(f)
-    # ## TODO: use callback instead
-    # def f_verbose(x):
-    #     # for verbose output during the gradient descent
-    #     print np.exp(x)
-    #     #print (x - true_x) / true_x
-    #     ret = f(x)
-    #     print ret
-    #     return ret
-
-    # optimize_res = minimize(f_verbose, np.array([np.log(0.1),np.log(100.0)]), jac=g, hessp=hp, method='newton-cg')
-    optimize_res = unlinked_mle_search2(sfs, get_demo, mu * num_runs, np.array([np.log(0.1),np.log(100.0)]))
+    optimize_res = unlinked_mle_search(sfs, get_demo, mu * num_runs, np.array([np.log(0.1),np.log(100.0)]), hessp=True, method='newton-cg')
     print optimize_res
-    #optimize_res =
     
     inferred_x = optimize_res.x
     error = (true_x - inferred_x) / true_x

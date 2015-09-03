@@ -18,12 +18,8 @@ def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, **kwargs):
         maps configs (tuples) to their observed counts (ints or floats).
 
         If there are D sampled populations, then each config is
-        represented by a D-tuple (i_1,i_2,...,i_D), where i_j is the
+        represented by a D-tuple (i_0,i_1,...,i_{D-1}), where i_j is the
         number of derived mutants in deme j.
-
-        WARNING: in python, tuples are indexed starting at 0, whereas
-        in ms, populations are indexed starting at 1. So config[j] =
-        the number of derived mutants in the deme labeled j+1.
     demo : Demography
         object created using the function make_demography
     mu : float or None
@@ -40,12 +36,10 @@ def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, **kwargs):
     Other Parameters
     ----------------
     adjust_probs : float, optional
-        Added to the probability of each SNP. Default is 0 (no adjustment).
+        Added to the probability of each SNP.
         Setting adjust_probs to a small positive number (e.g. 1e-80)
-        prevents the likelihood from being exactly 0, and thus the
-        log-likelihood from being -Inf. This is useful for dealing with 
-        potential numerical underflow errors, and can improve parameter
-        search behavior, especially in regions of very low likelihood.
+        prevents the likelihood from being 0 or negative, due to
+        precision or underflow errors.
     **kwargs : optional
         Additional optional arguments to be passed to expected_sfs
         (e.g. error_matrices)
@@ -58,147 +52,6 @@ def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, **kwargs):
     """
     return np.squeeze(unlinked_log_lik_vector([sfs], demo, mu, adjust_probs = adjust_probs, **kwargs))
 
-
-def unlinked_mle_search1(sfs, demo_func, mu, start_params, bounds, verbose = False, sfs_kwargs = {}, adjust_probs = 1e-80):
-    """
-    Search for the MLE, assuming all sites are unlinked. Uses
-    unlinked_log_likelihood to compute log-likelihoods and
-    scipy.optimize.minimize to perform parameter search.
-
-    This is a simple wrapper function for unlinked_mle_search. It searches
-    for the optimal parameters within a rectangular region, and requires
-    the user to specify finite bounds for all parameters. A quasi-Newton
-    search algorithm is used, which uses the gradient and an approximation
-    to the inverse Hessian to steer its search. Note this is susceptible
-    to local optima, and multiple runs with different starting parameters
-    may be required to find the global optimum.
-
-    Parameters
-    ----------
-    sfs : dict
-        maps configs (tuples) to their observed counts (ints or floats)
-        See unlinked_log_likelihood for details
-    demo_func : function
-        a function returning a valid demography object (as created by
-        make_demography) for every parameter value within bounds
-    mu : None or float or function
-        The mutation rate, or a function that takes in the parameters
-        and returns the mutation rate. If None, uses a multinomial
-        distribution; if a float, uses a Poisson random field. See
-        unlinked_log_likelihood for additional details.
-    start_params : numpy.ndarray
-        The starting point for the parameter search.
-    bounds : list of tuples
-        list of (min,max) pairs for the parameter values. All parameters
-        within the rectangular region described by bounds must return
-        a valid demography. For robustness, it is also recommended that
-        all parameters just outside the bounds, but within numerical
-        precision of the boundary, also return a valid demography.
-    verbose : bool, optional
-        If True, print the current parameters and Demography at each function evaluation.
-
-    Other Parameters
-    ----------------
-    sfs_kwargs : dict, optional
-        additional keyword arguments to pass to unlinked_log_likelihood
-    adjust_probs : float, optional
-        Added to the probability of each SNP. Default is 1e-80, to
-        prevent the likelihood from being exactly 0, and thus the
-        log-likelihood from being -Inf. This also improves parameter
-        search behavior, especially in regions of very low likelihood.
-
-    Returns
-    -------
-    res : scipy.optimize.OptimizeResult
-         The optimization result represented as a OptimizeResult object.
-         Important attributes are: x the solution array, success a Boolean
-         flag indicating if the optimizer exited successfully and message 
-         which describes the cause of the termination. See scipy
-         documentation for a description of other attributes.
-
-    See Also
-    --------
-    unlinked_log_likelihood : the objective that is optimized here
-    unlinked_mle_search : parameter search with more options
-    unlinked_mle_search2 : unbounded search with hessian information
-    composite_mle_approx_covariance : approximate covariance matrix of the
-         composite MLE, used for constructing approximate confidence
-         intervals.
-    sum_sfs_list : combine SFS's of multiple loci into one SFS, before
-         passing into this function
-    """
-    if bounds is None or any([x is None for bd in bounds for x in bd]):
-        raise Exception("Finite bounds required for all parameters")
-    
-    return unlinked_mle_search(sfs, demo_func, mu, start_params, verbose = verbose, opt_kwargs = {'method' : 'tnc', 'bounds': bounds}, sfs_kwargs = sfs_kwargs, adjust_probs = adjust_probs)
-
-
-def unlinked_mle_search2(sfs, demo_func, mu, start_params, verbose = False, sfs_kwargs = {}, adjust_probs = 1e-80):
-    """
-    Search for the MLE, assuming all sites are unlinked. Uses
-    unlinked_log_likelihood to compute log-likelihoods and
-    scipy.optimize.minimize to perform parameter search.
-
-    This is a simple wrapper function for unlinked_mle_search. The
-    truncated Newton conjugate gradient algorithm is used in an
-    unbounded search. Gradients and Hessian-vector products are used to
-    steer the search. Since the search is unbounded, all possible
-    parameters should correspond to valid demographies.
-
-    Note this is susceptible to local optima, and  multiple runs with
-    different starting parameters may be required to find the global
-    optimum.
-
-    Parameters
-    ----------
-    sfs : dict
-        maps configs (tuples) to their observed counts (ints or floats)
-        See unlinked_log_likelihood for additional details
-    demo_func : function
-        a function returning a valid demography object (as created by
-        make_demography) for every parameter value within R^p, where
-        p is the number of parameters.
-    mu : None or float or function
-        The mutation rate, or a function that takes in the parameters
-        and returns the mutation rate. If None, uses a multinomial
-        distribution; if a float, uses a Poisson random field. See
-        unlinked_log_likelihood for additional details.
-    start_params : numpy.ndarray
-        The starting point for the parameter search.
-    verbose : bool, optional
-        If True, print the current parameters and Demography at each function evaluation.
-
-    Other Parameters
-    ----------------
-    sfs_kwargs : dict, optional
-        additional keyword arguments to pass to unlinked_log_likelihood
-    adjust_probs : float, optional
-        Added to the probability of each SNP. Default is 1e-80, to
-        prevent the likelihood from being exactly 0, and thus the
-        log-likelihood from being -Inf. This also improves parameter
-        search behavior, especially in regions of very low likelihood.
-
-    Returns
-    -------
-    res : scipy.optimize.OptimizeResult
-         The optimization result represented as a OptimizeResult object.
-         Important attributes are: x the solution array, success a Boolean
-         flag indicating if the optimizer exited successfully and message 
-         which describes the cause of the termination. See scipy
-         documentation for a description of other attributes.
-
-    See Also
-    --------
-    unlinked_log_likelihood : the objective that is optimized here
-    unlinked_mle_search : parameter search with more options
-    unlinked_mle_search1 : bounded search with L-BFGS-B
-    composite_mle_approx_covariance : approximate covariance matrix of the
-         composite MLE, used for constructing approximate confidence
-         intervals.
-    sum_sfs_list : combine SFS's of multiple loci into one SFS, before
-         passing into this function
-    """    
-    return unlinked_mle_search(sfs, demo_func, mu, start_params, derivs = ['jac', 'hessp'], verbose = verbose, opt_kwargs = {'method' : 'trust-ncg'}, sfs_kwargs = sfs_kwargs, adjust_probs = adjust_probs)
 
 
 def composite_mle_approx_covariance(params, sfs_list, demo_func, mu):
@@ -286,7 +139,10 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, **kwargs):
     Other Parameters
     ----------------
     adjust_probs : float, optional
-        See unlinked_log_likelihood for description.
+        Added to the probability of each SNP.
+        Setting adjust_probs to a small positive number (e.g. 1e-80)
+        prevents the likelihood from being 0 or negative, due to
+        precision or underflow errors.
     **kwargs : optional
         Additional optional arguments to be passed to expected_sfs
         (e.g. error_matrices)
@@ -313,12 +169,16 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, **kwargs):
     # get the expected counts for each config
     E_counts = expected_sfs(demo, config_list, **kwargs)
     E_total = expected_total_branch_len(demo, **kwargs)
+
+    sfs_probs = E_counts/ E_total + adjust_probs
+    if np.any(sfs_probs <= 0.0):
+        raise FloatingPointError("0 or negative probability leading to non-finite log-likelihood. Try increasing adjust_probs.")
     
     # a function to return the log factorial
     lnfact = lambda x: scipy.special.gammaln(x+1)
 
     # log likelihood of the multinomial distribution for observed SNPs
-    log_lik = np.dot(counts_ij, np.log(E_counts/ E_total + adjust_probs)) - np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
+    log_lik = np.dot(counts_ij, np.log(sfs_probs)) - np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
     # add on log likelihood of poisson distribution for total number of SNPs
     if mu is not None:
         lambd = mu * E_total
@@ -327,7 +187,57 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, **kwargs):
     return log_lik
 
 
-def unlinked_mle_search(sfs, demo_func, mu, start_params, verbose = False, derivs = ['jac'], opt_kwargs = {}, sfs_kwargs = {}, adjust_probs = 1e-80):
+def unlinked_mle_search(sfs, demo_func, mu, start_params,
+                        jac = True, hess = False, hessp = False,                        
+                        sfs_kwargs = {}, adjust_probs = 1e-80,
+                        verbose = False,
+                        method = 'tnc', bounds = None, maxiter = 100, tol = None, options = {}, **kwargs):
+    mu = make_function(mu)
+    f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), mu(params), adjust_probs = adjust_probs, **sfs_kwargs)
+
+    if (hess or hessp) and not callable(method) and method.lower() not in ('newton-cg','trust-ncg','dogleg'):
+        raise ValueError("Only methods newton-cg, trust-ncg, and dogleg use hessian")
+    if bounds is not None and not callable(method) and method.lower() not in ('l-bfgs-b', 'tnc', 'slsqp'):
+        raise ValueError("Only methods l-bfgs-b, tnc, slsqp use bounds")
+
+    if maxiter is None:
+        raise ValueError("maxiter must be a finite positive integer")
+    if 'maxiter' in options:
+        raise ValueError("Please specify maxiter thru function argument 'maxiter', rather than 'options'")
+    
+    options = dict(options)
+    options['maxiter'] = maxiter
+    
+    kwargs = dict(kwargs)
+    kwargs.update({kw : d(f)
+                   for kw, b, d in [('jac', jac, grad), ('hessp', hessp, hessian_vector_product), ('hess', hess, hessian)]
+                   if b})
+
+    if verbose:
+        f = _verbosify(f,
+                       before = lambda x: "demo_func ( %s ) == %s" % (str(x), str(demo_func(x))),
+                       after = lambda ret,x: "momi.unlinked_log_likelihood ( %s ) == %f" % (str(x), -ret))
+
+        for kw in ['jac','hessp','hess']:
+            try:
+                d = kwargs[kw]
+                kwargs[kw] = _verbosify(d, after = lambda ret,*x: "autograd.%s ( %s ) == %s" % (d.__name__, str(x)[1:-1], str(ret)))
+            except KeyError:
+                pass
+    return scipy.optimize.minimize(f, start_params, method=method, bounds=bounds, tol=tol, options=options, **kwargs)
+
+def _verbosify(func, before = None, after = None):
+    def new_func(*args, **kwargs):
+        if before is not None:
+            print before(*args, **kwargs)
+        ret = func(*args, **kwargs)
+        if after is not None:
+            print after(ret, *args, **kwargs)
+        return ret
+    new_func.__name__ = "_verbose" + func.__name__
+    return new_func
+
+## TODO: use comment below to write documentation
     """
     Search for the MLE, assuming all sites are unlinked. Uses
     unlinked_log_likelihood to compute log-likelihoods and
@@ -357,8 +267,6 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params, verbose = False, deriv
         unlinked_log_likelihood for additional details.
     start_params : numpy.ndarray
         The starting point for the parameter search.
-    verbose : bool or function, optional
-        If True, print the current parameters and Demography at each function evaluation.
     derivs : collection, optional
         A collection of strings, telling which derivatives the optimizer
         should use. Valid options are:
@@ -379,13 +287,15 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params, verbose = False, deriv
 
     Other Parameters
     ----------------
+    verbose : bool, optional
+        If True, print verbose output during search.
     sfs_kwargs : dict, optional
         additional keyword arguments to pass to unlinked_log_likelihood
     adjust_probs : float, optional
-        Added to the probability of each SNP. Default is 1e-80, to
-        prevent the likelihood from being exactly 0, and thus the
-        log-likelihood from being -Inf. This also improves parameter
-        search behavior, especially in regions of very low likelihood.
+        Added to the probability of each SNP.
+        Setting adjust_probs to a small positive number (e.g. 1e-80)
+        prevents the likelihood from being 0 or negative, due to
+        precision or underflow errors.
 
     See Also
     --------
@@ -398,45 +308,3 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params, verbose = False, deriv
     sum_sfs_list : combine SFS's of multiple loci into one SFS, before
          passing into this function
     """        
-    mu = make_function(mu)
-    f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), mu(params), adjust_probs = adjust_probs, **sfs_kwargs)
-
-    derivs = list(derivs)
-    opt_kwargs = dict(opt_kwargs)
-
-    if any([k in opt_kwargs.keys() for k in ('jac','hessp','hess')]):
-        raise ValueError("Use 'derivs' parameter to pass 'jac','hessp', or 'hess' argument to scipy.minimize.optimize")
-    
-    for kw, d in [('jac',grad),
-                  ('hessp',hessian_vector_product),
-                  ('hess',hessian)]:
-        if kw in derivs:
-            opt_kwargs[kw] = d(f)
-            derivs.remove(kw)
-    if len(derivs) != 0:
-        raise Exception("Unrecognized derivative name")
-
-    if verbose:
-        f = _verbosify(f,
-                       before = lambda x: "demo_func ( %s ) == %s" % (str(x), str(demo_func(x))),
-                       after = lambda ret,x: "momi.unlinked_log_likelihood ( %s ) == %f" % (str(x), -ret))
-
-        for kw in ['jac','hessp','hess']:
-            try:
-                d = opt_kwargs[kw]
-                opt_kwargs[kw] = _verbosify(d, after = lambda ret,*x: "autograd.%s ( %s ) == %s" % (d.__name__, str(x)[1:-1], str(ret)))
-            except KeyError:
-                pass
-    return scipy.optimize.minimize(f, start_params, **opt_kwargs)
-
-def _verbosify(func, before = None, after = None):
-    def new_func(*args, **kwargs):
-        if before is not None:
-            print before(*args, **kwargs)
-        ret = func(*args, **kwargs)
-        if after is not None:
-            print after(ret, *args, **kwargs)
-        return ret
-    new_func.__name__ = "_verbose" + func.__name__
-    return new_func
-    

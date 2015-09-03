@@ -207,17 +207,26 @@ print "\n"
 
 """
 To find the MCLE, we first define a function mapping from parameters to valid demographies.
+
+For optimization, it's a good idea to choose parameters so that they are of roughly the same
+order of magnitude (this is related to 'preconditioning').
+
+Here, we use scaled_growth = growth * 1e4, and scaled_pop_size,scaled_time = pop_size,time / 1e4 (similar to ms).
+We also parametrize the pulse prob by its logit, for the sake of illustration.
 """
 import autograd.numpy as np ## thinly wrapped version of numpy
 def demo_func(params):
+    scaled_growth0, scaled_size1, scaled_pulse_time, logit_prob, scaled_wait_time = params
+    
     return momi.Demography("-d 1e4 -n 10 12 -G 0 0 $growth0 -N 0 1 $size1 -S $pulse_time 0 $prob -J $pulse_time 2 1 -J $join_time 1 0 -G $join_time 0 0",
-                           growth0 = params[0],
-                           size1 = params[1],
-                           pulse_time = params[2],
-                           prob = 1.0 / (1.0 + np.exp(-params[3])), ## apply logistic function (inverse of logit function)
-                           join_time = params[2] + params[4], ## params[4] == waiting time between pulse,join
+                           growth0 = scaled_growth0 / 1e4,
+                           size1 = scaled_size1 * 1e4,
+                           pulse_time = scaled_pulse_time * 1e4,
+                           prob = 1.0 / (1.0 + np.exp(-logit_prob)),
+                           join_time = (scaled_pulse_time + scaled_wait_time) * 1e4,
     )
-true_params = np.array([5e-5, 5000, 3500, np.log(.25 / (1 - .25)), (15000 - 3500)])
+
+true_params = np.array([5e-5 * 1e4, 5000 / 1e4, 3500 / 1e4, np.log(.25 / (1 - .25)), (15000 - 3500) / 1e4])
 demo = demo_func(true_params)
 print demo
 
@@ -230,45 +239,60 @@ def lik_func(params):
 from autograd import grad
 lik_grad = grad(lik_func)
 
-print "\nLog likelihood of Poisson random field approximation:", lik_func(true_params)
-print "Gradient:", lik_grad(true_params)
+true_lik = lik_func(true_params)
+true_lik_grad = lik_grad(true_params)
 
+print "\n Composite log likelihood at truth:", true_lik
+print "Gradient at truth:", true_lik_grad
 
 """
+See the comment at the end of this section for more details on autograd and automatic differentiation.
+
 Next we define (lower,upper) bounds on the parameter space, pick a random start value, and then search for the MCLE.
 """
-
 # (lower,upper) bounds on the parameter space
-bounds = [(-.0001, .0001), # population 0 per generation growth rate
-          (1e3, 1e5), # population 1 size
-          (1e3, 1e5), # generations until pulse time
+bounds = [(-.001 * 1e4, .001 * 1e4), # scaled growth rate
+          (1e2 / 1e4, 1e6 / 1e4), # scaled pop size
+          (1 / 1e4, 1e5 / 1e4), # scaled pulse time
           (-10,10), # logit(pulse prob)
-          (1e3, 1e5), # generations between pulse & join times
+          (1 / 1e4, 1e5 / 1e4), # scaled wait time
           ]
-print bounds
 
-## TODO: these bounds are a little stringent, but I'm having issues with Demography crashing...fix these!!
-
-# draw random starting value from triangular distribution
+# random starting values from the triangular distribution
 import random
 start_params = np.array([random.triangular(bounds[i][0], bounds[i][1], mode)
-                      for i,mode in enumerate([0, 1e4, 1e4, 0, 1e4])])
+                      for i,mode in enumerate([0, 1, 1, 0, 1])])
 
 print "True parameters:", true_params
 print "Start parameters:", start_params
 print "Searching for MCLE..."
 
+mcle_search_result = momi.unlinked_mle_search(combined_sfs, demo_func, combined_mu, start_params, verbose = True, bounds = bounds, maxiter = 500)
+est_params = mcle_search_result.x
+
 # search for the MCLE using gradient information
-mcle_search_result = momi.unlinked_mle_search1(combined_sfs, demo_func, combined_mu, start_params, bounds, verbose=True)
-#mcle_search_result = momi.unlinked_mle_search2(combined_sfs, demo_func, combined_mu, start_params, verbose=True)
+#mcle_search_result = momi.unlinked_mle_search0(combined_sfs, demo_func, combined_mu, start_params, bounds = bounds, verbose=True)
+#mcle_search_result = momi.unlinked_mle_search1(combined_sfs, demo_func, combined_mu, start_params, bounds = bounds, maxiter=200, verbose=True)
+#mcle_search_result = momi.unlinked_mle_search1(combined_sfs, demo_func, combined_mu, start_params, bounds = bounds, verbose=True)
+#est_params = mcle_search_result.x
+
+# transform_params2 = lambda params: np.array([params[0], np.exp(params[1]), np.exp(params[2]), params[3], np.exp(params[4])])
+# demo_func2 = lambda params: demo_func(transform_params2(params))
+# start_params2 = np.array([start_params[0], np.log(start_params[1]), np.log(start_params[2]), start_params[3], np.log(start_params[4])])
+# mcle_search_result = momi.unlinked_mle_search2(combined_sfs, demo_func2, combined_mu, start_params2, verbose=True)
+# est_params = transform_params2(mcle_search_result.x)
+
 print mcle_search_result
+
+print "Log-likelihood at truth:", true_lik
+print "Log-likelihood at estimated:", -mcle_search_result.fun
+
 
 ## TODO: increase max number function evaluations for search1
 ## TODO: search2 currently fails badly on above example
 
 ## TODO: clean up printing in this section
 
-est_params = mcle_search_result.x
 print "Est/Truth:",  est_params / true_params
 print "Estimated Demography:\n", demo_func(est_params)
 
