@@ -11,9 +11,9 @@ help(momi)
 
 ## TODO: write help(momi)!!
 
+print "Section 0: Creating Demographies"
+print "--------------------------------"
 """
-Section 0: Creating Demographies
---------------------------------
 Let's start by creating a demographic history. 
 momi uses a command line format loosely based on the program ms.
 
@@ -82,12 +82,12 @@ There is a third major difference, not illustrated by this example:
 
 ## TODO: write help(momi.Demography)! make it no longer a subclass of nx.Digraph
 
+print "\n"
+print "Section 1: Coalescent Statistics"
+print "--------------------------------"
 """
-Section 1: Coalescent Statistics
---------------------------------
 Let's examine some statistics of the above demography.
 """
-print "\n"
 
 eTmrca = momi.expected_tmrca(demo)
 print "Expected TMRCA: ", eTmrca, "generations"
@@ -104,9 +104,11 @@ These functions are all wrappers for momi.expected_sfs_tensor_prod(),
 which can efficiently compute a variety of summary statistics for the SFS and the coalescent.
 """
 
+
+print "\n"
+print "Section 2: Expected Sample Frequency Spectrum (SFS)"
+print "---------------------------------------------------"
 """
-Section 2: Expected Sample Frequency Spectrum (SFS)
----------------------------------------------------
 The expected SFS for configuration (i_0,i_1,...) is the expected length of branches with
      i_0 descendants in pop 0, i_1 descendants in pop 1, ...
 
@@ -119,7 +121,6 @@ To get the probability that a random mutation has
      i_0 descendants in pop 0, i_1 descendants in pop 1, ...
 take the expected SFS, and divide by expected_total_branch_len().
 """
-print "\n"
 
 # a list of configs
 config_list = [(1,0), (0,1), (1,3), (10,0), (0,12), (2,2)]
@@ -138,9 +139,10 @@ momi.expected_sfs also includes options for dealing with sampling error and asce
 See help(momi.expected_sfs) for more details.
 """
 
+print "\n"
+print "Section 3: Observed SFS"
+print "-----------------------"
 """
-Section 3: Observed SFS
------------------------
 The observed SFS gives the number of observed SNPs for each configuration.
 Its expected value is the total mutation rate, times the expected SFS (previous section).
 
@@ -150,9 +152,8 @@ Here, we use ms to simulate a dataset, read in the output,
 and then construct the observed SFS using momi.sfs_list_from_ms().
 We then print out the SFS and some statistics for illustration.
 """
-print "\n"
 
-print "Reading dataset from ms\n"
+print "Reading dataset from ms...\n"
 
 n_loci, mu_per_locus = 1000, 1e-3
 
@@ -170,7 +171,7 @@ print "Observed SFS for locus 0:\n", sfs_list[0], "\n"
 print "Observed SFS for all loci:\n", combined_sfs, "\n"
 
 print "Number of singleton mutations:\n", combined_sfs[(1,0)] + combined_sfs[(0,1)], "\n"
-print "Total number of mutations:\n", sum(combined_sfs.values()), "\n"
+print "Total number of mutations:\n", sum(combined_sfs.values())
 
 
 ## TODO rescale simulate_ms? it's a bit confusing with the -r parameter (make sure to update mu_per_locus below)
@@ -179,9 +180,10 @@ print "Total number of mutations:\n", sum(combined_sfs.values()), "\n"
 ## TODO: change sfs_list_from_ms so it doesn't need demo.n_at_leaves
 
 
+print "\n"
+print "Section 4: Composite likelihood"
+print "-------------------------------"
 """
-Section 4: Composite likelihood
--------------------------------
 We construct a composite likelihood by using a Poisson random field (PRF) approximation.
 
 This assumes that the number of observed SNPs for each configuration 
@@ -194,18 +196,16 @@ combined_mu = n_loci * mu_per_locus
 # compute the composite likelihood
 composite_log_lik = momi.unlinked_log_likelihood(combined_sfs, demo, mu=combined_mu)
 
-print "Log likelihood of Poisson random field approximation:", composite_log_lik
+print "Composite log likelihood:", composite_log_lik
 
 
+print "\n"
+print "Section 5: Inference"
+print "--------------------"
 """
-Section 5: Inference
---------------------
 The Maximum Composite Likelihood Estimator (MCLE) is the demography that maximizes unlinked_log_likelihood().
 Under certain conditions, this demography converges to the true demography.
-"""
-print "\n"
 
-"""
 To find the MCLE, we first define a function mapping from parameters to valid demographies.
 
 For optimization, it's a good idea to choose parameters so that they are of roughly the same
@@ -214,7 +214,7 @@ order of magnitude (this is related to 'preconditioning').
 Here, we use scaled_growth = growth * 1e4, and scaled_pop_size,scaled_time = pop_size,time / 1e4 (similar to ms).
 We also parametrize the pulse prob by its logit, for the sake of illustration.
 """
-import autograd.numpy as np ## thinly wrapped version of numpy
+import autograd.numpy as np ## thinly wrapped version of numpy; see comment below
 def demo_func(params):
     scaled_growth0, scaled_size1, scaled_pulse_time, logit_prob, scaled_wait_time = params
     
@@ -242,7 +242,8 @@ lik_grad = grad(lik_func)
 true_lik = lik_func(true_params)
 true_lik_grad = lik_grad(true_params)
 
-print "\n Composite log likelihood at truth:", true_lik
+print ""
+print "Composite log likelihood at truth:", true_lik
 print "Gradient at truth:", true_lik_grad
 
 """
@@ -263,11 +264,12 @@ import random
 start_params = np.array([random.triangular(bounds[i][0], bounds[i][1], mode)
                       for i,mode in enumerate([0, 1, 1, 0, 1])])
 
+print ""
 print "True parameters:", true_params
 print "Start parameters:", start_params
 print "Searching for MCLE..."
 
-mcle_search_result = momi.unlinked_mle_search(combined_sfs, demo_func, combined_mu, start_params, verbose = True, bounds = bounds, maxiter = 500)
+mcle_search_result = momi.unlinked_mle_search(combined_sfs, demo_func, combined_mu, start_params, verbose = False, bounds = bounds, maxiter = 500)
 est_params = mcle_search_result.x
 
 # search for the MCLE using gradient information
