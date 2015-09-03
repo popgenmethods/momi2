@@ -213,26 +213,37 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params,
                    for kw, b, d in [('jac', jac, grad), ('hessp', hessp, hessian_vector_product), ('hess', hess, hessian)]
                    if b})
 
-    if verbose:
-        f = _verbosify(f,
-                       before = lambda x: "demo_func ( %s ) == %s" % (str(x), str(demo_func(x))),
-                       after = lambda ret,x: "momi.unlinked_log_likelihood ( %s ) == %f" % (str(x), -ret))
-
+    if verbose is True: # need 'is True' in case verbose is an int
         for kw in ['jac','hessp','hess']:
             try:
                 d = kwargs[kw]
-                kwargs[kw] = _verbosify(d, after = lambda ret,*x: "autograd.%s ( %s ) == %s" % (d.__name__, str(x)[1:-1], str(ret)))
+                kwargs[kw] = _verbosify(d, after = lambda i,ret,*x: "autograd.%s ( %s ) == %s" % (d.__name__, str(x)[1:-1], str(ret)))
             except KeyError:
                 pass
+            
+        f = _verbosify(f,
+                       before = lambda i,x: "demo_func ( %s ) == %s" % (str(x), str(demo_func(x))))
+        
+            
+
+    if verbose:
+        f = _verbosify(f,
+                       before = lambda i,x: "iter %d" % i,
+                       after = lambda i,ret,x: "momi.unlinked_log_likelihood ( %s ) == %f" % (str(x), -ret),
+                       print_freq = verbose)
+
     return scipy.optimize.minimize(f, start_params, method=method, bounds=bounds, tol=tol, options=options, **kwargs)
 
-def _verbosify(func, before = None, after = None):
+def _verbosify(func, before = None, after = None, print_freq = 1):
+    i = [0] # can't do i=0 because of unboundlocalerror
     def new_func(*args, **kwargs):
-        if before is not None:
-            print before(*args, **kwargs)
+        ii = i[0]
+        if ii % print_freq == 0 and before is not None:
+            print before(ii,*args, **kwargs)
         ret = func(*args, **kwargs)
-        if after is not None:
-            print after(ret, *args, **kwargs)
+        if ii % print_freq == 0 and after is not None:
+            print after(ii,ret, *args, **kwargs)
+        i[0] += 1
         return ret
     new_func.__name__ = "_verbose" + func.__name__
     return new_func

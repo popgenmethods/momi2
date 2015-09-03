@@ -7,7 +7,7 @@ rewrite documentation for unlinked_mle_searches.
 * mention uses scipy.minimize.optimize
 * mention autograd
 * remove mention to make_demography
-change verbose option to only print out every kth iteration. (True prints out every iteration, and also prints out gradient evaluations))
+
 
 
 remove make_demography

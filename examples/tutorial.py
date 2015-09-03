@@ -269,7 +269,7 @@ print "True parameters:", true_params
 print "Start parameters:", start_params
 print "Searching for MCLE..."
 
-mcle_search_result = momi.unlinked_mle_search(combined_sfs, demo_func, combined_mu, start_params, verbose = False, bounds = bounds, maxiter = 500)
+mcle_search_result = momi.unlinked_mle_search(combined_sfs, demo_func, combined_mu, start_params, verbose = 20, bounds = bounds, maxiter = 500)
 est_params = mcle_search_result.x
 
 # search for the MCLE using gradient information
@@ -290,9 +290,7 @@ print "Log-likelihood at truth:", true_lik
 print "Log-likelihood at estimated:", -mcle_search_result.fun
 
 
-## TODO: increase max number function evaluations for search1
-## TODO: search2 currently fails badly on above example
-
+## TODO: write documentation for unlinked_mle_search()
 ## TODO: clean up printing in this section
 
 print "Est/Truth:",  est_params / true_params
