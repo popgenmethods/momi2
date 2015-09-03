@@ -2,7 +2,7 @@ from __future__ import division
 import warnings
 import autograd.numpy as np
 import scipy
-from util import memoize_instance, memoize, truncate0, make_constant, set0
+from util import memoize_instance, memoize, make_constant, set0
 from math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes
 from autograd.core import primitive
 from autograd import hessian
@@ -69,7 +69,7 @@ def expected_sfs(demography, config_list, normalized=False, error_matrices=None)
         leaf_liks = _apply_error_matrices(leaf_liks, error_matrices)
         
     sfs = expected_sfs_tensor_prod(leaf_liks, demography)
-    assert np.all(sfs >= 0.0)
+    assert np.all(np.logical_or(sfs >= 0.0, np.isclose(sfs, 0.0)))
     if normalized:
         sfs = sfs / expected_total_branch_len(demography, error_matrices=error_matrices)
         
@@ -243,12 +243,8 @@ def expected_sfs_tensor_prod(vecs, demography):
                                        np.array([0.0]*n + [1.0]), # all derived state
                                        leaf_states[leaf]])
 
-    non_neg = all([np.all(l >= 0.0) for l in leaf_states.values()])
-    is_prob = non_neg and all([np.all(l <= 1.0) for l in leaf_states.values()])
-    
     _,res = _partial_likelihood(leaf_states,
-                                demography, demography.event_root,
-                                non_neg, is_prob)
+                                demography, demography.event_root)
 
     # subtract out mass for all ancestral/derived state
     for k in (0,1):
@@ -258,14 +254,14 @@ def expected_sfs_tensor_prod(vecs, demography):
     res = res[2:]
     return res
 
-def _partial_likelihood(leaf_states, G, event, non_neg, is_prob):
+def _partial_likelihood(leaf_states, G, event):
     ''' 
     Partial likelihood of data at event,
     P(x | n_derived_node, n_ancestral_node)
     with all subpopulation nodes at their initial time.
     '''
     lik_fun = _event_lik_fun(G, event)
-    lik,sfs = lik_fun(leaf_states, G, event, non_neg, is_prob)
+    lik,sfs = lik_fun(leaf_states, G, event)
 
     # add on sfs entry at this event
     axes = _lik_axes(G, event)
@@ -280,20 +276,18 @@ def _partial_likelihood(leaf_states, G, event, non_neg, is_prob):
                             trunc_sfs, [newpop],
                             [''])
 
-    _check_liks(lik, sfs, non_neg, is_prob)
     return lik,sfs
 
-def _partial_likelihood_top(leaf_states, G, event, popList, non_neg, is_prob):
+def _partial_likelihood_top(leaf_states, G, event, popList):
     ''' 
     Partial likelihood of data at top of nodes in popList,
     P(x | n_derived_top, n_ancestral_top)
     '''       
-    lik,sfs = _partial_likelihood(leaf_states, G, event, non_neg, is_prob)
+    lik,sfs = _partial_likelihood(leaf_states, G, event)
     for pop in popList:
         idx = (_lik_axes(G, event)).index(pop)
         lik = G.apply_transition(pop, lik, idx)
 
-    _check_liks(lik, sfs, non_neg, is_prob)
     return lik,sfs
 
 def combinatorial_factors(n):
@@ -322,16 +316,16 @@ def _event_lik_fun(G, event):
     else:
         raise Exception("Unrecognized event type.")
 
-def _leaf_likelihood(leaf_states, G, event, non_neg, is_prob):
+def _leaf_likelihood(leaf_states, G, event):
     leaf, = G.parent_pops(event)
     return leaf_states[leaf],0.
 
-def _admixture_likelihood(leaf_states, G, event, non_neg, is_prob):
+def _admixture_likelihood(leaf_states, G, event):
     child_pop, = G.child_pops(event).keys()
     p1,p2 = G.parent_pops(event)
 
     child_event, = G.event_tree[event]
-    lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, [child_pop], non_neg, is_prob)
+    lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, [child_pop])
 
     admixture_prob, admixture_idxs = G.admixture_prob(child_pop)
     lik = einsum2(lik, _lik_axes(G, child_event),
@@ -340,13 +334,12 @@ def _admixture_likelihood(leaf_states, G, event, non_neg, is_prob):
 
     return lik,sfs
 
-def _merge_subpops_likelihood(leaf_states, G, event, non_neg, is_prob):
+def _merge_subpops_likelihood(leaf_states, G, event):
     newpop, = G.parent_pops(event)
     child_pops = G[newpop]
     child_event, = G.event_tree[event]
 
-    lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, child_pops,
-                                      non_neg, is_prob)
+    lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, child_pops)
 
     c1,c2 = child_pops
     child_axes = _lik_axes(G, child_event)
@@ -369,19 +362,16 @@ def _merge_subpops_likelihood(leaf_states, G, event, non_neg, is_prob):
     lik = einsum2(lik, event_axes[:newidx] + [c1] + axes[(newidx+1):],
                   hypergeom_quasi_inverse(lik.shape[newidx]-1, G.n_lineages(newpop)),
                   [c1,newpop], axes)
-    if non_neg:
-        # make sure likelihoods are non negative
-        lik = truncate0(lik, axis=newidx)
     assert lik.shape[newidx] == G.n_lineages(newpop)+1
 
     return lik,sfs
 
-def _merge_clusters_likelihood(leaf_states, G, event, non_neg, is_prob):
+def _merge_clusters_likelihood(leaf_states, G, event):
     newpop, = G.parent_pops(event)
     child_liks = []
     for child_pop, child_event in G.child_pops(event).iteritems():
         axes = _lik_axes(G, child_event)        
-        lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, [child_pop], non_neg, is_prob)
+        lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, [child_pop])
         lik = einsum2(lik, axes,
                       combinatorial_factors(G.n_lineages(child_pop)), [child_pop],
                       axes)
@@ -401,13 +391,6 @@ def _merge_clusters_likelihood(leaf_states, G, event, non_neg, is_prob):
     for freq, other_lik in zip(child_sfs, child_liks[::-1]):
         sfs = sfs + freq * np.squeeze(other_lik[[slice(None)] + [0] * (other_lik.ndim-1)])
     return lik, sfs
-
-def _check_liks(lik, sfs, non_neg, is_prob):
-    if non_neg:
-        assert np.all(lik >= 0.0) and np.all(sfs >= 0.0)
-
-    if is_prob:
-        assert np.all(np.logical_or(lik <= 1.0, np.isclose(lik, 1.0)))
 
 def _apply_error_matrices(vecs, error_matrices):
     if not all([np.allclose(np.sum(err, axis=0), 1.0) for err in error_matrices]):

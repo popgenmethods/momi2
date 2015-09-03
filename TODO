@@ -32,7 +32,9 @@ and also clutters up the documentation
 clean up Demography construction code
 
 make InvalidDemographyException
-
+fix Demography numerical issues
+to do this, make a python file that tries out various parameter options of a single demography,
+like the one from tutorial.py
 
 fix installation scripts
 make scikit-tensor dependency optional?

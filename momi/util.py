@@ -68,13 +68,11 @@ def truncate0(x, axis=None, strict=False, tol=1e-13):
         return set0(x, x < 2*mins)
 
 
-@primitive
 def check_probs_matrix(x):
     x = truncate0(x)
-    rowsums = np.einsum('ij->i',x)
+    rowsums = np.sum(x, axis=1)
     assert np.allclose(rowsums,1.0)
     return np.einsum('ij,i->ij',x,1.0/rowsums)
-check_probs_matrix.defgrad(lambda ans,x: lambda g: g)
 
 @primitive
 def set0(x, indices):
