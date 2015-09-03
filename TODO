@@ -21,6 +21,8 @@ write unlinked_mle_search0 that doesn't use derivatives (for demo functions that
 in comments for unlinked_mle_search1,2,etc note that the function must only use operations that are differentiable by autograd!
 write something in docs about what makes a function differentiable (at least, "see the tutorial for discussion of autograd differentiation")
 
+add maxiter, tol parameters to unlinked_mle_search1,2
+
 rename files (likelihood_surace.py should just be likelihood.py, sum_product should be compute_sfs.py)
 
 don't make Demography a subclass of networkx.DiGraph:

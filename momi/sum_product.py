@@ -229,7 +229,7 @@ def expected_sfs_tensor_prod(vecs, demography):
 
     See Also
     --------
-    sfs_tensor_prod : compute the same summary statistics for a specific SFS
+    sfs_tensor_prod : compute the same summary statistics for an observed SFS
     expected_sfs : compute individual SFS entries
     expected_total_branch_len, expected_tmrca, expected_deme_tmrca : 
          examples of coalescent statistics that use this function

@@ -59,7 +59,7 @@ def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, **kwargs):
     return np.squeeze(unlinked_log_lik_vector([sfs], demo, mu, adjust_probs = adjust_probs, **kwargs))
 
 
-def unlinked_mle_search1(sfs, demo_func, mu, start_params, bounds, sfs_kwargs = {}, adjust_probs = 1e-80):
+def unlinked_mle_search1(sfs, demo_func, mu, start_params, bounds, verbose = False, sfs_kwargs = {}, adjust_probs = 1e-80):
     """
     Search for the MLE, assuming all sites are unlinked. Uses
     unlinked_log_likelihood to compute log-likelihoods and
@@ -67,7 +67,7 @@ def unlinked_mle_search1(sfs, demo_func, mu, start_params, bounds, sfs_kwargs = 
 
     This is a simple wrapper function for unlinked_mle_search. It searches
     for the optimal parameters within a rectangular region, and requires
-    the user to specify finite bounds for all parameters. The L-BFGS-B
+    the user to specify finite bounds for all parameters. A quasi-Newton
     search algorithm is used, which uses the gradient and an approximation
     to the inverse Hessian to steer its search. Note this is susceptible
     to local optima, and multiple runs with different starting parameters
@@ -94,6 +94,8 @@ def unlinked_mle_search1(sfs, demo_func, mu, start_params, bounds, sfs_kwargs = 
         a valid demography. For robustness, it is also recommended that
         all parameters just outside the bounds, but within numerical
         precision of the boundary, also return a valid demography.
+    verbose : bool, optional
+        If True, print the current parameters and Demography at each function evaluation.
 
     Other Parameters
     ----------------
@@ -128,17 +130,17 @@ def unlinked_mle_search1(sfs, demo_func, mu, start_params, bounds, sfs_kwargs = 
     if bounds is None or any([x is None for bd in bounds for x in bd]):
         raise Exception("Finite bounds required for all parameters")
     
-    return unlinked_mle_search(sfs, demo_func, mu, start_params, opt_kwargs = {'bounds': bounds}, sfs_kwargs = sfs_kwargs, adjust_probs = adjust_probs)
+    return unlinked_mle_search(sfs, demo_func, mu, start_params, verbose = verbose, opt_kwargs = {'method' : 'tnc', 'bounds': bounds}, sfs_kwargs = sfs_kwargs, adjust_probs = adjust_probs)
 
 
-def unlinked_mle_search2(sfs, demo_func, mu, start_params, sfs_kwargs = {}, adjust_probs = 1e-80):
+def unlinked_mle_search2(sfs, demo_func, mu, start_params, verbose = False, sfs_kwargs = {}, adjust_probs = 1e-80):
     """
     Search for the MLE, assuming all sites are unlinked. Uses
     unlinked_log_likelihood to compute log-likelihoods and
     scipy.optimize.minimize to perform parameter search.
 
     This is a simple wrapper function for unlinked_mle_search. The
-    trust-region Newton conjugate gradient algorithm is used in an
+    truncated Newton conjugate gradient algorithm is used in an
     unbounded search. Gradients and Hessian-vector products are used to
     steer the search. Since the search is unbounded, all possible
     parameters should correspond to valid demographies.
@@ -163,6 +165,8 @@ def unlinked_mle_search2(sfs, demo_func, mu, start_params, sfs_kwargs = {}, adju
         unlinked_log_likelihood for additional details.
     start_params : numpy.ndarray
         The starting point for the parameter search.
+    verbose : bool, optional
+        If True, print the current parameters and Demography at each function evaluation.
 
     Other Parameters
     ----------------
@@ -194,7 +198,7 @@ def unlinked_mle_search2(sfs, demo_func, mu, start_params, sfs_kwargs = {}, adju
     sum_sfs_list : combine SFS's of multiple loci into one SFS, before
          passing into this function
     """    
-    return unlinked_mle_search(sfs, demo_func, mu, start_params, derivs = ['jac', 'hessp'], opt_kwargs = {'method' : 'trust-ncg'}, sfs_kwargs = sfs_kwargs, adjust_probs = adjust_probs)
+    return unlinked_mle_search(sfs, demo_func, mu, start_params, derivs = ['jac', 'hessp'], verbose = verbose, opt_kwargs = {'method' : 'trust-ncg'}, sfs_kwargs = sfs_kwargs, adjust_probs = adjust_probs)
 
 
 def composite_mle_approx_covariance(params, sfs_list, demo_func, mu):
@@ -323,7 +327,7 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, **kwargs):
     return log_lik
 
 
-def unlinked_mle_search(sfs, demo_func, mu, start_params, derivs = ['jac'], opt_kwargs = {}, sfs_kwargs = {}, adjust_probs = 1e-80):
+def unlinked_mle_search(sfs, demo_func, mu, start_params, verbose = False, derivs = ['jac'], opt_kwargs = {}, sfs_kwargs = {}, adjust_probs = 1e-80):
     """
     Search for the MLE, assuming all sites are unlinked. Uses
     unlinked_log_likelihood to compute log-likelihoods and
@@ -353,6 +357,8 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params, derivs = ['jac'], opt_
         unlinked_log_likelihood for additional details.
     start_params : numpy.ndarray
         The starting point for the parameter search.
+    verbose : bool or function, optional
+        If True, print the current parameters and Demography at each function evaluation.
     derivs : collection, optional
         A collection of strings, telling which derivatives the optimizer
         should use. Valid options are:
@@ -397,6 +403,9 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params, derivs = ['jac'], opt_
 
     derivs = list(derivs)
     opt_kwargs = dict(opt_kwargs)
+
+    if any([k in opt_kwargs.keys() for k in ('jac','hessp','hess')]):
+        raise ValueError("Use 'derivs' parameter to pass 'jac','hessp', or 'hess' argument to scipy.minimize.optimize")
     
     for kw, d in [('jac',grad),
                   ('hessp',hessian_vector_product),
@@ -407,4 +416,27 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params, derivs = ['jac'], opt_
     if len(derivs) != 0:
         raise Exception("Unrecognized derivative name")
 
+    if verbose:
+        f = _verbosify(f,
+                       before = lambda x: "demo_func ( %s ) == %s" % (str(x), str(demo_func(x))),
+                       after = lambda ret,x: "momi.unlinked_log_likelihood ( %s ) == %f" % (str(x), -ret))
+
+        for kw in ['jac','hessp','hess']:
+            try:
+                d = opt_kwargs[kw]
+                opt_kwargs[kw] = _verbosify(d, after = lambda ret,*x: "autograd.%s ( %s ) == %s" % (d.__name__, str(x)[1:-1], str(ret)))
+            except KeyError:
+                pass
     return scipy.optimize.minimize(f, start_params, **opt_kwargs)
+
+def _verbosify(func, before = None, after = None):
+    def new_func(*args, **kwargs):
+        if before is not None:
+            print before(*args, **kwargs)
+        ret = func(*args, **kwargs)
+        if after is not None:
+            print after(ret, *args, **kwargs)
+        return ret
+    new_func.__name__ = "_verbose" + func.__name__
+    return new_func
+    
