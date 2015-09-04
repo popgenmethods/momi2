@@ -15,13 +15,21 @@ print "Section 0: Creating Demographies"
 print "--------------------------------"
 """
 Let's start by creating a demographic history. 
-momi uses a command line format loosely based on the program ms.
+momi uses a command line format loosely based on the program ms by Dick Hudson. ## TODO: add references to end of file
 
-Users who prefer the original ms command line can also use that format, but be warned:
+Users who prefer the ms command line can also use that format, but be warned:
 the ms command line follows different conventions from the rest of momi,
 in particular when it comes to population labels and the scaling of parameters.
 """
-# a demography constructed with the momi format
+
+# a demography from the ms command line format
+demo = momi.Demography.from_ms(1e4, # the reference diploid population size
+                               # ms command line
+                               "-I 2 10 12 -eg 0 1 .5 -en 0 2 .5 -es .35 1 .25 -ej .35 3 2 -ej 1.5 2 1 -eg 1.5 1 0")
+print demo
+
+
+# the same demography constructed with the momi format
 demo = momi.Demography(
     # default diploid pop size = 1e4    
     "-d 1e4 " +
@@ -42,17 +50,12 @@ demo = momi.Demography(
 )
 print demo
 
-# same demography, using special variables $
+# Demography() can use special variables with $
 demo = momi.Demography("-d 1e4 -n 10 12 -G 0 0 $growth0 -N 0 1 $size1 -S $pulse_time 0 $prob -J $pulse_time 2 1 -J $join_time 1 0 -G $join_time 0 0",
                        growth0 = 5e-5, size1 = 5000, pulse_time = 3500, prob = .25, join_time = 15000)
 print demo
 
-# same demography, using ms command line
-demo = momi.Demography.from_ms(1e4,
-                               "-I 2 10 12 -eg 0 1 .5 -en 0 2 .5 -es .35 1 .25 -ej .35 3 2 -ej 1.5 2 1 -eg 1.5 1 0")
-print demo
-
-# ms command line can also use special variables
+# Demography.from_ms() can also use special variables
 demo = momi.Demography.from_ms(1e4,
                                "-I 2 10 12 -eg 0 1 $growth0 -en 0 2 $size1 -es $pulse_time 1 $prob -ej $pulse_time 3 2 -ej $join_time 2 1 -eg $join_time 1 0",
                                growth0 = 5e-5 * 1e4, size1 = 5000 / 1e4, pulse_time = 3500 / 1e4, prob = .25, join_time = 15000 / 1e4)
