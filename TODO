@@ -2,22 +2,13 @@ write pydocs
 write docstrings for parse_ms, Demography, __init__
 in Demography docstring, add a section "Comments" that discusses some time scaling issues. but otherwise just assume everything is in per-generation units
 
-likelihood_surface.py:
-rewrite documentation for unlinked_mle_searches.
-* mention uses scipy.minimize.optimize
-* mention autograd
-* remove mention to make_demography
-
 
 remove make_demography
 in docstring, note Demography.from_ms is equivalent to using Demography("-ms $%d %s" % (len(args), ms_cmd), *(args + [default_N_diploid]), **kwargs)
 reference "help(Demography.from_ms)" in description of "-ms_cmd" flag in Demography docstring
 remove # sign and -a flags from ms demographies
 
-change to_ms_cmd and simulate_ms to take in a scale_time or gens_per_time parameter
 
-
-finish writing tutorial.py.
 delete example_sfs.py and example_inference.py
 
 
