@@ -71,10 +71,9 @@ def check_sfs_counts(demo_ms_cmd=None, demo=None, mu=10.0, num_ms_samples=1000):
                                               " ".join([str(random.randint(0,999999999))
                                                         for _ in range(3)]))
 
-        sfs_list = sfs_list_from_ms(run_ms(ms_cmd), demo.n_at_leaves)
+        sfs_list = sfs_list_from_ms(run_ms(ms_cmd))
     elif demo_ms_cmd is None:        
-        sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, mu=mu),
-                                    demo.n_at_leaves)
+        sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, mu=mu))
     
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     

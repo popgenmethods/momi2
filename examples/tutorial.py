@@ -9,7 +9,7 @@ Use the help() function to view documentation and more information.
 ## enter help screen of the module. press 'q' to exit
 help(momi)
 
-## TODO: write help(momi)!!
+
 
 print "Section 0: Creating Demographies"
 print "--------------------------------"
@@ -47,7 +47,6 @@ demo = momi.Demography("-d 1e4 -n 10 12 -G 0 0 $growth0 -N 0 1 $size1 -S $pulse_
                        growth0 = 5e-5, size1 = 5000, pulse_time = 3500, prob = .25, join_time = 15000)
 print demo
 
-
 # same demography, using ms command line
 demo = momi.Demography.from_ms(1e4,
                                "-I 2 10 12 -eg 0 1 .5 -en 0 2 .5 -es .35 1 .25 -ej .35 3 2 -ej 1.5 2 1 -eg 1.5 1 0")
@@ -80,7 +79,7 @@ There is a third major difference, not illustrated by this example:
    help(momi.Demography) for more details (in particular, see Note ##TODO).
 """
 
-## TODO: write help(momi.Demography)! make it no longer a subclass of nx.Digraph
+
 
 print "\n"
 print "Section 1: Coalescent Statistics"
@@ -103,6 +102,7 @@ See help(momi.expected_tmrca), etc. for details.
 These functions are all wrappers for momi.expected_sfs_tensor_prod(),
 which can efficiently compute a variety of summary statistics for the SFS and the coalescent.
 """
+
 
 
 print "\n"
@@ -139,6 +139,8 @@ momi.expected_sfs also includes options for dealing with sampling error and asce
 See help(momi.expected_sfs) for more details.
 """
 
+
+
 print "\n"
 print "Section 3: Observed SFS"
 print "-----------------------"
@@ -155,13 +157,18 @@ We then print out the SFS and some statistics for illustration.
 
 print "Reading dataset from ms...\n"
 
-n_loci, mu_per_locus = 1000, 1e-3
+n_loci, mu_per_locus, recom_per_locus = 1000, 1e-3, 1e-3
 
 # file of output from ms
-ms_output = momi.simulate_ms(demo, num_sims=n_loci, mu=mu_per_locus, additional_ms_params="-r %f 10000" % mu_per_locus)
+ms_output = file('tutorial_data.txt','r')
+
+# to simulate new dataset: uncomment below, and set system variable $MS_PATH, or set ms_path='/path/to/ms'
+#ms_output = momi.simulate_ms(demo, num_sims=n_loci, mu=mu_per_locus,
+#                             additional_ms_params="-r %f 10000" % (1e4 * recom_per_locus), # note rescaling to ms units. set rescale=False if prefer per-generation units.
+#                             ms_path = None) # if ms_path=None, uses system variable $MS_PATH
 
 # get a list with the observed SFS at each locus
-sfs_list = momi.sfs_list_from_ms(ms_output, demo.n_at_leaves)
+sfs_list = momi.sfs_list_from_ms(ms_output)
 
 # aggregate into a single SFS for the whole dataset
 combined_sfs = momi.sum_sfs_list(sfs_list)
@@ -173,11 +180,6 @@ print "Observed SFS for all loci:\n", combined_sfs, "\n"
 print "Number of singleton mutations:\n", combined_sfs[(1,0)] + combined_sfs[(0,1)], "\n"
 print "Total number of mutations:\n", sum(combined_sfs.values())
 
-
-## TODO rescale simulate_ms? it's a bit confusing with the -r parameter (make sure to update mu_per_locus below)
-## TODO save an ms file in repository and read that in
-## TODO: change API of sfs_list_from_ms, simulate_ms to use list of lines, instead of file object?
-## TODO: change sfs_list_from_ms so it doesn't need demo.n_at_leaves
 
 
 print "\n"
@@ -197,6 +199,7 @@ combined_mu = n_loci * mu_per_locus
 composite_log_lik = momi.unlinked_log_likelihood(combined_sfs, demo, mu=combined_mu)
 
 print "Composite log likelihood:", composite_log_lik
+
 
 
 print "\n"
@@ -243,11 +246,12 @@ true_lik = lik_func(true_params)
 true_lik_grad = lik_grad(true_params)
 
 print ""
+print "True params:", true_params
 print "Composite log likelihood at truth:", true_lik
 print "Gradient at truth:", true_lik_grad
 
 """
-See the comment at the end of this section for more details on autograd and automatic differentiation.
+See the FOOTNOTE at the end of this section for more details on autograd and automatic differentiation.
 
 Next we define (lower,upper) bounds on the parameter space, pick a random start value, and then search for the MCLE.
 """
@@ -261,58 +265,49 @@ bounds = [(-.001 * 1e4, .001 * 1e4), # scaled growth rate
 
 # random starting values from the triangular distribution
 import random
-start_params = np.array([random.triangular(bounds[i][0], bounds[i][1], mode)
-                      for i,mode in enumerate([0, 1, 1, 0, 1])])
+lower_bounds, upper_bounds = [l for l,u in bounds], [u for l,u in bounds]
+start_params = np.array([random.triangular(lower, upper, mode)
+                         for lower, upper, mode in zip(lower_bounds, upper_bounds, [0, 1, 1, 0, 1])])
 
 print ""
-print "True parameters:", true_params
-print "Start parameters:", start_params
 print "Searching for MCLE..."
 
-mcle_search_result = momi.unlinked_mle_search(combined_sfs, demo_func, combined_mu, start_params, verbose = 20, bounds = bounds, maxiter = 500)
-est_params = mcle_search_result.x
+mcle_search_result = momi.unlinked_mle_search(combined_sfs, demo_func, combined_mu, start_params,
+                                              bounds = bounds, maxiter = 500, output_progress = 25)
 
-# search for the MCLE using gradient information
-#mcle_search_result = momi.unlinked_mle_search0(combined_sfs, demo_func, combined_mu, start_params, bounds = bounds, verbose=True)
-#mcle_search_result = momi.unlinked_mle_search1(combined_sfs, demo_func, combined_mu, start_params, bounds = bounds, maxiter=200, verbose=True)
-#mcle_search_result = momi.unlinked_mle_search1(combined_sfs, demo_func, combined_mu, start_params, bounds = bounds, verbose=True)
-#est_params = mcle_search_result.x
-
-# transform_params2 = lambda params: np.array([params[0], np.exp(params[1]), np.exp(params[2]), params[3], np.exp(params[4])])
-# demo_func2 = lambda params: demo_func(transform_params2(params))
-# start_params2 = np.array([start_params[0], np.log(start_params[1]), np.log(start_params[2]), start_params[3], np.log(start_params[4])])
-# mcle_search_result = momi.unlinked_mle_search2(combined_sfs, demo_func2, combined_mu, start_params2, verbose=True)
-# est_params = transform_params2(mcle_search_result.x)
-
+print ""
+print "Search results:"
+# print info such as whether search succeeded, number function/gradient evaluations, etc
 print mcle_search_result
+# note the printed function & gradient values are for -1*log_likelihood
 
+print ""
 print "Log-likelihood at truth:", true_lik
 print "Log-likelihood at estimated:", -mcle_search_result.fun
 
-
-## TODO: write documentation for unlinked_mle_search()
-## TODO: clean up printing in this section
-
+est_params = mcle_search_result.x
+print ""
+print "Est params:", est_params
 print "Est/Truth:",  est_params / true_params
 print "Estimated Demography:\n", demo_func(est_params)
 
 """
-Note can use unlinked_mle_search0 if unsure about autograd
-or unlinked_mle_search2 if want to use hessian
-"""
+FOOTNOTE: using autograd for automatic differentiation
 
-"""
-Now let's create a function mapping parameters to Demography.
-We also want this function to work with automatic differentiation,
-so we can use hill-climbing later.
+autograd uses the magic of 'operator overloading' to compute derivatives automatically.
 
-momi uses the autograd package to automatically compute derivatives.
-In principle, autograd can compute the derivative of arbitrary functions written with python code.
-In practice, here are a few rules to keep in mind:
+Here are a few rules to keep in mind, to make sure autograd works correctly:
 
-0) Arithmetic operations +,-,*,/,** all work automatically
+0) If you don't want to worry about autograd at all, you can tell unlinked_mle_search not to use the gradient (jacobian) with:
+        momi.unlinked_mle_search(..., jac=False, ...)
 
-1) For more complicated mathematical operations, use autograd.numpy and autograd.scipy,
+   Conversely, if you'd like to use more derivatives, i.e. the hessian or hessian-vector-products, you can do:
+        momi.unlinked_mle_search(..., hess=True, ...)
+        momi.unlinked_mle_search(..., hessp=True, ...)
+
+1) Arithmetic operations +,-,*,/,** all work with autograd
+
+2) For more complicated mathematical operations, use autograd.numpy and autograd.scipy,
    thinly wrapped versions of numpy/scipy that support auto-differentiation.
 
    For most users, numpy contains all the mathematical operations that are needed:
@@ -321,10 +316,10 @@ In practice, here are a few rules to keep in mind:
    If needed, it is also possible to use autograd to define derivatives of your own
    mathematical operations.
 
-2) Do NOT convert floats to strings, as this will break with autograd.
-   Instead, use positional or keyword arguments to pass parameters to Demography() constructor.
+3) Do NOT convert floats to strings when creating Demography.
+   Instead, use special $ arguments to pass floats to Demography() or Demography.from_ms()
 
-3) Other do's and don'ts: (copy and pasted from autograd tutorial, with 'np' shorthand for 'autograd.numpy')
+4) Other do's and don'ts: (copy and pasted from autograd tutorial, with 'np' shorthand for 'autograd.numpy')
 
     Do use
 
@@ -344,63 +339,64 @@ In practice, here are a few rules to keep in mind:
 Documentation for autograd can be found at https://github.com/HIPS/autograd/
 """
 
-    
+
+
+print "\n"
+print "Section 6: Confidence intervals"
+print "-------------------------------"
+
 """
-We note that special arguments can be used in the same way with Demography.from_ms()
+As the number of independent loci goes to infinity,
+the MCLE is asymptotically Gaussian, with mean at the truth,
+and covariance given by the inverse 'Godambe information'.
+(assuming certain regularity conditions, e.g. that the parameter space is identifiable).
+
+This can be used to construct approximate confidence intervals,
+which have the correct coverage properties in the limit.
+"""
+
+print ""
+print "Computing approximate covariance of MCLE..."
+
+## the approximate covariance matrix of the MCLE
+mcle_cov = momi.unlinked_mle_approx_cov(est_params, sfs_list, demo_func, mu_per_locus)
+print mcle_cov
+
+# marginal confidence intervals
+print ""
+print "Approximate 95% confidence intervals for parameters:"
+
+import scipy.stats
+conf_lower, conf_upper = scipy.stats.norm.interval(.95, loc = est_params, scale = np.sqrt(np.diag(mcle_cov)))
+print pandas.DataFrame({"Truth" : true_params, "Lower" : conf_lower, "Upper" : conf_upper}, columns = ["Lower","Upper","Truth"])
+
+
+# higher dimensional confidence regions, using wald test
+print ""
+print "Smallest alpha, so that level-alpha confidence region contains Truth:"
+print "(alpha = 0 is a single point, alpha = 1 is whole parameter space)"
+
+# wald test: residual * cov^{-1} * residual should be Chi-squared with n_params degrees of freedom
+
+inv_cov = np.linalg.inv(mcle_cov)
+# make sure the numerical inverse is still symmetric
+assert allclose(inv_cov, inv_cov.T)
+inv_cov = (inv_cov + inv_cov.T) / 2.0
+
+resids = est_params - true_params
+wald_stat = np.dot(resids, np.dot(inv_cov, resids))
+print "alpha = ", scipy.stats.chi2.cdf(wald_stat, df=len(resids))
+
+"""
+Two important caveats for approximate confidence intervals
+
+0) The approximate confidence intervals are correct only in the limit as n_loci -> infinity.
+   There is no guarantee of correctness for any finite value of n_loci.
+
+1) unlinked_mle_approx_cov() assumes that the loci are i.i.d.
+   Mild violations of this assumption may be acceptable: see Notes of help(momi.unlinked_mle_approx_cov)
 """
 
 
 
-
-
-
-
-
-# ## now inference
-# ## start by making a function that maps parameters into demographies
-
-# ## later we will want to make sure this function also works with automatic differentiation,
-# ## but let's worry about that later
-## to make the function non-differentiable, insert parameters as string
-# def demo_func():
-#     x += 3 ## NOTE for later this line is not differentiable!
-
-
-# res = unlinked_mle_search0(..., verbose=True)
-
-
-# ## automatic differentiation
-
-# # start by defining function that maps parameters to log likelihoods
-# def log_lik_func(params):
-#     return unlinked_log_likelihood(demo_func(params),...)
-
-# log_lik_func(truth)
-
-# # define gradient
-# g = grad(log_lik_func)
-# try:
-#     print "trying to take gradient of log likelihood function"
-#     g(truth)
-# except Exception,e:
-#     print "gradient failed!"
-#     print e
-
-# ## lets rewrite the function so its differentiable
-# ## write long comment about how to make differentiable functions
-# def demo_func2(...):
-#     ## make pulse probs be in logistic scale, to illustrate autograd.numpy
-#     pass
-
-# def log_lik_func(params):
-#     return unlinked_log_likelihood(demo_func(params),...)
-# g = grad(log_lik_func)
-# print g(params) ## it worked!
-
-# ## now try to do inference using the first derivative
-# res = unlinked_mle_search1(...)
-
-# ## finally, confidence intervals
-
-# cov = unlinked_mle_approx_cov(...)
-# # compute marginal confidence intervals, Wald p-values
+## TODO: Section 7, inference with summary statistics and expected_sfs_tensor_prod

@@ -1,6 +1,6 @@
 write pydocs
-write docstrings for parse_ms, demography, __init__
-in make_demography docstring, add a section "Comments" that discusses some time scaling issues. but otherwise just assume everything is in per-generation units
+write docstrings for parse_ms, Demography, __init__
+in Demography docstring, add a section "Comments" that discusses some time scaling issues. but otherwise just assume everything is in per-generation units
 
 likelihood_surface.py:
 rewrite documentation for unlinked_mle_searches.
@@ -9,27 +9,17 @@ rewrite documentation for unlinked_mle_searches.
 * remove mention to make_demography
 
 
-
 remove make_demography
 in docstring, note Demography.from_ms is equivalent to using Demography("-ms $%d %s" % (len(args), ms_cmd), *(args + [default_N_diploid]), **kwargs)
-reference "help(demo_from_ms_cmd)" in description of "-ms_cmd" flag in Demography docstring
+reference "help(Demography.from_ms)" in description of "-ms_cmd" flag in Demography docstring
 remove # sign and -a flags from ms demographies
 
 change to_ms_cmd and simulate_ms to take in a scale_time or gens_per_time parameter
 
-rename make_demography to demo_from_ms, and replace most calls to it to use the new format
-remove # symbol from ms command lines
 
 finish writing tutorial.py.
 delete example_sfs.py and example_inference.py
 
-functions to compute marginal p-values and Wald tests. (include these in See Also of composite_mle_approx_covariance)
-
-write unlinked_mle_search0 that doesn't use derivatives (for demo functions that are not differentiable)
-in comments for unlinked_mle_search1,2,etc note that the function must only use operations that are differentiable by autograd!
-write something in docs about what makes a function differentiable (at least, "see the tutorial for discussion of autograd differentiation")
-
-add maxiter, tol parameters to unlinked_mle_search1,2
 
 rename files (likelihood_surace.py should just be likelihood.py, sum_product should be compute_sfs.py)
 
@@ -40,9 +30,6 @@ and also clutters up the documentation
 clean up Demography construction code
 
 make InvalidDemographyException
-fix Demography numerical issues
-to do this, make a python file that tries out various parameter options of a single demography,
-like the one from tutorial.py
 
 fix installation scripts
 make scikit-tensor dependency optional?
@@ -56,4 +43,8 @@ also clean up things like log_within(), etc.
 rename test_sims to test_ms?
 write tests for tensor surfaces
 
+turn tutorial.py into ipython notebook
+
 write test to check expected_tmrca (simulate from ms, and check the TMRCA's of the trees)
+
+include copy of ms inside directory, compile it in setup.py (so we don't need to rely on system variable $MS_PATH)

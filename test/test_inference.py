@@ -20,8 +20,7 @@ def test_joint_sfs_inference():
 
     true_demo = get_demo([t0])
 
-    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, mu=mu),
-                                        true_demo.n_at_leaves))
+    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, mu=mu)))
     neg_log_lik = lambda t: -unlinked_log_likelihood(sfs, get_demo(t), mu * num_runs)
     
     print(t0,t1)

@@ -57,8 +57,8 @@ class ConstantHistory(SizeHistory):
         ret = num / denom
         return ret
 
-    def ms_cmd(self, pop_id, start_time):
-        return "-en %f %d %f" % (start_time, pop_id, self.N)
+    def ms_cmd(self, pop_id, start_time, rescale=1.0):
+        return "-en %f %d %f" % (start_time / rescale, pop_id, self.N / rescale)
     
 class ExponentialHistory(SizeHistory):
     def __init__(self, tau, growth_rate, N_bottom):
@@ -83,8 +83,8 @@ class ExponentialHistory(SizeHistory):
 
         return ret
 
-    def ms_cmd(self, pop_id, start_time):
-        return "-en %f %d %f -eg %f %d %f" % (start_time, pop_id, self.N_bottom, start_time, pop_id, self.growth_rate)
+    def ms_cmd(self, pop_id, start_time, rescale=1.0):
+        return "-en %f %d %f -eg %f %d %f" % (start_time / rescale, pop_id, self.N_bottom / rescale, start_time / rescale, pop_id, self.growth_rate * rescale)
 
 class PiecewiseHistory(SizeHistory):
     def __init__(self, pieces):
@@ -106,11 +106,11 @@ class PiecewiseHistory(SizeHistory):
                 assert pop is self.pieces[-1]
         return ret
 
-    def ms_cmd(self, pop_id, start_time):
+    def ms_cmd(self, pop_id, start_time, rescale=1.0):
         curr = start_time
         ret = []
         for pop in self.pieces:
-            ret += [pop.ms_cmd(pop_id, curr)]
+            ret += [pop.ms_cmd(pop_id, curr, rescale=rescale)]
             curr += pop.tau
         return " ".join(ret)
     

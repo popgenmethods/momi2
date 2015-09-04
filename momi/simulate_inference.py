@@ -1,6 +1,6 @@
 from __future__ import division, print_function
 
-from likelihood_surface import unlinked_log_likelihood, composite_mle_approx_covariance
+from likelihood_surface import unlinked_log_likelihood, unlinked_mle_approx_cov
 from demography import make_demography
 from parse_ms import simulate_ms, sfs_list_from_ms
 from util import check_symmetric, sum_sfs_list, make_function
@@ -60,9 +60,7 @@ def simulate_inference(ms_path, num_loci, mu, additional_ms_params, true_ms_para
 
     ## sfs_list = list of dictionaries
     ## sfs_list[i][config] = count of config at simulated locus i
-    sfs_list = sfs_list_from_ms(ms_output,
-                                true_demo.n_at_leaves # tuple with n at each leaf deme
-                                )
+    sfs_list = sfs_list_from_ms(ms_output)
     ms_output.close()
 
     total_snps = sum([x for sfs in sfs_list for _,x in sfs.iteritems()])
@@ -193,7 +191,7 @@ def get_likelihood_surface(true_demo, sfs_list, mu, demo_func, surface_type, ten
         sfs = sum_sfs_list(sfs_list)
         mu = make_function(mu)
         f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), mu(params) * len(sfs_list), adjust_probs = 1e-80)
-        f_cov = lambda params: composite_mle_approx_covariance(params, sfs_list, demo_func, mu)
+        f_cov = lambda params: unlinked_mle_approx_cov(params, sfs_list, demo_func, mu)
         return f, f_cov       
 
     if surface_type == 'kl' or n_sfs_dirs <= 0:

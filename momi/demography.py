@@ -75,6 +75,10 @@ class Demography(nx.DiGraph):
         return np.sum(self.node[l]['lineages'] for l in self.leaves_subtended_by(node))
 
     @property
+    def default_N_diploid(self):
+        return self.graph['default_N_diploid']
+    
+    @property
     def n_at_leaves(self):
         return tuple(self.n_lineages(l) for l in sorted(self.leaves))
 
@@ -382,6 +386,7 @@ class _DemographyStringParser(object):
         ret = nx.DiGraph(self.edges, cmd=cmd, events=self.events)
         for v in self.nodes:
             ret.add_node(v, **(self.nodes[v]))
+        ret.graph['default_N_diploid'] = self.default_N
         return ret
     
     def set_sizes(self, node_data, end_time):
@@ -450,4 +455,5 @@ class _ParamsMap(dict):
         return ret
 
 def make_demography(ms_cmd, *args, **kwargs):
+    """Deprecated DO NOT USE"""
     return Demography.from_ms(1, ms_cmd, *args, **kwargs)

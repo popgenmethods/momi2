@@ -19,8 +19,7 @@ def test_regularization():
     true_x = np.array([np.log(.5),np.log(.2)])
     true_demo = get_demo(true_x)
 
-    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, mu=mu),
-                                        true_demo.n_at_leaves))
+    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, mu=mu)))
     
     optimize_res = unlinked_mle_search(sfs, get_demo, mu * num_runs, np.array([np.log(0.1),np.log(100.0)]), hessp=True, method='newton-cg')
     print optimize_res

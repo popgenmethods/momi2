@@ -15,7 +15,12 @@ from cStringIO import StringIO
 
 from operator import itemgetter
 
-def to_ms_cmd(demo):
+def to_ms_cmd(demo, rescale):
+    if rescale is True:
+        rescale = demo.default_N_diploid
+    elif rescale is False:
+        rescale = 1.0
+    
     # the events and their data in depth-first ordering
     events = [(e,demo.event_tree.node[e]) for e in nx.dfs_postorder_nodes(demo.event_tree)]
     # add times, and sort according to times; preserve original ordering for same times
@@ -60,7 +65,7 @@ def to_ms_cmd(demo):
             assert len(parent_pops) == 2
             c, = child_pops
             p0,p1 = parent_pops
-            ret += ["-es %f %d %f" % (t, pops[c], demo.node[c]['splitprobs'][p0])]
+            ret += ["-es %f %d %f" % (t / rescale, pops[c], demo.node[c]['splitprobs'][p0])]
             pops[p0] = pops[c]
             pops[p1] = next_pop
             next_pop += 1
@@ -68,14 +73,14 @@ def to_ms_cmd(demo):
             assert len(parent_pops) == 1
             c0,c1 = child_pops
             p, = parent_pops
-            ret += ["-ej %f %d %d" % (t, pops[c1], pops[c0])]
+            ret += ["-ej %f %d %d" % (t / rescale, pops[c1], pops[c0])]
             pops[p] = pops[c0]
         else:
             assert False
 
         for p in parent_pops:
             pop_times[p] = t
-            ret += [demo.node[p]['model'].ms_cmd(pops[p], pop_times[p])]
+            ret += [demo.node[p]['model'].ms_cmd(pops[p], pop_times[p], rescale=rescale)]
             
     return " ".join(ret)
 
@@ -134,15 +139,25 @@ def _convert_ms_cmd(cmd_list, params):
     cmd_list = [['d','1']] + cmd_list
     return cmd_list
 
-def sfs_list_from_ms(ms_file, n_at_leaves):
+def sfs_list_from_ms(ms_file):
     '''
     ms_file = file object containing output from ms
-    n_at_leaves[i] = n sampled in leaf deme i
 
     Returns a list of empirical SFS's, one for each ms simulation
     '''
     lines = ms_file.readlines()
 
+    # get out n_at_leaves
+    n_at_leaves = None
+    firstline = lines[0].replace('\ ','\_').split() # don't split up escaped spaces in /ms/path
+    for i,flag in enumerate(firstline):
+        if flag == "-I":
+            n_at_leaves = tuple(int(x) for x in firstline[(i+2):][:int(firstline[i+1])])
+            break
+    if n_at_leaves is None:
+        n_at_leaves = (int(firstline[1]),)
+        
+    
     def f(x):
         if x == "//":
             f.i += 1
@@ -159,22 +174,26 @@ def sfs_list_from_ms(ms_file, n_at_leaves):
     return [_sfs_from_1_ms_sim(list(lines), len(n_at_leaves), pops_by_lin)
             for i,lines in runs]
 
-def simulate_ms(demo, num_sims, mu, ms_path=default_ms_path(), seeds=None, additional_ms_params=""):
+def simulate_ms(demo, num_sims, mu, ms_path=None, seeds=None, additional_ms_params="", rescale=True):
     '''
     Given a demography, simulate from it using ms
 
     Returns a file-like object with the ms output
     '''
-    #if ms_path is None:
-    #    ms_path = default_ms_path()
+    if rescale is True:
+        rescale = demo.default_N_diploid
+    elif rescale is False:
+        rescale = 1.0
 
+    theta = mu * rescale
+    
     if any([(x in additional_ms_params) for x in "-t","-T","seed"]):
         raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
 
     lins_per_pop = [demo.n_lineages(l) for l in sorted(demo.leaves)]
     n = sum(lins_per_pop)
 
-    ms_args = to_ms_cmd(demo)
+    ms_args = to_ms_cmd(demo, rescale)
     if additional_ms_params:
         ms_args = "%s %s" % (ms_args, additional_ms_params)
 
@@ -184,12 +203,15 @@ def simulate_ms(demo, num_sims, mu, ms_path=default_ms_path(), seeds=None, addit
     ms_args = "%s -seed %s" % (ms_args, seeds)
 
     assert ms_args.startswith("-I ")
-    ms_args = "-t %f %s" % (mu, ms_args)
+    ms_args = "-t %g %s" % (theta, ms_args)
     ms_args = "%d %d %s" % (n, num_sims, ms_args)
+   
+    return run_ms(ms_args, ms_path=ms_path)
 
-    return run_ms(ms_args)
-
-def run_ms(ms_args, ms_path=default_ms_path()):
+def run_ms(ms_args, ms_path=None):
+    if ms_path is None:
+        ms_path = default_ms_path()
+    
     try:
         lines = subprocess.check_output([ms_path] + ms_args.split(),
                                         stderr=subprocess.STDOUT)

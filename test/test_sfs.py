@@ -67,8 +67,7 @@ if __name__=="__main__":
                 x = np.random.normal(size=m_val['params'])
                 demo = m_val['demo'](x, m_val['nlins'])
                 
-                sampled_sfs = sfs_list_from_ms(simulate_ms(demo, num_sims=100, mu=10.),
-                                               demo.n_at_leaves)
+                sampled_sfs = sfs_list_from_ms(simulate_ms(demo, num_sims=100, mu=10.))
                 sampled_sfs = from_dict(sampled_sfs)
                 results[(m_name, tuple(x), sampled_sfs)] = compute_stats(demo, sampled_sfs)
         pickle.dump(results, open(PICKLE, "wb"))
