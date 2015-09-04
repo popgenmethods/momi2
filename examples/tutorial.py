@@ -78,8 +78,8 @@ There is a third major difference, not illustrated by this example:
    In ms, new populations created by -es are labeled in order of time of -es event.
 
    You'll have to worry about this if there is more than one -S event.
-   But in this example, there is only one -S event, so we refer the reader to
-   help(momi.Demography) for more details (in particular, see Note ##TODO).
+   But in this example, there is only one -S event, so let's not worry about it now.
+   You can check help(momi.Demography) for more examples and details (##TODO!)).
 """
 
 
