@@ -9,9 +9,6 @@ reference "help(Demography.from_ms)" in description of "-ms_cmd" flag in Demogra
 remove # sign and -a flags from ms demographies
 
 
-delete example_sfs.py and example_inference.py
-
-
 rename files (likelihood_surace.py should just be likelihood.py, sum_product should be compute_sfs.py)
 
 don't make Demography a subclass of networkx.DiGraph:
