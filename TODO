@@ -11,7 +11,7 @@ install it in installation script, and use it as default
 remove make_demography
 in docstring, note Demography.from_ms is equivalent to using Demography("-ms $%d %s" % (len(args), ms_cmd), *(args + [default_N_diploid]), **kwargs)
 reference "help(Demography.from_ms)" in description of "-ms_cmd" flag in Demography docstring
-remove # sign and -a flags from ms demographies
+remove # sign and -a flags from ms demographies. mention -a flag in Demography docstring
 
 
 rename files (likelihood_surace.py should just be likelihood.py, sum_product should be compute_sfs.py)
@@ -39,3 +39,8 @@ write tests for tensor surfaces
 turn tutorial.py into ipython notebook
 
 write test to check expected_tmrca (simulate from ms, and check the TMRCA's of the trees)
+
+## WISHLIST
+
+GPU/parallelization
+missing alleles
