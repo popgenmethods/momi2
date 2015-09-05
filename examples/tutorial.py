@@ -165,10 +165,10 @@ n_loci, mu_per_locus, recom_per_locus = 1000, 1e-3, 1e-3
 # file of output from ms
 ms_output = file('tutorial_data.txt','r')
 
-# to simulate new dataset: uncomment below, and set system variable $MS_PATH, or set ms_path='/path/to/ms'
-#ms_output = momi.simulate_ms(demo, num_sims=n_loci, mu=mu_per_locus,
-#                             additional_ms_params="-r %f 10000" % (1e4 * recom_per_locus), # note rescaling to ms units. set rescale=False if prefer per-generation units.
-#                             ms_path = None) # if ms_path=None, uses system variable $MS_PATH
+### to simulate new dataset: uncomment next line, and either set system variable $MS_PATH, or set ms_path='/path/to/ms'
+#ms_output = momi.simulate_ms(demo, num_sims=n_loci, mu=mu_per_locus, additional_ms_params="-r %f 10000" % (1e4 * recom_per_locus), ms_path = None) ## TODO help(momi.simulate_ms)
+
+## TODO: make command line options: [1] = None or /path/to/ms [2] = None or 'save'
 
 # get a list with the observed SFS at each locus
 sfs_list = momi.sfs_list_from_ms(ms_output)
