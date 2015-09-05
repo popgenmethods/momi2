@@ -40,6 +40,8 @@ turn tutorial.py into ipython notebook
 
 write test to check expected_tmrca (simulate from ms, and check the TMRCA's of the trees)
 
+remove -a,# modifications to Demography.from_ms()? (undecided)
+
 ## WISHLIST
 
 GPU/parallelization

@@ -14,11 +14,98 @@ from operator import itemgetter
 class Demography(nx.DiGraph):
     @classmethod
     def from_ms(cls, default_N_diploid, ms_cmd, *args, **kwargs):
+        """ Construct demography using format of Richard Hudson's program ms
+
+        See examples/tutorial.py for examples
+
+        Paramters
+        ---------
+        default_N_diploid : float
+            the number of diploids corresponding to ms scaled pop size = 1.0
+        ms_cmd : str
+            ms command line string, with some modifications:
+            0) only demography flags: no -t,-T,-r
+            1) no continuous migration
+            2) -I must be at start of command line
+            3) can pass in special variables with $
+        *args, **kwargs : optional
+            additional arguments corresponding to special variables $
+
+        See Also:
+        ---------
+        ms program (http://home.uchicago.edu/rhudson1/source/mksamples.html)
+        see msdoc.pdf from ms program for more documentation
+
+        Demography.__init__ : default Demography constructor
+
+        Additional modifications
+        ------------------------
+        These modifications may or may not be in future versions:
+        4) -a flag can set populations to archaic, same as in Demography(),
+           but with ms label and scaling conventions
+        5) can use hashtag '#i' to specify the i-th population
+           in the command line from left to right (with i starting at 1,
+           as per ms convention)
+        """
         return Demography("-msformat $%d %s" % (len(args), ms_cmd),
                           *(list(args) + [default_N_diploid]),
                           **kwargs)
     
     def __init__(self, demo_str, *args, **kwargs):
+        """ Construct demography from command line
+
+        See examples/tutorial.py for examples.
+        ## TODO: additional examples
+
+        Parameters:
+        -----------
+        demo_str : str
+             a string of the format
+                  -d <default_N_diploid> -n <n_0> ... <n_(D-1)> ... <additional flags>
+             required flags are:
+                 -d <default_N_diploid>
+                     must be first flag.
+                     set reference diploid size (== half reference haploid size)
+                     coalescence happens at rate 1 / (2*N_diploid)
+                 -n <n_0> ... <n_(D-1)>
+                     must be second flag
+                     n_i == # alleles (haploids) sampled from deme i
+             additional flags are:
+                 -a <t_gens> <i>
+                     set population i to be archaic, with samples from t_gens ago
+                     must occur after -d,-n, but before any -G,-J,-S,-N events
+                 -G <t_gens> <i> <growth_rate>
+                     set growth rate for population i, so at t > t_gens ago
+                          N(t) = N(t_gens) * exp( -growth_rate * (t - t_gens) )
+                     the effect is cancelled by -N or -G events occurring on the same
+                     population, backwards in time 
+                 -J <t_gens> <i> <j>
+                     t_gens generations ago, all lineages from <i> move into <j>
+                     (i.e. <i> and <j> find a common ancestor)
+                 -N <t_gens> <i> <N_diploid>
+                     set diploid size of population <i> for t > t_gens ago
+                     coalescence occurs at rate 1/(2*N_diploid)
+                 -S <t_gens> <i> <p>
+                     t_gens ago, each lineage in pop <i> independently with
+                     probability 1-p to a new pop.
+
+                     if this is the k-th -S flag in the string, from left to right,
+                     and there are D initial populations, then the new population
+                     is labeled D+k-1
+                 
+                     (contrast to ms: k determined by order of -es flag, from present to the past)
+
+        Other Parameters
+        ----------------
+            *args, **kwargs: optional
+                pass in special variables, specified with $ in demo_str
+                e.g.
+                # using **kwargs
+                > demo = Demography("-d $N_present -n 10 -N $bottleneck_t 0 $N_ancestral",
+                                    bottleneck_t = 1e3, N_present = 1e5, N_ancestral = 1e2)
+                # using *args
+                > demo = Demography("-d $1 -n 10 -N $0 0 $2", 1e3, 1e5, 1e2)
+        """
         cmd_list = _get_cmd_list(demo_str)
         params = _ParamsMap(args, kwargs)
         
@@ -339,7 +426,7 @@ class _DemographyStringParser(object):
             growth_rate=0.0
         return t,i,growth_rate
 
-    def _a(self, i, t):
+    def _a(self, t, i):
         ## flag designates leaf population i is archaic, starting at time t
         assert self.roots
         if self.events:
