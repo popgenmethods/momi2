@@ -15,4 +15,4 @@ from sum_product import expected_sfs, expected_total_branch_len, expected_sfs_te
 from likelihood_surface import unlinked_log_likelihood, unlinked_mle_search, unlinked_mle_approx_cov, unlinked_log_lik_vector
 from util import sum_sfs_list
 from simulate_inference import simulate_inference
-from tensor import get_sfs_tensor, sfs_tensor_prod
+from tensor import sfs_tensor_prod

@@ -1,10 +1,15 @@
 import autograd.numpy as np
-import sktensor as skt
-from sktensor.tucker import hosvd
 import pandas as pd
 from util import sum_sfs_list
 from math_functions import symmetric_matrix, log_wishart_pdf, slogdet_pos
 from sum_product import expected_sfs_tensor_prod
+
+try:
+    import sktensor as skt
+    from sktensor.tucker import hosvd
+except ImportError:
+    pass
+
 
 def sfs_tensor_prod(sfs, vecs):
     """

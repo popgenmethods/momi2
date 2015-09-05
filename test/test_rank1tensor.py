@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import make_demography, expected_sfs, expected_sfs_tensor_prod, get_sfs_tensor, sfs_tensor_prod
+from momi import make_demography, expected_sfs, expected_sfs_tensor_prod, sfs_tensor_prod
 import pytest
 import random
 import autograd.numpy as np
