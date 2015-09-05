@@ -55,7 +55,7 @@ class Demography(nx.DiGraph):
         """ Construct demography from command line
 
         See examples/tutorial.py for examples.
-        ## TODO: additional examples
+        ## TODO: additional examples with multiple -S events
 
         Parameters:
         -----------

@@ -15,7 +15,7 @@ print "Section 0: Creating Demographies"
 print "--------------------------------"
 """
 Let's start by creating a demographic history. 
-momi uses a command line format loosely based on the program ms by Dick Hudson. ## TODO: add references to end of file
+momi uses a command line format loosely based on the program ms by Richard Hudson.
 
 Users who prefer the ms command line can also use that format, but be warned:
 the ms command line follows different conventions from the rest of momi,
@@ -79,7 +79,10 @@ There is a third major difference, not illustrated by this example:
 
    You'll have to worry about this if there is more than one -S event.
    But in this example, there is only one -S event, so let's not worry about it now.
-   You can check help(momi.Demography) for more examples and details (##TODO!)).
+
+See Also:
+---------
+help(momi.Demography), help(momi.Demography.__init__), help(momi.Demography.from_ms)
 """
 
 
@@ -158,18 +161,33 @@ and then construct the observed SFS using momi.sfs_list_from_ms().
 We then print out the SFS and some statistics for illustration.
 """
 
-print "Reading dataset from ms...\n"
-
 n_loci, mu_per_locus, recom_per_locus = 1000, 1e-3, 1e-3
+data_file = 'tutorial_data.txt'
 
-# file of output from ms
-ms_output = file('tutorial_data.txt','r')
+import sys
+if len(sys.argv) < 2:
+    # use saved dataset
+    print "Reading dataset from %s" % data_file  
+    ms_output = file(data_file,'r')
+else:
+    # to generate new dataset, run script as
+    # python tutorial.py /path/to/ms [--save (optional)]
+    print "Generating new dataset..."
+    ms_path = sys.argv[1]
+    ms_output = momi.simulate_ms(demo, num_sims=n_loci, mu=mu_per_locus, additional_ms_params="-r %f 10000" % (1e4 * recom_per_locus), ms_path = ms_path) ## TODO help(momi.simulate_ms)
 
-### to simulate new dataset: uncomment next line, and either set system variable $MS_PATH, or set ms_path='/path/to/ms'
-#ms_output = momi.simulate_ms(demo, num_sims=n_loci, mu=mu_per_locus, additional_ms_params="-r %f 10000" % (1e4 * recom_per_locus), ms_path = None) ## TODO help(momi.simulate_ms)
+    if '--save' in sys.argv[2:]:
+        print "Saving generated dataset in %s" % data_file
+        
+        data_file = file(data_file,'w')
+        for line in ms_output:
+            data_file.write(line)
+        data_file.close()
 
-## TODO: make command line options: [1] = None or /path/to/ms [2] = None or 'save'
+        ms_output.seek(0)
 
+print "Processing dataset from ms..."
+        
 # get a list with the observed SFS at each locus
 sfs_list = momi.sfs_list_from_ms(ms_output)
 

@@ -14,6 +14,9 @@ reference "help(Demography.from_ms)" in description of "-ms_cmd" flag in Demogra
 remove # sign and -a flags from ms demographies. mention -a flag in Demography docstring
 
 
+remove default_ms_demography()
+just require $MS_PATH set for tests, but don't use it anywhere else
+
 rename files (likelihood_surace.py should just be likelihood.py, sum_product should be compute_sfs.py)
 
 don't make Demography a subclass of networkx.DiGraph:
