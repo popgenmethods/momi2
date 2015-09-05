@@ -16,8 +16,8 @@ The algorithm for the case without migration is described in
 A forthcoming preprint describes the generalization to pulse migration,
 and the use of automatic differentiation.
 
-momi is still under active development -- we would be grateful if you
-reported bugs at https://github.com/jackkamm/momi/issues
+momi is still under active development -- please
+report bugs/issues [here](https://github.com/jackkamm/momi/issues)
 
 ## Installation and Dependencies
 
@@ -34,3 +34,13 @@ pip install .
 ## Getting started
 
 See [tutorial](examples/tutorial.py).
+
+## Authors
+
+[John Kamm](mailto:jkamm@stat.berkeley.edu), Jonathan Terhorst, Yun S. Song
+
+## License
+
+momi is not yet publicly released; please do not share with others.
+
+When momi is publicly released, it will be free software under conditions of GNU GPL v3.
