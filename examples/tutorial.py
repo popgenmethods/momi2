@@ -181,7 +181,7 @@ else:
     # python tutorial.py /path/to/ms [--save (optional)]
     print "Generating new dataset..."
     ms_path = sys.argv[1]
-    ms_output = momi.simulate_ms(demo, num_sims=n_loci, mu=mu_per_locus, additional_ms_params="-r %f 10000" % (1e4 * recom_per_locus), ms_path = ms_path) ## TODO help(momi.simulate_ms)
+    ms_output = momi.simulate_ms(ms_path, demo, n_loci, mu_per_locus, additional_ms_params="-r %f 10000" % (1e4 * recom_per_locus))
 
     if '--save' in sys.argv[2:]:
         print "Saving generated dataset in %s" % data_file

@@ -63,21 +63,21 @@ def test_sfs_counts2(k):
     check_sfs_counts(demo=demo_funcs2[k]())
 
 
-def check_sfs_counts(demo_ms_cmd=None, demo=None, mu=1e-3, r=1e-3, num_ms_samples=1000, ref_size=1e4):
+def check_sfs_counts(demo_ms_cmd=None, demo=None, mu=1e-3, r=1e-3, num_loci=1000, ref_size=1e4):
     assert (demo_ms_cmd is None) != (demo is None)
 
     if demo is None:
         demo = Demography.from_ms(ref_size,demo_ms_cmd)
         n = sum(demo.n_at_leaves)
 
-        ms_cmd = "%d %d -t %f -r %f 1000 %s -seed %s" % (n, num_ms_samples, ref_size*mu, ref_size*r,
+        ms_cmd = "%d %d -t %f -r %f 1000 %s -seed %s" % (n, num_loci, ref_size*mu, ref_size*r,
                                                          demo_ms_cmd,
                                                          " ".join([str(random.randint(0,999999999))
                                                                    for _ in range(3)]))
 
         sfs_list = sfs_list_from_ms(run_ms(ms_cmd, ms_path = ms_path))
     elif demo_ms_cmd is None:        
-        sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, mu=mu, ms_path = ms_path, additional_ms_params='-r %f 1000' % (ref_size * r), rescale=ref_size))
+        sfs_list = sfs_list_from_ms(simulate_ms(ms_path, demo, num_loci=num_loci, mu_per_locus=mu, additional_ms_params='-r %f 1000' % (ref_size * r), rescale=ref_size))
     
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     
@@ -135,4 +135,4 @@ def my_t_test(labels, theoretical, observed, min_samples=25):
 
 if  __name__=="__main__":
     demo = Demography.from_ms(1.0," ".join(sys.argv[3:]))
-    check_sfs_counts(demo, mu=float(sys.argv[2]), num_ms_samples=int(sys.argv[1]))
+    check_sfs_counts(demo, mu=float(sys.argv[2]), num_loci=int(sys.argv[1]))

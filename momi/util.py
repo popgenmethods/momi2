@@ -188,7 +188,7 @@ def make_function(f):
     
 #     myprint("# Simulating %d unlinked loci" % num_loci)
 #     ## ms_output = file object containing the ms output
-#     ms_output = simulate_ms(true_demo, num_sims=num_loci, mu=mu, ms_path=ms_path, additional_ms_params = additional_ms_params)
+#     ms_output = simulate_ms(ms_path, true_demo, num_loci=num_loci, mu_per_locus=mu, additional_ms_params = additional_ms_params)
 
 #     ## sfs_list = list of dictionaries
 #     ## sfs_list[i][config] = count of config at simulated locus i

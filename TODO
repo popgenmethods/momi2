@@ -1,5 +1,6 @@
-write docstring for simulate_ms and related functions
-clean up simulate_inference, use it somewhere? (or just delete it?)
+write read_sfs_list, write_sfs_list in util.py
+
+
 clean up TODO
 
 write pydocs

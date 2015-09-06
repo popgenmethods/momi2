@@ -17,7 +17,7 @@ def test_jointime_inference():
                                   join_time, t1)
 
     true_demo = get_demo([t0])
-    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, mu=mu, ms_path=ms_path)))
+    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(ms_path, true_demo, num_loci=num_runs, mu_per_locus=mu)))
     
     print(t0,t1)
     
@@ -38,7 +38,7 @@ def test_underflow_robustness():
     true_x = np.array([np.log(.5),np.log(.2)])
     true_demo = get_demo(true_x)
 
-    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(true_demo, num_sims=num_runs, mu=mu, ms_path=ms_path)))
+    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(ms_path, true_demo, num_loci=num_runs, mu_per_locus=mu)))
     
     optimize_res = unlinked_mle_search(sfs, get_demo, mu * num_runs, np.array([np.log(0.1),np.log(100.0)]), hessp=True, method='newton-cg')
     print optimize_res

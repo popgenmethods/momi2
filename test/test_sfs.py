@@ -53,6 +53,8 @@ def to_dict(sampled_sfs):
     return [dict(locus) for locus in sampled_sfs]
 
 if __name__=="__main__":
+    from test_ms import ms_path
+    
     if len(sys.argv) == 2 and sys.argv[1] == "generate":
         results = {}
         for m_name,m_val in MODELS.iteritems():
@@ -61,7 +63,7 @@ if __name__=="__main__":
                 x = np.random.normal(size=m_val['params'])
                 demo = m_val['demo'](x, m_val['nlins'])
                 
-                sampled_sfs = sfs_list_from_ms(simulate_ms(demo, num_sims=100, mu=1e-3))
+                sampled_sfs = sfs_list_from_ms(simulate_ms(ms_path, demo, num_loci=100, mu_per_locus=1e-3))
                 sampled_sfs = from_dict(sampled_sfs)
                 results[(m_name, tuple(x), sampled_sfs)] = compute_stats(demo, sampled_sfs)
         pickle.dump(results, open(PICKLE, "wb"))
