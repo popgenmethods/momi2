@@ -1,25 +1,19 @@
 from __future__ import division
 import pytest
-from momi import make_demography, expected_sfs, expected_total_branch_len, sum_sfs_list, simulate_ms, sfs_list_from_ms
+from momi import expected_sfs, expected_total_branch_len, sum_sfs_list, simulate_ms, sfs_list_from_ms
 
-from test_sims import simple_admixture_demo
-from test_gradient import simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model
-from test_gradient import log_within
+from demo_utils import simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model, exp_growth_0_model
 
 import autograd.numpy as np
 import sys, os
 import cPickle as pickle
 
-def exp_growth_0_model(x, n_lins):
-    x0 = np.array([x[0], 0.0, x[1]])
-    return exp_growth_model(x0, n_lins)
-
-MODELS = [{'demo':simple_admixture_demo,'nlins':{'1':5,'2':5},'params':7},
-          {'demo':simple_two_pop_demo,'nlins':{'1':5,'2':8},'params':4},
-          {'demo':piecewise_constant_demo,'nlins':{'a':10},'params':9},
-          {'demo':simple_five_pop_demo,'nlins':{str(i):i for i in range(1,6)},'params':30},
-          {'demo':exp_growth_model,'nlins':{'1':10},'params':3},
-          {'demo':exp_growth_0_model,'nlins':{'1':10},'params':2},
+MODELS = [{'demo':simple_admixture_demo,'nlins':(5,5),'params':7},
+          {'demo':simple_two_pop_demo,'nlins':(5,8),'params':4},
+          {'demo':piecewise_constant_demo,'nlins':(10,),'params':9},
+          {'demo':simple_five_pop_demo,'nlins':tuple(range(1,6)),'params':30},
+          {'demo':exp_growth_model,'nlins':(10,),'params':3},
+          {'demo':exp_growth_0_model,'nlins':(10,),'params':2},
           ]         
 MODELS = {m['demo'].__name__ : m for m in MODELS}
 #for m in MODELS.values():
@@ -67,7 +61,7 @@ if __name__=="__main__":
                 x = np.random.normal(size=m_val['params'])
                 demo = m_val['demo'](x, m_val['nlins'])
                 
-                sampled_sfs = sfs_list_from_ms(simulate_ms(demo, num_sims=100, mu=10.))
+                sampled_sfs = sfs_list_from_ms(simulate_ms(demo, num_sims=100, mu=1e-3))
                 sampled_sfs = from_dict(sampled_sfs)
                 results[(m_name, tuple(x), sampled_sfs)] = compute_stats(demo, sampled_sfs)
         pickle.dump(results, open(PICKLE, "wb"))

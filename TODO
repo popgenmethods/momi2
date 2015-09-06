@@ -1,5 +1,9 @@
+write docstring for simulate_ms and related functions
+clean up simulate_inference, use it somewhere? (or just delete it?)
+clean up TODO
+
 write pydocs
-write docstrings for parse_ms, Demography, __init__
+write docstrings for parse_ms
 in Demography docstring, add a section "Comments" that discusses some time scaling issues. but otherwise just assume everything is in per-generation units
 
 
@@ -8,14 +12,10 @@ install it in installation script, and use it as default
 (so don't have to rely on system variable $MS_PATH)
 
 
-remove make_demography
 in docstring, note Demography.from_ms is equivalent to using Demography("-ms $%d %s" % (len(args), ms_cmd), *(args + [default_N_diploid]), **kwargs)
 reference "help(Demography.from_ms)" in description of "-ms_cmd" flag in Demography docstring
 remove # sign and -a flags from ms demographies. mention -a flag in Demography docstring
 
-
-remove default_ms_demography()
-just require $MS_PATH set for tests, but don't use it anywhere else
 
 rename files (likelihood_surace.py should just be likelihood.py, sum_product should be compute_sfs.py)
 

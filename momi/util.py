@@ -3,12 +3,8 @@ import functools
 import autograd.numpy as np
 from functools import partial
 from autograd.core import primitive
-import os
 import itertools
 from collections import Counter
-
-def default_ms_path():
-    return os.environ["MS_PATH"]
 
 def sum_sfs_list(sfs_list):
     """

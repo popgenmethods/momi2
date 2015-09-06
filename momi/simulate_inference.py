@@ -1,7 +1,6 @@
 from __future__ import division, print_function
 
 from likelihood_surface import unlinked_log_likelihood, unlinked_mle_approx_cov
-from demography import make_demography
 from parse_ms import simulate_ms, sfs_list_from_ms
 from util import check_symmetric, sum_sfs_list, make_function
 from tensor import greedy_hosvd, get_sfs_tensor, PGSurface_Empirical, PGSurface_Diag, PGSurface_Exact, PoissonWishartSurface
@@ -48,7 +47,7 @@ def simulate_inference(ms_path, num_loci, mu, additional_ms_params, true_ms_para
         if callable(demo_factory):
             return demo_factory(**params)
         else:
-            return make_demography(demo_factory, **params)
+            return Demography.from_ms(1.0,demo_factory, **params)
     
     true_demo = demo_func_ms(**true_ms_params)
     myprint("# True demography:")

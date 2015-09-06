@@ -4,7 +4,14 @@ import pandas
 
 """
 This tutorial gives an overview of the momi package.
-Use the help() function to view documentation and more information.
+
+Recommended usage: copy/paste blocks of code into ipython session
+
+To rerun results with new random dataset, run as
+     python tutorial.py /path/to/ms [--save (optional)]
+(--save will overwrite tutorial_data.txt)
+
+Use the help() function to view documentation.
 """
 ## enter help screen of the module. press 'q' to exit
 help(momi)
@@ -138,7 +145,7 @@ eSFS_normalized = momi.expected_sfs(demo, config_list, normalized=True)
 # use numpy.allclose to check equality of vectors
 assert allclose(eSFS_normalized, eSFS / eL)
 
-print pandas.DataFrame({"Config": config_list, "E[SFS]": eSFS, "Prob": eSFS_normalized})
+print pandas.DataFrame({"Config": config_list, "E[SFS]": eSFS, "Prob": eSFS_normalized}).set_index('Config')
 
 """
 momi.expected_sfs also includes options for dealing with sampling error and ascertainment bias.
@@ -389,7 +396,7 @@ print "Approximate 95% confidence intervals for parameters:"
 
 import scipy.stats
 conf_lower, conf_upper = scipy.stats.norm.interval(.95, loc = est_params, scale = np.sqrt(np.diag(mcle_cov)))
-print pandas.DataFrame({"Truth" : true_params, "Lower" : conf_lower, "Upper" : conf_upper}, columns = ["Lower","Upper","Truth"])
+print pandas.DataFrame({"Truth" : true_params, "Lower" : conf_lower, "Upper" : conf_upper}, columns = ["Lower","Upper","Truth"], index=['scaled_growth0','scaled_size1','scaled_pulse_time','logit_prob','scaled_wait_time'])
 
 
 # higher dimensional confidence regions, using wald test

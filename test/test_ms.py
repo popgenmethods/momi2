@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import make_demography, expected_sfs, expected_total_branch_len, simulate_ms, sfs_list_from_ms, run_ms
+from momi import Demography, expected_sfs, expected_total_branch_len, simulate_ms, sfs_list_from_ms, run_ms
 import pytest
 import random
 import autograd.numpy as np
@@ -7,18 +7,20 @@ import scipy, scipy.stats
 import itertools
 import sys
 
-def simple_admixture_demo(x, n_lins):
-    t = np.cumsum(np.exp(x[:5]))
-    p = 1.0 / (1.0 + np.exp(x[5:]))
-    return make_demography("-I 2 %d %d -es $2 2 $3 -es $0 2 $1 -ej $4 #3 #4 -ej $t3 #4 1 -ej $t4 2 1" % (n_lins['1'], n_lins['2']), 
-                           t[0], p[0], t[1], p[1], t[2], t3=t[3], t4=t[4])
+from demo_utils import *
+
+import os
+try:
+    ms_path = os.environ["MS_PATH"]
+except KeyError:
+    raise Exception("Need to set system variable $MS_PATH, or run py.test with 'MS_PATH=/path/to/ms py.test ...'")
 
 def admixture_demo_str():
     x = np.random.normal(size=7)
     t = np.cumsum(np.exp(x[:5]))
     p = 1.0 / (1.0 + np.exp(x[5:]))
 
-    ms_cmd = "-I 2 5 5 -es %f 2 %f -es %f 2 %f -ej %f 3 4 -ej %f 4 1 -ej %f 2 1" % (t[0], p[0], t[1], p[1], t[2], t[3], t[4])
+    ms_cmd = "-I 2 2 3 -es %f 2 %f -es %f 2 %f -ej %f 3 4 -ej %f 4 1 -ej %f 2 1" % (t[0], p[0], t[1], p[1], t[2], t[3], t[4])
     return ms_cmd
     
 def exp_growth_str():
@@ -44,36 +46,38 @@ def tree_demo_4_str():
     demo_cmd = "-I %d %s -ej %f 2 1 -ej %f 3 1 -ej %f 4 1" % tuple([len(n), " ".join(map(str,n))] + list(times))
     return demo_cmd
 
-demo_funcs = (admixture_demo_str, exp_growth_str, tree_demo_2_str, tree_demo_4_str)
-demo_funcs = {f.__name__ : f for f in demo_funcs}
+demo_funcs1 = (admixture_demo_str, exp_growth_str, tree_demo_2_str, tree_demo_4_str)
+demo_funcs1 = {f.__name__ : f for f in demo_funcs1}
 
 @pytest.mark.parametrize("k", 
-                         demo_funcs.keys())
+                         demo_funcs1.keys())
 def test_sfs_counts1(k):
     """Test to make sure converting ms cmd to momi demography works"""
-    check_sfs_counts(demo_ms_cmd=demo_funcs[k]())
+    check_sfs_counts(demo_ms_cmd=demo_funcs1[k]())
 
-@pytest.mark.parametrize("k", 
-                         demo_funcs.keys())    
+demo_funcs2 = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, exp_growth_model]}
+    
+@pytest.mark.parametrize("k", demo_funcs2.keys())  
 def test_sfs_counts2(k):
     """Test to make sure converting momi demography to ms cmd works"""
-    check_sfs_counts(demo=make_demography(demo_funcs[k]()))
+    check_sfs_counts(demo=demo_funcs2[k]())
 
 
-def check_sfs_counts(demo_ms_cmd=None, demo=None, mu=10.0, num_ms_samples=1000):
+def check_sfs_counts(demo_ms_cmd=None, demo=None, mu=1e-3, r=1e-3, num_ms_samples=1000, ref_size=1e4):
     assert (demo_ms_cmd is None) != (demo is None)
 
     if demo is None:
-        demo = make_demography(demo_ms_cmd)
+        demo = Demography.from_ms(ref_size,demo_ms_cmd)
         n = sum(demo.n_at_leaves)
 
-        ms_cmd = "%d %d -t %f %s -seed %s" % (n, num_ms_samples, mu, demo_ms_cmd,
-                                              " ".join([str(random.randint(0,999999999))
-                                                        for _ in range(3)]))
+        ms_cmd = "%d %d -t %f -r %f 1000 %s -seed %s" % (n, num_ms_samples, ref_size*mu, ref_size*r,
+                                                         demo_ms_cmd,
+                                                         " ".join([str(random.randint(0,999999999))
+                                                                   for _ in range(3)]))
 
-        sfs_list = sfs_list_from_ms(run_ms(ms_cmd))
+        sfs_list = sfs_list_from_ms(run_ms(ms_cmd, ms_path = ms_path))
     elif demo_ms_cmd is None:        
-        sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, mu=mu))
+        sfs_list = sfs_list_from_ms(simulate_ms(demo, num_ms_samples, mu=mu, ms_path = ms_path, additional_ms_params='-r %f 1000' % (ref_size * r), rescale=ref_size))
     
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     
@@ -121,6 +125,8 @@ def my_t_test(labels, theoretical, observed, min_samples=25):
     toPrint = np.array([labels, p_vals, observed_mean, theoretical, n_observed]).transpose()
     toPrint = toPrint[np.array(toPrint[:,1],dtype='float').argsort()[::-1]] # reverse-sort by p-vals
     print(toPrint)
+
+    print("Note p-values are for t-distribution, which may not be a good approximation to the true distribution")
     
     # p-values should be uniformly distributed
     # so then the min p-value should be beta distributed
@@ -128,5 +134,5 @@ def my_t_test(labels, theoretical, observed, min_samples=25):
 
 
 if  __name__=="__main__":
-    demo = make_demography(" ".join(sys.argv[3:]))
+    demo = Demography.from_ms(1.0," ".join(sys.argv[3:]))
     check_sfs_counts(demo, mu=float(sys.argv[2]), num_ms_samples=int(sys.argv[1]))

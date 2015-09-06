@@ -4,8 +4,8 @@ import pytest
 import numpy as np
 
 from momi import expected_sfs_tensor_prod, expected_tmrca
-from test_sims import simple_admixture_demo
-from test_gradient import simple_five_pop_demo
+from demo_utils import simple_admixture_demo, simple_five_pop_demo
+
 
 def check_tmrca(demo):
     tmrca = expected_tmrca(demo)
@@ -18,9 +18,7 @@ def check_tmrca(demo):
         assert np.isclose(tmrca, tmrca2)
 
 def test_five_pop_tmrca():
-    check_tmrca(simple_five_pop_demo(np.random.normal(size=30),
-                                     dict(zip("abcde",[1,2,3,4,5]))))
+    check_tmrca(simple_five_pop_demo())
 
 def test_admixture_tmrca():
-    check_tmrca(simple_admixture_demo(np.random.normal(size=7),
-                                      dict(zip("12", [3,6]))))
+    check_tmrca(simple_admixture_demo(n_lins=(3,6)))

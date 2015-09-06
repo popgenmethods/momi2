@@ -1,6 +1,6 @@
 from __future__ import division
 import networkx as nx
-from util import default_ms_path, memoize_instance, memoize
+from util import memoize_instance, memoize
 from math_functions import einsum2, sum_antidiagonals, convolve_axes
 import scipy, scipy.misc
 import autograd.numpy as np
@@ -78,13 +78,15 @@ class Demography(nx.DiGraph):
                      set growth rate for population i, so at t > t_gens ago
                           N(t) = N(t_gens) * exp( -growth_rate * (t - t_gens) )
                      the effect is cancelled by -N or -G events occurring on the same
-                     population, backwards in time 
+                     population, backwards from the present
+                     (if i == *, growth rate for all populations is set)
                  -J <t_gens> <i> <j>
                      t_gens generations ago, all lineages from <i> move into <j>
                      (i.e. <i> and <j> find a common ancestor)
                  -N <t_gens> <i> <N_diploid>
                      set diploid size of population <i> for t > t_gens ago
                      coalescence occurs at rate 1/(2*N_diploid)
+                     (if i == *, size for all populations is set)
                  -S <t_gens> <i> <p>
                      t_gens ago, each lineage in pop <i> independently with
                      probability 1-p to a new pop.
@@ -540,7 +542,3 @@ class _ParamsMap(dict):
         if np.isnan(ret):
             raise Exception("nan in params %s" % (str(self.params_dict)))
         return ret
-
-def make_demography(ms_cmd, *args, **kwargs):
-    """Deprecated DO NOT USE"""
-    return Demography.from_ms(1, ms_cmd, *args, **kwargs)

@@ -1,4 +1,4 @@
-from momi import make_demography, expected_sfs, expected_total_branch_len
+from momi import expected_sfs, expected_total_branch_len
 import random
 import itertools
 import networkx as nx
@@ -6,21 +6,7 @@ import networkx as nx
 from autograd.numpy import log
 import autograd.numpy as np
 
-from test_sims import simple_admixture_demo
-
-def random_tree_demo(num_leaf_pops, lins_per_pop):
-    cmd = "-I %d %s" % (num_leaf_pops, " ".join([str(lins_per_pop)] * num_leaf_pops))
-    for i in range(num_leaf_pops):
-        cmd += " -n %d %f" % (i+1, random.expovariate(1.0))
-    roots = set([i+1 for i in range(num_leaf_pops)])
-    t = 0.0
-    while len(roots) > 1:
-        i,j = random.sample(roots, 2)
-        t += random.expovariate(1.0)
-        cmd += " -ej %f %d %d" % (t, i, j)
-        roots.remove(i)
-        cmd += " -en %f %d %f" % (t, j, random.expovariate(1.0))
-    return make_demography(cmd)
+from demo_utils import simple_admixture_demo, random_tree_demo
 
 def check_demo_normalization(demo, min_freqs=1, **kwargs):
     leaves = sorted(list(demo.leaves))
@@ -53,9 +39,7 @@ def test_tree_demo_normalization():
     check_demo_normalization(demo)
 
 def test_admixture_demo_normalization():
-    demo = simple_admixture_demo(np.random.normal(size=7), {'1':2,'2':2})
-
-    check_demo_normalization(demo)
+    check_demo_normalization(simple_admixture_demo())
 
 def test_tree_demo_errors_normalization():
     check_tree_demo_errors_normalization([1,2,3])

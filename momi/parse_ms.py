@@ -3,8 +3,6 @@ import bisect
 import networkx as nx
 
 from size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
-from util import default_ms_path
-
 from autograd.numpy import isnan, exp
 
 import random
@@ -174,7 +172,7 @@ def sfs_list_from_ms(ms_file):
     return [_sfs_from_1_ms_sim(list(lines), len(n_at_leaves), pops_by_lin)
             for i,lines in runs]
 
-def simulate_ms(demo, num_sims, mu, ms_path=None, seeds=None, additional_ms_params="", rescale=True):
+def simulate_ms(demo, num_sims, mu, ms_path, seeds=None, additional_ms_params="", rescale=True):
     '''
     Given a demography, simulate from it using ms
 
@@ -208,10 +206,7 @@ def simulate_ms(demo, num_sims, mu, ms_path=None, seeds=None, additional_ms_para
    
     return run_ms(ms_args, ms_path=ms_path)
 
-def run_ms(ms_args, ms_path=None):
-    if ms_path is None:
-        ms_path = default_ms_path()
-    
+def run_ms(ms_args, ms_path):
     try:
         lines = subprocess.check_output([ms_path] + ms_args.split(),
                                         stderr=subprocess.STDOUT)
