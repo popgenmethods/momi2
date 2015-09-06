@@ -17,8 +17,6 @@ reference "help(Demography.from_ms)" in description of "-ms_cmd" flag in Demogra
 remove # sign and -a flags from ms demographies. mention -a flag in Demography docstring
 
 
-rename files (likelihood_surace.py should just be likelihood.py, sum_product should be compute_sfs.py)
-
 don't make Demography a subclass of networkx.DiGraph:
 it allows users to make changes to the graph,
 and also clutters up the documentation
@@ -27,8 +25,6 @@ clean up Demography construction code
 
 make InvalidDemographyException
 
-fix installation scripts
-make scikit-tensor dependency optional?
 
 clean up simulate_inference.py
 have simulate_inference use callback instead of f_verbose

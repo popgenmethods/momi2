@@ -2,8 +2,8 @@ from __future__ import division
 from util import make_constant, check_symmetric, make_function
 from autograd import hessian, grad, hessian_vector_product, jacobian
 import autograd.numpy as np
-import scipy
-from sum_product import expected_sfs, expected_total_branch_len
+import scipy, scipy.optimize
+from compute_sfs import expected_sfs, expected_total_branch_len
 from math_functions import einsum2
 import sys
 

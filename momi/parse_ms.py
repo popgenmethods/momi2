@@ -13,7 +13,90 @@ from cStringIO import StringIO
 
 from operator import itemgetter
 
-def to_ms_cmd(demo, rescale):
+def sfs_list_from_ms(ms_file):
+    '''
+    ms_file = file object containing output from ms
+
+    Returns a list of empirical SFS's, one for each ms simulation
+    '''
+    lines = ms_file.readlines()
+
+    # get out n_at_leaves
+    n_at_leaves = None
+    firstline = lines[0].replace('\ ','\_').split() # don't split up escaped spaces in /ms/path
+    for i,flag in enumerate(firstline):
+        if flag == "-I":
+            n_at_leaves = tuple(int(x) for x in firstline[(i+2):][:int(firstline[i+1])])
+            break
+    if n_at_leaves is None:
+        n_at_leaves = (int(firstline[1]),)
+        
+    
+    def f(x):
+        if x == "//":
+            f.i += 1
+        return f.i
+    f.i = 0
+    runs = itertools.groupby((line.strip() for line in lines), f)
+    next(runs)
+
+    pops_by_lin = []
+    for pop in range(len(n_at_leaves)):
+        for i in range(n_at_leaves[pop]):
+            pops_by_lin.append(pop)
+
+    return [_sfs_from_1_ms_sim(list(lines), len(n_at_leaves), pops_by_lin)
+            for i,lines in runs]
+
+def simulate_ms(demo, num_sims, mu, ms_path, seeds=None, additional_ms_params="", rescale=True):
+    '''
+    Given a demography, simulate from it using ms
+
+    Returns a file-like object with the ms output
+    '''
+    if rescale is True:
+        rescale = demo.default_N_diploid
+    elif rescale is False:
+        rescale = 1.0
+
+    theta = mu * rescale
+    
+    if any([(x in additional_ms_params) for x in "-t","-T","seed"]):
+        raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
+
+    lins_per_pop = [demo.n_lineages(l) for l in sorted(demo.leaves)]
+    n = sum(lins_per_pop)
+
+    ms_args = _to_ms_cmd(demo, rescale)
+    if additional_ms_params:
+        ms_args = "%s %s" % (ms_args, additional_ms_params)
+
+    if seeds is None:
+        seeds = [random.randint(0,999999999) for _ in range(3)]
+    seeds = " ".join([str(s) for s in seeds])
+    ms_args = "%s -seed %s" % (ms_args, seeds)
+
+    assert ms_args.startswith("-I ")
+    ms_args = "-t %g %s" % (theta, ms_args)
+    ms_args = "%d %d %s" % (n, num_sims, ms_args)
+   
+    return run_ms(ms_args, ms_path=ms_path)
+
+def run_ms(ms_args, ms_path):
+    """
+    Runs the command
+    "%s %s" % (ms_path, ms_args)
+    and returns the output as a file-like object
+    """
+    try:
+        lines = subprocess.check_output([ms_path] + ms_args.split(),
+                                        stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError, e:
+        ## ms gives really weird error codes, so ignore them
+        lines = e.output
+    return StringIO(lines)
+
+def _to_ms_cmd(demo, rescale):
     if rescale is True:
         rescale = demo.default_N_diploid
     elif rescale is False:
@@ -136,84 +219,6 @@ def _convert_ms_cmd(cmd_list, params):
 
     cmd_list = [['d','1']] + cmd_list
     return cmd_list
-
-def sfs_list_from_ms(ms_file):
-    '''
-    ms_file = file object containing output from ms
-
-    Returns a list of empirical SFS's, one for each ms simulation
-    '''
-    lines = ms_file.readlines()
-
-    # get out n_at_leaves
-    n_at_leaves = None
-    firstline = lines[0].replace('\ ','\_').split() # don't split up escaped spaces in /ms/path
-    for i,flag in enumerate(firstline):
-        if flag == "-I":
-            n_at_leaves = tuple(int(x) for x in firstline[(i+2):][:int(firstline[i+1])])
-            break
-    if n_at_leaves is None:
-        n_at_leaves = (int(firstline[1]),)
-        
-    
-    def f(x):
-        if x == "//":
-            f.i += 1
-        return f.i
-    f.i = 0
-    runs = itertools.groupby((line.strip() for line in lines), f)
-    next(runs)
-
-    pops_by_lin = []
-    for pop in range(len(n_at_leaves)):
-        for i in range(n_at_leaves[pop]):
-            pops_by_lin.append(pop)
-
-    return [_sfs_from_1_ms_sim(list(lines), len(n_at_leaves), pops_by_lin)
-            for i,lines in runs]
-
-def simulate_ms(demo, num_sims, mu, ms_path, seeds=None, additional_ms_params="", rescale=True):
-    '''
-    Given a demography, simulate from it using ms
-
-    Returns a file-like object with the ms output
-    '''
-    if rescale is True:
-        rescale = demo.default_N_diploid
-    elif rescale is False:
-        rescale = 1.0
-
-    theta = mu * rescale
-    
-    if any([(x in additional_ms_params) for x in "-t","-T","seed"]):
-        raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
-
-    lins_per_pop = [demo.n_lineages(l) for l in sorted(demo.leaves)]
-    n = sum(lins_per_pop)
-
-    ms_args = to_ms_cmd(demo, rescale)
-    if additional_ms_params:
-        ms_args = "%s %s" % (ms_args, additional_ms_params)
-
-    if seeds is None:
-        seeds = [random.randint(0,999999999) for _ in range(3)]
-    seeds = " ".join([str(s) for s in seeds])
-    ms_args = "%s -seed %s" % (ms_args, seeds)
-
-    assert ms_args.startswith("-I ")
-    ms_args = "-t %g %s" % (theta, ms_args)
-    ms_args = "%d %d %s" % (n, num_sims, ms_args)
-   
-    return run_ms(ms_args, ms_path=ms_path)
-
-def run_ms(ms_args, ms_path):
-    try:
-        lines = subprocess.check_output([ms_path] + ms_args.split(),
-                                        stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError, e:
-        ## ms gives really weird error codes, so ignore them
-        lines = e.output
-    return StringIO(lines)
 
 '''
 Helper functions for simulating SFS with ms.
