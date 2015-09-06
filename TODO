@@ -1,5 +1,11 @@
 Finish writing documentation!!
 
+util.py
+0. have read_sfs_list,write_sfs_list format include line for sample size
+   * also remove -n flag from Demography?
+     sample sizes 'belong' with SFS, not the demography
+     at least when reading in data & specifying parametric model
+
 Demography
 0. don't make Demography subclass of networkx.DiGraph anymore
 1. clean up construction code
