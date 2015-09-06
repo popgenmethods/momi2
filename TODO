@@ -1,4 +1,5 @@
 write read_sfs_list, write_sfs_list in util.py
+(make their formatting friendlier)
 
 
 clean up TODO
@@ -41,6 +42,8 @@ turn tutorial.py into ipython notebook
 write test to check expected_tmrca (simulate from ms, and check the TMRCA's of the trees)
 
 remove -a,# modifications to Demography.from_ms()? (undecided)
+
+make unlinked_log_lik_vector more efficient by using sparse matrix
 
 ## WISHLIST
 

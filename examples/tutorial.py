@@ -1,6 +1,7 @@
 import momi
 from numpy import allclose
 import pandas
+import sys
 
 """
 This tutorial gives an overview of the momi package.
@@ -10,7 +11,9 @@ Recommended usage: copy/paste blocks of code into ipython session
 To rerun results with new random dataset, run as
      python tutorial.py /path/to/ms [--save (optional)]
 (--save will overwrite tutorial_data.txt)
-
+"""
+generate_new_dataset = len(sys.argv) >= 2 and __name__=="__main__"
+"""
 Use the help() function to view documentation.
 """
 ## enter help screen of the module. press 'q' to exit
@@ -171,32 +174,22 @@ We then print out the SFS and some statistics for illustration.
 n_loci, mu_per_locus, recom_per_locus = 1000, 1e-3, 1e-3
 data_file = 'tutorial_data.txt'
 
-import sys
-if len(sys.argv) < 2:
-    # use saved dataset
-    print "Reading dataset from %s" % data_file  
-    ms_output = file(data_file,'r')
+## construct sfs_list
+## (a list with the observed SFS at each locus)
+
+use_existing_dataset = not generate_new_dataset
+if use_existing_dataset:    
+    print "Reading dataset from %s" % data_file
+    sfs_list = momi.read_sfs_list(data_file)    
 else:
-    # to generate new dataset, run script as
-    # python tutorial.py /path/to/ms [--save (optional)]
-    print "Generating new dataset..."
+    print "Generating new dataset with ms..."
     ms_path = sys.argv[1]
     ms_output = momi.simulate_ms(ms_path, demo, n_loci, mu_per_locus, additional_ms_params="-r %f 10000" % (1e4 * recom_per_locus))
-
+    sfs_list = momi.sfs_list_from_ms(ms_output)
+    
     if '--save' in sys.argv[2:]:
-        print "Saving generated dataset in %s" % data_file
-        
-        data_file = file(data_file,'w')
-        for line in ms_output:
-            data_file.write(line)
-        data_file.close()
-
-        ms_output.seek(0)
-
-print "Processing dataset from ms..."
-        
-# get a list with the observed SFS at each locus
-sfs_list = momi.sfs_list_from_ms(ms_output)
+        print "Saving generated dataset to %s" % data_file
+        momi.write_sfs_list(sfs_list, data_file)
 
 # aggregate into a single SFS for the whole dataset
 combined_sfs = momi.sum_sfs_list(sfs_list)

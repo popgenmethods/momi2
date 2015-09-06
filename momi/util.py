@@ -24,6 +24,79 @@ def sum_sfs_list(sfs_list):
     """
     return dict(sum([Counter(sfs) for sfs in sfs_list], Counter()))
 
+def write_sfs_list(sfs_list, filename):
+    """Write SFS list to file
+
+    Parameters
+    ----------
+    sfs_list : list of dict
+         list of SFS for each locus
+    filename : str
+         path of file to be written to
+
+    See Also
+    --------
+    read_sfs_list : read SFS from file
+    """
+    f = file(filename,'w')
+    f.write("# Num loci:\n")
+    f.write("%d\n" % len(sfs_list))
+    f.write("# <locus> <count> <x_0> <x_1> ... <x_(D-1)>\n")
+    f.write("# <x_i> == derived alleles at population i\n")
+    for locus,sfs in enumerate(sfs_list):
+        for config,count in sfs.iteritems():
+            line = [str(locus), str(count)] + [str(x_i) for x_i in config]
+            f.write("\t".join(line) + "\n")
+    f.close()
+
+def read_sfs_list(filename):
+    """Read in list of SFS from file
+
+    Parameters
+    ----------
+    filename : str
+         path to the file
+
+         first line should be the number of loci
+             <num_loci>
+         subsequent lines should be of format
+             <x_0> <x_1> ... <x_(D-1)> <locus> <count>
+         where
+             x_i = derived alleles in pop i
+             count = # SNPs observed at locus with config (x_0,...,x_(D-1))
+
+         empty lines, and lines commented with #, are ignored             
+
+    Returns
+    -------
+    sfs_list : list of dict
+         sfs_list[i] is the observed sfs at locus i
+         sfs is a dict mapping configs (tuples) to counts (int or float)
+
+    See Also
+    --------
+    write_sfs_list : write sfs_list to file
+    """
+    f = file(filename,'r')
+    lines = [l.strip() for l in f]
+    f.close()
+    # remove commented and empty lines
+    lines = [l for l in lines if (l[0] != "#" and l != "")]
+
+    n_loci = int(lines[0])
+    sfs_list = [{} for _ in range(n_loci)]
+
+    for line in lines[1:]:
+        line = line.split()
+        locus, count = int(line[0]), int(line[1])        
+        config = tuple(int(x) for x in line[2:])
+
+        if config in sfs_list[locus]:
+            raise Exception("Same config was specified multiple times for the same locus")
+        sfs_list[locus][config] = count
+    return sfs_list
+    
+    
 def polymorphic_configs(demo):
     n = sum([demo.n_lineages(l) for l in demo.leaves])
     ranges = [range(demo.n_lineages(l)) for l in sorted(demo.leaves)]
