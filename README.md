@@ -23,7 +23,7 @@ report bugs/issues [here](https://github.com/jackkamm/momi/issues)
 
 Prerequisites:
 * gcc
-* Scientific Python distribution, e.g. [Anaconda](http://continuum.io/downloads), [Enthought Canopy](https://www.enthought.com/products/canopy/)
+* Scientific distribution of Python 2.7, e.g. [Anaconda](http://continuum.io/downloads), [Enthought Canopy](https://www.enthought.com/products/canopy/)
   * Alternatively, custom installation of pip, cython, the SciPy stack
 
 To install, in the top-level directory of momi (where "setup.py" lives), type

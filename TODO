@@ -1,51 +1,31 @@
-write read_sfs_list, write_sfs_list in util.py
-(make their formatting friendlier)
+Finish writing documentation!!
 
+Demography
+0. don't make Demography subclass of networkx.DiGraph anymore
+1. clean up construction code
+2. class InvalidDemographyException
+3. in docs, add section "Comments" to discuss time scaling issues
+4. note Demography.from_ms equivalent to Demography("-msformat ...")
+5. remove -a,# modifications to Demography.from_ms()? (undecided)
 
-clean up TODO
+tensor.py
+0. restore commented code
 
-write pydocs
-write docstrings for parse_ms
-in Demography docstring, add a section "Comments" that discusses some time scaling issues. but otherwise just assume everything is in per-generation units
+examples/tutorial.py
+0. ipython notebook?
 
+tests/test_tmrca.py
+0. check against ms -T
 
-either put ms in git repository, or make scrm a subpackage of the git repository
-install it in installation script, and use it as default
-(so don't have to rely on system variable $MS_PATH)
+parse_ms.py
+0. -T functionality
 
+likelihood.py
+0. sparse matrix for counts_ij in unlinked_log_lik_vector()
 
-in docstring, note Demography.from_ms is equivalent to using Demography("-ms $%d %s" % (len(args), ms_cmd), *(args + [default_N_diploid]), **kwargs)
-reference "help(Demography.from_ms)" in description of "-ms_cmd" flag in Demography docstring
-remove # sign and -a flags from ms demographies. mention -a flag in Demography docstring
-
-
-don't make Demography a subclass of networkx.DiGraph:
-it allows users to make changes to the graph,
-and also clutters up the documentation
-
-clean up Demography construction code
-
-make InvalidDemographyException
-
-
-clean up simulate_inference.py
-have simulate_inference use callback instead of f_verbose
-clean up tensor.py
-
-reorganize tests; in particular have some utility functions for creating demographies, and other useful things for many tests
-also clean up things like log_within(), etc.
-rename test_sims to test_ms?
-write tests for tensor surfaces
-
-turn tutorial.py into ipython notebook
-
-write test to check expected_tmrca (simulate from ms, and check the TMRCA's of the trees)
-
-remove -a,# modifications to Demography.from_ms()? (undecided)
-
-make unlinked_log_lik_vector more efficient by using sparse matrix
+compute_sfs.py
+0. built in functionality for missing alleles
 
 ## WISHLIST
 
 GPU/parallelization
-missing alleles
