@@ -1,18 +1,21 @@
 Finish writing documentation!!
 
 util.py
-0. have read_sfs_list,write_sfs_list format include line for sample size
+* have read_sfs_list,write_sfs_list format include line for sample size
    * also remove -n flag from Demography?
      sample sizes 'belong' with SFS, not the demography
      at least when reading in data & specifying parametric model
+* function that takes in Demography command and starting position, and does slsqp inference
+
 
 Demography
-0. don't make Demography subclass of networkx.DiGraph anymore
-1. clean up construction code
-2. class InvalidDemographyException
-3. in docs, add section "Comments" to discuss time scaling issues
-4. note Demography.from_ms equivalent to Demography("-msformat ...")
-5. remove -a,# modifications to Demography.from_ms()? (undecided)
+* store constraints when constructing Demography (for use in slsqp)
+* don't make Demography subclass of networkx.DiGraph anymore
+* clean up construction code
+* class InvalidDemographyException
+* in docs, add section "Comments" to discuss time scaling issues
+* note Demography.from_ms equivalent to Demography("-msformat ...")
+* remove -a,# modifications to Demography.from_ms()? (undecided)
 
 tensor.py
 0. restore commented code
