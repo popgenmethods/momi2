@@ -5,8 +5,9 @@ util.py
    * also remove -n flag from Demography?
      sample sizes 'belong' with SFS, not the demography
      at least when reading in data & specifying parametric model
-* function that takes in Demography command and starting position, and does slsqp inference
-
+* function for simple slsqp inference
+  * use Demography construction to automatically build constraints
+  * need to implement InvalidDemographyException, to return float('inf') when out of bounds
 
 Demography
 * store constraints when constructing Demography (for use in slsqp)
