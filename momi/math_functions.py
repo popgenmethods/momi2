@@ -3,8 +3,8 @@ import autograd.numpy as np
 from autograd.core import primitive
 import scipy
 from util import memoize
+from convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes
 
-@primitive
 def einsum2(*args):
     '''
     like numpy.einsum, using format
@@ -23,56 +23,41 @@ def einsum2(*args):
 
     for argnum,idxs in zip(idx_argnum,idx_lists):
         args[argnum] = [idx_to_int[i] for i in idxs]
-    
-    ## TODO: use np.tensordot instead (faster, easier to parallelize)
+
     return np.einsum(*args)
-def make_einsum_grad(argnum, ans, *args):
-    if argnum % 2 == 1:
-        raise Exception()
-    grad_args = list(args)
-    grad_args[-1] = args[argnum+1]
-    grad_args[argnum+1] = args[-1]
-    def grad(g):
-       curr_args = list(grad_args)
-       curr_args[argnum] = g
-       return einsum2(*curr_args)
-    return grad
-einsum2.gradmaker = make_einsum_grad
 
-def sum_antidiagonals(arr, labels, axis0, axis1, new_axis):
-    assert axis0 != axis1
-    idx0,idx1 = labels.index(axis0), labels.index(axis1)
+convolve_trailing_axes = primitive(convolve_trailing_axes)
+transposed_convolve_trailing_axes = primitive(transposed_convolve_trailing_axes)
 
-    ret = swapaxes(swapaxes(arr, idx0, 0), idx1, 1)[::-1,...]
-    ret = np.array([trace(ret,offset=k) 
-                    for k in range(-ret.shape[0]+1,ret.shape[1])])    
+convolve_trailing_axes.defgrad(lambda ans,A,B: lambda g: transposed_convolve_trailing_axes(g,B,A.shape))
+convolve_trailing_axes.defgrad(lambda ans,A,B: lambda g: transposed_convolve_trailing_axes(np.transpose(g,(0,2,1,3)),A,B.shape), argnum=1)
+transposed_convolve_trailing_axes.defgrad(lambda ans,C,B,Ashape: lambda g: convolve_trailing_axes(g,B))
+transposed_convolve_trailing_axes.defgrad(lambda ans,C,B,Ashape: lambda g: transposed_convolve_trailing_axes(np.transpose(C,(0,2,1,3)),g,B.shape), argnum=1)
 
-    # swap labels
-    labels = list(labels)
-    for i,idx in list(enumerate((idx0,idx1))):
-        labels[i],labels[idx] = labels[idx],labels[i]
-    labels = [new_axis] + labels[2:]
-   
-    return ret,labels
+def convolve_axes(arr0, arr1, labs, axes, out_axis):
+    old_labs = [list(l) for l in labs]
+    labs = [[l_i for l_i in l if l_i != a] + [a] for l,a in zip(labs,axes)]
 
-@primitive
-def swapaxes(a, axis1, axis2):
-    return np.swapaxes(a, axis1, axis2)
-swapaxes.defgrad(lambda ans,a,axis1,axis2:
-                     lambda g: swapaxes(g, axis1,axis2))
+    arr0,arr1 = [einsum2(a,ol,l) for a,ol,l in zip((arr0,arr1), old_labs, labs)]
+    reshaped_arrs = [np.reshape(a, (a.shape[0],-1,a.shape[-1]), order='C') for a in (arr0,arr1)]
+    ret = convolve_trailing_axes(*reshaped_arrs)
+    return np.reshape(ret, tuple([ret.shape[0]] + list(arr0.shape[1:-1]) + list(arr1.shape[1:-1]) + [-1]),
+                      order='C'), [labs[0][0]] + labs[0][1:-1] + labs[1][1:-1] + [out_axis]
 
-@primitive
-def trace(a, offset):
-    '''
-    autograd.numpy.trace gradient is broken.
-    TODO: submit pull request to autograd
-    '''
-    return np.trace(a, offset)
-trace.defgrad(lambda ans,a,offset:
-                  lambda g: einsum2(np.eye(a.shape[0], a.shape[1], k=offset),
-                                    [0,1],
-                                    g, range(2, len(a.shape)),
-                                    range(len(a.shape))))
+sum_trailing_antidiagonals = primitive(sum_trailing_antidiagonals)
+add_trailing_axis = primitive(add_trailing_axis)
+
+sum_trailing_antidiagonals.defgrad(lambda ans, A: lambda g: add_trailing_axis(g, A.shape[2]))
+add_trailing_axis.defgrad(lambda ans, A, trailing_dim: lambda g: sum_trailing_antidiagonals(g))
+
+def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
+    old_labels = list(labels)
+    labels = [l for l in labels if l not in (axis0,axis1)]
+    arr = einsum2(arr, old_labels, labels + [axis0, axis1])
+
+    reshaped_arr = np.reshape(arr, (-1,arr.shape[-2],arr.shape[-1]), order='C')
+    ret = sum_trailing_antidiagonals(reshaped_arr)
+    return np.reshape(ret, tuple(list(arr.shape[:-2]) + [-1]), order='C'), labels + [out_axis]
 
 '''
 Returns
@@ -130,8 +115,8 @@ def expm1d_taylor(x):
 log_factorial = lambda n: scipy.special.gammaln(n+1)
 log_binom = lambda n,k: log_factorial(n) - log_factorial(k) - log_factorial(n-k)
 def hypergeom_mat(N,n):
-    K = np.outer(np.arange(N+1), np.ones(n+1))
-    k = np.outer(np.ones(N+1), np.arange(n+1))
+    K = np.outer(np.ones(n+1), np.arange(N+1))
+    k = np.outer(np.arange(n+1), np.ones(N+1))
     ret = log_binom(K,k)
     ret = ret + ret[::-1,::-1]
     ret = ret - log_binom(N,n)
@@ -139,90 +124,34 @@ def hypergeom_mat(N,n):
 
 @memoize
 def hypergeom_quasi_inverse(N,n):
-    u,s,v = np.linalg.svd(hypergeom_mat(N,n), full_matrices=False)
-    return np.dot(u, np.dot(np.diag(1/s), v))
+    #return scipy.linalg.pinv(hypergeom_mat(N,n))
+    #return np.linalg.pinv(hypergeom_mat(N,n))
 
-# like einsum, but for labels in fft_labels, does multiplication in fourier domain
-# (i.e. does convolution instead of multiplication for fft_labels)
-def fft_einsum(in1, labels1, in2, labels2, out_labels, fft_labels):
-    assert all([l in labels1 and l in labels2 for l in fft_labels])
+    ## pinv2 seems more numerically stable than alternatives
+    ## TODO: use randomized numerical linear algebra?
+    return scipy.linalg.pinv2(hypergeom_mat(N,n))
 
-    labels = out_labels,labels1,labels2
-    fft_idx = []
-    for lab in labels:
-        fft_idx.append(np.array([lab.index(l) for l in fft_labels]))
-    
-    fft_shapes = np.array(in1.shape)[fft_idx[1]] + np.array(in2.shape)[fft_idx[2]] - 1
-    fshape = np.array([_next_regular(int(d)) for d in fft_shapes])
-
-    out_slice = np.array([slice(None)] * len(out_labels))
-    out_slice[fft_idx[0]] = np.array([slice(s) for s in fft_shapes])
-    
-    ret = einsum2(fftn(in1, fshape, fft_idx[1]), labels1,
-                  fftn(in2, fshape, fft_idx[2]), labels2,
-                  out_labels)
-    return np.real(np.fft.ifftn(ret, axes=fft_idx[0])[list(out_slice)])
-                    
 @primitive
-def fftn(x, s, axes):
-    '''
-    autograd fftn currently broken for arguments s,axes
-    TODO: submit pull request to autograd
-    '''
-    return np.fft.fftn(x,s,axes)
-def fftngrad(ans,x,s,axes):
-    gslice = tuple(slice(0,int(sz)) for sz in x.shape)
-    g_s = tuple(np.array(map(max, zip(x.shape, ans.shape)))[axes])
-    return lambda g: fftn(g,g_s,axes)[gslice]
-fftn.defgrad(fftngrad)
+def symmetric_matrix(arr, n):
+    if len(arr) != n * (n+1) / 2:
+        raise Exception("Array must have dimensions n*(n+1)/2")
+    ret = np.zeros((n,n))
+    idx = np.triu_indices(n)
+    
+    ret[idx] = arr
+    ret[tuple(reversed(idx))] = arr
+    
+    assert np.all(ret == ret.T)
+    return ret
+symmetric_matrix.defgrad(lambda ans, arr, n: lambda g: g[np.triu_indices(n)])
 
+def slogdet_pos(X):
+    sgn,slogdet = np.linalg.slogdet(X)
+    if sgn <= 0:
+        raise Exception("X determinant is nonpositive")
+    return slogdet
 
-def _next_regular(target):
-    """
-    COPIED FROM SCIPY.SIGNAL
-    -----------------
-    Find the next regular number greater than or equal to target.
-    Regular numbers are composites of the prime factors 2, 3, and 5.
-    Also known as 5-smooth numbers or Hamming numbers, these are the optimal
-    size for inputs to FFTPACK.
-    Target must be a positive integer.
-    """
-    if target <= 6:
-        return target
+def log_wishart_pdf(X,V,n,p):
+    # correct up to constant of proportionality
+    return (n-p-1)/2 * slogdet_pos(X) - n/2 * slogdet_pos(V) - 0.5 * np.trace(np.dot(np.linalg.inv(V), X))
 
-    # Quickly check if it's already a power of 2
-    if not (target & (target-1)):
-        return target
-
-    match = float('inf')  # Anything found will be smaller
-    p5 = 1
-    while p5 < target:
-        p35 = p5
-        while p35 < target:
-            # Ceiling integer division, avoiding conversion to float
-            # (quotient = ceil(target / p35))
-            quotient = -(-target // p35)
-
-            # Quickly find next power of 2 >= quotient
-            try:
-                p2 = 2**((quotient - 1).bit_length())
-            except AttributeError:
-                # Fallback for Python <2.7
-                p2 = 2**(len(bin(quotient - 1)) - 2)
-
-            N = p2 * p35
-            if N == target:
-                return N
-            elif N < match:
-                match = N
-            p35 *= 3
-            if p35 == target:
-                return p35
-        if p35 < match:
-            match = p35
-        p5 *= 5
-        if p5 == target:
-            return p5
-    if p5 < match:
-        match = p5
-    return match

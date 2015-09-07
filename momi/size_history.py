@@ -1,5 +1,5 @@
 from __future__ import division
-from util import memoize, truncate0
+from util import memoize
 import autograd.numpy as np
 from autograd.numpy import sum, exp, log, expm1
 from math_functions import transformed_expi, expm1d
@@ -19,7 +19,7 @@ class SizeHistory(object):
 
     def sfs(self, n):
         Et_jj = self.etjj(n)
-        assert np.all(Et_jj[:-1] - Et_jj[1:] >= 0.0) and np.all(Et_jj >= 0.0) and np.all(Et_jj <= self.tau)
+        #assert np.all(Et_jj[:-1] - Et_jj[1:] >= 0.0) and np.all(Et_jj >= 0.0) and np.all(Et_jj <= self.tau)
 
         ret = np.sum(Et_jj[:, None] * Wmatrix(n), axis=0)
 
@@ -29,8 +29,6 @@ class SizeHistory(object):
             before_tmrca = 0.0
         
         ret = np.concatenate((np.array([0.0]), ret, np.array([before_tmrca])))
-        ## deal with possible cancellation errors
-        ret = truncate0(ret)
         return ret
 
     def transition_prob(self, v, axis=0):
@@ -59,6 +57,9 @@ class ConstantHistory(SizeHistory):
         ret = num / denom
         return ret
 
+    def ms_cmd(self, pop_id, start_time, rescale=1.0):
+        return "-en %f %d %f" % (start_time / rescale, pop_id, self.N / rescale)
+    
 class ExponentialHistory(SizeHistory):
     def __init__(self, tau, growth_rate, N_bottom):
         if tau == float('inf'):
@@ -82,6 +83,9 @@ class ExponentialHistory(SizeHistory):
 
         return ret
 
+    def ms_cmd(self, pop_id, start_time, rescale=1.0):
+        return "-en %f %d %f -eg %f %d %f" % (start_time / rescale, pop_id, self.N_bottom / rescale, start_time / rescale, pop_id, self.growth_rate * rescale)
+
 class PiecewiseHistory(SizeHistory):
     def __init__(self, pieces):
         tau = sum([p.tau for p in pieces])
@@ -102,6 +106,14 @@ class PiecewiseHistory(SizeHistory):
                 assert pop is self.pieces[-1]
         return ret
 
+    def ms_cmd(self, pop_id, start_time, rescale=1.0):
+        curr = start_time
+        ret = []
+        for pop in self.pieces:
+            ret += [pop.ms_cmd(pop_id, curr, rescale=rescale)]
+            curr += pop.tau
+        return " ".join(ret)
+    
 @memoize
 def W(n, b, j):
     if j == 2:
