@@ -540,5 +540,5 @@ class _ParamsMap(dict):
         else:
             ret = float(var)
         if np.isnan(ret):
-            raise Exception("nan in params %s" % (str(self.params_dict)))
+            raise Exception("nan in params %s" % (str(self)))
         return ret
