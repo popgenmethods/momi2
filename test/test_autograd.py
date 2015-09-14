@@ -6,11 +6,8 @@ import networkx as nx
 import random
 from demo_utils import *
 from momi import expected_sfs, expected_total_branch_len
+from numdifftools import Gradient, Hessian
 
-try:
-    from numdifftools import Gradient, Hessian
-except ImportError:
-    raise ImportError("Try installing numdifftools with 'pip install numdifftools'")
 
 
 def check_gradient(f, x):

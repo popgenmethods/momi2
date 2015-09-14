@@ -3,8 +3,11 @@ import functools
 import autograd.numpy as np
 from functools import partial
 from autograd.core import primitive
+from autograd import hessian, grad, hessian_vector_product, jacobian
 import itertools
 from collections import Counter
+import scipy, scipy.optimize
+import sys
 
 def sum_sfs_list(sfs_list):
     """
@@ -220,6 +223,65 @@ def make_function(f):
             return f
     return func
 
+def optimize(f, start_params,
+             jac = True, hess = False, hessp = False,
+             method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
+             output_progress = False, **kwargs):
+    if (hess or hessp) and not callable(method) and method.lower() not in ('newton-cg','trust-ncg','dogleg'):
+        raise ValueError("Only methods newton-cg, trust-ncg, and dogleg use hessian")
+    if bounds is not None and not callable(method) and method.lower() not in ('l-bfgs-b', 'tnc', 'slsqp'):
+        raise ValueError("Only methods l-bfgs-b, tnc, slsqp use bounds")
+
+    if maxiter is None:
+        raise ValueError("maxiter must be a finite positive integer")
+    if 'maxiter' in options:
+        raise ValueError("Please specify maxiter thru function argument 'maxiter', rather than 'options'")
+    
+    options = dict(options)
+    options['maxiter'] = maxiter
+    
+    kwargs = dict(kwargs)
+    kwargs.update({kw : d(f)
+                   for kw, b, d in [('jac', jac, grad), ('hessp', hessp, hessian_vector_product), ('hess', hess, hessian)]
+                   if b})
+
+    if output_progress is True: # need 'is True' in case output_progress is an int
+        def deriv_after_print(deriv_name):
+            # inside a function for scoping reasons
+            return lambda i,ret,*x: "%s ( %s ) == %s" % (deriv_name, " , ".join(map(_npstr,x)), _npstr(ret))
+        
+        for kw in ['jac','hessp','hess']:
+            try:
+                d = kwargs[kw]
+                # need to do some fancy scoping
+                kwargs[kw] = _verbosify(d, after = deriv_after_print(kw))
+            except KeyError:
+                pass
+                
+    if output_progress:
+        f = _verbosify(f,
+                       before = lambda i,x: "iter %d" % i,
+                       after = lambda i,ret,x: "objective ( %s ) == %g" % (_npstr(x), ret),
+                       print_freq = output_progress)
+
+    return scipy.optimize.minimize(f, start_params, method=method, bounds=bounds, tol=tol, options=options, **kwargs)
+
+def _verbosify(func, before = None, after = None, print_freq = 1):
+    i = [0] # can't do i=0 because of unboundlocalerror
+    def new_func(*args, **kwargs):
+        ii = i[0]
+        if ii % print_freq == 0 and before is not None:
+            print before(ii,*args, **kwargs)
+        ret = func(*args, **kwargs)
+        if ii % print_freq == 0 and after is not None:
+            print after(ii,ret, *args, **kwargs)
+        i[0] += 1
+        return ret
+    new_func.__name__ = "_verbose" + func.__name__
+    return new_func
+
+def _npstr(x):
+    return np.array_str(x, max_line_width=sys.maxint)
 
 ## TODO: uncomment and rewrite simulate_inference
 # def simulate_inference(ms_path, num_loci, mu, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', surface_type='kl', n_sfs_dirs=0, tensor_method='greedy-hosvd', conf_intervals=False):

@@ -1,3 +1,35 @@
+* Slide: results for fitting 6 pop demography on real data, small sample size
+  * step 0: make ipython script store table for n=4
+  * step 1: write a script that searches for the composite maximum likelihood (with ascertainment correction). run it on small dataset, get result
+    	    (don't worry about vectorizing stuff for confidence intervals, for now)
+  * step 2: write script to do parametric bootstrap on result, examine accuracy
+    	    (ignore the problem, for now, that the subsamples are "scrambled" between SNPs)
+	    (however, don't ignore, the use of ascertainment bias)
+  * step 3: rewrite ipython notebook clean_data to store the full, cleaned data (with individual and SNP labels). perhaps as a pickle
+  * step 4: write a script to draw a subsample of n individuals per deme, construct a SFS pandas.DataFrame, where column is reference, row is config, entry is count
+  * step 5: rerun steps 1 & 2 for the better datasets from steps 3 & 4
+  * step 6: include confidence intervals
+
+
+* Slide: Running time in n
+  * Running time = precompute + t_per_snp * n_uniq_snps
+  * Compute SFS under estimated demography for n_per_pop=4,8,16,32,...
+  * Table:
+    * Rows: n
+    * Column 0: precomputation time
+    * Column 1: time per SNP
+    * Column 2: # unique SNPs in real data
+    * Column 3: Total time
+    * Column 4: Gradient time
+
+* Slide: comparison of speed and accuracy of composite likelihood vs. moment fitting
+  * Get tensor stuff working again. Implement also other moments (standard, characteristic/Fourier, etc)
+    * this would also be good for keeping folder on antaeus compatible
+  * If that's too much, just rerun old results, with old version of momi,
+    however bound the pulse probabilities by 0.5, to try and correct runaway behavior for moment fitting
+
+####
+
 Finish writing documentation!!
 
 util.py
@@ -8,6 +40,11 @@ util.py
 * function for simple slsqp inference
   * use Demography construction to automatically build constraints
   * need to implement InvalidDemographyException, to return float('inf') when out of bounds
+* optimize()
+  * there is a confusion between iteration number from POV of the optimizer,
+    which may not be the same as the number of function evaluations,
+    and the iteration number from POV of util.optimize(), which
+    is the number of function evaluations (when printing)
 
 Demography
 * store constraints when constructing Demography (for use in slsqp)

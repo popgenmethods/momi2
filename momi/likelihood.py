@@ -1,11 +1,10 @@
 from __future__ import division
-from util import make_constant, check_symmetric, make_function
-from autograd import hessian, grad, hessian_vector_product, jacobian
+from util import make_constant, check_symmetric, make_function, optimize, _npstr
 import autograd.numpy as np
-import scipy, scipy.optimize
 from compute_sfs import expected_sfs, expected_total_branch_len
 from math_functions import einsum2
-import sys
+import scipy
+from autograd import hessian
 
 def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, **kwargs):
     """
@@ -224,65 +223,20 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params,
     mu = make_function(mu)
     f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), mu(params), adjust_probs = adjust_probs, **sfs_kwargs)
 
-    if (hess or hessp) and not callable(method) and method.lower() not in ('newton-cg','trust-ncg','dogleg'):
-        raise ValueError("Only methods newton-cg, trust-ncg, and dogleg use hessian")
-    if bounds is not None and not callable(method) and method.lower() not in ('l-bfgs-b', 'tnc', 'slsqp'):
-        raise ValueError("Only methods l-bfgs-b, tnc, slsqp use bounds")
-
-    if maxiter is None:
-        raise ValueError("maxiter must be a finite positive integer")
-    if 'maxiter' in options:
-        raise ValueError("Please specify maxiter thru function argument 'maxiter', rather than 'options'")
+    if output_progress is True:
+        # print the Demography after every iteration
+        ## TODO: this prints after every scipy.minimize.optimize iteration,
+        ##       whereas other printing occurs after every function evaluation...
+        kwargs = dict(kwargs)
+        callback0 = kwargs.get('callback', lambda x: None)
+        def callback1(x):
+            print "demo_func(%s) = %s" % (_npstr(x), demo_func(x))
+        def callback(x):
+            callback1(x)            
+            callback0(x)
+        kwargs['callback'] = callback
     
-    options = dict(options)
-    options['maxiter'] = maxiter
-    
-    kwargs = dict(kwargs)
-    kwargs.update({kw : d(f)
-                   for kw, b, d in [('jac', jac, grad), ('hessp', hessp, hessian_vector_product), ('hess', hess, hessian)]
-                   if b})
-
-    if output_progress is True: # need 'is True' in case output_progress is an int
-        f = _verbosify(f,
-                       before = lambda i,x: "demo_func ( %s ) == %s" % (_npstr(x), str(demo_func(x))))
-        
-        def deriv_after_fun(deriv_name):
-            # inside a function for scoping reasons
-            return lambda i,ret,*x: "%s ( %s ) == %s" % (deriv_name, " , ".join(map(_npstr,x)), _npstr(ret))
-        
-        for kw in ['jac','hessp','hess']:
-            try:
-                d = kwargs[kw]
-                # need to do some fancy scoping
-                kwargs[kw] = _verbosify(d, after = deriv_after_fun(kw))
-            except KeyError:
-                pass
-                
-    if output_progress:
-        f = _verbosify(f,
-                       before = lambda i,x: "iter %d" % i,
-                       after = lambda i,ret,x: "unlinked_log_likelihood ( %s ) == %g" % (_npstr(x), -ret),
-                       print_freq = output_progress)
-
-    return scipy.optimize.minimize(f, start_params, method=method, bounds=bounds, tol=tol, options=options, **kwargs)
-
-def _npstr(x):
-    return np.array_str(x, max_line_width=sys.maxint)
-
-def _verbosify(func, before = None, after = None, print_freq = 1):
-    i = [0] # can't do i=0 because of unboundlocalerror
-    def new_func(*args, **kwargs):
-        ii = i[0]
-        if ii % print_freq == 0 and before is not None:
-            print before(ii,*args, **kwargs)
-        ret = func(*args, **kwargs)
-        if ii % print_freq == 0 and after is not None:
-            print after(ii,ret, *args, **kwargs)
-        i[0] += 1
-        return ret
-    new_func.__name__ = "_verbose" + func.__name__
-    return new_func
-
+    return optimize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
 
 def unlinked_mle_approx_cov(params, sfs_list, demo_func, mu_per_locus, **kwargs):
     """
