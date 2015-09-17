@@ -27,6 +27,36 @@ def sum_sfs_list(sfs_list):
     """
     return dict(sum([Counter(sfs) for sfs in sfs_list], Counter()))
 
+def reversed_configs(configs, n_at_leaves, return_is_symmetric=False):
+    """
+    ## TODO: write docstring
+    """
+    reverse_configs = map(tuple, np.array(n_at_leaves) - np.array(configs, ndmin=2))
+    is_symmetric = [c == r for c,r in zip(configs, reverse_configs)]
+
+    if return_is_symmetric:
+        return reverse_configs, is_symmetric
+    else:
+        return reverse_configs
+    
+def folded_sfs(sfs, n_at_leaves):
+    """
+    ## TODO: write docstring
+    """
+    if len(sfs) > 0:
+        configs, counts = zip(*sfs.iteritems())
+        reverse_configs = reversed_configs(configs, n_at_leaves)
+
+        min_configs = [min((c,r)) for c,r in zip(configs, reverse_configs)]
+
+        ret = Counter()
+        for conf,cnt in zip(min_configs, counts):
+            ret[conf] += cnt
+        return dict(ret)
+    else:
+        return {}
+    
+
 def write_sfs_list(sfs_list, filename):
     """Write SFS list to file
 

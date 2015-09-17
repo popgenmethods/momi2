@@ -1,5 +1,6 @@
 from __future__ import division
 from momi import Demography, expected_sfs, expected_total_branch_len, simulate_ms, sfs_list_from_ms, run_ms
+import momi
 import pytest
 import random
 import autograd.numpy as np
@@ -33,7 +34,7 @@ def exp_growth_str():
 
 
 def tree_demo_2_str():
-    demo_cmd = "-I 2 4 4 -ej %f 2 1" % (2 * np.random.random() + 0.1,)
+    demo_cmd = "-I 2 5 5 -ej %f 2 1" % (2 * np.random.random() + 0.1,)
     return demo_cmd
 
 def tree_demo_4_str():
@@ -49,21 +50,26 @@ def tree_demo_4_str():
 demo_funcs1 = (admixture_demo_str, exp_growth_str, tree_demo_2_str, tree_demo_4_str)
 demo_funcs1 = {f.__name__ : f for f in demo_funcs1}
 
-@pytest.mark.parametrize("k", 
-                         demo_funcs1.keys())
-def test_sfs_counts1(k):
+@pytest.mark.parametrize("k,folded",
+                         ((fname, bool(b))
+                          for fname,b in zip(demo_funcs1.keys(),
+                                             np.random.choice([True,False],len(demo_funcs1)))))
+def test_sfs_counts1(k, folded):
     """Test to make sure converting ms cmd to momi demography works"""
-    check_sfs_counts(demo_ms_cmd=demo_funcs1[k]())
+    check_sfs_counts(demo_ms_cmd=demo_funcs1[k](), folded=folded)
 
 demo_funcs2 = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, exp_growth_model]}
     
-@pytest.mark.parametrize("k", demo_funcs2.keys())  
-def test_sfs_counts2(k):
+@pytest.mark.parametrize("k,folded",
+                         ((fname, bool(b))
+                          for fname,b in zip(demo_funcs2.keys(),
+                                             np.random.choice([True,False],len(demo_funcs2)))))
+def test_sfs_counts2(k,folded):
     """Test to make sure converting momi demography to ms cmd works"""
-    check_sfs_counts(demo=demo_funcs2[k]())
+    check_sfs_counts(demo=demo_funcs2[k](), folded=folded)
 
 
-def check_sfs_counts(demo_ms_cmd=None, demo=None, mu=1e-3, r=1e-3, num_loci=1000, ref_size=1e4):
+def check_sfs_counts(demo_ms_cmd=None, demo=None, mu=1e-3, r=1e-3, num_loci=1000, ref_size=1e4, folded=False):
     assert (demo_ms_cmd is None) != (demo is None)
 
     if demo is None:
@@ -78,10 +84,13 @@ def check_sfs_counts(demo_ms_cmd=None, demo=None, mu=1e-3, r=1e-3, num_loci=1000
         sfs_list = sfs_list_from_ms(run_ms(ms_cmd, ms_path = ms_path))
     elif demo_ms_cmd is None:        
         sfs_list = sfs_list_from_ms(simulate_ms(ms_path, demo, num_loci=num_loci, mu_per_locus=mu, additional_ms_params='-r %f 1000' % (ref_size * r), rescale=ref_size))
-    
+
+    if folded:
+        sfs_list = [momi.util.folded_sfs(sfs, demo.n_at_leaves) for sfs in sfs_list]
+        
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     
-    sfs_vals,branch_len = expected_sfs(demo, config_list), expected_total_branch_len(demo)
+    sfs_vals,branch_len = expected_sfs(demo, config_list, folded=folded), expected_total_branch_len(demo)
     theoretical = sfs_vals * mu
 
     observed = np.zeros((len(config_list), len(sfs_list)))

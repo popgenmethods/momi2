@@ -1,12 +1,12 @@
 from __future__ import division
-from util import make_constant, check_symmetric, make_function, optimize, _npstr
+from util import make_constant, check_symmetric, make_function, optimize, _npstr, folded_sfs
 import autograd.numpy as np
 from compute_sfs import expected_sfs, expected_total_branch_len
 from math_functions import einsum2
 import scipy
 from autograd import hessian
 
-def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, **kwargs):
+def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, folded=False, **kwargs):
     """
     Compute the log likelihood for a collection of SNPs, assuming they are
     unlinked (independent). Calls expected_sfs to compute the individual SFS
@@ -26,6 +26,8 @@ def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, **kwargs):
         The mutation rate. If None, the number of SNPs is assumed to be
         fixed and a multinomial distribution is used. Otherwise the number
         of SNPs is assumed to be Poisson with parameter mu*E[branch_len]
+    folded : optional, bool
+        if True, compute likelihoods for folded SFS
 
     Returns
     -------
@@ -50,10 +52,10 @@ def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, **kwargs):
     unlinked_log_lik_vector : efficiently compute log-likelihoods for each
                               of several loci
     """
-    return np.squeeze(unlinked_log_lik_vector([sfs], demo, mu, adjust_probs = adjust_probs, **kwargs))
+    return np.squeeze(unlinked_log_lik_vector([sfs], demo, mu, adjust_probs = adjust_probs, folded=folded, **kwargs))
 
 
-def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, **kwargs):
+def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, folded=False, **kwargs):
     """
     Return a vector of log likelihoods for a collection of loci. Equivalent
     to, but much more efficient than, calling unlinked_log_likelihood on
@@ -72,6 +74,8 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, **kwargs):
         the number of SNPs at locus i is assumed to be Poisson with
         parameter mu[i]*E[branch_len]. If a float, the mutation rate at
         all loci are assumed to be equal.
+    folded : optional, bool
+        if True, compute likelihoods for folded SFS
 
     Returns
     -------
@@ -97,6 +101,8 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, **kwargs):
     """
     # remove 0 entries
     sfs_list = [dict([(k,v) for k,v in sfs.iteritems() if v != 0]) for sfs in sfs_list]
+    if folded:
+        sfs_list = [folded_sfs(sfs, demo.n_at_leaves) for sfs in sfs_list] # for correct combinatorial factors
     # the list of all observed configs
     config_list = list(set(sum([sfs.keys() for sfs in sfs_list],[])))
 
@@ -112,7 +118,7 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, **kwargs):
     counts_i = np.einsum('ij->i',counts_ij)
 
     # get the expected counts for each config
-    E_counts = expected_sfs(demo, config_list, **kwargs)
+    E_counts = expected_sfs(demo, config_list, folded=folded, **kwargs)
     E_total = expected_total_branch_len(demo, **kwargs)
 
     sfs_probs = E_counts/ E_total + adjust_probs
@@ -133,6 +139,7 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, **kwargs):
 
 
 def unlinked_mle_search(sfs, demo_func, mu, start_params,
+                        folded = False,
                         jac = True, hess = False, hessp = False,
                         method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
                         output_progress = False,                        
@@ -163,6 +170,8 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params,
         unlinked_log_likelihood for additional details.
 
         if mu is function and jac=True, mu should work with autograd.
+    folded : optional, bool
+        if True, compute likelihoods for folded SFS
     start_params : numpy.ndarray
         The starting point for the parameter search
     jac : bool, optional
@@ -221,7 +230,7 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params,
          passing into this function
     """
     mu = make_function(mu)
-    f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), mu(params), adjust_probs = adjust_probs, **sfs_kwargs)
+    f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), mu(params), adjust_probs = adjust_probs, folded=folded, **sfs_kwargs)
 
     if output_progress is True:
         # print the Demography after every iteration
