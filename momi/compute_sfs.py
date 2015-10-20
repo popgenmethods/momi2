@@ -2,12 +2,12 @@ from __future__ import division
 import warnings
 import autograd.numpy as np
 import scipy
-from util import memoize_instance, memoize, make_constant, set0
+from util import memoize_instance, memoize, make_constant, set0, reversed_configs
 from math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes
 from autograd.core import primitive
 from autograd import hessian
 
-def expected_sfs(demography, config_list, normalized=False, error_matrices=None):
+def expected_sfs(demography, config_list, normalized=False, error_matrices=None, folded=False):
     """
     Expected sample frequency spectrum (SFS) entries for the specified
     demography and configs. The expected SFS is the expected number of
@@ -32,6 +32,8 @@ def expected_sfs(demography, config_list, normalized=False, error_matrices=None)
          if True, divide the SFS by the expected total branch length.
          The returned values then represent probabilities, that a given
          mutation will segregate according to the specified configurations.
+    folded : optional, bool
+         if True, return the folded SFS entry for each config
 
     Returns
     -------
@@ -55,6 +57,16 @@ def expected_sfs(demography, config_list, normalized=False, error_matrices=None)
     expected_total_branch_len : sum of all expected SFS entries
     expected_sfs_tensor_prod : compute summary statistics of SFS
     """
+    if folded:
+        rev_configs,symm = reversed_configs(config_list, demography.n_at_leaves, return_is_symmetric=True)
+        ret = expected_sfs(demography,
+                           list(config_list) + list(rev_configs),
+                           normalized=normalized, error_matrices=error_matrices,
+                           folded=False)
+        ret = ret[:len(config_list)] + ret[len(config_list):]
+        ret = ret / (np.array(symm) + 1.0) # symmetric configs need to be divided by 2
+        return ret
+        
     data = np.array(config_list, ndmin=2)
     if data.ndim != 2 or data.shape[1] != len(demography.leaves):
         raise IOError("Invalid config_list.")
