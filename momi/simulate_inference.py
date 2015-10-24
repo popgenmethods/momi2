@@ -16,7 +16,7 @@ from autograd import grad, hessian_vector_product
 
 import time
 
-def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', surface_type='kl', n_sfs_dirs=0, tensor_method='greedy-hosvd', conf_intervals=False):
+def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', surface_type='kl', n_sfs_dirs=0, tensor_method='greedy-hosvd', conf_intervals=False, bounds=None, maxiter=None):
     '''
     Simulate a SFS, then estimate the demography via maximum composite
     likelihood, using first and second-order derivatives to search 
@@ -31,6 +31,7 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
     transform_params: a function transforming the parameters in optimization space,
                       to the values expected by make_demography
     verbosity: 0=no output, 1=medium output, 2=high output
+    maxiter: maxiter for scipy.optimize.minimize(options={'maxiter':maxiter},...)
     '''
     start = time.clock()
     
@@ -125,12 +126,18 @@ def simulate_inference(ms_path, num_loci, theta, additional_ms_params, true_ms_p
             myprint("Rejected")
     
     #optimize_res = scipy.optimize.minimize(f_verbose, init_opt_params, jac=g_verbose, hessp=hp_verbose, method='newton-cg')
+    options = {}
+    if maxiter is not None:
+        options['maxiter'] = maxiter
     optimize_res = scipy.optimize.basinhopping(f_verbose, init_opt_params,
                                                niter=n_iter, interval=1,
                                                T=float(total_snps),
                                                minimizer_kwargs={'method':method,
                                                                  'jac':g_verbose,
-                                                                 'hessp':hp_verbose},
+                                                                 'hessp':hp_verbose,
+                                                                 'bounds':bounds,
+                                                                 'options':options
+                                                                 },
                                                callback=print_basinhopping)
 
     opt_end = time.clock()
