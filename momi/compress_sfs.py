@@ -9,7 +9,7 @@ from util import aggregate_sfs
 from sum_product import raw_compute_sfs
 
 class CompressedLikelihoodSurface(MEstimatorSurface):
-    def __init__(self, n_components, n_per_pop, sfs_list, theta, demo_func=lambda demo: demo):
+    def __init__(self, n_components, n_per_pop, sfs_list, theta, demo_func=lambda demo: demo, eps=1e-80):
         super(CompressedLikelihoodSurface, self).__init__(theta, demo_func)
         self.n_loci = len(sfs_list)
         
@@ -24,6 +24,7 @@ class CompressedLikelihoodSurface(MEstimatorSurface):
 
         self.compressed_sfs = CompressedOrderedSfs(aggregate_sfs(sfs_list),
                                                    n_components, ordering, init_draws = len(n_per_pop))
+        self.eps = eps
 
     def evaluate(self, params, vector=False):
         if vector:
@@ -34,7 +35,7 @@ class CompressedLikelihoodSurface(MEstimatorSurface):
 
         probs = raw_compute_sfs(self.compressed_sfs.dirs, demo)
         branch_len, probs = probs[0], probs[1:]
-        probs = probs / branch_len * self.compressed_sfs.n_paths
+        probs = probs / branch_len * self.compressed_sfs.n_paths + self.eps
         
         theta = self._get_theta(params)
         theta = np.ones(self.n_loci) * theta
