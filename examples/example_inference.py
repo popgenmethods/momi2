@@ -38,9 +38,12 @@ def main():
                              transform_params = transform_pulse_params,
                              n_iter = 1,
                              verbosity = 2,
-                             n_sfs_dirs = 100,
-                             surface_type = 'pgs-emp',
-                             tensor_method = 'random',
+                             n_sfs_dirs = 10,
+                             surface_type = 'compressed',
+                             #method='nelder-mead',
+                             #method='anneal',
+                             #surface_type = 'pgs-emp',
+                             #tensor_method = 'random',
                              )
     with open('example_inference.pickle','wb') as f:
         pickle.dump(res, f)

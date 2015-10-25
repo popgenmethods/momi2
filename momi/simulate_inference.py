@@ -1,6 +1,7 @@
 from __future__ import division, print_function
 
 from likelihood_surface import NegativeLogLikelihood, PGSurface_Empirical, PGSurface_Diag, PGSurface_Exact, PoissonWishartSurface
+from compress_sfs import CompressedLikelihoodSurface
 from parse_ms import make_demography, simulate_ms, sfs_list_from_ms
 from util import check_symmetric, aggregate_sfs
 from tensor import greedy_hosvd, get_sfs_tensor
@@ -197,6 +198,9 @@ def get_likelihood_surface(true_demo, sfs_list, theta, demo_func, surface_type, 
     if surface_type == 'kl' and n_sfs_dirs <= 0:
         return NegativeLogLikelihood(sfs_list, theta=theta, demo_func=demo_func)
 
+    if surface_type == 'compressed':
+        return CompressedLikelihoodSurface(n_sfs_dirs, true_demo.n_at_leaves, sfs_list, theta, demo_func)
+    
     if surface_type == 'kl' or n_sfs_dirs <= 0:
         raise Exception("Either must use KL divergence, or must specify number of directions")
     

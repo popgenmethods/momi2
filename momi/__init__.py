@@ -4,3 +4,4 @@ from likelihood_surface import NegativeLogLikelihood
 from util import aggregate_sfs
 from simulate_inference import simulate_inference
 from tensor import get_sfs_tensor, sfs_eval_dirs
+from compress_sfs import CompressedOrderedSfs
