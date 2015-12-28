@@ -3,7 +3,7 @@ import autograd.numpy as np
 from autograd.core import primitive
 import scipy
 from .util import memoize
-from convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes
+from .convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes
 
 def einsum2(*args):
     '''
