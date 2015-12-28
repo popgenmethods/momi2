@@ -1,12 +1,12 @@
-from __future__ import division
+
 import networkx as nx
-from util import memoize_instance, memoize
-from math_functions import einsum2, sum_antidiagonals, convolve_axes
+from .util import memoize_instance, memoize
+from .math_functions import einsum2, sum_antidiagonals, convolve_axes
 import scipy, scipy.misc
 import autograd.numpy as np
 
-from size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
-from parse_ms import _convert_ms_cmd
+from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
+from .parse_ms import _convert_ms_cmd
 
 import os, itertools
 from operator import itemgetter
@@ -150,7 +150,7 @@ class Demography(nx.DiGraph):
         
         super(Demography, self).__init__(parser.to_nx())
         
-        self.leaves = set([k for k, v in self.out_degree().items() if v == 0])
+        self.leaves = set([k for k, v in list(self.out_degree().items()) if v == 0])
         self.event_tree = _build_event_tree(self)
 
     def __repr__(self):
@@ -241,7 +241,7 @@ class Demography(nx.DiGraph):
         n_from_1 = np.arange(n_node+1)
         n_from_2 = n_node - n_from_1
         binom_coeffs = (prob1**n_from_1) * (prob2**n_from_2) * scipy.misc.comb(n_node, n_from_1)
-        ret = einsum2(der_in_admixture_node(n_node), range(4),
+        ret = einsum2(der_in_admixture_node(n_node), list(range(4)),
                       binom_coeffs, [0],
                       [1,2,3])
         assert ret.shape == tuple([n_node+1] * 3)
@@ -273,11 +273,11 @@ def _build_event_tree(demo):
     
     eventEdgeList = []
     currEvents = {l : (l,) for l in demo.leaves}
-    eventDict = {e : {'subpops' : (l,), 'parent_pops' : (l,), 'child_pops' : {}, 't' : node_time(l)} for l,e in currEvents.iteritems()}
+    eventDict = {e : {'subpops' : (l,), 'parent_pops' : (l,), 'child_pops' : {}, 't' : node_time(l)} for l,e in currEvents.items()}
 
     for e in demo.graph['events']:
         # get the population edges forming the event
-        parent_pops, child_pops = map(set, zip(*e))
+        parent_pops, child_pops = list(map(set, list(zip(*e))))
         child_events = set([currEvents[c] for c in child_pops])
         assert len(e) == 2 and len(parent_pops) + len(child_pops) == 3 and len(child_events) in (1,2)
 
@@ -303,7 +303,7 @@ def _build_event_tree(demo):
         ret.add_node(e, **(eventDict[e]))
 
     assert len(currEvents) == 1
-    root, = [v for k,v in currEvents.iteritems()]
+    root, = [v for k,v in currEvents.items()]
     ret.root = root
 
     return ret
@@ -382,7 +382,7 @@ class _DemographyStringParser(object):
     
     def _J(self, t,i,j):
         t = self.params.time(t)
-        i,j = map(self.get_pop, [i,j])
+        i,j = list(map(self.get_pop, [i,j]))
 
         for k in i,j:
             # sets the TruncatedSizeHistory, and N_top and growth_rate for all epochs
@@ -444,11 +444,11 @@ class _DemographyStringParser(object):
     
     def _n(self, *lins_per_pop):
         # -n should be called immediately after -d, so everything should be empty
-        assert all([not x for x in self.roots,self.events,self.edges,self.nodes])
+        assert all([not x for x in (self.roots,self.events,self.edges,self.nodes)])
         assert hasattr(self, "default_N")
         
         npop = len(lins_per_pop)
-        lins_per_pop = map(int, lins_per_pop)
+        lins_per_pop = list(map(int, lins_per_pop))
 
         for i in range(npop):
             self.nodes[i] = {'sizes':[{'t':0.0,'N':self.default_N,'growth_rate':None}],'lineages':lins_per_pop[i]}
@@ -456,14 +456,14 @@ class _DemographyStringParser(object):
         return lins_per_pop
 
     def _d(self, default_N):
-        assert all([not x for x in self.roots,self.events,self.edges,self.nodes])
+        assert all([not x for x in (self.roots,self.events,self.edges,self.nodes)])
         
         self.default_N = self.params.size(default_N)
         return self.default_N,
 
     def to_nx(self):
         assert self.nodes
-        self.roots = [r for _,r in self.roots.iteritems() if r is not None]
+        self.roots = [r for _,r in self.roots.items() if r is not None]
 
         if len(self.roots) != 1:
             raise ValueError("Must have a single root population")
@@ -505,7 +505,7 @@ class _DemographyStringParser(object):
 
             sizes[i]['N_top'] = N
 
-            if not all([sizes[i][x] >= 0.0 for x in 'tau','N','N_top']):
+            if not all([sizes[i][x] >= 0.0 for x in ('tau','N','N_top')]):
                 raise ValueError("Negative time or population size. (Were events specified in correct order?")
         sizes.pop() # remove the final dummy epoch
 

@@ -1,8 +1,8 @@
-from __future__ import division
+
 import autograd.numpy as np
 from autograd.core import primitive
 import scipy
-from util import memoize
+from .util import memoize
 from convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes
 
 def einsum2(*args):
@@ -17,8 +17,8 @@ def einsum2(*args):
 
     args, enum_args = list(args), list(enumerate(args))
     # convert the index arguments to have integer type
-    idx_argnum,idx_lists = zip(*(enum_args[1::2] + [enum_args[-1]]))
-    idx_lists = map(list, idx_lists)
+    idx_argnum,idx_lists = list(zip(*(enum_args[1::2] + [enum_args[-1]])))
+    idx_lists = list(map(list, idx_lists))
     idx_to_int = {idx: i for i,idx in enumerate(set(sum(idx_lists, [])))}
 
     for argnum,idxs in zip(idx_argnum,idx_lists):

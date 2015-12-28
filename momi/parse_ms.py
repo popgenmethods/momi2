@@ -1,15 +1,15 @@
-from __future__ import division
+
 import bisect
 import networkx as nx
 
-from size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
+from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 from autograd.numpy import isnan, exp
 
 import random
 import subprocess
 import itertools
 from collections import Counter
-from cStringIO import StringIO
+from io import StringIO
 
 from operator import itemgetter
 
@@ -115,7 +115,7 @@ def simulate_ms(ms_path, demo, num_loci, mu_per_locus, seeds=None, additional_ms
 
     theta = mu_per_locus * rescale
     
-    if any([(x in additional_ms_params) for x in "-t","-T","seed"]):
+    if any([(x in additional_ms_params) for x in ("-t","-T","seed")]):
         raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
 
     lins_per_pop = [demo.n_lineages(l) for l in sorted(demo.leaves)]
@@ -145,7 +145,7 @@ def run_ms(ms_args, ms_path):
     try:
         lines = subprocess.check_output([ms_path] + ms_args.split(),
                                         stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError, e:
+    except subprocess.CalledProcessError as e:
         ## ms gives really weird error codes, so ignore them
         lines = e.output
     return StringIO(lines)
@@ -233,7 +233,7 @@ def _convert_ms_cmd(cmd_list, params):
             pops_by_time += [(params.time(cmd[1]), n_pops)]
     pops_by_time = [p[1] for p in sorted(pops_by_time, key=itemgetter(0))]
 
-    pops_map = dict(zip(pops_by_time, range(1, len(pops_by_time)+1)))
+    pops_map = dict(list(zip(pops_by_time, list(range(1, len(pops_by_time)+1)))))
     for cmd in cmd_list:
         for i in range(len(cmd)):
             if cmd[i][0] == "#":

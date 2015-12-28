@@ -1,11 +1,11 @@
-from __future__ import division
-from util import memoize
+
+from .util import memoize
 import autograd.numpy as np
 from autograd.numpy import sum, exp, log, expm1
-from math_functions import transformed_expi, expm1d
+from .math_functions import transformed_expi, expm1d
 import scipy.integrate
 from scipy.special import comb as binom
-import moran_model
+from . import moran_model
 
 class SizeHistory(object):
     def __init__(self, tau, scaled_time):

@@ -1,8 +1,8 @@
 import autograd.numpy as np
 import pandas as pd
-from util import sum_sfs_list
-from math_functions import symmetric_matrix, log_wishart_pdf, slogdet_pos
-from compute_sfs import expected_sfs_tensor_prod
+from .util import sum_sfs_list
+from .math_functions import symmetric_matrix, log_wishart_pdf, slogdet_pos
+from .compute_sfs import expected_sfs_tensor_prod
 
 def sfs_tensor_prod(sfs, vecs):
     """
@@ -37,7 +37,7 @@ def sfs_tensor_prod(sfs, vecs):
          randomly sampled sfs.
     """
     res = 0.
-    for config,val in sfs.iteritems():
+    for config,val in sfs.items():
         for d,i in zip(vecs, config):
             val = val * d[:,i]
         res = res + val
