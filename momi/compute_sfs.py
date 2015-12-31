@@ -178,7 +178,7 @@ def expected_tmrca(demography):
     expected_sfs_tensor_prod : compute general class of summary statistics
     """
     vecs = [np.ones(demography.n_lineages(l)+1) for l in sorted(demography.leaves)]
-    n0 = len(vecs[0])-1
+    n0 = len(vecs[0])-1.0
     vecs[0] = np.arange(n0+1) / n0
     return np.squeeze(expected_sfs_tensor_prod(vecs, demography))
 

@@ -148,7 +148,7 @@ def run_ms(ms_args, ms_path):
     except subprocess.CalledProcessError as e:
         ## ms gives really weird error codes, so ignore them
         lines = e.output
-    return StringIO(lines)
+    return StringIO(lines.decode('unicode-escape'))
 
 def _to_ms_cmd(demo, rescale):
     if rescale is True:
