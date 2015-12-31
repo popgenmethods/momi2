@@ -1,9 +1,9 @@
-from __future__ import division
+
 import warnings
 import autograd.numpy as np
 import scipy
-from util import memoize_instance, memoize, make_constant, set0, reversed_configs
-from math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes
+from .util import memoize_instance, memoize, make_constant, set0, reversed_configs
+from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes
 from autograd.core import primitive
 from autograd import hessian
 
@@ -75,7 +75,7 @@ def expected_sfs(demography, config_list, normalized=False, error_matrices=None,
     leaf_liks = [np.zeros((data.shape[0], demography.n_lineages(leaf)+1))
                  for leaf in sorted(demography.leaves)]
     for i in range(len(leaf_liks)):
-        leaf_liks[i][zip(*enumerate(data[:,i]))] = 1.0 # likelihoods for config_list
+        leaf_liks[i][list(zip(*enumerate(data[:,i])))] = 1.0 # likelihoods for config_list
     
     if error_matrices is not None:
         leaf_liks = _apply_error_matrices(leaf_liks, error_matrices)
@@ -178,7 +178,7 @@ def expected_tmrca(demography):
     expected_sfs_tensor_prod : compute general class of summary statistics
     """
     vecs = [np.ones(demography.n_lineages(l)+1) for l in sorted(demography.leaves)]
-    n0 = len(vecs[0])-1
+    n0 = len(vecs[0])-1.0
     vecs[0] = np.arange(n0+1) / n0
     return np.squeeze(expected_sfs_tensor_prod(vecs, demography))
 
@@ -246,9 +246,9 @@ def expected_sfs_tensor_prod(vecs, demography):
     expected_total_branch_len, expected_tmrca, expected_deme_tmrca : 
          examples of coalescent statistics that use this function
     """
-    leaf_states = dict(zip(sorted(demography.leaves), vecs))
+    leaf_states = dict(list(zip(sorted(demography.leaves), vecs)))
     
-    for leaf in leaf_states.keys():
+    for leaf in list(leaf_states.keys()):
         n = demography.n_lineages(leaf)
         # add states for all ancestral/derived
         leaf_states[leaf] = np.vstack([np.array([1.0] + [0.0]*n), # all ancestral state
@@ -260,7 +260,7 @@ def expected_sfs_tensor_prod(vecs, demography):
 
     # subtract out mass for all ancestral/derived state
     for k in (0,1):
-        res = res - res[k] * np.prod([l[:,-k] for l in leaf_states.values()], axis=0)
+        res = res - res[k] * np.prod([l[:,-k] for l in list(leaf_states.values())], axis=0)
         assert np.isclose(res[k], 0.0)
     # remove monomorphic states
     res = res[2:]
@@ -333,7 +333,7 @@ def _leaf_likelihood(leaf_states, G, event):
     return leaf_states[leaf],0.
 
 def _admixture_likelihood(leaf_states, G, event):
-    child_pop, = G.child_pops(event).keys()
+    child_pop, = list(G.child_pops(event).keys())
     p1,p2 = G.parent_pops(event)
 
     child_event, = G.event_tree[event]
@@ -381,7 +381,7 @@ def _merge_subpops_likelihood(leaf_states, G, event):
 def _merge_clusters_likelihood(leaf_states, G, event):
     newpop, = G.parent_pops(event)
     child_liks = []
-    for child_pop, child_event in G.child_pops(event).iteritems():
+    for child_pop, child_event in G.child_pops(event).items():
         axes = _lik_axes(G, child_event)        
         lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, [child_pop])
         lik = einsum2(lik, axes,
@@ -389,7 +389,7 @@ def _merge_clusters_likelihood(leaf_states, G, event):
                       axes)
         child_liks.append((child_pop,axes,lik,sfs))
 
-    child_pops,child_axes,child_liks,child_sfs = zip(*child_liks)
+    child_pops,child_axes,child_liks,child_sfs = list(zip(*child_liks))
 
     lik, old_axes = convolve_axes(child_liks[0], child_liks[1],
                                   child_axes, child_pops, newpop)

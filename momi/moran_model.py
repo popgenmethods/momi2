@@ -1,6 +1,6 @@
-from __future__ import division
-from util import memoize, check_probs_matrix
-from math_functions import einsum2
+
+from .util import memoize, check_probs_matrix
+from .math_functions import einsum2
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
 import autograd.numpy as np
@@ -15,9 +15,9 @@ def moran_action(t,v, axis=0):
 
     PDPinv = check_probs_matrix(dot(P,dot(D,Pinv)))
 
-    vlen,output_dim = len(v.shape), range(len(v.shape))
+    vlen,output_dim = len(v.shape), list(range(len(v.shape)))
     output_dim[axis] = vlen
-    ret = einsum2(v, range(vlen), PDPinv, [vlen,axis], output_dim)
+    ret = einsum2(v, list(range(vlen)), PDPinv, [vlen,axis], output_dim)
     assert ret.shape == v.shape
     return ret
 

@@ -1,4 +1,4 @@
-from __future__ import division
+
 import functools
 import autograd.numpy as np
 from functools import partial
@@ -8,6 +8,7 @@ import itertools
 from collections import Counter
 import scipy, scipy.optimize
 import sys
+import collections
 
 def sum_sfs_list(sfs_list):
     """
@@ -31,7 +32,7 @@ def reversed_configs(configs, n_at_leaves, return_is_symmetric=False):
     """
     ## TODO: write docstring
     """
-    reverse_configs = map(tuple, np.array(n_at_leaves) - np.array(configs, ndmin=2))
+    reverse_configs = list(map(tuple, np.array(n_at_leaves) - np.array(configs, ndmin=2)))
     is_symmetric = [c == r for c,r in zip(configs, reverse_configs)]
 
     if return_is_symmetric:
@@ -44,7 +45,7 @@ def folded_sfs(sfs, n_at_leaves):
     ## TODO: write docstring
     """
     if len(sfs) > 0:
-        configs, counts = zip(*sfs.iteritems())
+        configs, counts = list(zip(*iter(sfs.items())))
         reverse_configs = reversed_configs(configs, n_at_leaves)
 
         min_configs = [min((c,r)) for c,r in zip(configs, reverse_configs)]
@@ -77,7 +78,7 @@ def write_sfs_list(sfs_list, filename):
     f.write("# <locus> <count> <x_0> <x_1> ... <x_(D-1)>\n")
     f.write("# <x_i> == derived alleles at population i\n")
     for locus,sfs in enumerate(sfs_list):
-        for config,count in sfs.iteritems():
+        for config,count in sfs.items():
             line = [str(locus), str(count)] + [str(x_i) for x_i in config]
             f.write("\t".join(line) + "\n")
     f.close()
@@ -132,7 +133,7 @@ def read_sfs_list(filename):
     
 def polymorphic_configs(demo):
     n = sum([demo.n_lineages(l) for l in demo.leaves])
-    ranges = [range(demo.n_lineages(l)) for l in sorted(demo.leaves)]
+    ranges = [list(range(demo.n_lineages(l))) for l in sorted(demo.leaves)]
 
     config_list = []
     for config in itertools.product(*ranges):
@@ -230,7 +231,7 @@ class memoize_instance(object):
             cache = obj.__cache
         except AttributeError:
             cache = obj.__cache = {}
-        key = (self.func, args[1:], frozenset(kw.items()))
+        key = (self.func, args[1:], frozenset(list(kw.items())))
         try:
             res = cache[key]
         except KeyError:
@@ -257,9 +258,9 @@ def optimize(f, start_params,
              jac = True, hess = False, hessp = False,
              method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
              output_progress = False, **kwargs):
-    if (hess or hessp) and not callable(method) and method.lower() not in ('newton-cg','trust-ncg','dogleg'):
+    if (hess or hessp) and not isinstance(method, collections.Callable) and method.lower() not in ('newton-cg','trust-ncg','dogleg'):
         raise ValueError("Only methods newton-cg, trust-ncg, and dogleg use hessian")
-    if bounds is not None and not callable(method) and method.lower() not in ('l-bfgs-b', 'tnc', 'slsqp'):
+    if bounds is not None and not isinstance(method, collections.Callable) and method.lower() not in ('l-bfgs-b', 'tnc', 'slsqp'):
         raise ValueError("Only methods l-bfgs-b, tnc, slsqp use bounds")
 
     if maxiter is None:
@@ -301,17 +302,17 @@ def _verbosify(func, before = None, after = None, print_freq = 1):
     def new_func(*args, **kwargs):
         ii = i[0]
         if ii % print_freq == 0 and before is not None:
-            print before(ii,*args, **kwargs)
+            print(before(ii,*args, **kwargs))
         ret = func(*args, **kwargs)
         if ii % print_freq == 0 and after is not None:
-            print after(ii,ret, *args, **kwargs)
+            print(after(ii,ret, *args, **kwargs))
         i[0] += 1
         return ret
     new_func.__name__ = "_verbose" + func.__name__
     return new_func
 
 def _npstr(x):
-    return np.array_str(x, max_line_width=sys.maxint)
+    return np.array_str(x, max_line_width=sys.maxsize)
 
 ## TODO: uncomment and rewrite simulate_inference
 # def simulate_inference(ms_path, num_loci, mu, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', surface_type='kl', n_sfs_dirs=0, tensor_method='greedy-hosvd', conf_intervals=False):

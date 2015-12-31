@@ -1,8 +1,8 @@
-from __future__ import division
-from util import make_constant, check_symmetric, make_function, optimize, _npstr, folded_sfs
+
+from .util import make_constant, check_symmetric, make_function, optimize, _npstr, folded_sfs
 import autograd.numpy as np
-from compute_sfs import expected_sfs, expected_total_branch_len
-from math_functions import einsum2
+from .compute_sfs import expected_sfs, expected_total_branch_len
+from .math_functions import einsum2
 import scipy
 from autograd import hessian
 
@@ -100,11 +100,11 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, folded=False
     unlinked_log_likelihood : likelihood for a single locus
     """
     # remove 0 entries
-    sfs_list = [dict([(k,v) for k,v in sfs.iteritems() if v != 0]) for sfs in sfs_list]
+    sfs_list = [dict([(k,v) for k,v in sfs.items() if v != 0]) for sfs in sfs_list]
     if folded:
         sfs_list = [folded_sfs(sfs, demo.n_at_leaves) for sfs in sfs_list] # for correct combinatorial factors
     # the list of all observed configs
-    config_list = list(set(sum([sfs.keys() for sfs in sfs_list],[])))
+    config_list = list(set(sum([list(sfs.keys()) for sfs in sfs_list],[])))
 
     # counts_ij is a matrix whose [i,j]th entry is the count of config j at locus i
     counts_ij = np.zeros((len(sfs_list), len(config_list)))
@@ -239,7 +239,7 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params,
         kwargs = dict(kwargs)
         callback0 = kwargs.get('callback', lambda x: None)
         def callback1(x):
-            print "demo_func(%s) = %s" % (_npstr(x), demo_func(x))
+            print("demo_func(%s) = %s" % (_npstr(x), demo_func(x)))
         def callback(x):
             callback1(x)            
             callback0(x)
