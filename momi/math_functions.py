@@ -3,7 +3,7 @@ import autograd.numpy as np
 from autograd.core import primitive
 import scipy
 from .util import memoize
-from .convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes
+from .convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes, roll_trailing_axes, unroll_trailing_axes
 
 def einsum2(*args):
     '''
@@ -59,6 +59,22 @@ def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
     ret = sum_trailing_antidiagonals(reshaped_arr)
     return np.reshape(ret, tuple(list(arr.shape[:-2]) + [-1]), order='C'), labels + [out_axis]
 
+roll_trailing_axes = primitive(roll_trailing_axes)
+unroll_trailing_axes = primitive(unroll_trailing_axes)
+
+roll_trailing_axes.defgrad(lambda ans, A: lambda g: unroll_trailing_axes(g))
+unroll_trailing_axes.defgrad(lambda ans, A: lambda g: roll_trailing_axes(g))
+
+def roll_axes(arr, labels, axis0, axis1):
+    tmp_labels = [l for l in labels if l not in (axis0, axis1)]
+    tmp_labels += [axis0, axis1]
+
+    arr = einsum2(arr, labels, tmp_labels)
+    reshaped_arr = np.reshape(arr, (-1, arr.shape[-2], arr.shape[-1]), order='C')
+    ret = roll_trailing_axes(reshaped_arr)
+    ret = np.reshape(ret, tuple(list(arr.shape[:-1]) + [-1]), order='C')
+    return einsum2(ret, tmp_labels, labels)
+    
 '''
 Returns
 -expi(-1/x) * exp(1/x) / x
@@ -111,6 +127,9 @@ def expm1d_taylor(x):
         c_n = c_n * x / float(n)
         ret = ret + c_n
     return ret
+
+def binom_coeffs(n):
+    return scipy.misc.comb(n, np.arange(n + 1))
 
 log_factorial = lambda n: scipy.special.gammaln(n+1)
 log_binom = lambda n,k: log_factorial(n) - log_factorial(k) - log_factorial(n-k)

@@ -3,7 +3,7 @@ import warnings
 import autograd.numpy as np
 import scipy
 from .util import memoize_instance, memoize, make_constant, set0, reversed_configs
-from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes
+from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs
 from autograd.core import primitive
 from autograd import hessian
 
@@ -266,144 +266,219 @@ def expected_sfs_tensor_prod(vecs, demography):
     res = res[2:]
     return res
 
-def _partial_likelihood(leaf_states, G, event):
+def _partial_likelihood(leaf_states, demo, event):
     ''' 
     Partial likelihood of data at event,
     P(x | n_derived_node, n_ancestral_node)
     with all subpopulation nodes at their initial time.
     '''
-    lik_fun = _event_lik_fun(G, event)
-    lik,sfs = lik_fun(leaf_states, G, event)
+    lik_fun = _event_lik_fun(demo, event)
+    lik,sfs = lik_fun(leaf_states, demo, event)
 
     # add on sfs entry at this event
-    axes = _lik_axes(G, event)
-    for newpop in G.parent_pops(event):
+    axes = _lik_axes(demo, event)
+    for newpop in demo.parent_pops(event):
         # term for mutation occurring at the newpop
         newpop_idx = axes.index(newpop)
         idx = [0] * lik.ndim
         idx[0], idx[newpop_idx] = slice(None), slice(None)
 
-        sub_lik, trunc_sfs = lik[idx], G.truncated_sfs(newpop)
+        sub_lik, trunc_sfs = lik[idx], demo.truncated_sfs(newpop)
         sfs = sfs + einsum2(sub_lik, ['',newpop],
                             trunc_sfs, [newpop],
                             [''])
 
     return lik,sfs
 
-def _partial_likelihood_top(leaf_states, G, event, popList):
+def _partial_likelihood_top(leaf_states, demo, event, popList):
     ''' 
     Partial likelihood of data at top of nodes in popList,
     P(x | n_derived_top, n_ancestral_top)
     '''       
-    lik,sfs = _partial_likelihood(leaf_states, G, event)
+    lik,sfs = _partial_likelihood(leaf_states, demo, event)
     for pop in popList:
-        idx = (_lik_axes(G, event)).index(pop)
-        lik = G.apply_transition(pop, lik, idx)
+        idx = (_lik_axes(demo, event)).index(pop)
+        lik = demo.apply_transition(pop, lik, idx)
 
     return lik,sfs
 
-def combinatorial_factors(n):
-    return scipy.misc.comb(n, np.arange(n + 1))
-
-def _lik_axes(G, event):
+def _lik_axes(demo, event):
     '''
     Returns axes labels of the partial likelihood tensor
     first axis corresponds to SFS entry
     subsequent axes correspond to subpopulations
     '''
-    sub_pops = list(G.sub_pops(event))
+    sub_pops = list(demo.sub_pops(event))
     assert '' not in sub_pops
     return [''] + sub_pops
 
-def _event_lik_fun(G, event):
-    e_type = G.event_type(event)
+def _event_lik_fun(demo, event):
+    e_type = demo.event_type(event)
     if e_type == 'leaf':
         return _leaf_likelihood
-    elif e_type == 'admixture':
-        return _admixture_likelihood
+    # elif e_type == 'admixture':
+    #     return _admixture_likelihood
     elif e_type == 'merge_subpops':
         return _merge_subpops_likelihood
     elif e_type == 'merge_clusters':
         return _merge_clusters_likelihood
+    elif e_type == 'pulse':
+        return _pulse_likelihood
     else:
         raise Exception("Unrecognized event type.")
 
-def _leaf_likelihood(leaf_states, G, event):
-    leaf, = G.parent_pops(event)
-    return leaf_states[leaf],0.
+def _leaf_likelihood(leaf_states, demo, event):
+    (leaf,_), = demo.parent_pops(event)
+    if leaf in leaf_states:
+        return leaf_states[leaf],0.
+    else:
+        return np.ones((iter(leaf_states.values()).next().shape[0],1)),0.
 
-def _admixture_likelihood(leaf_states, G, event):
-    child_pop, = list(G.child_pops(event).keys())
-    p1,p2 = G.parent_pops(event)
+# def _admixture_likelihood(leaf_states, demo, event):
+#     child_pop, = list(demo.child_pops(event).keys())
+#     p1,p2 = demo.parent_pops(event)
 
-    child_event, = G.event_tree[event]
-    lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, [child_pop])
+#     child_event, = demo.event_tree[event]
+#     lik,sfs = _partial_likelihood_top(leaf_states, demo, child_event, [child_pop])
 
-    admixture_prob, admixture_idxs = G.admixture_prob(child_pop)
-    lik = einsum2(lik, _lik_axes(G, child_event),
-                  admixture_prob, admixture_idxs,
-                  _lik_axes(G, event))
+#     admixture_prob, admixture_idxs = demo.admixture_prob(child_pop)
+#     lik = einsum2(lik, _lik_axes(demo, child_event),
+#                   admixture_prob, admixture_idxs,
+#                   _lik_axes(demo, event))
 
+#     return lik,sfs
+
+def _pulse_likelihood(leaf_states, demo, event):
+    parent_pops = demo.parent_pops(event)    
+    child_pops_events = demo.child_pops(event)
+    assert len(child_pops_events) == 2
+    child_pops, child_events = zip(*child_pops_events.items())
+    
+    if len(set(child_events)) == 2:
+        ## in this case, it is more efficient to model the pulse as a split (-es) followed by a join (-ej)
+        sfs, child_pops, child_axes, child_liks = _disjoint_children_liks(leaf_states, demo, event)
+        
+        recipient, non_recipient, donor, non_donor = demo.pulse_nodes(event)
+        admixture_prob, admixture_idxs = demo.admixture_prob(recipient)
+
+        child_liks = dict(zip(child_pops, child_liks))
+        child_axes = dict(zip(child_pops, child_axes))
+
+        tmp_axes = child_axes[recipient]
+        child_axes[recipient] = [x for x in tmp_axes if x != recipient] + list(parent_pops)
+        child_liks[recipient] = einsum2(child_liks[recipient], tmp_axes,
+                                        admixture_prob, admixture_idxs,
+                                        child_axes[recipient])
+
+        tmp_axes = child_axes[recipient]
+        child_axes[recipient] = [x if x != donor else recipient for x in tmp_axes]
+
+        child_liks = [child_liks[c] for c in child_pops]
+        child_axes = [child_axes[c] for c in child_pops]
+        
+        lik = _convolve_children_liks(child_pops, child_liks, child_axes, donor,
+                                      _lik_axes(demo, event))
+        return lik,sfs
+    else:
+        ## in this case, (typically) more memory-efficient to multiply likelihood by transition 4-tensor
+        ## (if only 2 populations, and much fewer SFS entries than samples, it may be more efficient to replace -ep with -es,-ej)
+        child_event, = set(child_events)
+        lik, sfs = _partial_likelihood_top(leaf_states, demo, child_event, child_pops)
+        axes = _lik_axes(demo, child_event)
+
+        pulse_prob, pulse_idxs = demo.pulse_prob(event)
+
+        lik = einsum2(lik, axes,
+                      pulse_prob, pulse_idxs,
+                      _lik_axes(demo, event))
+        return lik,sfs
+
+def _merge_subpops_likelihood(leaf_states, demo, event):
+    newpop, = demo.parent_pops(event)
+    child_pops = demo.G[newpop]
+    child_event, = demo.event_tree[event]
+
+    child_axes = _lik_axes(demo, child_event)
+    event_axes = _lik_axes(demo,event)
+
+    lik,sfs = _partial_likelihood_top(leaf_states, demo, child_event, child_pops)
+    
+    lik = _merge_lik_axes(lik, child_axes, event_axes, child_pops, newpop,
+                          {pop: demo.n_lineages(pop)
+                           for pop in list(child_pops) + [newpop]})
+    
     return lik,sfs
 
-def _merge_subpops_likelihood(leaf_states, G, event):
-    newpop, = G.parent_pops(event)
-    child_pops = G[newpop]
-    child_event, = G.event_tree[event]
-
-    lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, child_pops)
-
+def _merge_lik_axes(lik, child_axes, new_axes, child_pops, newpop, n_lins):
+    assert len(child_pops) == 2 and len(child_axes) == len(new_axes)+1
+    
     c1,c2 = child_pops
-    child_axes = _lik_axes(G, child_event)
     for c in c1,c2:
         lik = einsum2(lik, child_axes,
-                      combinatorial_factors(G.n_lineages(c)), [c],
+                      binom_coeffs(n_lins[c]), [c],
                       child_axes)
     lik,axes = sum_antidiagonals(lik, child_axes, c1, c2, newpop)
 
-    event_axes = _lik_axes(G,event)
-    assert set(axes) == set(event_axes)
+    assert set(axes) == set(new_axes)
     newidx = axes.index(newpop)
     lik = einsum2(lik, axes,
-                  1.0/combinatorial_factors(lik.shape[newidx]-1), [newpop],
-                  event_axes)
+                  1.0/binom_coeffs(lik.shape[newidx]-1), [newpop],
+                  new_axes)
 
     # reduce the number of lineages in newpop to only the number necessary
-    axes = event_axes
+    axes = new_axes
     newidx = axes.index(newpop)
-    lik = einsum2(lik, event_axes[:newidx] + [c1] + axes[(newidx+1):],
-                  hypergeom_quasi_inverse(lik.shape[newidx]-1, G.n_lineages(newpop)),
-                  [c1,newpop], axes)
-    assert lik.shape[newidx] == G.n_lineages(newpop)+1
+    N,n = lik.shape[newidx]-1, n_lins[newpop]
+    assert N >= n
+    if N > n:
+        lik = einsum2(lik, new_axes[:newidx] + [c1] + axes[(newidx+1):],
+                      hypergeom_quasi_inverse(N,n),
+                      [c1,newpop], axes)
+    assert lik.shape[newidx] == n+1
 
-    return lik,sfs
+    return lik
 
-def _merge_clusters_likelihood(leaf_states, G, event):
-    newpop, = G.parent_pops(event)
-    child_liks = []
-    for child_pop, child_event in G.child_pops(event).items():
-        axes = _lik_axes(G, child_event)        
-        lik,sfs = _partial_likelihood_top(leaf_states, G, child_event, [child_pop])
-        lik = einsum2(lik, axes,
-                      combinatorial_factors(G.n_lineages(child_pop)), [child_pop],
-                      axes)
-        child_liks.append((child_pop,axes,lik,sfs))
+def _merge_clusters_likelihood(leaf_states, demo, event):
+    sfs, child_pops, child_axes, child_liks = _disjoint_children_liks(leaf_states, demo, event)
+    axes = _lik_axes(demo, event)
+    newpop, = demo.parent_pops(event)    
+    lik = _convolve_children_liks(child_pops, child_liks, child_axes, newpop, axes)
+    return lik, sfs
 
-    child_pops,child_axes,child_liks,child_sfs = list(zip(*child_liks))
+def _convolve_children_liks(child_pops, child_liks, child_axes, newpop, axes):
+    child_liks = list(child_liks)
+    for i,(lik,child_axis,child_pop) in enumerate(zip(child_liks, child_axes, child_pops)):
+        idx = child_axis.index(child_pop)
+        lik = einsum2(lik, child_axis,
+                      binom_coeffs(lik.shape[idx]-1), [child_pop],
+                      child_axis)
+        child_liks[i] = lik
 
     lik, old_axes = convolve_axes(child_liks[0], child_liks[1],
                                   child_axes, child_pops, newpop)
-    
-    axes = _lik_axes(G, event)    
+
+    idx = old_axes.index(newpop)
     lik = einsum2(lik, old_axes,
-                  1.0/combinatorial_factors(G.n_lineages(newpop)), [newpop],
+                  1.0/binom_coeffs(lik.shape[idx]-1), [newpop],
                   axes)
+    return lik   
+
+def _disjoint_children_liks(leaf_states, demo, event):
+    child_liks = []
+    for child_pop, child_event in demo.child_pops(event).items():
+        axes = _lik_axes(demo, child_event)        
+        lik,sfs = _partial_likelihood_top(leaf_states, demo, child_event, [child_pop])
+        child_liks.append((child_pop,axes,lik,sfs))
+        
+    child_pops,child_axes,child_liks,child_sfs = list(zip(*child_liks))
 
     sfs = 0.0
+    assert len(child_liks) == 2    
     for freq, other_lik in zip(child_sfs, child_liks[::-1]):
         sfs = sfs + freq * np.squeeze(other_lik[[slice(None)] + [0] * (other_lik.ndim-1)])
-    return lik, sfs
 
+    return (sfs, child_pops, child_axes, child_liks)
+    
 def _apply_error_matrices(vecs, error_matrices):
     if not all([np.allclose(np.sum(err, axis=0), 1.0) for err in error_matrices]):
         raise Exception("Columns of error matrix should sum to 1")

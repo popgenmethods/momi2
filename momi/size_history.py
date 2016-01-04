@@ -18,6 +18,8 @@ class SizeHistory(object):
         self.scaled_time = scaled_time
 
     def sfs(self, n):
+        if n == 0:
+            return np.array([0.])
         Et_jj = self.etjj(n)
         #assert np.all(Et_jj[:-1] - Et_jj[1:] >= 0.0) and np.all(Et_jj >= 0.0) and np.all(Et_jj <= self.tau)
 

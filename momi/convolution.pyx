@@ -9,7 +9,6 @@ def sum_trailing_antidiagonals(np.ndarray[np.double_t, ndim=3] A):
     '''
     Sums the antidiagonals of the last two axes of A
     '''
-    A = np.array(A)
     cdef unsigned int i,j,k,I,J,K
     I,J,K = A.shape[0],A.shape[1],A.shape[2]
 
@@ -33,7 +32,7 @@ def add_trailing_axis(np.ndarray[np.double_t, ndim=2] B, unsigned int trailing_d
     If sum_trailing_antidiagonals is viewed as multiplication by a tensor,
     this is equivalent to multiplying by the "transpose" of that tensor
     '''
-    assert trailing_dim < B.shape[1]
+    assert trailing_dim <= B.shape[1]
 
     cdef np.ndarray[np.double_t, ndim=3] A = np.zeros((B.shape[0],
 						       B.shape[1] - trailing_dim + 1,
@@ -100,4 +99,42 @@ def transposed_convolve_trailing_axes(np.ndarray[np.double_t, ndim=4] C,
                 for l in range(L):
                     for m in range(M):
                         A[i,j,l] += C[i,j,k,l+m] * B[i,k,m]
+    return A
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+def roll_trailing_axes(np.ndarray[np.double_t, ndim=3] A):
+    '''
+    Returns array B[i,j,j+k] = A[i,j,k]
+    '''
+    cdef unsigned int i,j,k,I,J,K
+    I,J,K = A.shape[0],A.shape[1],A.shape[2]
+
+    cdef np.ndarray[np.double_t, ndim=3] B = np.zeros((I, J, J + K - 1))
+    
+    for i in range(I):
+        for j in range(J):
+            for k in range(K):
+                    B[i,j,j+k] = A[i,j,k]
+    return B
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+def unroll_trailing_axes(np.ndarray[np.double_t, ndim=3] B):
+    '''
+    Inverse of roll trailing axes
+    '''
+    cdef unsigned int i,j,k,I,J,K
+    I,J = B.shape[0],B.shape[1]
+    K = B.shape[2]-J+1
+
+    cdef np.ndarray[np.double_t, ndim=3] A = np.zeros((I, J, K))
+    
+    for i in range(I):
+        for j in range(J):
+            for k in range(K):
+                    A[i,j,k] = B[i,j,j+k]
     return A

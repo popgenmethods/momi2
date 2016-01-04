@@ -1,7 +1,7 @@
 
 import networkx as nx
 from .util import memoize_instance, memoize
-from .math_functions import einsum2, sum_antidiagonals, convolve_axes
+from .math_functions import einsum2, sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse
 import scipy, scipy.misc
 import autograd.numpy as np
 
@@ -11,7 +11,7 @@ from .parse_ms import _convert_ms_cmd
 import os, itertools
 from operator import itemgetter
 
-class Demography(nx.DiGraph):
+class Demography(object):
     @classmethod
     def from_ms(cls, default_N_diploid, ms_cmd, *args, **kwargs):
         """ Construct demography using format of Richard Hudson's program ms
@@ -147,25 +147,27 @@ class Demography(nx.DiGraph):
         cmd_list = non_events + list(events)
         for event in cmd_list:
             parser.add_event(*event)
+
+        self.G = parser.to_nx()
         
-        super(Demography, self).__init__(parser.to_nx())
-        
-        self.leaves = set([k for k, v in list(self.out_degree().items()) if v == 0])
+        self.leaves = set(self.G.graph['sampled_pops'])
         self.event_tree = _build_event_tree(self)
 
     def __repr__(self):
         return str(self)
 
     def __str__(self):
-        return "Demography('%s')" % self.graph['cmd']
+        return "Demography('%s')" % self.G.graph['cmd']
 
     @memoize_instance
     def n_lineages(self, node):
-        return np.sum(self.node[l]['lineages'] for l in self.leaves_subtended_by(node))
+        if node in self.leaves:
+            node = (node,0)
+        return np.sum(self.G.node[(l,0)]['lineages'] for l in self.leaves_subtended_by(node))
 
     @property
     def default_N_diploid(self):
-        return self.graph['default_N_diploid']
+        return self.G.graph['default_N_diploid']
     
     @property
     def n_at_leaves(self):
@@ -173,15 +175,18 @@ class Demography(nx.DiGraph):
 
     @memoize_instance
     def leaves_subtended_by(self, node):
-        return self.leaves & set(nx.dfs_preorder_nodes(self, node))
+        return self.leaves & set([x[0] for x in nx.dfs_preorder_nodes(self.G, node)])
 
     def truncated_sfs(self, node):
         '''The truncated SFS at node.'''
-        return self.node[node]['model'].sfs(self.n_lineages(node))
+        return self.G.node[node]['model'].sfs(self.n_lineages(node))
 
     def apply_transition(self, node, array, axis):
         '''Apply Moran model transition at node to array along axis.'''
-        return self.node[node]['model'].transition_prob(array, axis)
+        assert array.shape[axis] == self.n_lineages(node)+1
+        if array.shape[axis] == 1:
+            return array
+        return self.G.node[node]['model'].transition_prob(array, axis)
    
     @property
     def root(self):
@@ -197,8 +202,10 @@ class Demography(nx.DiGraph):
     def event_type(self, event):
         if len(event) == 1:
             return 'leaf'
-        elif len(self.parent_pops(event)) == 2:
-            return 'admixture'
+        elif len(event) == 3:
+            return 'pulse'
+        # elif len(self.parent_pops(event)) == 2:
+        #     return 'admixture'
         elif len(self.event_tree[event]) == 2:
             return 'merge_clusters'
         else:
@@ -224,7 +231,62 @@ class Demography(nx.DiGraph):
         return self.event_tree.node[event]['child_pops']
    
     @memoize_instance
+    def pulse_prob(self, event):
+        ## returns 4-tensor
+        ## running time is O(n^5), because of pseudo-inverse
+        ## if pulse from ghost population, only costs O(n^4)
+        recipient, non_recipient, donor, non_donor = self.pulse_nodes(event)
+        
+        admixture_prob, admixture_idxs = self._admixture_prob(recipient)
+
+        pulse_idxs = admixture_idxs + [non_recipient]
+        pulse_prob = einsum2(admixture_prob, admixture_idxs,
+                             binom_coeffs(self.n_lineages(non_recipient)), [non_recipient],
+                             pulse_idxs)
+        pulse_prob = einsum2(pulse_prob, pulse_idxs,
+                             binom_coeffs(self.n_lineages(recipient)), [donor],
+                             pulse_idxs)
+        pulse_prob = roll_axes(pulse_prob, pulse_idxs, non_recipient, donor)
+
+        donor_idx = pulse_idxs.index(donor)
+        pulse_prob = einsum2(pulse_prob, pulse_idxs,
+                             1.0 / binom_coeffs(pulse_prob.shape[donor_idx]-1), [donor],
+                             pulse_idxs)
+
+        # reduce the number of lineages in donor to only the number necessary
+        N,n = pulse_prob.shape[donor_idx]-1, self.n_lineages(donor)
+        assert N >= n
+        if N > n:
+            assert -1 not in pulse_idxs        
+            tmp_idxs = [-1 if x == donor else x for x in pulse_idxs]
+            pulse_prob = einsum2(pulse_prob, tmp_idxs,
+                                 hypergeom_quasi_inverse(N, n),
+                                 [-1,donor], pulse_idxs)
+        assert pulse_prob.shape[donor_idx] == n + 1
+
+        return pulse_prob, pulse_idxs
+
+    def pulse_nodes(self, event):
+        parent_pops = self.parent_pops(event)    
+        child_pops_events = self.child_pops(event)
+        assert len(child_pops_events) == 2
+        child_pops, child_events = zip(*child_pops_events.items())
+
+        child_in = self.G.in_degree(child_pops)
+        recipient, = [k for k,v in child_in.items() if v == 2]
+        non_recipient, = [k for k,v in child_in.items() if v == 1]
+
+        parent_out = self.G.out_degree(parent_pops)
+        donor, = [k for k,v in parent_out.items() if v == 2]
+        non_donor, = [k for k,v in parent_out.items() if v == 1]
+
+        return recipient, non_recipient, donor, non_donor
+    
+    @memoize_instance
     def admixture_prob(self, admixture_node):
+        return self._admixture_prob(admixture_node)
+    
+    def _admixture_prob(self, admixture_node):
         '''
         Array with dim [n_admixture_node+1, n_parent1_node+1, n_parent2_node+1],
         giving probability of derived counts in child, given derived counts in parents
@@ -232,10 +294,9 @@ class Demography(nx.DiGraph):
         n_node = self.n_lineages(admixture_node)
 
         # admixture node must have two parents
-        edge1,edge2 = self.in_edges([admixture_node], data=True)
-        nd = self.node[admixture_node]
-        parent1,parent2 = edge1[0], edge2[0]
-        prob1,prob2 = nd['splitprobs'][parent1], nd['splitprobs'][parent2]
+        edge1,edge2 = self.G.in_edges([admixture_node], data=True)
+        parent1,parent2 = [e[0] for e in (edge1,edge2)]
+        prob1,prob2 = [e[2]['prob'] for e in (edge1,edge2)]        
         assert prob1 + prob2 == 1.0
 
         n_from_1 = np.arange(n_node+1)
@@ -269,17 +330,17 @@ def der_in_admixture_node(n_node):
 
 def _build_event_tree(demo):
     def node_time(v):
-        return demo.node[v]['sizes'][0]['t']
+        return demo.G.node[v]['sizes'][0]['t']
     
     eventEdgeList = []
-    currEvents = {l : (l,) for l in demo.leaves}
-    eventDict = {e : {'subpops' : (l,), 'parent_pops' : (l,), 'child_pops' : {}, 't' : node_time(l)} for l,e in currEvents.items()}
+    currEvents = {k : (k,) for k,v in demo.G.out_degree().items() if v == 0}
+    eventDict = {e : {'subpops' : (v,), 'parent_pops' : (v,), 'child_pops' : {}, 't' : node_time(v)} for v,e in currEvents.items()}
 
-    for e in demo.graph['events']:
+    for e in demo.G.graph['events']:
         # get the population edges forming the event
         parent_pops, child_pops = list(map(set, list(zip(*e))))
         child_events = set([currEvents[c] for c in child_pops])
-        assert len(e) == 2 and len(parent_pops) + len(child_pops) == 3 and len(child_events) in (1,2)
+        #assert len(e) == 2 and len(parent_pops) + len(child_pops) == 3 and len(child_events) in (1,2)
 
         sub_pops = set(itertools.chain(*[eventDict[c]['subpops'] for c in child_events]))
         sub_pops.difference_update(child_pops)
@@ -327,7 +388,9 @@ class _DemographyStringParser(object):
 
         self.add_pop_idx = add_pop_idx
 
-        self.events,self.edges,self.nodes = [],[],{}
+        #self.events,self.edges,self.nodes = [],[],{}
+        self.events = []
+        self.G = nx.DiGraph()
         # the nodes currently at the root of the graph, as we build it up from the leafs
         self.roots = {}
 
@@ -353,32 +416,40 @@ class _DemographyStringParser(object):
                 _,_,xval = func(t,str(i-self.add_pop_idx),x)
         return (self.params.time(t), "*", xval)
 
+    # def _S(self, t,i,p, new_label):
+    #     t,p = self.params.time(t), self.params.pulse(p)
+    #     i = self.get_pop(i)
+        
+    #     child = self.roots[i]
+    #     self.set_sizes(self.G.node[child], t)
+
+    #     parents = ((i,child[1]+1), (len(self.roots)+1,0))
+    #     assert all([par not in self.G.node for par in parents])
+
+    #     prev = self.G.node[child]['sizes'][-1]
+    #     self.G.add_node(parents[0], sizes=[{'t':t,'N':prev['N_top'], 'growth_rate':prev['growth_rate']}])
+    #     self.G.add_node(parents[1], sizes=[{'t':t,'N':self.default_N, 'growth_rate':None}])
+
+    #     for par,prob in zip(parents, [p,1-p]):
+    #         self.G.add_edge(par, child, prob=prob)
+    #     self.events += [tuple((par,child) for par in parents)]
+
+    #     self.roots[i] = parents[0]
+        
+    #     assert new_label not in self.roots
+    #     self.roots[new_label] = parents[1]
+
+    #     return t,i,p
+
     def _S(self, t,i,p, new_label):
-        t,p = self.params.time(t), self.params.pulse(p)
-        i = self.get_pop(i)
+        self.G.add_node((new_label,0),
+                        sizes=[{'t':self.params.time(t),'N':self.default_N,'growth_rate':None}],
+                        lineages=0,
+                        )
+        self.roots[new_label] = (new_label,0)
+        self._P(t,i,new_label-self.add_pop_idx,p)
         
-        child = self.roots[i]
-        self.set_sizes(self.nodes[child], t)
-
-        parents = ((child,), len(self.roots)+1)
-        assert all([par not in self.nodes for par in parents])
-
-        self.nodes[child]['splitprobs'] = {par : prob for par,prob in zip(parents, [p,1-p])}
-
-        prev = self.nodes[child]['sizes'][-1]
-        self.nodes[parents[0]] = {'sizes':[{'t':t,'N':prev['N_top'], 'growth_rate':prev['growth_rate']}]}
-        self.nodes[parents[1]] = {'sizes':[{'t':t,'N':self.default_N, 'growth_rate':None}]}
-
-        new_edges = tuple([(par, child) for par in parents])
-        self.events.append( new_edges )
-        self.edges += list(new_edges)
-
-        self.roots[i] = parents[0]
-        
-        assert new_label not in self.roots
-        self.roots[new_label] = parents[1]
-        
-        return t,i,p
+        return self.params.time(t),self.get_pop(i),self.params.pulse(p)
     
     def _J(self, t,i,j):
         t = self.params.time(t)
@@ -386,17 +457,16 @@ class _DemographyStringParser(object):
 
         for k in i,j:
             # sets the TruncatedSizeHistory, and N_top and growth_rate for all epochs
-            self.set_sizes(self.nodes[self.roots[k]], t)
+            self.set_sizes(self.G.node[self.roots[k]], t)
 
-        new_pop = (self.roots[i], self.roots[j])
-        self.events.append( ((new_pop,self.roots[i]),
-                        (new_pop,self.roots[j]))  )
-
-        assert new_pop not in self.nodes
-        prev = self.nodes[self.roots[j]]['sizes'][-1]
-        self.nodes[new_pop] = {'sizes':[{'t':t,'N':prev['N_top'], 'growth_rate':prev['growth_rate']}]}
-
-        self.edges += [(new_pop, self.roots[i]), (new_pop, self.roots[j])]
+        new_pop = (j, self.roots[j][1]+1)
+        assert new_pop not in self.G.nodes()
+        prev = self.G.node[self.roots[j]]['sizes'][-1]
+        self.G.add_node(new_pop, sizes=[{'t':t,'N':prev['N_top'], 'growth_rate':prev['growth_rate']}])
+        
+        new_edges = ((new_pop,self.roots[i]), (new_pop,self.roots[j]))       
+        self.events.append(new_edges)
+        self.G.add_edges_from(new_edges)
 
         self.roots[j] = new_pop
         #del self.roots[i]
@@ -409,7 +479,7 @@ class _DemographyStringParser(object):
             return self._apply_all_pops(self._N, t, N)
         t,N = self.params.time(t), self.params.size(N)
         i = self.get_pop(i)
-        self.nodes[self.roots[i]]['sizes'].append({'t':t,'N':N,'growth_rate':None})
+        self.G.node[self.roots[i]]['sizes'].append({'t':t,'N':N,'growth_rate':None})
         return t,i,N        
 
     def _G(self, t,i,growth_rate):
@@ -422,61 +492,103 @@ class _DemographyStringParser(object):
             growth_rate = self.params.growth(growth_rate)
             
         t,i = self.params.time(t), self.get_pop(i)
-        self.nodes[self.roots[i]]['sizes'].append({'t':t,'growth_rate':growth_rate})
+        self.G.node[self.roots[i]]['sizes'].append({'t':t,'growth_rate':growth_rate})
 
         if growth_rate is None:
             growth_rate=0.0
         return t,i,growth_rate
 
+    # def _P(self, t, i, j, pij):
+    #     cur_max = max(self.roots.keys())
+    #     ii = cur_max+1
+        
+    #     self._S(t,i,pij,ii)
+    #     self._J(t,ii,j)
+        
+    #     del self.roots[ii]
+
+    #     return t,i,j,pij
+
+    def _P(self, t, i, j, pii):
+        t = self.params.time(t)
+        i,j = list(map(self.get_pop, [i,j]))
+        pii = self.params.pulse(pii)
+
+        children = {k: self.roots[k] for k in (i,j)}
+        for v in children.values():
+            self.set_sizes(self.G.node[v], t)
+
+        parents = {k: (v[0],v[1]+1) for k,v in children.items()}
+        assert all([par not in self.G.node for par in parents.values()])
+
+        prev_sizes = {k: self.G.node[c]['sizes'][-1] for k,c in children.items()}
+        for k,s in prev_sizes.items():
+            self.G.add_node(parents[k], sizes=[{'t':t,'N':s['N_top'],'growth_rate':s['growth_rate']}])
+
+        self.G.add_edge(parents[i], children[i], prob=pii)
+        self.G.add_edge(parents[j], children[i], prob=1.-pii)
+        self.G.add_edge(parents[j], children[j])
+
+        new_event = tuple((parents[u], children[v])
+                          for u,v in ( (i,i),(j,i),(j,j) )
+                          )
+        self.events += [new_event]
+       
+        for k,v in parents.items():
+            self.roots[k] = v
+
+        return t,i,j,pii
+    
     def _a(self, t, i):
         ## flag designates leaf population i is archaic, starting at time t
         assert self.roots
         if self.events:
             raise ValueError("-a should be called before any demographic changes")
-        assert not self.edges and len(self.nodes) == len(self.roots)
+        assert not self.G.edges() and len(self.G.nodes()) == len(self.roots)
 
         i,t = self.get_pop(i), self.params.time(t)
         pop = self.roots[i]
-        assert len(self.nodes[pop]['sizes']) == 1
-        self.nodes[pop]['sizes'][0]['t'] = t
+        assert len(self.G.node[pop]['sizes']) == 1
+        self.G.node[pop]['sizes'][0]['t'] = t
 
         return i,t
     
     def _n(self, *lins_per_pop):
         # -n should be called immediately after -d, so everything should be empty
-        assert all([not x for x in (self.roots,self.events,self.edges,self.nodes)])
+        assert all([not x for x in (self.roots,self.events,self.G.edge,self.G.node)])
         assert hasattr(self, "default_N")
         
         npop = len(lins_per_pop)
         lins_per_pop = list(map(int, lins_per_pop))
 
-        for i in range(npop):
-            self.nodes[i] = {'sizes':[{'t':0.0,'N':self.default_N,'growth_rate':None}],'lineages':lins_per_pop[i]}
-            self.roots[i] = i
+        self.G.graph['sampled_pops'] = range(npop)        
+        for i in self.G.graph['sampled_pops']:
+            self.G.add_node((i,0),
+                            sizes=[{'t':0.0,'N':self.default_N,'growth_rate':None}],
+                            lineages=lins_per_pop[i])
+            self.roots[i] = (i,0)
         return lins_per_pop
 
     def _d(self, default_N):
-        assert all([not x for x in (self.roots,self.events,self.edges,self.nodes)])
+        assert all([not x for x in (self.roots,self.events,self.G.edge,self.G.node)])
         
         self.default_N = self.params.size(default_N)
         return self.default_N,
 
     def to_nx(self):
-        assert self.nodes
+        assert self.G.node
         self.roots = [r for _,r in self.roots.items() if r is not None]
 
         if len(self.roots) != 1:
             raise ValueError("Must have a single root population")
 
         node, = self.roots
-        self.set_sizes(self.nodes[node], float('inf'))
+        self.set_sizes(self.G.node[node], float('inf'))
 
         cmd = " ".join(self.cmd_list)
-        ret = nx.DiGraph(self.edges, cmd=cmd, events=self.events)
-        for v in self.nodes:
-            ret.add_node(v, **(self.nodes[v]))
-        ret.graph['default_N_diploid'] = self.default_N
-        return ret
+        self.G.graph.update({'cmd':cmd,'events':self.events})
+        self.G.graph['default_N_diploid'] = self.default_N
+        return self.G
     
     def set_sizes(self, node_data, end_time):
         # add 'model_func' to node_data, add information to node_data['sizes']

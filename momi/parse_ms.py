@@ -162,61 +162,60 @@ def _to_ms_cmd(demo, rescale):
     time_event_list = sorted([(d['t'],e,d) for e,d in events],
                              key=itemgetter(0))
 
-    # pre-checking of the leaf events
-    def is_leaf_event(e):
-        return len(demo.event_tree[e]) == 0
-    leaf_events = [(t,e,d) for t,e,d in time_event_list if is_leaf_event(e)]
+    # pre-checking of the leaf populations
+    #def is_leaf_event(e):
+    #    return len(demo.event_tree[e]) == 0
+    def is_sample_event(e):
+        return len(e) == 1 and e[0][0] in demo.leaves and e[0][1] == 0
+    sample_events = [(t,e,d) for t,e,d in time_event_list if is_sample_event(e)]
     # assert leaf events have no child pops
-    assert all([len(d['child_pops']) == 0 for t,e,d in leaf_events])
+    #assert all([len(d['child_pops']) == 0 for t,e,d in leaf_events])
     # make sure leafs all start at time 0
-    if any([t != 0.0 for t,e,d in leaf_events]):
+    if any([t != 0.0 for t,e,d in sample_events]):
         raise Exception("ms command line doesn't allow for archaic leaf populations")
     # sort leaf events according to their pop labels
-    leaf_events = sorted(leaf_events, key=itemgetter(1))
+    sample_events = sorted(sample_events, key=itemgetter(1))
     
-    # put leaf events at beginning of time_event_list
-    non_leaf_events = [(t,e,d) for t,e,d in time_event_list if not is_leaf_event(e)]
-    time_event_list = leaf_events + non_leaf_events
+    assert list(sorted(demo.leaves)) == list(e[0][0] for _,e,_ in sample_events)
     
-    # add sample sizes to the command line
+    non_leaf_events = [(t,e,d) for t,e,d in time_event_list if not len(demo.event_tree[e]) == 0]
+    #time_event_list = leaf_events + non_leaf_events
+
+   
+    # add sample sizes to the command line    
     ret = ["-I %d" % len(demo.leaves)]
-    for _,_,d in leaf_events:
-        l, = d['parent_pops']
-        ret += [str(demo.n_lineages(l))]
-          
+    sample_pops = [d['parent_pops'][0] for _,_,d in sample_events]
     pops = {}
-    pop_times = {}
-    next_pop = 1
-        
-    for t,e,d in time_event_list:
+    nextpop = 1
+    for l in sample_pops:
+        ret += [str(demo.n_lineages(l))]
+        pops[l[0]] = nextpop
+        nextpop += 1
+    for l in sample_pops:
+        ret += [demo.G.node[l]['model'].ms_cmd(pops[l[0]], 0.0, rescale=rescale)]
+       
+    for t,e,d in non_leaf_events:
         parent_pops = d['parent_pops']
         child_pops = d['child_pops']
+        #assert len(child_pops) == 2 and len(set([c[0] for c in child_pops])) == 2
 
-        if len(child_pops) == 0:
+        if len(parent_pops) == 2:
+            c = list(sorted(child_pops.keys()))[0]
+            p, = [p for p in parent_pops if p[0] == c[0]]
+            ret += ["-es %f %d %f" % (t / rescale, pops[c[0]], demo.G[p][c]['prob'])]
+        elif len(parent_pops) == 1:
             p, = parent_pops
-            pops[p] = next_pop
-            next_pop += 1
-        elif len(child_pops) == 1:
-            assert len(parent_pops) == 2
-            c, = child_pops
-            p0,p1 = parent_pops
-            ret += ["-es %f %d %f" % (t / rescale, pops[c], demo.node[c]['splitprobs'][p0])]
-            pops[p0] = pops[c]
-            pops[p1] = next_pop
-            next_pop += 1
-        elif len(child_pops) == 2:
-            assert len(parent_pops) == 1
-            c0,c1 = child_pops
-            p, = parent_pops
-            ret += ["-ej %f %d %d" % (t / rescale, pops[c1], pops[c0])]
-            pops[p] = pops[c0]
+            c, = [c for c in child_pops if c[0] != p[0]]
+            ret += ["-ej %f %d %d" % (t / rescale, pops[c[0]], pops[p[0]])]
         else:
             assert False
 
         for p in parent_pops:
-            pop_times[p] = t
-            ret += [demo.node[p]['model'].ms_cmd(pops[p], pop_times[p], rescale=rescale)]
-            
+            if p[0] not in pops:
+                pops[p[0]] = nextpop
+                nextpop += 1
+            ret += [demo.G.node[p]['model'].ms_cmd(pops[p[0]], t, rescale=rescale)]
+
     return " ".join(ret)
 
 def _convert_ms_cmd(cmd_list, params):

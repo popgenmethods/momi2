@@ -50,16 +50,9 @@ def tree_demo_4_str():
 demo_funcs1 = (admixture_demo_str, exp_growth_str, tree_demo_2_str, tree_demo_4_str)
 demo_funcs1 = {f.__name__ : f for f in demo_funcs1}
 
-@pytest.mark.parametrize("k,folded",
-                         ((fname, bool(b))
-                          for fname,b in zip(demo_funcs1.keys(),
-                                             np.random.choice([True,False],len(demo_funcs1)))))
-def test_sfs_counts1(k, folded):
-    """Test to make sure converting ms cmd to momi demography works"""
-    check_sfs_counts(demo_ms_cmd=demo_funcs1[k](), folded=folded)
-
 demo_funcs2 = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, exp_growth_model]}
-    
+
+
 @pytest.mark.parametrize("k,folded",
                          ((fname, bool(b))
                           for fname,b in zip(demo_funcs2.keys(),
@@ -68,6 +61,16 @@ def test_sfs_counts2(k,folded):
     """Test to make sure converting momi demography to ms cmd works"""
     check_sfs_counts(demo=demo_funcs2[k](), folded=folded)
 
+
+@pytest.mark.parametrize("k,folded",
+                         ((fname, bool(b))
+                          for fname,b in zip(demo_funcs1.keys(),
+                                             np.random.choice([True,False],len(demo_funcs1)))))
+def test_sfs_counts1(k, folded):
+    """Test to make sure converting ms cmd to momi demography works"""
+    check_sfs_counts(demo_ms_cmd=demo_funcs1[k](), folded=folded)
+
+   
 
 def check_sfs_counts(demo_ms_cmd=None, demo=None, mu=1e-3, r=1e-3, num_loci=1000, ref_size=1e4, folded=False):
     assert (demo_ms_cmd is None) != (demo is None)
