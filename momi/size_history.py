@@ -34,10 +34,7 @@ class SizeHistory(object):
         return ret
 
     def transition_prob(self, v, axis=0):
-        if self.scaled_time == 0.0:
-            return v + 0.0 # return copy of v
         return moran_model.moran_action(self.scaled_time, v, axis=axis)
-
 
 class ConstantHistory(SizeHistory):
     '''Constant size population truncated to time tau.'''
@@ -64,9 +61,10 @@ class ConstantHistory(SizeHistory):
     
 class ExponentialHistory(SizeHistory):
     def __init__(self, tau, growth_rate, N_bottom):
-        if tau == float('inf'):
-            ## TODO: make tau=inf work with automatic differentiation
-            raise Exception("Exponential growth in final epoch not implemented. Try setting final growth rate to the constant 0.0, i.e. -eG t 0.0. Setting final growth rate to a variable (-eG t $0) will break, even if the variable equals 0.0.")
+        assert tau != float('inf')
+        # if tau == float('inf'):
+        #     ## TODO: make tau=inf work with automatic differentiation
+        #     raise Exception("Exponential growth in final epoch not implemented. Try setting final growth rate to the constant 0.0, i.e. -eG t 0.0. Setting final growth rate to a variable (-eG t $0) will break, even if the variable equals 0.0.")
         self.N_bottom, self.growth_rate = N_bottom, growth_rate
         self.total_growth = tau * growth_rate
         self.N_top = N_bottom * exp(-self.total_growth)
@@ -179,3 +177,10 @@ class FunctionalHistory(SizeHistory):
             r2 = scipy.integrate.quad(_int, 0, self.tau)[0]
             ret.append(r1 + j2 * r2)
         return ret
+
+class _TrivialHistory(object):
+    def sfs(self, n):
+        return np.zeros(n+1)
+
+    def transition_prob(self, v, axis=0):
+        return v + 0.0 # return copy of v

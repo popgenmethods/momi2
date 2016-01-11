@@ -1,12 +1,12 @@
 
-from .util import make_constant, check_symmetric, make_function, optimize, _npstr, folded_sfs
+from .util import make_constant, check_symmetric, make_function, optimize, _npstr, folded_sfs, truncate0
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2
 import scipy
 from autograd import hessian
 
-def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, folded=False, **kwargs):
+def unlinked_log_likelihood(sfs, demo, mut_rate, truncate_probs = 0.0, folded=False, **kwargs):
     """
     Compute the log likelihood for a collection of SNPs, assuming they are
     unlinked (independent). Calls expected_sfs to compute the individual SFS
@@ -21,11 +21,10 @@ def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, folded=False, **k
         represented by a D-tuple (i_0,i_1,...,i_{D-1}), where i_j is the
         number of derived mutants in deme j.
     demo : Demography
-        object created using the function make_demography
-    mu : float or None
+    mut_rate : float or None
         The mutation rate. If None, the number of SNPs is assumed to be
         fixed and a multinomial distribution is used. Otherwise the number
-        of SNPs is assumed to be Poisson with parameter mu*E[branch_len]
+        of SNPs is assumed to be Poisson with parameter mut_rate*E[branch_len]
     folded : optional, bool
         if True, compute likelihoods for folded SFS
 
@@ -37,11 +36,11 @@ def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, folded=False, **k
 
     Other Parameters
     ----------------
-    adjust_probs : float, optional
-        Added to the probability of each SNP.
-        Setting adjust_probs to a small positive number (e.g. 1e-80)
-        prevents the likelihood from being 0 or negative, due to
-        precision or underflow errors.
+    truncate_probs : float, optional
+        Replace log(sfs_probs) with log(max(sfs_probs, truncate_probs)),
+        where sfs_probs are the normalized theoretical SFS entries.
+        Setting truncate_probs to a small positive number (e.g. 1e-100)
+        will avoid taking log(0) due to precision or underflow error.
     **kwargs : optional
         Additional optional arguments to be passed to expected_sfs
         (e.g. error_matrices)
@@ -52,10 +51,10 @@ def unlinked_log_likelihood(sfs, demo, mu, adjust_probs = 0.0, folded=False, **k
     unlinked_log_lik_vector : efficiently compute log-likelihoods for each
                               of several loci
     """
-    return np.squeeze(unlinked_log_lik_vector([sfs], demo, mu, adjust_probs = adjust_probs, folded=folded, **kwargs))
+    return np.squeeze(unlinked_log_lik_vector([sfs], demo, mut_rate, truncate_probs = truncate_probs, folded=folded, **kwargs))
 
 
-def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, folded=False, **kwargs):
+def unlinked_log_lik_vector(sfs_list, demo, mut_rate, truncate_probs = 0.0, folded=False, **kwargs):
     """
     Return a vector of log likelihoods for a collection of loci. Equivalent
     to, but much more efficient than, calling unlinked_log_likelihood on
@@ -67,12 +66,11 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, folded=False
         a list whose i-th entry is the SFS at locus i. Each SFS is a dict
         mapping configs (tuples) to observed counts (floats or ints)
     demo : Demography
-        object created using the function make_demography
-    mu : float or numpy.ndarray or None
+    mut_rate : float or numpy.ndarray or None
         The mutation rate. If None, the number of SNPs is assumed to be
         fixed and a multinomial distribution is used. If a numpy.ndarray,
         the number of SNPs at locus i is assumed to be Poisson with
-        parameter mu[i]*E[branch_len]. If a float, the mutation rate at
+        parameter mut_rate[i]*E[branch_len]. If a float, the mutation rate at
         all loci are assumed to be equal.
     folded : optional, bool
         if True, compute likelihoods for folded SFS
@@ -85,11 +83,11 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, folded=False
 
     Other Parameters
     ----------------
-    adjust_probs : float, optional
-        Added to the probability of each SNP.
-        Setting adjust_probs to a small positive number (e.g. 1e-80)
-        prevents the likelihood from being 0 or negative, due to
-        precision or underflow errors.
+    truncate_probs : float, optional
+        Replace log(sfs_probs) with log(max(sfs_probs, truncate_probs)),
+        where sfs_probs are the normalized theoretical SFS entries.
+        Setting truncate_probs to a small positive number (e.g. 1e-100)
+        will avoid taking log(0) due to precision or underflow error.
     **kwargs : optional
         Additional optional arguments to be passed to expected_sfs
         (e.g. error_matrices)
@@ -102,7 +100,7 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, folded=False
     # remove 0 entries
     sfs_list = [dict([(k,v) for k,v in sfs.items() if v != 0]) for sfs in sfs_list]
     if folded:
-        sfs_list = [folded_sfs(sfs, demo.n_at_leaves) for sfs in sfs_list] # for correct combinatorial factors
+        sfs_list = [folded_sfs(sfs, demo.sampled_n) for sfs in sfs_list] # for correct combinatorial factors
     # the list of all observed configs
     config_list = list(set(sum([list(sfs.keys()) for sfs in sfs_list],[])))
 
@@ -121,29 +119,27 @@ def unlinked_log_lik_vector(sfs_list, demo, mu, adjust_probs = 0.0, folded=False
     E_counts = expected_sfs(demo, config_list, folded=folded, **kwargs)
     E_total = expected_total_branch_len(demo, **kwargs)
 
-    sfs_probs = E_counts/ E_total + adjust_probs
-    if np.any(sfs_probs <= 0.0):
-        raise FloatingPointError("0 or negative probability leading to non-finite log-likelihood. Try increasing adjust_probs from %g to something larger." % adjust_probs)
-    
+    sfs_probs = np.maximum(E_counts / E_total, truncate_probs)
+       
     # a function to return the log factorial
     lnfact = lambda x: scipy.special.gammaln(x+1)
 
     # log likelihood of the multinomial distribution for observed SNPs
     log_lik = np.dot(counts_ij, np.log(sfs_probs)) - np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
     # add on log likelihood of poisson distribution for total number of SNPs
-    if mu is not None:
-        lambd = mu * E_total
+    if mut_rate is not None:
+        lambd = mut_rate * E_total
         log_lik = log_lik - lambd + counts_i * np.log(lambd) - lnfact(counts_i)
 
     return log_lik
 
 
-def unlinked_mle_search(sfs, demo_func, mu, start_params,
+def unlinked_mle_search(sfs, demo_func, mut_rate, start_params,
                         folded = False,
                         jac = True, hess = False, hessp = False,
                         method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
                         output_progress = False,                        
-                        sfs_kwargs = {}, adjust_probs = 1e-80,
+                        sfs_kwargs = {}, truncate_probs = 1e-100,
                         **kwargs):
     """
     Find the maximum of unlinked_log_likelihood(), by calling
@@ -159,21 +155,22 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params,
         maps configs (tuples) to their observed counts (ints or floats)
         See unlinked_log_likelihood for details
     demo_func : function
-        maps the parameters (numpy.ndarray) to Demography
+        function that returns a Demography
 
         if jac=True, demo_func should work with autograd;
         see examples/tutorial.py (Section 5 FOOTNOTE)
-    mu : None or float or function
+    mut_rate : None or float or function
         The mutation rate, or a function that takes in the parameters
         and returns the mutation rate. If None, uses a multinomial
         distribution; if a float, uses a Poisson random field. See
         unlinked_log_likelihood for additional details.
 
-        if mu is function and jac=True, mu should work with autograd.
+        if mut_rate is function and jac=True, mut_rate should work with autograd.
     folded : optional, bool
         if True, compute likelihoods for folded SFS
-    start_params : numpy.ndarray
-        The starting point for the parameter search
+    start_params : list
+        The starting point for the parameter search.
+        len(start_params) should equal the number of arguments of demo_func
     jac : bool, optional
         If True, use autograd to compute the gradient (jacobian)
     hess, hessp : bool, optional
@@ -212,11 +209,11 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params,
     ----------------
     sfs_kwargs : dict, optional
         additional keyword arguments to pass to unlinked_log_likelihood
-    adjust_probs : float, optional
-        Added to the probability of each SNP.
-        Setting adjust_probs to a small positive number (e.g. 1e-80)
-        prevents the likelihood from being 0 or negative, due to
-        precision or underflow errors.
+    truncate_probs : float, optional
+        Replace log(sfs_probs) with log(max(sfs_probs, truncate_probs)),
+        where sfs_probs are the normalized theoretical SFS entries.
+        Setting truncate_probs to a small positive number (e.g. 1e-100)
+        will avoid taking log(0) due to precision or underflow error.
     **kwargs : optional
         additional arguments to pass to scipy.optimize.minimize
 
@@ -229,8 +226,12 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params,
     sum_sfs_list : combine SFS's of multiple loci into one SFS, before
          passing into this function
     """
-    mu = make_function(mu)
-    f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), mu(params), adjust_probs = adjust_probs, folded=folded, **sfs_kwargs)
+    old_demo_func = demo_func
+    demo_func = lambda x: old_demo_func(*x)
+    start_params = np.array(start_params)
+    
+    mut_rate = make_function(mut_rate)
+    f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), mut_rate(params), truncate_probs = truncate_probs, folded=folded, **sfs_kwargs)
 
     if output_progress is True:
         # print the Demography after every iteration
@@ -247,16 +248,17 @@ def unlinked_mle_search(sfs, demo_func, mu, start_params,
     
     return optimize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
 
-def unlinked_mle_approx_cov(params, sfs_list, demo_func, mu_per_locus, **kwargs):
+def unlinked_mle_approx_cov(params, sfs_list, demo_func, mut_rate_per_locus, **kwargs):
     """
     Approximate covariance matrix for the composite MLE, i.e. the scaled
     inverse 'Godambe Information'.
 
     Parameters
     ----------
-    params : numpy.ndarray
+    params : list
          The true parameters, or a consistent estimate thereof (e.g.,
          the composite MLE).
+         len(params) should equal number of arguments that demo_func takes
     sfs_list : list of dicts
          The i-th entry is the SFS of the i-th locus.
          The loci are assumed to be i.i.d. 
@@ -264,7 +266,7 @@ def unlinked_mle_approx_cov(params, sfs_list, demo_func, mu_per_locus, **kwargs)
     demo_func : function
          Function that maps parameter values to demographies.
          Must be differentiable by autograd.
-    mu_per_locus : function or numpy.ndarray or float or None
+    mut_rate_per_locus : function or numpy.ndarray or float or None
          The mutation rate at each locus, or a function mapping parameters
          to the mutation rates, or None (if using multinomial instead of
          Poisson).
@@ -297,10 +299,14 @@ def unlinked_mle_approx_cov(params, sfs_list, demo_func, mu_per_locus, **kwargs)
     if the mutation rates are of roughly the same magnitude for all loci,
     then we can think of them as being drawn from the same hyperdistribution,
     so that the loci are identically distributed.
-    """    
-    mu_per_locus = make_function(mu_per_locus)
+    """
+    old_demo_func = demo_func
+    demo_func = lambda x: old_demo_func(*x)
+    params = np.array(params)
+
+    mut_rate_per_locus = make_function(mut_rate_per_locus)
         
-    f_vec = lambda x: unlinked_log_lik_vector(sfs_list, demo_func(x), mu_per_locus(x), **kwargs)
+    f_vec = lambda x: unlinked_log_lik_vector(sfs_list, demo_func(x), mut_rate_per_locus(x), **kwargs)
     # the sum of f_vec
     f_sum = lambda x: np.sum(f_vec(x))
 

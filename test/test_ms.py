@@ -16,85 +16,29 @@ try:
 except KeyError:
     raise Exception("Need to set system variable $MS_PATH, or run py.test with 'MS_PATH=/path/to/ms py.test ...'")
 
-def admixture_demo_str():
-    x = np.random.normal(size=7)
-    t = np.cumsum(np.exp(x[:5]))
-    p = 1.0 / (1.0 + np.exp(x[5:]))
 
-    ms_cmd = "-I 2 2 3 -es %f 2 %f -es %f 2 %f -ej %f 3 4 -ej %f 4 1 -ej %f 2 1" % (t[0], p[0], t[1], p[1], t[2], t[3], t[4])
-    return ms_cmd
-    
-def exp_growth_str():
-    n = 10
-    growth_rate = random.uniform(-50,50)
-    N_bottom = random.uniform(0.1,10.0)
-    tau = .01
-    demo_cmd = "-I 1 %d -G %f -eG %f 0.0" % (n, growth_rate, tau)
-    return demo_cmd
-
-
-def tree_demo_2_str():
-    demo_cmd = "-I 2 5 5 -ej %f 2 1" % (2 * np.random.random() + 0.1,)
-    return demo_cmd
-
-def tree_demo_4_str():
-    n = [2,2,2,2]
-
-    times = np.random.random(len(n)-1) * 2.0 + 0.1
-    for i in range(1,len(times)):
-        times[i] += times[i-1]
-
-    demo_cmd = "-I %d %s -ej %f 2 1 -ej %f 3 1 -ej %f 4 1" % tuple([len(n), " ".join(map(str,n))] + list(times))
-    return demo_cmd
-
-demo_funcs1 = (admixture_demo_str, exp_growth_str, tree_demo_2_str, tree_demo_4_str)
-demo_funcs1 = {f.__name__ : f for f in demo_funcs1}
-
-demo_funcs2 = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, exp_growth_model]}
+demo_funcs = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, exp_growth_model]}
 
 
 @pytest.mark.parametrize("k,folded",
                          ((fname, bool(b))
-                          for fname,b in zip(demo_funcs2.keys(),
-                                             np.random.choice([True,False],len(demo_funcs2)))))
-def test_sfs_counts2(k,folded):
+                          for fname,b in zip(demo_funcs.keys(),
+                                             np.random.choice([True,False],len(demo_funcs)))))
+def test_sfs_counts(k,folded):
     """Test to make sure converting momi demography to ms cmd works"""
-    check_sfs_counts(demo=demo_funcs2[k](), folded=folded)
+    check_sfs_counts(demo=demo_funcs[k]().rescaled(), folded=folded)
 
 
-@pytest.mark.parametrize("k,folded",
-                         ((fname, bool(b))
-                          for fname,b in zip(demo_funcs1.keys(),
-                                             np.random.choice([True,False],len(demo_funcs1)))))
-def test_sfs_counts1(k, folded):
-    """Test to make sure converting ms cmd to momi demography works"""
-    check_sfs_counts(demo_ms_cmd=demo_funcs1[k](), folded=folded)
-
-   
-
-def check_sfs_counts(demo_ms_cmd=None, demo=None, mu=1e-3, r=1e-3, num_loci=1000, ref_size=1e4, folded=False):
-    assert (demo_ms_cmd is None) != (demo is None)
-
-    if demo is None:
-        demo = Demography.from_ms(ref_size,demo_ms_cmd)
-        n = sum(demo.n_at_leaves)
-
-        ms_cmd = "%d %d -t %f -r %f 1000 %s -seed %s" % (n, num_loci, ref_size*mu, ref_size*r,
-                                                         demo_ms_cmd,
-                                                         " ".join([str(random.randint(0,999999999))
-                                                                   for _ in range(3)]))
-
-        sfs_list = sfs_list_from_ms(run_ms(ms_cmd, ms_path = ms_path))
-    elif demo_ms_cmd is None:        
-        sfs_list = sfs_list_from_ms(simulate_ms(ms_path, demo, num_loci=num_loci, mu_per_locus=mu, additional_ms_params='-r %f 1000' % (ref_size * r), rescale=ref_size))
+def check_sfs_counts(demo, theta=10.0, rho=10.0, num_loci=1000, folded=False):
+    sfs_list = sfs_list_from_ms(simulate_ms(ms_path, demo, num_loci=num_loci, mut_rate=theta, additional_ms_params='-r %f %d' % (rho, num_loci)))
 
     if folded:
-        sfs_list = [momi.util.folded_sfs(sfs, demo.n_at_leaves) for sfs in sfs_list]
+        sfs_list = [momi.util.folded_sfs(sfs, demo.sampled_n) for sfs in sfs_list]
         
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     
     sfs_vals,branch_len = expected_sfs(demo, config_list, folded=folded), expected_total_branch_len(demo)
-    theoretical = sfs_vals * mu
+    theoretical = sfs_vals * theta
 
     observed = np.zeros((len(config_list), len(sfs_list)))
     for j,sfs in enumerate(sfs_list):

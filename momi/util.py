@@ -132,8 +132,8 @@ def read_sfs_list(filename):
     
     
 def polymorphic_configs(demo):
-    n = sum([demo.n_lineages(l) for l in demo.leaves])
-    ranges = [list(range(demo.n_lineages(l))) for l in sorted(demo.leaves)]
+    n = sum(demo.sampled_n)
+    ranges = [list(range(n)) for n in demo.sampled_n]
 
     config_list = []
     for config in itertools.product(*ranges):

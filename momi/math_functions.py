@@ -124,7 +124,7 @@ def expm1d(x):
 def expm1d_taylor(x):
     c_n, ret = 1.,1.
     for n in range(2,11):
-        c_n = c_n * x / float(n)
+        c_n = c_n * x / (1.0*n)
         ret = ret + c_n
     return ret
 

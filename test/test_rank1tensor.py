@@ -10,13 +10,13 @@ import sys
 from demo_utils import simple_admixture_demo, random_tree_demo
 
 def check_random_tensor(demo, *args, **kwargs):
-    leaves = sorted(list(demo.leaves))
-    ranges = [range(demo.n_lineages(l)+1) for l in demo.leaves]
+    leaves = demo.sampled_pops
+    ranges = [range(n+1) for n in demo.sampled_n]
 
     config_list = list(itertools.product(*ranges))
     sfs = expected_sfs(demo, config_list, *args, **kwargs)
 
-    tensor_components = [np.random.normal(size=(1,demo.n_lineages(l)+1)) for l in demo.leaves]
+    tensor_components = [np.random.normal(size=(1,n+1)) for n in demo.sampled_n]
     #tensor_components_list = tuple(v[0,:] for _,v in sorted(tensor_components.iteritems()))
 
     prod1 = sfs_tensor_prod(dict(zip(config_list,sfs)), tensor_components)

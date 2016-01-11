@@ -33,7 +33,7 @@ pip install .
 
 ## Getting started
 
-See [tutorial](examples/tutorial.py).
+See the [tutorial](examples/tutorial.ipynb).
 
 ## Authors
 

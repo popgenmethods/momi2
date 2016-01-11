@@ -1,12 +1,18 @@
+Change documentation, usage of adjust_probs in likelihood.py
+
+Create DemographyError for better output of bad demographies
+
+Rewrite tutorial
+* Make it ipython notebook as well
+
 ####
 
 Finish writing documentation!!
 
 util.py
 * have read_sfs_list,write_sfs_list format include line for sample size
-   * also remove -n flag from Demography?
-     sample sizes 'belong' with SFS, not the demography
-     at least when reading in data & specifying parametric model
+  * sample sizes 'belong' with SFS, not the demography
+    at least when reading in data & specifying parametric model
 * function for simple slsqp inference
   * use Demography construction to automatically build constraints
   * need to implement InvalidDemographyException, to return float('inf') when out of bounds

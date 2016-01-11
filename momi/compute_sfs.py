@@ -7,29 +7,26 @@ from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse,
 from autograd.core import primitive
 from autograd import hessian
 
-def expected_sfs(demography, config_list, normalized=False, error_matrices=None, folded=False):
+def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_matrices=None, folded=False):
     """
     Expected sample frequency spectrum (SFS) entries for the specified
     demography and configs. The expected SFS is the expected number of
-    observed mutations for a configuration when mu=1, or equivalently,
-    the expected branch length (in ms-scaled units) subtending a
-    configuration.
+    observed mutations for a configuration. If mutation rate=1, it is
+    equivalent to the expected branch length subtended by a configuration.
 
     Parameters
     ----------
     demography : Demography
-         object returned by make_demography
     config_list : list of tuples
          list of the configs to compute the SFS entries for.
          If there are D sampled populations, then each config is
          represented by a D-tuple (i_1,i_2,...,i_D), where i_j is the
          number of derived mutants in deme j.
-
-         WARNING: in python, tuples are indexed starting at 0, whereas
-         in ms, populations are indexed starting at 1. So config[j] =
-         the number of derived mutants in the deme labeled j+1.
+    mut_rate : float
+         mutation rate per unit time
     normalized : optional, bool
-         if True, divide the SFS by the expected total branch length.
+         if True, mut_rate is ignored, and the SFS is divided by the 
+         expected total branch length.
          The returned values then represent probabilities, that a given
          mutation will segregate according to the specified configurations.
     folded : optional, bool
@@ -58,7 +55,7 @@ def expected_sfs(demography, config_list, normalized=False, error_matrices=None,
     expected_sfs_tensor_prod : compute summary statistics of SFS
     """
     if folded:
-        rev_configs,symm = reversed_configs(config_list, demography.n_at_leaves, return_is_symmetric=True)
+        rev_configs,symm = reversed_configs(config_list, demography.sampled_n, return_is_symmetric=True)
         ret = expected_sfs(demography,
                            list(config_list) + list(rev_configs),
                            normalized=normalized, error_matrices=error_matrices,
@@ -68,12 +65,12 @@ def expected_sfs(demography, config_list, normalized=False, error_matrices=None,
         return ret
         
     data = np.array(config_list, ndmin=2)
-    if data.ndim != 2 or data.shape[1] != len(demography.leaves):
+    if data.ndim != 2 or data.shape[1] != len(demography.sampled_pops):
         raise IOError("Invalid config_list.")
 
     # the likelihoods at the leaf populations
-    leaf_liks = [np.zeros((data.shape[0], demography.n_lineages(leaf)+1))
-                 for leaf in sorted(demography.leaves)]
+    leaf_liks = [np.zeros((data.shape[0], n+1))
+                 for n in demography.sampled_n]
     for i in range(len(leaf_liks)):
         leaf_liks[i][list(zip(*enumerate(data[:,i])))] = 1.0 # likelihoods for config_list
     
@@ -84,20 +81,19 @@ def expected_sfs(demography, config_list, normalized=False, error_matrices=None,
     assert np.all(np.logical_or(sfs >= 0.0, np.isclose(sfs, 0.0)))
     if normalized:
         sfs = sfs / expected_total_branch_len(demography, error_matrices=error_matrices)
-        
+    else:
+        sfs = sfs * mut_rate
     return sfs
 
 def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
     """
-    The expected sum of SFS entries for all configs (as given by
-    expected_sfs). Equivalently, the expected number of observed mutations
-    when mu=1, or the expected total branch length of the sample
-    genealogy (in ms-scaled units).
+    The expected total branch length of the sample genealogy.
+    Equivalently, the expected number of observed mutations when 
+    mutation rate=1.
 
     Parameters
     ----------
     demography : Demography
-         object constructed by make_demography
 
     Returns
     -------
@@ -130,7 +126,7 @@ def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
     expected_tmrca, expected_deme_tmrca : other interesting statistics
     expected_sfs_tensor_prod : compute general class of summary statistics
     """
-    vecs = [np.ones(demography.n_lineages(l)+1) for l in sorted(demography.leaves)]
+    vecs = [np.ones(n+1) for n in demography.sampled_n]
 
     if error_matrices is not None:
         vecs = _apply_error_matrices(vecs, error_matrices)
@@ -142,8 +138,8 @@ def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
     
     ## for more complicated case, need to subtract off branch_len not to be considered
     ## either because of min_freqs, or because error_matrices has made some actually polymorphic sites appear to be monomorphic
-    n_leaf_lins = np.array([demography.n_lineages(l) for l in sorted(demography.leaves)])
-    min_freqs = np.array(min_freqs) * np.ones(len(demography.leaves), dtype='i')
+    n_leaf_lins = np.array(demography.sampled_n)
+    min_freqs = np.array(min_freqs) * np.ones(len(demography.sampled_pops), dtype='i')
     max_freqs = n_leaf_lins - min_freqs
     if np.any(min_freqs < 1) or np.any(min_freqs > n_leaf_lins):
         raise Exception("Minimum frequencies must be in (0,num_lins] for each leaf pop")
@@ -151,7 +147,7 @@ def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
     vecs = [np.array([[1.0] * deme_min + [0.0] * (deme_n+1 - deme_min),
                       [0.0] * (deme_max+1) + [1.0] * (deme_n - deme_max)])
             for deme_n, deme_min, deme_max in [(n_leaf_lins[i], min_freqs[i], max_freqs[i])
-                                               for i in range(len(demography.leaves))]]
+                                               for i in range(len(demography.sampled_pops))]]
 
     if error_matrices is not None:
         vecs = _apply_error_matrices(vecs, error_matrices)
@@ -160,13 +156,11 @@ def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
 
 def expected_tmrca(demography):
     """
-    The expected time to most recent common ancestor of the sample,
-    in ms-scaled units.
+    The expected time to most recent common ancestor of the sample.
 
     Parameters
     ----------
     demography : Demography
-         object returned by make_demography
 
     Returns
     -------
@@ -177,7 +171,7 @@ def expected_tmrca(demography):
     expected_deme_tmrca : tmrca of subsample within a deme
     expected_sfs_tensor_prod : compute general class of summary statistics
     """
-    vecs = [np.ones(demography.n_lineages(l)+1) for l in sorted(demography.leaves)]
+    vecs = [np.ones(n+1) for n in demography.sampled_n]
     n0 = len(vecs[0])-1.0
     vecs[0] = np.arange(n0+1) / n0
     return np.squeeze(expected_sfs_tensor_prod(vecs, demography))
@@ -185,14 +179,12 @@ def expected_tmrca(demography):
 def expected_deme_tmrca(demography, deme):
     """
     The expected time to most recent common ancestor, of the samples within
-    a particular deme. Returned time is in ms-scaled units.
+    a particular deme.
 
     Parameters
     ----------
     demography : Demography
-         object returned by make_demography
-    deme : int
-         the deme
+    deme : the deme
 
     Returns
     -------
@@ -203,15 +195,16 @@ def expected_deme_tmrca(demography, deme):
     expected_tmrca : the tmrca of the whole sample
     expected_sfs_tensor_prod : compute general class of summary statistics    
     """
-    vecs = [np.ones(demography.n_lineages(l)+1) for l in sorted(demography.leaves)]
+    deme = list(demography.sampled_pops).index(deme)
+    vecs = [np.ones(n+1) for n in demography.sampled_n]
 
     n = len(vecs[deme])-1
-    vecs[deme] = np.arange(n+1) / n
+    vecs[deme] = np.arange(n+1) / (1.0*n)
     vecs[deme][-1] = 0.0
     
     return np.squeeze(expected_sfs_tensor_prod(vecs, demography))
 
-def expected_sfs_tensor_prod(vecs, demography):
+def expected_sfs_tensor_prod(vecs, demography, mut_rate=1.0):
     """
     Viewing the SFS as a D-tensor (where D is the number of demes), this
     returns a 1d array whose j-th entry is a certain summary statistic of the
@@ -231,7 +224,8 @@ def expected_sfs_tensor_prod(vecs, demography):
          k-th deme. The row vector vecs[k][j,:] is multiplied against
          the expected SFS along the k-th mode, to obtain res[j].
     demo : Demography
-         object constructed by make_demography
+    mut_rate : float
+         the rate of mutations per unit time
     
     Returns
     -------
@@ -246,17 +240,16 @@ def expected_sfs_tensor_prod(vecs, demography):
     expected_total_branch_len, expected_tmrca, expected_deme_tmrca : 
          examples of coalescent statistics that use this function
     """
-    leaf_states = dict(list(zip(sorted(demography.leaves), vecs)))
+    leaf_states = dict(list(zip(demography.sampled_pops, vecs)))
     
-    for leaf in list(leaf_states.keys()):
-        n = demography.n_lineages(leaf)
+    for leaf,n in zip(demography.sampled_pops, demography.sampled_n):
         # add states for all ancestral/derived
         leaf_states[leaf] = np.vstack([np.array([1.0] + [0.0]*n), # all ancestral state
                                        np.array([0.0]*n + [1.0]), # all derived state
                                        leaf_states[leaf]])
 
     _,res = _partial_likelihood(leaf_states,
-                                demography, demography.event_root)
+                                demography, demography._event_root)
 
     # subtract out mass for all ancestral/derived state
     for k in (0,1):
@@ -264,7 +257,7 @@ def expected_sfs_tensor_prod(vecs, demography):
         assert np.isclose(res[k], 0.0)
     # remove monomorphic states
     res = res[2:]
-    return res
+    return res * mut_rate
 
 def _partial_likelihood(leaf_states, demo, event):
     ''' 
@@ -277,13 +270,13 @@ def _partial_likelihood(leaf_states, demo, event):
 
     # add on sfs entry at this event
     axes = _lik_axes(demo, event)
-    for newpop in demo.parent_pops(event):
+    for newpop in demo._parent_pops(event):
         # term for mutation occurring at the newpop
         newpop_idx = axes.index(newpop)
         idx = [0] * lik.ndim
         idx[0], idx[newpop_idx] = slice(None), slice(None)
 
-        sub_lik, trunc_sfs = lik[idx], demo.truncated_sfs(newpop)
+        sub_lik, trunc_sfs = lik[idx], demo._truncated_sfs(newpop)
         sfs = sfs + einsum2(sub_lik, ['',newpop],
                             trunc_sfs, [newpop],
                             [''])
@@ -298,7 +291,7 @@ def _partial_likelihood_top(leaf_states, demo, event, popList):
     lik,sfs = _partial_likelihood(leaf_states, demo, event)
     for pop in popList:
         idx = (_lik_axes(demo, event)).index(pop)
-        lik = demo.apply_transition(pop, lik, idx)
+        lik = demo._apply_transition(pop, lik, idx)
 
     return lik,sfs
 
@@ -308,12 +301,12 @@ def _lik_axes(demo, event):
     first axis corresponds to SFS entry
     subsequent axes correspond to subpopulations
     '''
-    sub_pops = list(demo.sub_pops(event))
+    sub_pops = list(demo._sub_pops(event))
     assert '' not in sub_pops
     return [''] + sub_pops
 
 def _event_lik_fun(demo, event):
-    e_type = demo.event_type(event)
+    e_type = demo._event_type(event)
     if e_type == 'leaf':
         return _leaf_likelihood
     # elif e_type == 'admixture':
@@ -328,20 +321,20 @@ def _event_lik_fun(demo, event):
         raise Exception("Unrecognized event type.")
 
 def _leaf_likelihood(leaf_states, demo, event):
-    (leaf,_), = demo.parent_pops(event)
-    if leaf in leaf_states:
-        return leaf_states[leaf],0.
+    (pop,idx), = demo._parent_pops(event)
+    if idx == 0:
+        return leaf_states[pop],0.
     else:
         return np.ones((iter(leaf_states.values()).next().shape[0],1)),0.
 
 # def _admixture_likelihood(leaf_states, demo, event):
-#     child_pop, = list(demo.child_pops(event).keys())
-#     p1,p2 = demo.parent_pops(event)
+#     child_pop, = list(demo._child_pops(event).keys())
+#     p1,p2 = demo._parent_pops(event)
 
-#     child_event, = demo.event_tree[event]
+#     child_event, = demo._event_tree[event]
 #     lik,sfs = _partial_likelihood_top(leaf_states, demo, child_event, [child_pop])
 
-#     admixture_prob, admixture_idxs = demo.admixture_prob(child_pop)
+#     admixture_prob, admixture_idxs = demo._admixture_prob(child_pop)
 #     lik = einsum2(lik, _lik_axes(demo, child_event),
 #                   admixture_prob, admixture_idxs,
 #                   _lik_axes(demo, event))
@@ -349,8 +342,8 @@ def _leaf_likelihood(leaf_states, demo, event):
 #     return lik,sfs
 
 def _pulse_likelihood(leaf_states, demo, event):
-    parent_pops = demo.parent_pops(event)    
-    child_pops_events = demo.child_pops(event)
+    parent_pops = demo._parent_pops(event)    
+    child_pops_events = demo._child_pops(event)
     assert len(child_pops_events) == 2
     child_pops, child_events = zip(*child_pops_events.items())
     
@@ -358,8 +351,8 @@ def _pulse_likelihood(leaf_states, demo, event):
         ## in this case, it is more efficient to model the pulse as a split (-es) followed by a join (-ej)
         sfs, child_pops, child_axes, child_liks = _disjoint_children_liks(leaf_states, demo, event)
         
-        recipient, non_recipient, donor, non_donor = demo.pulse_nodes(event)
-        admixture_prob, admixture_idxs = demo.admixture_prob(recipient)
+        recipient, non_recipient, donor, non_donor = demo._pulse_nodes(event)
+        admixture_prob, admixture_idxs = demo._admixture_prob(recipient)
 
         child_liks = dict(zip(child_pops, child_liks))
         child_axes = dict(zip(child_pops, child_axes))
@@ -386,7 +379,7 @@ def _pulse_likelihood(leaf_states, demo, event):
         lik, sfs = _partial_likelihood_top(leaf_states, demo, child_event, child_pops)
         axes = _lik_axes(demo, child_event)
 
-        pulse_prob, pulse_idxs = demo.pulse_prob(event)
+        pulse_prob, pulse_idxs = demo._pulse_prob(event)
 
         lik = einsum2(lik, axes,
                       pulse_prob, pulse_idxs,
@@ -394,9 +387,9 @@ def _pulse_likelihood(leaf_states, demo, event):
         return lik,sfs
 
 def _merge_subpops_likelihood(leaf_states, demo, event):
-    newpop, = demo.parent_pops(event)
-    child_pops = demo.G[newpop]
-    child_event, = demo.event_tree[event]
+    newpop, = demo._parent_pops(event)
+    child_pops = demo._G[newpop]
+    child_event, = demo._event_tree[event]
 
     child_axes = _lik_axes(demo, child_event)
     event_axes = _lik_axes(demo,event)
@@ -404,7 +397,7 @@ def _merge_subpops_likelihood(leaf_states, demo, event):
     lik,sfs = _partial_likelihood_top(leaf_states, demo, child_event, child_pops)
     
     lik = _merge_lik_axes(lik, child_axes, event_axes, child_pops, newpop,
-                          {pop: demo.n_lineages(pop)
+                          {pop: demo._n_at_node(pop)
                            for pop in list(child_pops) + [newpop]})
     
     return lik,sfs
@@ -441,7 +434,7 @@ def _merge_lik_axes(lik, child_axes, new_axes, child_pops, newpop, n_lins):
 def _merge_clusters_likelihood(leaf_states, demo, event):
     sfs, child_pops, child_axes, child_liks = _disjoint_children_liks(leaf_states, demo, event)
     axes = _lik_axes(demo, event)
-    newpop, = demo.parent_pops(event)    
+    newpop, = demo._parent_pops(event)    
     lik = _convolve_children_liks(child_pops, child_liks, child_axes, newpop, axes)
     return lik, sfs
 
@@ -465,7 +458,7 @@ def _convolve_children_liks(child_pops, child_liks, child_axes, newpop, axes):
 
 def _disjoint_children_liks(leaf_states, demo, event):
     child_liks = []
-    for child_pop, child_event in demo.child_pops(event).items():
+    for child_pop, child_event in demo._child_pops(event).items():
         axes = _lik_axes(demo, child_event)        
         lik,sfs = _partial_likelihood_top(leaf_states, demo, child_event, [child_pop])
         child_liks.append((child_pop,axes,lik,sfs))

@@ -9,13 +9,13 @@ import autograd.numpy as np
 from demo_utils import simple_admixture_demo, random_tree_demo
 
 def check_demo_normalization(demo, min_freqs=1, **kwargs):
-    leaves = sorted(list(demo.leaves))
-    ranges = [range(demo.n_lineages(l)+1) for l in demo.leaves]
+    leaves = demo.sampled_pops
+    ranges = [range(n+1) for n in demo.sampled_n]
 
     config_list = list(itertools.product(*ranges))
 
-    n_leaf_lins = np.array([demo.n_lineages(l) for l in demo.leaves])
-    min_freqs = np.array(min_freqs) * np.ones(len(demo.leaves), dtype='i')
+    n_leaf_lins = np.array(demo.sampled_n)
+    min_freqs = np.array(min_freqs) * np.ones(len(leaves), dtype='i')
     if np.any(min_freqs < 1) or np.any(min_freqs > n_leaf_lins):
         raise Exception("Minimum frequencies must be in (0,num_lins] for each leaf pop")
     max_freqs = n_leaf_lins - min_freqs

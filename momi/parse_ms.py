@@ -8,7 +8,7 @@ from autograd.numpy import isnan, exp
 import random
 import subprocess
 import itertools
-from collections import Counter
+from collections import Counter, defaultdict
 from io import StringIO
 
 from operator import itemgetter
@@ -70,7 +70,7 @@ def sfs_list_from_ms(ms_file):
     return [_sfs_from_1_ms_sim(list(lines), len(n_at_leaves), pops_by_lin)
             for i,lines in runs]
 
-def simulate_ms(ms_path, demo, num_loci, mu_per_locus, seeds=None, additional_ms_params="", rescale=True):
+def simulate_ms(ms_path, demo, num_loci, mut_rate, seeds=None, additional_ms_params=""):
     """
     Use ms to simulate from a Demography, and get an open file object containing the output.
 
@@ -78,26 +78,17 @@ def simulate_ms(ms_path, demo, num_loci, mu_per_locus, seeds=None, additional_ms
     ----------
     ms_path : str
          path to ms or similar program (e.g. scrm)
-    demo : Demography
+    demo : Demography.
+         must have demo.default_N == 1.0, otherwise throws exception
+         (you can call demo.rescaled() to rescale the demography to correct units)
     num_loci : int
          number of independent loci
-    mu_per_locus : float
-         rate of mutations occurring per generation, per locus
+    mut_rate : float
+         rate of mutations occurring per unit time, per locus.
     seeds : optional, iterable
          a list or tuple of 3 seeds
     additional_ms_params : optional, str
-         additional commands to append to the ms command, e.g. recombination
-    rescale : optional, bool or float
-         rescale demography and mutation rate before passing to ms.
-         if True (default), rescale by demo.default_N_diploid.
-
-         additional_ms_params is not affected by this parameter, and so
-         any flags passed thru additional_ms_params should be in the appropriate
-         units, after rescaling
-
-         if additional_ms_params is not specified, then
-         rescaling has no effect on the actual dataset, because scaling
-         demography and mutation rate cancel each other out.
+         additional commands to append to the ms command, e.g. recombination.
 
     Returns
     -------
@@ -107,21 +98,15 @@ def simulate_ms(ms_path, demo, num_loci, mu_per_locus, seeds=None, additional_ms
     See Also
     --------
     sfs_list_from_ms : convert ms file output to a list of SFS
-    """
-    if rescale is True:
-        rescale = demo.default_N_diploid
-    elif rescale is False:
-        rescale = 1.0
-
-    theta = mu_per_locus * rescale
-    
+    to_ms_cmd : converts a Demography to a partial ms command
+    """   
     if any([(x in additional_ms_params) for x in ("-t","-T","seed")]):
         raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
 
-    lins_per_pop = [demo.n_lineages(l) for l in sorted(demo.leaves)]
+    lins_per_pop = list(demo.sampled_n)
     n = sum(lins_per_pop)
 
-    ms_args = _to_ms_cmd(demo, rescale)
+    ms_args = to_ms_cmd(demo)
     if additional_ms_params:
         ms_args = "%s %s" % (ms_args, additional_ms_params)
 
@@ -131,7 +116,7 @@ def simulate_ms(ms_path, demo, num_loci, mu_per_locus, seeds=None, additional_ms
     ms_args = "%s -seed %s" % (ms_args, seeds)
 
     assert ms_args.startswith("-I ")
-    ms_args = "-t %g %s" % (theta, ms_args)
+    ms_args = "-t %g %s" % (mut_rate, ms_args)
     ms_args = "%d %d %s" % (n, num_loci, ms_args)
    
     return run_ms(ms_args, ms_path=ms_path)
@@ -150,73 +135,87 @@ def run_ms(ms_args, ms_path):
         lines = e.output
     return StringIO(lines.decode('unicode-escape'))
 
-def _to_ms_cmd(demo, rescale):
-    if rescale is True:
-        rescale = demo.default_N_diploid
-    elif rescale is False:
-        rescale = 1.0
-    
-    # the events and their data in depth-first ordering
-    events = [(e,demo.event_tree.node[e]) for e in nx.dfs_postorder_nodes(demo.event_tree)]
-    # add times, and sort according to times; preserve original ordering for same times
-    time_event_list = sorted([(d['t'],e,d) for e,d in events],
-                             key=itemgetter(0))
+def to_ms_cmd(demo):
+    """
+    Converts a Demography to a partial ms command.
 
-    # pre-checking of the leaf populations
-    #def is_leaf_event(e):
-    #    return len(demo.event_tree[e]) == 0
-    def is_sample_event(e):
-        return len(e) == 1 and e[0][0] in demo.leaves and e[0][1] == 0
-    sample_events = [(t,e,d) for t,e,d in time_event_list if is_sample_event(e)]
-    # assert leaf events have no child pops
-    #assert all([len(d['child_pops']) == 0 for t,e,d in leaf_events])
-    # make sure leafs all start at time 0
-    if any([t != 0.0 for t,e,d in sample_events]):
+    Parameters
+    ----------
+    demo : Demography.
+         must be in ms units (i.e., demo.default_N == 1.0), otherwise throws exception
+         (you can call demo.rescaled() to rescale the demography to correct units)
+    
+    Returns
+    -------
+    ms_demo_str : str
+         the Demography in ms syntax
+    """
+    if demo.default_N != 1.0:
+        raise Exception("Please rescale demography to be in ms units (i.e. default_N=1.0). This can be done with Demography.rescaled().")
+
+    if demo.sampled_t is not None and not all(demo.sampled_t == 0.0):
         raise Exception("ms command line doesn't allow for archaic leaf populations")
-    # sort leaf events according to their pop labels
-    sample_events = sorted(sample_events, key=itemgetter(1))
-    
-    assert list(sorted(demo.leaves)) == list(e[0][0] for _,e,_ in sample_events)
-    
-    non_leaf_events = [(t,e,d) for t,e,d in time_event_list if not len(demo.event_tree[e]) == 0]
-    #time_event_list = leaf_events + non_leaf_events
 
-   
-    # add sample sizes to the command line    
-    ret = ["-I %d" % len(demo.leaves)]
-    sample_pops = [d['parent_pops'][0] for _,_,d in sample_events]
-    pops = {}
-    nextpop = 1
-    for l in sample_pops:
-        ret += [str(demo.n_lineages(l))]
-        pops[l[0]] = nextpop
-        nextpop += 1
-    for l in sample_pops:
-        ret += [demo.G.node[l]['model'].ms_cmd(pops[l[0]], 0.0, rescale=rescale)]
-       
-    for t,e,d in non_leaf_events:
-        parent_pops = d['parent_pops']
-        child_pops = d['child_pops']
-        #assert len(child_pops) == 2 and len(set([c[0] for c in child_pops])) == 2
+    pops = dict(zip(demo.sampled_pops, range(1,len(demo.sampled_pops)+1)))
+    sampled_n = demo.sampled_n
+    
+    ret = [tuple(['-I',len(sampled_n)] + list(sampled_n))]
+    npop = len(pops)
 
-        if len(parent_pops) == 2:
-            c = list(sorted(child_pops.keys()))[0]
-            p, = [p for p in parent_pops if p[0] == c[0]]
-            ret += ["-es %f %d %f" % (t / rescale, pops[c[0]], demo.G[p][c]['prob'])]
-        elif len(parent_pops) == 1:
-            p, = parent_pops
-            c, = [c for c in child_pops if c[0] != p[0]]
-            ret += ["-ej %f %d %d" % (t / rescale, pops[c[0]], pops[p[0]])]
+    sizes = defaultdict(list)
+    def get_size_events(pop, time):
+        cur_size, cur_growth, cur_t = 1.0, 0.0, 0.0
+        for event in sizes[pop]:
+            flag = event[0]
+            if flag == '-en':
+                flag,t,i,N = event
+                cur_size, cur_growth, cur_t = N,0.,t
+            else:
+                assert flag == '-eg'
+                flag,t,i,g = event
+                cur_size = exp( (cur_t-t) * cur_growth) * cur_size
+                cur_growth, cur_t = g,t
+        cur_size = exp( (cur_t-time) * cur_growth) * cur_size
+        return [('-en',time,pops[pop],cur_size),
+                ('-eg',time,pops[pop],cur_growth)]
+
+    events = sorted(demo.events, key=lambda x:x[1])
+    for event in events:
+        flag = event[0]
+        if flag == '-ep':
+            _,t,i,j,pij = event
+            ret += [('-es',t,pops[i],1.-pij)]
+            npop += 1
+            if j not in pops:
+                pops[j] = npop
+                ret += get_size_events(j,t)                
+            else:
+                ret += [('-ej',t,npop, pops[j])]
+            continue
+        elif flag == '-ej':
+            _,t,i,j = event
+            if j not in pops:
+                pops[j] = pops[i]
+                ret += get_size_events(j,t)
+                continue
+            else:
+                event = (flag,t,pops[i],pops[j])
+        elif flag == '-eg':
+            _,t,i,alpha = event
+            sizes[i] += [event]
+            if i not in pops:
+                continue
+            event = (flag,t,pops[i],alpha)            
+        elif flag == '-en':
+            _,t,i,N = event
+            sizes[i] += [event]
+            if i not in pops:
+                continue
+            event = (flag,t,pops[i],N)            
         else:
             assert False
-
-        for p in parent_pops:
-            if p[0] not in pops:
-                pops[p[0]] = nextpop
-                nextpop += 1
-            ret += [demo.G.node[p]['model'].ms_cmd(pops[p[0]], t, rescale=rescale)]
-
-    return " ".join(ret)
+        ret += [event]
+    return " ".join(sum([list(map(str,x)) for x in ret], []))
 
 def _convert_ms_cmd(cmd_list, params):
     cmd_list = list(cmd_list)
@@ -280,7 +279,7 @@ def _sfs_from_1_ms_sim(lines, num_pops, pops_by_lin):
     assert lines[0] == "//"
     nss = int(lines[1].split(":")[1])
     if nss == 0:
-        return currCounts
+        return dict(currCounts)
     # remove header
     lines = lines[3:]
     # remove trailing line if necessary

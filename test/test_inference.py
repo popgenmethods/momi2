@@ -15,14 +15,14 @@ def test_jointime_inference(folded):
     num_runs = 10000
 
     def get_demo(join_time):
-        join_time = join_time[0]
-        return Demography.from_ms(1e4,"-I 3 1 1 1 -ej $0 1 2 -ej $1 2 3",
-                                  join_time, t1)
+        return Demography([('-ej', join_time, 1, 2), ('-ej', t1, 2, 3)],
+                          (1,2,3), (1,1,1)).rescaled(1e4)
 
-    true_demo = get_demo([t0])
-    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(ms_path, true_demo, num_loci=num_runs, mu_per_locus=mu)))
+    true_demo = get_demo(t0)
+    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(ms_path, true_demo.rescaled(),
+                                                    num_loci=num_runs, mut_rate=mu*true_demo.default_N)))
     if folded:
-        sfs = momi.util.folded_sfs(sfs, true_demo.n_at_leaves)
+        sfs = momi.util.folded_sfs(sfs, true_demo.sampled_n)
     
     print(t0,t1)
     
@@ -37,16 +37,16 @@ def test_jointime_inference(folded):
 def test_underflow_robustness(folded):
     num_runs = 1000
     mu=1e-3
-    def get_demo(t):
-        print t
-        t0,t1 = t
-        return Demography.from_ms(1e4,"-I 3 5 5 5 -ej $0 1 2 -ej $1 2 3", np.exp(t0),np.exp(t0) + np.exp(t1))
+    def get_demo(t0, t1):
+        return Demography([('-ej', np.exp(t0), 1, 2), ('-ej', np.exp(t0) + np.exp(t1), 2, 3)],
+                          (1,2,3), (5,5,5)).rescaled(1e4)
     true_x = np.array([np.log(.5),np.log(.2)])
-    true_demo = get_demo(true_x)
+    true_demo = get_demo(*true_x)
 
-    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(ms_path, true_demo, num_loci=num_runs, mu_per_locus=mu)))
+    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(ms_path, true_demo.rescaled(),
+                                                    num_loci=num_runs, mut_rate=mu*true_demo.default_N)))
     if folded:
-        sfs = momi.util.folded_sfs(sfs, true_demo.n_at_leaves)
+        sfs = momi.util.folded_sfs(sfs, true_demo.sampled_n)
     
     optimize_res = unlinked_mle_search(sfs, get_demo, mu * num_runs, np.array([np.log(0.1),np.log(100.0)]), hessp=True, method='newton-cg', folded=folded)
     print optimize_res
