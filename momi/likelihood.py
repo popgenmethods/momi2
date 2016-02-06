@@ -5,6 +5,7 @@ from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2
 import scipy
 from autograd import hessian
+from collections import Counter
 
 def unlinked_log_likelihood(sfs, demo, mut_rate, truncate_probs = 0.0, folded=False, **kwargs):
     """
@@ -328,3 +329,51 @@ def unlinked_mle_approx_cov(params, sfs_list, demo_func, mut_rate_per_locus, **k
     cov = np.dot(h_inv, np.dot(g_out,h_inv))
     return check_symmetric(cov)
 
+
+def cmle_long_cov(params, chromosome_list, demo_func, **kwargs):
+    """
+    Composite MLE covariance, for a few long loci (rather than many short loci)
+    """
+    if "mut_rate" in kwargs:
+        raise NotImplementedError("Currently only implemented for multinomial composite likelihood")    
+    params = np.array(params)
+   
+    uniq_snps, snp_counts = zip(*Counter(sum(chromosome_list, [])).items())
+    snp_counts = np.array(snp_counts)
+
+    snp_log_probs = lambda x: np.log(expected_sfs(demo_func(*x), uniq_snps, normalized=True, **kwargs))
+    
+    h = hessian(lambda x: np.sum(snp_counts * snp_log_probs(x)))(params)
+    h_inv = check_symmetric(np.linalg.inv(h))
+    
+    uniq_snp_idxs = {snp: i for i,snp in enumerate(uniq_snps)}
+    idx_series_list = [[uniq_snp_idxs[snp] for snp in chrom] for chrom in chromosome_list]
+
+    # g_out = sum(autocov(einsum("ij,ik->ikj",jacobian(idx_series), jacobian(idx_series))))
+    # computed in roundabout way, in case jacobian is slow for many snps
+    # autocovariance is truncated at sqrt(len(idx_series)), to avoid statistical/numerical issues
+    def get_g_out(idx_series):
+        L = len(idx_series)
+        def antihess(y):
+            l = snp_log_probs(y)
+            l = np.array([l[i] for i in idx_series])
+            lc = make_constant(l)
+
+            fft = np.fft.fft(l)
+            # (assumes l is REAL)
+            assert np.all(np.imag(l) == 0.0)
+            fft_rev = np.conj(fft) * np.exp(2 * np.pi * 1j * np.arange(L) / float(L))
+
+            ret = 0.5 * (fft * fft_rev - fft * make_constant(fft_rev) - make_constant(fft) * fft_rev)        
+            ret = np.fft.ifft(ret)[(L-1)::-1]
+
+            # make real
+            assert np.allclose(np.imag(ret / L), 0.0)
+            ret = np.real(ret)
+            return ret[0] + 2.0 * np.sum(ret[1:int(np.sqrt(L))])
+        ret = hessian(antihess)(params)
+        # symmetrize and return
+        return 0.5 * (ret + np.transpose(ret))
+    g_out = np.sum(np.array(map(get_g_out, idx_series_list)), axis=0)
+
+    return check_symmetric(np.dot(h_inv, np.dot(g_out, h_inv)))
