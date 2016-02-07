@@ -347,7 +347,8 @@ def cmle_long_cov(params, chromosome_list, demo_func, **kwargs):
     h_inv = check_symmetric(np.linalg.inv(h))
     
     uniq_snp_idxs = {snp: i for i,snp in enumerate(uniq_snps)}
-    idx_series_list = [[uniq_snp_idxs[snp] for snp in chrom] for chrom in chromosome_list]
+    idx_series_list = [np.array([uniq_snp_idxs[snp] for snp in chrom], dtype=int)
+                       for chrom in chromosome_list]
 
     # g_out = sum(autocov(einsum("ij,ik->ikj",jacobian(idx_series), jacobian(idx_series))))
     # computed in roundabout way, in case jacobian is slow for many snps
@@ -355,8 +356,7 @@ def cmle_long_cov(params, chromosome_list, demo_func, **kwargs):
     def get_g_out(idx_series):
         L = len(idx_series)
         def antihess(y):
-            l = snp_log_probs(y)
-            l = np.array([l[i] for i in idx_series])
+            l = snp_log_probs(y)[idx_series]
             lc = make_constant(l)
 
             fft = np.fft.fft(l)
