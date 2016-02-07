@@ -353,10 +353,13 @@ def cmle_long_cov(params, chromosome_list, demo_func, **kwargs):
     # g_out = sum(autocov(einsum("ij,ik->ikj",jacobian(idx_series), jacobian(idx_series))))
     # computed in roundabout way, in case jacobian is slow for many snps
     # autocovariance is truncated at sqrt(len(idx_series)), to avoid statistical/numerical issues
-    def get_g_out(idx_series):
-        L = len(idx_series)
-        def antihess(y):
-            l = snp_log_probs(y)[idx_series]
+    def g_out_antihess(y):
+        lp = snp_log_probs(y)
+        ret = 0.0
+        for idx_series in idx_series_list:
+            L = len(idx_series)
+            
+            l = lp[idx_series]
             lc = make_constant(l)
 
             fft = np.fft.fft(l)
@@ -364,16 +367,16 @@ def cmle_long_cov(params, chromosome_list, demo_func, **kwargs):
             assert np.all(np.imag(l) == 0.0)
             fft_rev = np.conj(fft) * np.exp(2 * np.pi * 1j * np.arange(L) / float(L))
 
-            ret = 0.5 * (fft * fft_rev - fft * make_constant(fft_rev) - make_constant(fft) * fft_rev)        
-            ret = np.fft.ifft(ret)[(L-1)::-1]
+            curr = 0.5 * (fft * fft_rev - fft * make_constant(fft_rev) - make_constant(fft) * fft_rev)        
+            curr = np.fft.ifft(curr)[(L-1)::-1]
 
             # make real
-            assert np.allclose(np.imag(ret / L), 0.0)
-            ret = np.real(ret)
-            return ret[0] + 2.0 * np.sum(ret[1:int(np.sqrt(L))])
-        ret = hessian(antihess)(params)
-        # symmetrize and return
-        return 0.5 * (ret + np.transpose(ret))
-    g_out = np.sum(np.array(map(get_g_out, idx_series_list)), axis=0)
-
+            assert np.allclose(np.imag(curr / L), 0.0)
+            curr = np.real(curr)
+            curr = curr[0] + 2.0 * np.sum(curr[1:int(np.sqrt(L))])
+            ret = ret + curr
+        return ret
+    g_out = hessian(g_out_antihess)(params)
+    g_out = 0.5 * (g_out + np.transpose(g_out))
+    
     return check_symmetric(np.dot(h_inv, np.dot(g_out, h_inv)))
