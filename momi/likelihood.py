@@ -6,8 +6,9 @@ from .math_functions import einsum2
 import scipy
 from autograd import hessian
 from collections import Counter
+from .data_structure import ObservedSfs, ObservedSfsList
 
-def unlinked_log_likelihood(sfs, demo, mut_rate, truncate_probs = 0.0, folded=False, **kwargs):
+def unlinked_log_likelihood(observed_sfs, demo, mut_rate, truncate_probs = 0.0, folded=False, **kwargs):
     """
     Compute the log likelihood for a collection of SNPs, assuming they are
     unlinked (independent). Calls expected_sfs to compute the individual SFS
@@ -15,7 +16,7 @@ def unlinked_log_likelihood(sfs, demo, mut_rate, truncate_probs = 0.0, folded=Fa
     
     Parameters
     ----------
-    sfs : dict
+    observed_sfs : dict, or ObservedSfs
         maps configs (tuples) to their observed counts (ints or floats).
 
         If there are D sampled populations, then each config is
@@ -52,10 +53,12 @@ def unlinked_log_likelihood(sfs, demo, mut_rate, truncate_probs = 0.0, folded=Fa
     unlinked_log_lik_vector : efficiently compute log-likelihoods for each
                               of several loci
     """
-    return np.squeeze(unlinked_log_lik_vector([sfs], demo, mut_rate, truncate_probs = truncate_probs, folded=folded, **kwargs))
+    if not isinstance(observed_sfs, ObservedSfs):
+        observed_sfs = ObservedSfs(observed_sfs, demo.sampled_n)
+    return np.squeeze(unlinked_log_lik_vector(observed_sfs._sfs_list(), demo, mut_rate, truncate_probs = truncate_probs, folded=folded, **kwargs))
 
 
-def unlinked_log_lik_vector(sfs_list, demo, mut_rate, truncate_probs = 0.0, folded=False, **kwargs):
+def unlinked_log_lik_vector(observed_sfs_list, demo, mut_rate, truncate_probs = 0.0, folded=False, **kwargs):
     """
     Return a vector of log likelihoods for a collection of loci. Equivalent
     to, but much more efficient than, calling unlinked_log_likelihood on
@@ -63,7 +66,7 @@ def unlinked_log_lik_vector(sfs_list, demo, mut_rate, truncate_probs = 0.0, fold
 
     Parameters
     ----------
-    sfs_list : list of dicts
+    observed_sfs_list : list of dicts, or ObservedSfsList
         a list whose i-th entry is the SFS at locus i. Each SFS is a dict
         mapping configs (tuples) to observed counts (floats or ints)
     demo : Demography
@@ -98,30 +101,18 @@ def unlinked_log_lik_vector(sfs_list, demo, mut_rate, truncate_probs = 0.0, fold
     --------
     unlinked_log_likelihood : likelihood for a single locus
     """
-    # remove 0 entries
-    sfs_list = [dict([(k,v) for k,v in sfs.items() if v != 0]) for sfs in sfs_list]
-    if folded:
-        sfs_list = [folded_sfs(sfs, demo.sampled_n) for sfs in sfs_list] # for correct combinatorial factors
-    # the list of all observed configs
-    config_list = list(set(sum([list(sfs.keys()) for sfs in sfs_list],[])))
+    if not isinstance(observed_sfs_list, ObservedSfsList):
+        observed_sfs_list = ObservedSfsList(observed_sfs_list, demo.sampled_n)
 
-    # counts_ij is a matrix whose [i,j]th entry is the count of config j at locus i
-    counts_ij = np.zeros((len(sfs_list), len(config_list)))
-    for i,sfs in enumerate(sfs_list):
-        for j,config in enumerate(config_list):
-            try:
-                counts_ij[i,j] = sfs[config]
-            except KeyError:
-                pass
+    config_list = observed_sfs_list._config_list(folded)
+    # get the expected counts for each config
+    sfs_probs = np.maximum(expected_sfs(demo, config_list, normalized=True, folded=folded, **kwargs),
+                           truncate_probs)
+    
+    counts_ij = observed_sfs_list._counts_ij(folded)
     # counts_i is the total number of SNPs at each locus
     counts_i = np.einsum('ij->i',counts_ij)
-
-    # get the expected counts for each config
-    E_counts = expected_sfs(demo, config_list, folded=folded, **kwargs)
-    E_total = expected_total_branch_len(demo, **kwargs)
-
-    sfs_probs = np.maximum(E_counts / E_total, truncate_probs)
-       
+    
     # a function to return the log factorial
     lnfact = lambda x: scipy.special.gammaln(x+1)
 
@@ -129,13 +120,14 @@ def unlinked_log_lik_vector(sfs_list, demo, mut_rate, truncate_probs = 0.0, fold
     log_lik = np.dot(counts_ij, np.log(sfs_probs)) - np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
+        E_total = expected_total_branch_len(demo, **kwargs)        
         lambd = mut_rate * E_total
         log_lik = log_lik - lambd + counts_i * np.log(lambd) - lnfact(counts_i)
 
     return log_lik
 
 
-def unlinked_mle_search(sfs, demo_func, mut_rate, start_params,
+def unlinked_mle_search(observed_sfs, demo_func, mut_rate, start_params,
                         folded = False,
                         jac = True, hess = False, hessp = False,
                         method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
@@ -152,7 +144,7 @@ def unlinked_mle_search(sfs, demo_func, mut_rate, start_params,
 
     Parameters
     ----------
-    sfs : dict
+    observed_sfs : dict, or ObservedSfs
         maps configs (tuples) to their observed counts (ints or floats)
         See unlinked_log_likelihood for details
     demo_func : function
@@ -230,9 +222,13 @@ def unlinked_mle_search(sfs, demo_func, mut_rate, start_params,
     old_demo_func = demo_func
     demo_func = lambda x: old_demo_func(*x)
     start_params = np.array(start_params)
-    
+
     mut_rate = make_function(mut_rate)
-    f = lambda params: -unlinked_log_likelihood(sfs, demo_func(params), mut_rate(params), truncate_probs = truncate_probs, folded=folded, **sfs_kwargs)
+
+    # wrap it in ObservedSfs to avoid repeating computation
+    if not isinstance(observed_sfs, ObservedSfs):
+        observed_sfs = ObservedSfs(observed_sfs, demo_func(start_params).sampled_n)
+    f = lambda params: -unlinked_log_likelihood(observed_sfs, demo_func(params), mut_rate(params), truncate_probs = truncate_probs, folded=folded, **sfs_kwargs)
 
     if output_progress is True:
         # print the Demography after every iteration
@@ -249,7 +245,7 @@ def unlinked_mle_search(sfs, demo_func, mut_rate, start_params,
     
     return optimize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
 
-def unlinked_mle_approx_cov(params, sfs_list, demo_func, mut_rate_per_locus, **kwargs):
+def unlinked_mle_approx_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus, **kwargs):
     """
     Approximate covariance matrix for the composite MLE, i.e. the scaled
     inverse 'Godambe Information'.
@@ -260,7 +256,7 @@ def unlinked_mle_approx_cov(params, sfs_list, demo_func, mut_rate_per_locus, **k
          The true parameters, or a consistent estimate thereof (e.g.,
          the composite MLE).
          len(params) should equal number of arguments that demo_func takes
-    sfs_list : list of dicts
+    observed_sfs_list : list of dicts, or ObservedSfsList
          The i-th entry is the SFS of the i-th locus.
          The loci are assumed to be i.i.d. 
          See Notes for violations of this assumption.
@@ -307,7 +303,7 @@ def unlinked_mle_approx_cov(params, sfs_list, demo_func, mut_rate_per_locus, **k
 
     mut_rate_per_locus = make_function(mut_rate_per_locus)
         
-    f_vec = lambda x: unlinked_log_lik_vector(sfs_list, demo_func(x), mut_rate_per_locus(x), **kwargs)
+    f_vec = lambda x: unlinked_log_lik_vector(observed_sfs_list, demo_func(x), mut_rate_per_locus(x), **kwargs)
     # the sum of f_vec
     f_sum = lambda x: np.sum(f_vec(x))
 
@@ -334,6 +330,7 @@ def cmle_long_cov(params, chromosome_list, demo_func, **kwargs):
     """
     Composite MLE covariance, for a few long loci (rather than many short loci)
     """
+    ## TODO: Clean this up. create ChromosomeList data structure?
     if "mut_rate" in kwargs:
         raise NotImplementedError("Currently only implemented for multinomial composite likelihood")    
     params = np.array(params)

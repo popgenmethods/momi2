@@ -22,8 +22,8 @@ demo_funcs = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_dem
 
 @pytest.mark.parametrize("k,folded",
                          ((fname, bool(b))
-                          for fname,b in zip(demo_funcs.keys(),
-                                             np.random.choice([True,False],len(demo_funcs)))))
+                          for fname,b in itertools.product(demo_funcs.keys(),
+                                                           [True,False])))
 def test_sfs_counts(k,folded):
     """Test to make sure converting momi demography to ms cmd works"""
     check_sfs_counts(demo=demo_funcs[k]().rescaled(), folded=folded)

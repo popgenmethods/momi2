@@ -3,7 +3,8 @@ import warnings
 import autograd.numpy as np
 import scipy
 from .util import memoize_instance, memoize, make_constant, set0, reversed_configs
-from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs
+from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs, _apply_error_matrices
+from .data_structure import ConfigList
 from autograd.core import primitive
 from autograd import hessian
 
@@ -17,7 +18,7 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
     Parameters
     ----------
     demography : Demography
-    config_list : list of tuples
+    config_list : list of tuples, or ConfigList
          list of the configs to compute the SFS entries for.
          If there are D sampled populations, then each config is
          represented by a D-tuple (i_1,i_2,...,i_D), where i_j is the
@@ -37,14 +38,13 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
     sfs : 1d numpy.ndarray
          sfs[j] is the SFS entry corresponding to config_list[j]
 
+
     Other Parameters
     ----------------
     error_matrices : optional, sequence of 2-dimensional numpy.ndarray
          length-D sequence, where D = number of demes in demography.
          error_matrices[i] describes the sampling error in deme i as:
-
          error_matrices[i][j,k] = P(observe j mutants in deme i | k mutants in deme i)
-
          If error_matrices is not None, then the returned value is adjusted
          to account for this sampling error, in particular the effect it
          has on the total number of observed mutations.
@@ -54,38 +54,23 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
     expected_total_branch_len : sum of all expected SFS entries
     expected_sfs_tensor_prod : compute summary statistics of SFS
     """
-    if folded:
-        rev_configs,symm = reversed_configs(config_list, demography.sampled_n, return_is_symmetric=True)
-        ret = expected_sfs(demography,
-                           list(config_list) + list(rev_configs),
-                           normalized=normalized, error_matrices=error_matrices,
-                           folded=False)
-        ret = ret[:len(config_list)] + ret[len(config_list):]
-        ret = ret / (np.array(symm) + 1.0) # symmetric configs need to be divided by 2
-        return ret
+    if not isinstance(config_list, ConfigList):
+        config_list = ConfigList(np.array(config_list, ndmin=2), demography.sampled_n)
         
-    data = np.array(config_list, ndmin=2)
-    if data.ndim != 2 or data.shape[1] != len(demography.sampled_pops):
-        raise IOError("Invalid config_list.")
+    if config_list.sampled_n != demography.sampled_n:
+        raise Exception("config_list.sampled_n must equal demography.sampled_n")
 
-    # the likelihoods at the leaf populations
-    leaf_liks = [np.zeros((data.shape[0], n+1))
-                 for n in demography.sampled_n]
-    for i in range(len(leaf_liks)):
-        leaf_liks[i][list(zip(*enumerate(data[:,i])))] = 1.0 # likelihoods for config_list
+    def operator(vecs):
+        if error_matrices is not None:
+            vecs = _apply_error_matrices(vecs, error_matrices)
+        return expected_sfs_tensor_prod(vecs, demography, mut_rate=mut_rate)
     
-    if error_matrices is not None:
-        leaf_liks = _apply_error_matrices(leaf_liks, error_matrices)
-        
-    sfs = expected_sfs_tensor_prod(leaf_liks, demography)
+    sfs = config_list._apply_to_vecs(operator,
+                                     normalized=normalized, folded=folded)
     assert np.all(np.logical_or(sfs >= 0.0, np.isclose(sfs, 0.0)))
-    if normalized:
-        sfs = sfs / expected_total_branch_len(demography, error_matrices=error_matrices)
-    else:
-        sfs = sfs * mut_rate
     return sfs
 
-def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
+def expected_total_branch_len(demography, error_matrices=None):
     """
     The expected total branch length of the sample genealogy.
     Equivalently, the expected number of observed mutations when 
@@ -105,20 +90,10 @@ def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
     error_matrices : optional, sequence of 2-dimensional numpy.ndarray
          length-D sequence, where D = number of demes in demography.
          error_matrices[i] describes the sampling error in deme i as:
-
          error_matrices[i][j,k] = P(observe j mutants in deme i | k mutants in deme i)
-
          If error_matrices is not None, then the returned value is adjusted
          to account for this sampling error, in particular the effect it
          has on the total number of observed mutations.
-    min_freqs : optional, int or sequence of ints
-         It is sometimes desirable to only consider SNPs with minor allele
-         reaching a certain minimum frequency.
-         min_freqs corrects the returned value to only consider configs with
-         an allele reaching the minimum frequency within at least one deme.
-         min_freqs should either be a positive integer giving this minimum
-         frequency, or a sequence giving deme-specific minimum frequencies
-         for each deme.
 
     See Also
     --------
@@ -127,32 +102,21 @@ def expected_total_branch_len(demography, error_matrices=None, min_freqs=1):
     expected_sfs_tensor_prod : compute general class of summary statistics
     """
     vecs = [np.ones(n+1) for n in demography.sampled_n]
-
-    if error_matrices is not None:
-        vecs = _apply_error_matrices(vecs, error_matrices)
-
     total = np.squeeze(expected_sfs_tensor_prod(vecs, demography))
-    ## return in the simple case, without errors or minimum frequencies
-    if np.all(min_freqs == 1) and error_matrices is None:
+    ## return in the simple case, without errors
+    if error_matrices is None:
         return total
     
     ## for more complicated case, need to subtract off branch_len not to be considered
-    ## either because of min_freqs, or because error_matrices has made some actually polymorphic sites appear to be monomorphic
-    n_leaf_lins = np.array(demography.sampled_n)
-    min_freqs = np.array(min_freqs) * np.ones(len(demography.sampled_pops), dtype='i')
-    max_freqs = n_leaf_lins - min_freqs
-    if np.any(min_freqs < 1) or np.any(min_freqs > n_leaf_lins):
-        raise Exception("Minimum frequencies must be in (0,num_lins] for each leaf pop")
-
-    vecs = [np.array([[1.0] * deme_min + [0.0] * (deme_n+1 - deme_min),
-                      [0.0] * (deme_max+1) + [1.0] * (deme_n - deme_max)])
-            for deme_n, deme_min, deme_max in [(n_leaf_lins[i], min_freqs[i], max_freqs[i])
-                                               for i in range(len(demography.sampled_pops))]]
+    ## because error_matrices has made some actually polymorphic sites appear to be monomorphic
+    vecs = [np.array([[1.0]  + [0.0] * deme_n,
+                      [0.0] * deme_n + [1.0]])
+            for deme_n in demography.sampled_n]
 
     if error_matrices is not None:
         vecs = _apply_error_matrices(vecs, error_matrices)
 
-    return total - np.sum(expected_sfs_tensor_prod(vecs, demography))
+    return total - np.sum(expected_sfs_tensor_prod(vecs, demography))    
 
 def expected_tmrca(demography):
     """
@@ -471,9 +435,3 @@ def _disjoint_children_liks(leaf_states, demo, event):
         sfs = sfs + freq * np.squeeze(other_lik[[slice(None)] + [0] * (other_lik.ndim-1)])
 
     return (sfs, child_pops, child_axes, child_liks)
-    
-def _apply_error_matrices(vecs, error_matrices):
-    if not all([np.allclose(np.sum(err, axis=0), 1.0) for err in error_matrices]):
-        raise Exception("Columns of error matrix should sum to 1")
-    
-    return [np.dot(v, err) for v,err in zip(vecs, error_matrices)]

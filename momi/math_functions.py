@@ -174,3 +174,9 @@ def log_wishart_pdf(X,V,n,p):
     # correct up to constant of proportionality
     return (n-p-1)/2 * slogdet_pos(X) - n/2 * slogdet_pos(V) - 0.5 * np.trace(np.dot(np.linalg.inv(V), X))
 
+
+def _apply_error_matrices(vecs, error_matrices):
+    if not all([np.allclose(np.sum(err, axis=0), 1.0) for err in error_matrices]):
+        raise Exception("Columns of error matrix should sum to 1")
+    
+    return [np.dot(v, err) for v,err in zip(vecs, error_matrices)]
