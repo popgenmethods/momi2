@@ -55,7 +55,7 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
     expected_sfs_tensor_prod : compute summary statistics of SFS
     """
     if not isinstance(config_list, ConfigList):
-        config_list = ConfigList(np.array(config_list, ndmin=2), demography.sampled_n)
+        config_list = ConfigList(config_list, demography.sampled_n)
         
     if config_list.sampled_n != demography.sampled_n:
         raise Exception("config_list.sampled_n must equal demography.sampled_n")

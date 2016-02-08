@@ -13,8 +13,10 @@ class ConfigList(object):
     otherwise expected_sfs() will create one each time it is called.
     """
     def __init__(self, configs, sampled_n):
-        self.configs = [tuple(c) for c in configs]
         self.sampled_n = sampled_n
+        
+        configs = np.array(configs, ndmin=2)
+        self.configs = [tuple(c) for c in configs]       
         
     def __len__(self):
         return len(self.configs)
@@ -29,31 +31,22 @@ class ConfigList(object):
     def _apply_to_vecs(self, f, folded=False, normalized=False):
         vecs = self.get_vecs(folded=folded)           
         vals = f(vecs['vecs'])
-        def corrected_vals(idxs):
-            # the values at idx, with correction coeffs for monomorphic sites subtracted off
-            # (needs to be done in case of subsamples, or error matrices)
-            corr_coeffs = [1.,1.]
-            ret = 0.0
-            for i,corr_idxs in enumerate(vecs["corrections_2_row"]):
-                for j,v in enumerate(vecs['vecs']):
-                    corr_coeffs[i] = corr_coeffs[i] * np.einsum("ij,ij->i",
-                                                                v[idxs,:],
-                                                                v[corr_idxs,:])
-                ret = ret - corr_coeffs[i] * vals[corr_idxs]
-            return vals[idxs] + ret
-        ret = corrected_vals(vecs['idx_2_row'])
+        ret = vals[vecs['idx_2_row']]
         if folded:
-            ret = ret + corrected_vals(vecs['folded_2_row'])
+            ret = ret + vals[vecs['folded_2_row']]
         if normalized:
-            ret = ret / corrected_vals(vecs['denom_2_row'])
+            denom = vals[vecs['denom_2_row']]
+            for i,corr_idxs in enumerate(vecs["corrections_2_denom"]):
+                denom = denom - vals[corr_idxs]
+            ret = ret / denom
         return ret
     
     @memoize_instance
-    def get_vecs(self, folded=False):
+    def get_vecs(self, folded=False):        
         # get row indices for each config
         n_rows = 0
         config_2_row = {} # maps config -> row in vecs
-        for config in self.configs:
+        for config in set(self.configs):
             config_2_row[config] = n_rows
             n_rows += 1
         idx_2_row = np.array([config_2_row[c] for c in self.configs],
@@ -62,18 +55,18 @@ class ConfigList(object):
         # get row indices for each denominator
         sample_sizes = [tuple(self.sampled_n) for _ in self.configs]
         ssize_2_row = {}
-        ssize_2_corr_row = [{}, {}] # corrections for monomorphic sites (all ancestral & all derived)
+        ssize_2_corrections = [{}, {}] # corrections for monomorphic sites (all ancestral & all derived)
         for s in set(sample_sizes):
             ssize_2_row[s] = n_rows
             n_rows += 1
             # add rows for correction terms
-            for corr_row in ssize_2_corr_row:
+            for corr_row in ssize_2_corrections:
                 corr_row[s] = n_rows
                 n_rows += 1
         denom_2_row = np.array([ssize_2_row[s] for s in sample_sizes],
                                dtype = int)
-        corrections_2_row = [np.array([corr_row[s] for s in sample_sizes], dtype=int)
-                             for corr_row in ssize_2_corr_row]
+        corrections_2_denom = [np.array([corr_row[s] for s in sample_sizes], dtype=int)
+                               for corr_row in ssize_2_corrections]
         
         # get row indices for folded configs
         if folded:
@@ -93,8 +86,12 @@ class ConfigList(object):
         vecs = [np.zeros((n_rows, n+1)) for n in self.sampled_n]
         
         # construct rows for each config
+        def is_monomorphic(c):
+            c = np.array(c, dtype=int)
+            return np.all(c == 0) or np.all(c == self.sampled_n)
         for i in range(len(vecs)):
-            rows, derived = zip(*[(row,c[i]) for c,row in config_2_row.items()])
+            rows, derived = zip(*[(row,c[i]) for c,row in config_2_row.items()
+                                  if not is_monomorphic(c)])
             vecs[i][rows, derived] = 1.0
         
         # construct rows for each sample size
@@ -108,7 +105,7 @@ class ConfigList(object):
             vecs[i][rows,:] = denom_vecs
 
             # correction rows
-            for j,corr_row in enumerate(ssize_2_corr_row):
+            for j,corr_row in enumerate(ssize_2_corrections):
                 def get_correction_vec(ssize):
                     if ssize != tuple(self.sampled_n):
                         ## TODO: implement this
@@ -119,7 +116,7 @@ class ConfigList(object):
                 rows, corr_vecs = zip(*[(row, get_correction_vec(s)) for s,row in corr_row.items()])
                 vecs[i][rows,:] = corr_vecs
             
-        ret = {'vecs': vecs, 'denom_2_row': denom_2_row, 'idx_2_row': idx_2_row, 'corrections_2_row': corrections_2_row}
+        ret = {'vecs': vecs, 'denom_2_row': denom_2_row, 'idx_2_row': idx_2_row, 'corrections_2_denom': corrections_2_denom}
         try:
             ret['folded_2_row'] = folded_2_row
         except UnboundLocalError:
