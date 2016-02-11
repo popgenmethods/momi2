@@ -14,6 +14,10 @@ def simple_two_pop_demo(x=np.random.normal(size=4), n_lins=(5,6)):
     return Demography([('-en',0.,1,x[1]), ('-en',0.,0,x[2]), ('-ej',x[0],0,1), ('-en',x[0],1,x[3])],
                       sampled_pops = (1,0), sampled_n = n_lins, default_N = 1e4)
 
+def simple_three_pop_demo(t0, t1):
+    return Demography([('-ej', t0, 1, 2), ('-ej', t0+t1, 2, 3)],
+                      (1,2,3), (1,1,1))
+
 
 def piecewise_constant_demo(x = np.random.normal(size=15), n_lins = (10,)):
     assert x.shape[0] % 2 == 1

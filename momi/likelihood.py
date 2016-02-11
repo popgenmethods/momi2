@@ -249,9 +249,9 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
     
     return optimize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
 
-def composite_mle_approx_cov(params, seg_sites, demo_func,
+def composite_mle_approx_cov(method, params, seg_sites, demo_func,
                              mut_rate_per_locus=None,
-                             method="iid", **kwargs):
+                             **kwargs):
     """
     Approximate covariance matrix for the composite MLE, i.e. the scaled
     inverse 'Godambe Information'.
@@ -262,6 +262,17 @@ def composite_mle_approx_cov(params, seg_sites, demo_func,
 
     Parameters
     ----------
+    method : str
+         The method to compute covariance. Current options are:
+         'iid' :  Estimate covariance by treating the loci as iid.
+                  Appropriate when there are many loci, roughly identically distributed.
+                  Not appropriate for just a few loci.
+         'series' : Estimates the covariance by treating the
+                    segregating sites as a time series.
+
+                    Appropriate for a few long loci (i.e. chromosomes).
+                    Not appropriate for short loci.
+                    Only implemented for multinomial likelihood (mut_rate=None)
     params : list
          The true parameters, or a consistent estimate thereof (e.g.,
          the composite MLE).
@@ -280,17 +291,6 @@ def composite_mle_approx_cov(params, seg_sites, demo_func,
          to the mutation rates, or None (the default).
          If a function, must work with autograd.
          If method='series' (the default), must be None.
-    method : str, optional
-         The method to compute covariance. Current options are:
-         'iid' :  Estimate covariance by treating the loci as iid.
-                  Appropriate when there are many loci, roughly identically distributed.
-                  Not appropriate for just a few loci.
-         'series' : Estimates the covariance by treating the
-                    segregating sites as a time series.
-
-                    Appropriate for a few long loci (i.e. chromosomes).
-                    Not appropriate for short loci.
-                    Only implemented for multinomial likelihood (mut_rate=None)
     **kwargs: additional arguments for composite_log_lik_vector()
 
     Returns
@@ -355,8 +355,8 @@ def _series_cov(params, seg_sites, demo_func, **kwargs):
         raise NotImplementedError("Currently only implemented for multinomial composite likelihood")    
     params = np.array(params)
 
-    # sort the loci
-    seg_sites = [sorted(locus) for locus in seg_sites]
+    # sort the loci by position
+    seg_sites = [sorted(locus, key=lambda x:x[0]) for locus in seg_sites]
     # discard the positions
     seg_sites = [[config for position,config in locus] for locus in seg_sites]
     
