@@ -314,6 +314,8 @@ def composite_mle_approx_cov(params, seg_sites, demo_func,
     elif method == "iid":
         return _iid_cov(params, get_sfs_list(seg_sites), demo_func,
                         mut_rate_per_locus=mut_rate_per_locus, **kwargs)
+    else:
+        raise Exception("Unrecognized method")
     
 def _iid_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, **kwargs):    
     old_demo_func = demo_func
