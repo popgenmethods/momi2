@@ -1,5 +1,6 @@
 from __future__ import division
 import pytest
+import momi
 from momi import expected_sfs, expected_total_branch_len, sum_sfs_list, simulate_ms, sfs_list_from_ms
 
 from demo_utils import simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model, exp_growth_0_model
@@ -41,7 +42,9 @@ def test_generated_cases(m_name,v,v2):
 def compute_stats(demo, sampled_sfs):
     sampled_sfs = to_dict(sampled_sfs)
     agg_sfs = sum_sfs_list(sampled_sfs)
-    config_list = tuple(sorted(agg_sfs.keys()))
+    config_list = momi.util._configs_from_derived(tuple(sorted(agg_sfs.keys())),
+                                                  demo.sampled_n)
+       
     return expected_sfs(demo,config_list), expected_total_branch_len(demo)
 
 def from_dict(sampled_sfs):

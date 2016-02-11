@@ -3,6 +3,7 @@ import bisect
 import networkx as nx
 
 from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
+from .util import get_sfs_list, mylist
 from autograd.numpy import isnan, exp
 
 import random
@@ -33,15 +34,12 @@ def sfs_list_from_ms(ms_file):
     See Also
     --------
     simulate_ms : use ms to simulate from a Demography
-    snp_series_from_ms : return a time series of SNPs at each locus
+    seg_sites_from_ms : return a sequence of SNPs at each locus
     """
-    return [dict(Counter(series)) for series in snp_series_from_ms(ms_file)]
+    return get_sfs_list(seg_sites_from_ms(ms_file))
 
-def snp_series_from_ms(ms_file):
-    if ms_file.tell() != 0:
-        raise ValueError("ms_file pointer should be at beginning of file")
+def seg_sites_from_ms(ms_file, sampled_pops=None):
     lines = ms_file.readlines()
-    ms_file.seek(0) # reset file pointer to beginning of file
 
     if " -T " in lines[0]:
         ## TODO: implement this
@@ -71,8 +69,11 @@ def snp_series_from_ms(ms_file):
         for i in range(n_at_leaves[pop]):
             pops_by_lin.append(pop)
 
-    return [_snp_series_from_1_ms_sim(list(lines), len(n_at_leaves), pops_by_lin)
-            for i,lines in runs]
+    ret = [_snp_sequence_from_1_ms_sim(list(lines), n_at_leaves, pops_by_lin)
+           for i,lines in runs]
+    if sampled_pops is not None:
+        ret = mylist(ret, sampled_pops=tuple(sampled_pops))
+    return ret
 
 def simulate_ms(ms_path, demo, num_loci, mut_rate, seeds=None, additional_ms_params=""):
     """
@@ -276,7 +277,8 @@ def _convert_ms_cmd(cmd_list, params):
     cmd_list = [['d','1']] + cmd_list
     return cmd_list
 
-def _snp_series_from_1_ms_sim(lines, num_pops, pops_by_lin):
+def _snp_sequence_from_1_ms_sim(lines, n_at_leaves, pops_by_lin):
+    num_pops = len(n_at_leaves)
     ret = []
     n = len(pops_by_lin)
 
@@ -284,6 +286,7 @@ def _snp_series_from_1_ms_sim(lines, num_pops, pops_by_lin):
     nss = int(lines[1].split(":")[1])
     if nss == 0:
         return ret
+    positions = map(float, lines[2].split(":")[1].strip().split())
     # remove header
     lines = lines[3:]
     # remove trailing line if necessary
@@ -298,5 +301,5 @@ def _snp_series_from_1_ms_sim(lines, num_pops, pops_by_lin):
         for i, line in enumerate(lines):
             dd[pops_by_lin[i]] += int(line[column])
         assert sum(dd) > 0
-        ret += [tuple(dd)]
-    return ret
+        ret += [tuple([(n-d,d) for n,d in zip(n_at_leaves,dd)])]
+    return zip(positions,ret)

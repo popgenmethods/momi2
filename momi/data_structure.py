@@ -1,5 +1,5 @@
 
-from .util import reversed_configs, folded_sfs, memoize_instance
+from .util import memoize_instance, _hashable_config, folded_sfs
 import autograd.numpy as np
        
 
@@ -15,8 +15,10 @@ class ConfigList(object):
     def __init__(self, configs, sampled_n):
         self.sampled_n = sampled_n
         
-        configs = np.array(configs, ndmin=2)
-        self.configs = [tuple(c) for c in configs]       
+        self.config_array = np.array(configs, ndmin=3)
+        if self.config_array.shape[2] != 2 or self.config_array.shape[1] != len(sampled_n):
+            raise Exception("Incorrectly formatted configs")
+        self.configs = map(_hashable_config, self.config_array)
         
     def __len__(self):
         return len(self.configs)
@@ -42,9 +44,11 @@ class ConfigList(object):
         return ret
     
     @memoize_instance
-    def get_vecs(self, folded=False):        
+    def get_vecs(self, folded=False):       
         # get row indices for each config
         n_rows = 0
+        n_rows += 1 # initial row is a "zero" config
+        
         config_2_row = {} # maps config -> row in vecs
         for config in set(self.configs):
             config_2_row[config] = n_rows
@@ -53,7 +57,8 @@ class ConfigList(object):
                              dtype = int)
 
         # get row indices for each denominator
-        sample_sizes = [tuple(self.sampled_n) for _ in self.configs]
+        sample_sizes_array = np.sum(self.config_array, axis=2)
+        sample_sizes = [tuple(s) for s in sample_sizes_array]
         ssize_2_row = {}
         ssize_2_corrections = [{}, {}] # corrections for monomorphic sites (all ancestral & all derived)
         for s in set(sample_sizes):
@@ -70,30 +75,45 @@ class ConfigList(object):
         
         # get row indices for folded configs
         if folded:
-            rev_confs, is_symm = reversed_configs(self.configs, sample_sizes, True)
+            rev_confs = self.config_array[:,:,::-1]
+            is_symm = np.all(self.config_array == rev_confs, axis=(1,2))
+            rev_confs = map(_hashable_config, rev_confs)
             folded_2_row = []
             for rc,symm in zip(rev_confs, is_symm):
                 if symm:
-                    # map to 0 if symmetric
-                    rc = tuple([0]*len(self.sampled_n))
-                if rc not in config_2_row:
-                    config_2_row[rc] = n_rows
-                    n_rows += 1
-                folded_2_row += [config_2_row[rc]]
+                    # map to 0 if symmetric                    
+                    folded_2_row += [0]
+                else:
+                    if rc not in config_2_row:
+                        config_2_row[rc] = n_rows
+                        n_rows += 1
+                    folded_2_row += [config_2_row[rc]]
             folded_2_row = np.array(folded_2_row, dtype=int)
            
         # construct the vecs
         vecs = [np.zeros((n_rows, n+1)) for n in self.sampled_n]
         
         # construct rows for each config
-        def is_monomorphic(c):
-            c = np.array(c, dtype=int)
-            return np.all(c == 0) or np.all(c == self.sampled_n)
         for i in range(len(vecs)):
-            rows, derived = zip(*[(row,c[i]) for c,row in config_2_row.items()
-                                  if not is_monomorphic(c)])
+            configs, rows = zip(*config_2_row.items())
+            configs = np.array(configs, ndmin=3)
+            
+            if np.any(sample_sizes_array != self.sampled_n):
+                ## TODO: implement missing data
+                raise NotImplementedError("Not yet implemented missing data")
+            
+            ## remove monomorphic configs
+            ## (if there is missing data or error matrices,
+            ##  expected_sfs_tensor_prod will return nonzero SFS
+            ##  for monomorphic configs)
+            polymorphic = np.all(np.sum(configs, axis=1) != 0, axis=1)
+
+            configs = configs[polymorphic,:,:]
+            rows = np.array(rows, ndmin=1)[polymorphic]
+           
+            derived = configs[:,i,1]
             vecs[i][rows, derived] = 1.0
-        
+                
         # construct rows for each sample size
         for i,n in enumerate(self.sampled_n):
             def get_denom_vec(ssize):
@@ -125,13 +145,13 @@ class ConfigList(object):
 
 class ObservedSfs(object):
     """
-    Can be passed into likelihood.unlinked_log_likelihood(observed_sfs,...),
+    Can be passed into likelihood.composite_log_likelihood(observed_sfs,...),
     in lieu of a dict.
 
     Can be a little bit faster to do this if evaluating many times,
     as this will store some computations that would otherwise be repeated.
     
-    See also: likelihood.unlinked_log_likelihood(), ConfigList
+    See also: likelihood.composite_log_likelihood(), ConfigList
     """
     def __init__(self, observed_sfs, sampled_n):
         self._list = ObservedSfsList([observed_sfs], sampled_n)
@@ -140,13 +160,13 @@ class ObservedSfs(object):
     
 class ObservedSfsList(object):
     """
-    Can be passed into likelihood.unlinked_log_lik_vector(observed_sfs_list,...),
+    Can be passed into likelihood.composite_log_lik_vector(observed_sfs_list,...),
     in lieu of a list of dicts.
 
     Can be a little bit faster to do this if evaluating many times,
     as this will store some computations that would otherwise be repeated.
 
-    See also: likelihood.unlinked_log_lik_vector(), ConfigList
+    See also: likelihood.composite_log_lik_vector(), ConfigList
     """
     def __init__(self, observed_sfs_list, sampled_n):       
         # remove 0 entries
@@ -156,7 +176,8 @@ class ObservedSfsList(object):
     @memoize_instance
     def _sfs_list(self, folded):
         if folded:
-            return [folded_sfs(sfs, self.sampled_n) for sfs in self._list] # for correct combinatorial factors
+            # for correct combinatorial factors
+            return [folded_sfs(sfs) for sfs in self._list] # for correct combinatorial factors
         return self._list
     
     @memoize_instance

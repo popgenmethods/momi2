@@ -3,7 +3,7 @@ import os, random
 import autograd.numpy as np
 from autograd import grad
 
-from momi import Demography, simulate_ms, sfs_list_from_ms, sum_sfs_list, unlinked_mle_search
+from momi import Demography, simulate_ms, sfs_list_from_ms, sum_sfs_list, composite_mle_search
 import momi
 from test_ms import ms_path
 
@@ -22,13 +22,13 @@ def test_jointime_inference(folded):
     sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(ms_path, true_demo.rescaled(),
                                                     num_loci=num_runs, mut_rate=mu*true_demo.default_N)))
     if folded:
-        sfs = momi.util.folded_sfs(sfs, true_demo.sampled_n)
+        sfs = momi.util.folded_sfs(sfs)
     
     print(t0,t1)
     
     x0 = np.array([random.uniform(0,t1)])
-    #res = unlinked_mle_search(sfs, get_demo, mu * num_runs, x0, bounds=[(0,t1)], folded=folded)
-    res = unlinked_mle_search(sfs, get_demo, None, x0, bounds=[(0,t1)], folded=folded)
+    #res = composite_mle_search(sfs, get_demo, x0, mu * num_runs, bounds=[(0,t1)], folded=folded)
+    res = composite_mle_search(sfs, get_demo, x0, None, bounds=[(0,t1)], folded=folded)
     
     print res.jac
     assert abs(res.x - t0) / t0 < .05
@@ -46,9 +46,9 @@ def test_underflow_robustness(folded):
     sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(ms_path, true_demo.rescaled(),
                                                     num_loci=num_runs, mut_rate=mu*true_demo.default_N)))
     if folded:
-        sfs = momi.util.folded_sfs(sfs, true_demo.sampled_n)
+        sfs = momi.util.folded_sfs(sfs)
     
-    optimize_res = unlinked_mle_search(sfs, get_demo, mu * num_runs, np.array([np.log(0.1),np.log(100.0)]), hessp=True, method='newton-cg', folded=folded)
+    optimize_res = composite_mle_search(sfs, get_demo, np.array([np.log(0.1),np.log(100.0)]), mu * num_runs, hessp=True, method='newton-cg', folded=folded)
     print optimize_res
     
     inferred_x = optimize_res.x

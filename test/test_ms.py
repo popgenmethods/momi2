@@ -33,7 +33,7 @@ def check_sfs_counts(demo, theta=10.0, rho=10.0, num_loci=1000, folded=False):
     sfs_list = sfs_list_from_ms(simulate_ms(ms_path, demo, num_loci=num_loci, mut_rate=theta, additional_ms_params='-r %f %d' % (rho, num_loci)))
 
     if folded:
-        sfs_list = [momi.util.folded_sfs(sfs, demo.sampled_n) for sfs in sfs_list]
+        sfs_list = [momi.util.folded_sfs(sfs) for sfs in sfs_list]
         
     config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list],[])))
     

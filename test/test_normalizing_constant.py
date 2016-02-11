@@ -1,3 +1,4 @@
+import momi
 from momi import expected_sfs, expected_total_branch_len
 import random
 import itertools
@@ -12,9 +13,11 @@ def check_demo_normalization(demo, **kwargs):
     leaves = demo.sampled_pops
     ranges = [range(n+1) for n in demo.sampled_n]
 
-    config_list = [np.array(x,dtype=int) for x in itertools.product(*ranges)]
-    # config_list = [x for x in config_list
-    #                if not (np.all(x == 0) or np.all(x == demo.sampled_n))]
+    config_list = momi.util._configs_from_derived([np.array(x,dtype=int) for x in itertools.product(*ranges)],
+                                                  demo.sampled_n)
+    # config_list = np.array(config_list)
+    # polymorphic = np.all(np.sum(config_list, axis=1) != 0, axis=1)
+    # config_list = config_list[polymorphic,:,:]
 
     sfs = expected_sfs(demo, config_list, normalized=True, **kwargs)
     assert np.isclose(np.sum(sfs),1.0)

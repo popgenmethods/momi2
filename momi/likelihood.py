@@ -1,5 +1,5 @@
 
-from .util import make_constant, check_symmetric, make_function, optimize, _npstr, folded_sfs, truncate0
+from .util import make_constant, check_symmetric, make_function, optimize, _npstr, folded_sfs, truncate0, get_sfs_list
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2
@@ -8,7 +8,7 @@ from autograd import hessian
 from collections import Counter
 from .data_structure import ObservedSfs, ObservedSfsList
 
-def unlinked_log_likelihood(observed_sfs, demo, mut_rate, truncate_probs = 0.0, folded=False, **kwargs):
+def composite_log_likelihood(observed_sfs, demo, mut_rate=None, truncate_probs = 0.0, folded=False, **kwargs):
     """
     Compute the log likelihood for a collection of SNPs, assuming they are
     unlinked (independent). Calls expected_sfs to compute the individual SFS
@@ -24,7 +24,7 @@ def unlinked_log_likelihood(observed_sfs, demo, mut_rate, truncate_probs = 0.0, 
         number of derived mutants in deme j.
     demo : Demography
     mut_rate : float or None
-        The mutation rate. If None, the number of SNPs is assumed to be
+        The mutation rate. If None (as by default), the number of SNPs is assumed to be
         fixed and a multinomial distribution is used. Otherwise the number
         of SNPs is assumed to be Poisson with parameter mut_rate*E[branch_len]
     folded : optional, bool
@@ -50,18 +50,18 @@ def unlinked_log_likelihood(observed_sfs, demo, mut_rate, truncate_probs = 0.0, 
     See Also
     --------
     expected_sfs : compute SFS of individual entries
-    unlinked_log_lik_vector : efficiently compute log-likelihoods for each
+    composite_log_lik_vector : efficiently compute log-likelihoods for each
                               of several loci
     """
     if not isinstance(observed_sfs, ObservedSfs):
         observed_sfs = ObservedSfs(observed_sfs, demo.sampled_n)
-    return np.squeeze(unlinked_log_lik_vector(observed_sfs._sfs_list(), demo, mut_rate, truncate_probs = truncate_probs, folded=folded, **kwargs))
+    return np.squeeze(composite_log_lik_vector(observed_sfs._sfs_list(), demo, mut_rate, truncate_probs = truncate_probs, folded=folded, **kwargs))
 
 
-def unlinked_log_lik_vector(observed_sfs_list, demo, mut_rate, truncate_probs = 0.0, folded=False, **kwargs):
+def composite_log_lik_vector(observed_sfs_list, demo, mut_rate=None, truncate_probs = 0.0, folded=False, **kwargs):
     """
     Return a vector of log likelihoods for a collection of loci. Equivalent
-    to, but much more efficient than, calling unlinked_log_likelihood on
+    to, but much more efficient than, calling composite_log_likelihood on
     each locus separately.
 
     Parameters
@@ -71,7 +71,7 @@ def unlinked_log_lik_vector(observed_sfs_list, demo, mut_rate, truncate_probs = 
         mapping configs (tuples) to observed counts (floats or ints)
     demo : Demography
     mut_rate : float or numpy.ndarray or None
-        The mutation rate. If None, the number of SNPs is assumed to be
+        The mutation rate. If None (as by default), the number of SNPs is assumed to be
         fixed and a multinomial distribution is used. If a numpy.ndarray,
         the number of SNPs at locus i is assumed to be Poisson with
         parameter mut_rate[i]*E[branch_len]. If a float, the mutation rate at
@@ -99,7 +99,7 @@ def unlinked_log_lik_vector(observed_sfs_list, demo, mut_rate, truncate_probs = 
 
     See Also
     --------
-    unlinked_log_likelihood : likelihood for a single locus
+    composite_log_likelihood : likelihood for a single locus
     """
     if not isinstance(observed_sfs_list, ObservedSfsList):
         observed_sfs_list = ObservedSfsList(observed_sfs_list, demo.sampled_n)
@@ -120,6 +120,9 @@ def unlinked_log_lik_vector(observed_sfs_list, demo, mut_rate, truncate_probs = 
     log_lik = np.dot(counts_ij, np.log(sfs_probs)) - np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
+        sampled_n = np.sum(config_list.config_array, axis=2)
+        if np.any(sampled_n != demo.sampled_n):
+            raise NotImplementedError("Poisson model not implemented for missing data.")
         E_total = expected_total_branch_len(demo, **kwargs)        
         lambd = mut_rate * E_total
         log_lik = log_lik - lambd + counts_i * np.log(lambd) - lnfact(counts_i)
@@ -127,16 +130,17 @@ def unlinked_log_lik_vector(observed_sfs_list, demo, mut_rate, truncate_probs = 
     return log_lik
 
 
-def unlinked_mle_search(observed_sfs, demo_func, mut_rate, start_params,
-                        folded = False,
-                        jac = True, hess = False, hessp = False,
-                        method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
-                        output_progress = False,                        
-                        sfs_kwargs = {}, truncate_probs = 1e-100,
-                        **kwargs):
+def composite_mle_search(observed_sfs, demo_func, start_params,
+                         mut_rate = None,
+                         folded = False,
+                         jac = True, hess = False, hessp = False,
+                         method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
+                         output_progress = False,                        
+                         sfs_kwargs = {}, truncate_probs = 1e-100,
+                         **kwargs):
     """
-    Find the maximum of unlinked_log_likelihood(), by calling
-    scipy.optimize.minimize() on -1*unlinked_log_likelihood().
+    Find the maximum of composite_log_likelihood(), by calling
+    scipy.optimize.minimize() on -1*composite_log_likelihood().
 
     See http://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
     or help(scipy.optimize.minimize) for more details on these parameters:
@@ -146,24 +150,24 @@ def unlinked_mle_search(observed_sfs, demo_func, mut_rate, start_params,
     ----------
     observed_sfs : dict, or ObservedSfs
         maps configs (tuples) to their observed counts (ints or floats)
-        See unlinked_log_likelihood for details
+        See composite_log_likelihood for details
     demo_func : function
         function that returns a Demography
 
         if jac=True, demo_func should work with autograd;
         see examples/tutorial.py (Section 5 FOOTNOTE)
-    mut_rate : None or float or function
+    start_params : list
+        The starting point for the parameter search.
+        len(start_params) should equal the number of arguments of demo_func
+    mut_rate : None or float or function, optional
         The mutation rate, or a function that takes in the parameters
-        and returns the mutation rate. If None, uses a multinomial
+        and returns the mutation rate. If None (the default), uses a multinomial
         distribution; if a float, uses a Poisson random field. See
-        unlinked_log_likelihood for additional details.
+        composite_log_likelihood for additional details.
 
         if mut_rate is function and jac=True, mut_rate should work with autograd.
     folded : optional, bool
         if True, compute likelihoods for folded SFS
-    start_params : list
-        The starting point for the parameter search.
-        len(start_params) should equal the number of arguments of demo_func
     jac : bool, optional
         If True, use autograd to compute the gradient (jacobian)
     hess, hessp : bool, optional
@@ -195,13 +199,13 @@ def unlinked_mle_search(observed_sfs, demo_func, mut_rate, start_params,
          flag indicating if the optimizer exited successfully and message 
          which describes the cause of the termination.
 
-         Note function & derivative values are for -1*unlinked_log_likelihood(),
+         Note function & derivative values are for -1*composite_log_likelihood(),
          since that is the function minimized.
 
     Other Parameters
     ----------------
     sfs_kwargs : dict, optional
-        additional keyword arguments to pass to unlinked_log_likelihood
+        additional keyword arguments to pass to composite_log_likelihood
     truncate_probs : float, optional
         Replace log(sfs_probs) with log(max(sfs_probs, truncate_probs)),
         where sfs_probs are the normalized theoretical SFS entries.
@@ -212,8 +216,8 @@ def unlinked_mle_search(observed_sfs, demo_func, mut_rate, start_params,
 
     See Also
     --------
-    unlinked_log_likelihood : the objective that is optimized here
-    unlinked_mle_approx_cov : approximate covariance matrix of the
+    composite_log_likelihood : the objective that is optimized here
+    composite_mle_approx_cov : approximate covariance matrix of the
          composite MLE, used for constructing approximate confidence
          intervals.
     sum_sfs_list : combine SFS's of multiple loci into one SFS, before
@@ -228,7 +232,7 @@ def unlinked_mle_search(observed_sfs, demo_func, mut_rate, start_params,
     # wrap it in ObservedSfs to avoid repeating computation
     if not isinstance(observed_sfs, ObservedSfs):
         observed_sfs = ObservedSfs(observed_sfs, demo_func(start_params).sampled_n)
-    f = lambda params: -unlinked_log_likelihood(observed_sfs, demo_func(params), mut_rate(params), truncate_probs = truncate_probs, folded=folded, **sfs_kwargs)
+    f = lambda params: -composite_log_likelihood(observed_sfs, demo_func(params), mut_rate(params), truncate_probs = truncate_probs, folded=folded, **sfs_kwargs)
 
     if output_progress is True:
         # print the Demography after every iteration
@@ -245,10 +249,16 @@ def unlinked_mle_search(observed_sfs, demo_func, mut_rate, start_params,
     
     return optimize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
 
-def unlinked_mle_approx_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus, **kwargs):
+def composite_mle_approx_cov(params, seg_sites, demo_func,
+                             mut_rate_per_locus=None,
+                             method="iid", **kwargs):
     """
     Approximate covariance matrix for the composite MLE, i.e. the scaled
     inverse 'Godambe Information'.
+
+    Under certain regularity conditions (e.g. identifiability, consistency),
+    the composite MLE is asymptotically Gaussian, with covariance given
+    by this function.
 
     Parameters
     ----------
@@ -256,19 +266,32 @@ def unlinked_mle_approx_cov(params, observed_sfs_list, demo_func, mut_rate_per_l
          The true parameters, or a consistent estimate thereof (e.g.,
          the composite MLE).
          len(params) should equal number of arguments that demo_func takes
-    observed_sfs_list : list of dicts, or ObservedSfsList
-         The i-th entry is the SFS of the i-th locus.
-         The loci are assumed to be i.i.d. 
-         See Notes for violations of this assumption.
+    seg_sites : list of list of tuples, (as returned by momi.read_seg_sites).
+         The i-th entry are the segregating sites of the i-th locus.
+         Each segregating site is represented as a pair, (position, config).
+         Each locus should be independent.
+
+         If has attribute seg_sites.sampled_pops, it must equal demo.sampled_pops
     demo_func : function
          Function that maps parameter values to demographies.
          Must be differentiable by autograd.
-    mut_rate_per_locus : function or numpy.ndarray or float or None
+    mut_rate_per_locus : function or numpy.ndarray or float or None, optional
          The mutation rate at each locus, or a function mapping parameters
-         to the mutation rates, or None (if using multinomial instead of
-         Poisson).
+         to the mutation rates, or None (the default).
          If a function, must work with autograd.
-    **kwargs: additional arguments for unlinked_log_lik_vector()
+         If method='series' (the default), must be None.
+    method : str, optional
+         The method to compute covariance. Current options are:
+         'iid' :  Estimate covariance by treating the loci as iid.
+                  Appropriate when there are many loci, roughly identically distributed.
+                  Not appropriate for just a few loci.
+         'series' : Estimates the covariance by treating the
+                    segregating sites as a time series.
+
+                    Appropriate for a few long loci (i.e. chromosomes).
+                    Not appropriate for short loci.
+                    Only implemented for multinomial likelihood (mut_rate=None)
+    **kwargs: additional arguments for composite_log_lik_vector()
 
     Returns
     -------
@@ -277,33 +300,29 @@ def unlinked_mle_approx_cov(params, observed_sfs_list, demo_func, mut_rate_per_l
 
     See Also
     --------
-    unlinked_log_likelihood : the composite log likelihood function
-    unlinked_log_lik_vector : composite log likelihoods for each locus
-    unlinked_mle_search : search for the composite MLE
-    
-    Notes
-    -----
-    As n_loci -> infinity, and assuming certain regularity conditions
-    (e.g. identifiability), the composite MLE will be asymptotically
-    Gaussian with this covariance. This can be used to construct approximate
-    confidence intervals (see examples/tutorial.py, Section 6).
-
-    Computing the covariance requries certain expectations to be empirically
-    estimated, and thus it is necessary to have 'enough' i.i.d. loci to
-    ensure accuracy.
-
-    Mild violations of the i.i.d. assumption may be acceptable. For example,
-    if the mutation rates are of roughly the same magnitude for all loci,
-    then we can think of them as being drawn from the same hyperdistribution,
-    so that the loci are identically distributed.
+    composite_log_likelihood : the composite log likelihood function
+    composite_log_lik_vector : composite log likelihoods for each locus
+    composite_mle_search : search for the composite MLE    
     """
+    if hasattr(seg_sites, "sampled_pops"):
+        if seg_sites.sampled_pops != demo_func(*params).sampled_pops:
+            raise Exception("seg_sites.sampled_pops should equal demo.sampled_pops")
+    if method == "series":
+        if mut_rate_per_locus != None:
+            raise NotImplementedError("'series' covariance method not implemented for Poisson approximation")
+        return _series_cov(params, seg_sites, demo_func, **kwargs)
+    elif method == "iid":
+        return _iid_cov(params, get_sfs_list(seg_sites), demo_func,
+                        mut_rate_per_locus=mut_rate_per_locus, **kwargs)
+    
+def _iid_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, **kwargs):    
     old_demo_func = demo_func
     demo_func = lambda x: old_demo_func(*x)
     params = np.array(params)
 
     mut_rate_per_locus = make_function(mut_rate_per_locus)
         
-    f_vec = lambda x: unlinked_log_lik_vector(observed_sfs_list, demo_func(x), mut_rate_per_locus(x), **kwargs)
+    f_vec = lambda x: composite_log_lik_vector(observed_sfs_list, demo_func(x), mut_rate_per_locus(x), **kwargs)
     # the sum of f_vec
     f_sum = lambda x: np.sum(f_vec(x))
 
@@ -326,16 +345,20 @@ def unlinked_mle_approx_cov(params, observed_sfs_list, demo_func, mut_rate_per_l
     return check_symmetric(cov)
 
 
-def cmle_long_cov(params, chromosome_list, demo_func, **kwargs):
+def _series_cov(params, seg_sites, demo_func, **kwargs):
     """
     Composite MLE covariance, for a few long loci (rather than many short loci)
     """
-    ## TODO: Clean this up. create ChromosomeList data structure?
     if "mut_rate" in kwargs:
         raise NotImplementedError("Currently only implemented for multinomial composite likelihood")    
     params = np.array(params)
-   
-    uniq_snps, snp_counts = zip(*Counter(sum(chromosome_list, [])).items())
+
+    # sort the loci
+    seg_sites = [sorted(locus) for locus in seg_sites]
+    # discard the positions
+    seg_sites = [[config for position,config in locus] for locus in seg_sites]
+    
+    uniq_snps, snp_counts = zip(*Counter(sum(seg_sites, [])).items())
     snp_counts = np.array(snp_counts)
 
     snp_log_probs = lambda x: np.log(expected_sfs(demo_func(*x), uniq_snps, normalized=True, **kwargs))
@@ -345,7 +368,7 @@ def cmle_long_cov(params, chromosome_list, demo_func, **kwargs):
     
     uniq_snp_idxs = {snp: i for i,snp in enumerate(uniq_snps)}
     idx_series_list = [np.array([uniq_snp_idxs[snp] for snp in chrom], dtype=int)
-                       for chrom in chromosome_list]
+                       for chrom in seg_sites]
 
     # g_out = sum(autocov(einsum("ij,ik->ikj",jacobian(idx_series), jacobian(idx_series))))
     # computed in roundabout way, in case jacobian is slow for many snps

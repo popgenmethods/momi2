@@ -37,8 +37,15 @@ def sfs_tensor_prod(sfs, vecs):
          randomly sampled sfs.
     """
     res = 0.
-    for config,val in sfs.items():
-        for d,i in zip(vecs, config):
+    entries, counts = zip(*sfs.items())
+    entries = np.array(entries, ndmin=3)
+
+    sampled_n = np.array([v.shape[1]-1 for v in vecs], dtype=int)
+    if np.any(np.sum(entries, axis=2) != sampled_n):
+        raise NotImplementedError("SFS-tensor-product not implemented for missing data. Consider removing all entries with deficient sample size.")
+    
+    for config,val in zip(entries, counts):
+        for d,(_,i) in zip(vecs, config):
             val = val * d[:,i]
         res = res + val
     return res

@@ -5,6 +5,7 @@ from autograd import grad
 import networkx as nx
 import random
 from demo_utils import *
+import momi
 from momi import expected_sfs, expected_total_branch_len
 from numdifftools import Gradient, Hessian
 
@@ -60,7 +61,7 @@ def sfs_func(demo_func, n_lins, normalized=True):
             total_der += n_der
             #states[pop] = {'ancestral' : n_pop - n_der, 'derived' : n_der}
             states.append(n_der)
-    states = tuple(states)
+    states = momi.util._configs_from_derived(tuple(states), n_lins)
     print states
     
     def f(x):
