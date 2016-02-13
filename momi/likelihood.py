@@ -27,6 +27,8 @@ def composite_log_likelihood(observed_sfs, demo, mut_rate=None, truncate_probs =
         The mutation rate. If None (as by default), the number of SNPs is assumed to be
         fixed and a multinomial distribution is used. Otherwise the number
         of SNPs is assumed to be Poisson with parameter mut_rate*E[branch_len]
+
+        Note the Poisson model is not implemented for missing data.
     folded : optional, bool
         if True, compute likelihoods for folded SFS
 
@@ -76,6 +78,8 @@ def composite_log_lik_vector(observed_sfs_list, demo, mut_rate=None, truncate_pr
         the number of SNPs at locus i is assumed to be Poisson with
         parameter mut_rate[i]*E[branch_len]. If a float, the mutation rate at
         all loci are assumed to be equal.
+
+        Note the Poisson model is not implemented for missing data.
     folded : optional, bool
         if True, compute likelihoods for folded SFS
 
@@ -164,6 +168,7 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
         and returns the mutation rate. If None (the default), uses a multinomial
         distribution; if a float, uses a Poisson random field. See
         composite_log_likelihood for additional details.
+        Note the Poisson model is not implemented for missing data.
 
         if mut_rate is function and jac=True, mut_rate should work with autograd.
     folded : optional, bool

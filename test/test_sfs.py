@@ -30,7 +30,7 @@ def generate_sfs():
             m_name,params,sampled_sfs = k
 
             n_lin = MODELS[m_name]['nlins']
-            demo = MODELS[m_name]['demo'](np.array(params),n_lin)
+            demo = MODELS[m_name]['demo'](np.array(params),n_lin).rescaled()
             v2 = compute_stats(demo, sampled_sfs)
             yield m_name,v,v2
 
@@ -42,8 +42,7 @@ def test_generated_cases(m_name,v,v2):
 def compute_stats(demo, sampled_sfs):
     sampled_sfs = to_dict(sampled_sfs)
     agg_sfs = sum_sfs_list(sampled_sfs)
-    config_list = momi.util._configs_from_derived(tuple(sorted(agg_sfs.keys())),
-                                                  demo.sampled_n)
+    config_list = tuple(sorted(agg_sfs.keys()))
        
     return expected_sfs(demo,config_list), expected_total_branch_len(demo)
 
@@ -64,9 +63,9 @@ if __name__=="__main__":
             print "# GENERATING %s" % m_name
             for i in range(10):
                 x = np.random.normal(size=m_val['params'])
-                demo = m_val['demo'](x, m_val['nlins'])
+                demo = m_val['demo'](x, m_val['nlins']).rescaled()
                 
-                sampled_sfs = sfs_list_from_ms(simulate_ms(ms_path, demo, num_loci=100, mu_per_locus=1e-3))
+                sampled_sfs = sfs_list_from_ms(simulate_ms(ms_path, demo, num_loci=100, mut_rate=1.0))
                 sampled_sfs = from_dict(sampled_sfs)
                 results[(m_name, tuple(x), sampled_sfs)] = compute_stats(demo, sampled_sfs)
         pickle.dump(results, open(PICKLE, "wb"))

@@ -1,7 +1,8 @@
 
 from .util import memoize_instance, _hashable_config, folded_sfs
 import autograd.numpy as np
-       
+import scipy, scipy.misc
+from scipy.misc import comb
 
 class ConfigList(object):
     """
@@ -58,6 +59,10 @@ class ConfigList(object):
 
         # get row indices for each denominator
         sample_sizes_array = np.sum(self.config_array, axis=2)
+        if np.any(sample_sizes_array > self.sampled_n):
+            ## TODO: allow "supersamples" by integrating over all valid samples
+            raise Exception("Encountered larger than expected sample size")
+        
         sample_sizes = [tuple(s) for s in sample_sizes_array]
         ssize_2_row = {}
         ssize_2_corrections = [{}, {}] # corrections for monomorphic sites (all ancestral & all derived)
@@ -94,47 +99,42 @@ class ConfigList(object):
         vecs = [np.zeros((n_rows, n+1)) for n in self.sampled_n]
         
         # construct rows for each config
+        configs, rows = zip(*config_2_row.items())
+        configs = np.array(configs, ndmin=3)
+
+        ## remove monomorphic configs
+        ## (if there is missing data or error matrices,
+        ##  expected_sfs_tensor_prod will return nonzero SFS
+        ##  for monomorphic configs)
+        polymorphic = np.all(np.sum(configs, axis=1) != 0, axis=1)
+        configs = configs[polymorphic,:,:]
+
+        rows = np.array(rows, ndmin=1)[polymorphic]        
         for i in range(len(vecs)):
-            configs, rows = zip(*config_2_row.items())
-            configs = np.array(configs, ndmin=3)
-            
-            if np.any(sample_sizes_array != self.sampled_n):
-                ## TODO: implement missing data
-                raise NotImplementedError("Not yet implemented missing data")
-            
-            ## remove monomorphic configs
-            ## (if there is missing data or error matrices,
-            ##  expected_sfs_tensor_prod will return nonzero SFS
-            ##  for monomorphic configs)
-            polymorphic = np.all(np.sum(configs, axis=1) != 0, axis=1)
-
-            configs = configs[polymorphic,:,:]
-            rows = np.array(rows, ndmin=1)[polymorphic]
-           
-            derived = configs[:,i,1]
-            vecs[i][rows, derived] = 1.0
+            n = self.sampled_n[i]
+            derived = np.einsum("i,j->ji", np.ones(len(rows)), np.arange(n+1))
+            curr = comb(derived, configs[:,i,1]) * comb(n-derived, configs[:,i,0]) / comb(n, np.sum(configs[:,i,:], axis=1))
+            vecs[i][rows,:] = np.transpose(curr)
+            #derived = configs[:,i,1]
+            #vecs[i][rows, derived] = 1.0
                 
-        # construct rows for each sample size
+        # denominator rows for each sample size
+        rows = ssize_2_row.values()        
         for i,n in enumerate(self.sampled_n):
-            def get_denom_vec(ssize):
-                if ssize != tuple(self.sampled_n):
-                    ## TODO: implement this
-                    raise NotImplementedError("Not yet implemented missing data")
-                return np.ones(n+1)
-            rows, denom_vecs = zip(*[(row, get_denom_vec(s)) for s,row in ssize_2_row.items()])
-            vecs[i][rows,:] = denom_vecs
+            vecs[i][rows,:] = np.ones(n+1)
 
-            # correction rows
-            for j,corr_row in enumerate(ssize_2_corrections):
-                def get_correction_vec(ssize):
-                    if ssize != tuple(self.sampled_n):
-                        ## TODO: implement this
-                        raise NotImplementedError("Not yet implemented missing data")
-                    ret = np.zeros(n+1)
-                    ret[j*n] = 1.0
-                    return ret
-                rows, corr_vecs = zip(*[(row, get_correction_vec(s)) for s,row in corr_row.items()])
-                vecs[i][rows,:] = corr_vecs
+        # monomorphic correction rows
+        for j,corr_row in enumerate(ssize_2_corrections):
+            ssizes, rows = zip(*corr_row.items())
+            ssizes = np.array(ssizes, ndmin=2)
+            for i,n in enumerate(self.sampled_n):
+                # counts = ancestral (j=0) or derived (j=1) counts
+                counts = np.einsum("i,j->ji", np.ones(len(rows)), np.arange(n+1))
+                if j == 0:
+                    counts = n-counts
+                curr_deme_sizes = ssizes[:,i]
+                curr = comb(counts, curr_deme_sizes) / comb(n, curr_deme_sizes)
+                vecs[i][rows,:] = np.transpose(curr)
             
         ret = {'vecs': vecs, 'denom_2_row': denom_2_row, 'idx_2_row': idx_2_row, 'corrections_2_denom': corrections_2_denom}
         try:
