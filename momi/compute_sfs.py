@@ -62,7 +62,7 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
 
     def operator(vecs):
         if error_matrices is not None:
-            vecs = _apply_error_matrices(vecs, error_matrices)
+           vecs = _apply_error_matrices(vecs, error_matrices)
         return expected_sfs_tensor_prod(vecs, demography, mut_rate=mut_rate)
     
     sfs = config_list._apply_to_vecs(operator,
@@ -102,7 +102,9 @@ def expected_total_branch_len(demography, error_matrices=None):
     expected_sfs_tensor_prod : compute general class of summary statistics
     """
     vecs = [np.ones(n+1) for n in demography.sampled_n]
-    total = np.squeeze(expected_sfs_tensor_prod(vecs, demography))
+    # if error_matrices is not None:
+    #     vecs = _apply_error_matrices(vecs, error_matrices) # has no effect
+    total = np.squeeze(expected_sfs_tensor_prod(vecs, demography))       
     ## return in the simple case, without errors
     if error_matrices is None:
         return total

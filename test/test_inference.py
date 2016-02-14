@@ -7,20 +7,24 @@ from momi import Demography, simulate_ms, sfs_list_from_ms, sum_sfs_list, compos
 import momi
 from test_ms import ms_path
 
-@pytest.mark.parametrize("folded",(True,False))
-def test_jointime_inference(folded):
-    mu=1e-4
+@pytest.mark.parametrize("folded,add_n",
+                         ((f,n) for f in (True,False) for n in (0,3)))
+def test_jointime_inference(folded, add_n):
+    theta=.1
     t0=random.uniform(.25,2.5)
     t1= t0 + random.uniform(.5,5.0)
     num_runs = 10000
 
     def get_demo(join_time):
         return Demography([('-ej', join_time, 1, 2), ('-ej', t1, 2, 3)],
-                          (1,2,3), (1,1,1)).rescaled(1e4)
+                          (1,2,3), (5,5,5))
 
     true_demo = get_demo(t0)
+    true_demo = Demography(true_demo.events,
+                           true_demo.sampled_pops,
+                           np.array(true_demo.sampled_n) - add_n)
     sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(ms_path, true_demo.rescaled(),
-                                                    num_loci=num_runs, mut_rate=mu*true_demo.default_N)))
+                                                    num_loci=num_runs, mut_rate=theta)))
     if folded:
         sfs = momi.util.folded_sfs(sfs)
     

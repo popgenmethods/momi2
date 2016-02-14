@@ -10,7 +10,6 @@ import itertools
                          ((f,n) for f in (True,False) for n in ((2,3),(0,3))))
 def test_simple_admixture_subsampling(folded,n_lins):
     check_subsampling(simple_admixture_demo(),3,folded=folded)
-
     
 def check_subsampling(demo, add_n, **kwargs):
     leaves = demo.sampled_pops
@@ -23,9 +22,6 @@ def check_subsampling(demo, add_n, **kwargs):
     
     config_list = momi.util._configs_from_derived([np.array(x,dtype=int) for x in itertools.product(*ranges)],
                                                   demo.sampled_n)
-    # config_list = np.array(config_list)
-    # polymorphic = np.all(np.sum(config_list, axis=1) != 0, axis=1)
-    # config_list = config_list[polymorphic,:,:]
 
     sfs1 = expected_sfs(demo, config_list, normalized=True, **kwargs)
     sfs2 = expected_sfs(demo2, config_list, normalized=True, **kwargs)

@@ -3,6 +3,8 @@ from .util import memoize_instance, _hashable_config, folded_sfs
 import autograd.numpy as np
 import scipy, scipy.misc
 from scipy.misc import comb
+from .math_functions import _apply_error_matrices
+import warnings
 
 class ConfigList(object):
     """
@@ -32,23 +34,26 @@ class ConfigList(object):
         return self.configs[k]
 
     def _apply_to_vecs(self, f, folded=False, normalized=False):
-        vecs = self.get_vecs(folded=folded)           
+        vecs = dict(self._get_vecs(folded=folded))
         vals = f(vecs['vecs'])
         ret = vals[vecs['idx_2_row']]
         if folded:
             ret = ret + vals[vecs['folded_2_row']]
         if normalized:
-            denom = vals[vecs['denom_2_row']]
+            denom = vals[vecs['denom_idx']]
             for i,corr_idxs in enumerate(vecs["corrections_2_denom"]):
                 denom = denom - vals[corr_idxs]
             ret = ret / denom
         return ret
-    
+   
     @memoize_instance
-    def get_vecs(self, folded=False):       
+    def _get_vecs(self, folded=False):       
         # get row indices for each config
         n_rows = 0
         n_rows += 1 # initial row is a "zero" config
+
+        denom_idx = n_rows # next row is for the normalization constant
+        n_rows += 1
         
         config_2_row = {} # maps config -> row in vecs
         for config in set(self.configs):
@@ -57,24 +62,32 @@ class ConfigList(object):
         idx_2_row = np.array([config_2_row[c] for c in self.configs],
                              dtype = int)
 
+        ## remove monomorphic configs
+        ## (if there is missing data or error matrices,
+        ##  expected_sfs_tensor_prod will return nonzero SFS
+        ##  for monomorphic configs)
+        monomorphic = np.any(np.sum(self.configs, axis=1) == 0, axis=1)
+        idx_2_row[monomorphic] = 0
+        
         # get row indices for each denominator
         sample_sizes_array = np.sum(self.config_array, axis=2)
         if np.any(sample_sizes_array > self.sampled_n):
-            ## TODO: allow "supersamples" by integrating over all valid samples
-            raise Exception("Encountered larger than expected sample size")
+            raise Exception("There is a config that is larger than the specified sample size!")
         
         sample_sizes = [tuple(s) for s in sample_sizes_array]
         ssize_2_row = {}
         ssize_2_corrections = [{}, {}] # corrections for monomorphic sites (all ancestral & all derived)
         for s in set(sample_sizes):
-            ssize_2_row[s] = n_rows
-            n_rows += 1
-            # add rows for correction terms
-            for corr_row in ssize_2_corrections:
-                corr_row[s] = n_rows
-                n_rows += 1
-        denom_2_row = np.array([ssize_2_row[s] for s in sample_sizes],
-                               dtype = int)
+            ## add rows for monomorphic correction terms
+            for mono_allele in (0,1):
+                mono_config = np.array([s, [0]*len(s)], dtype=int, ndmin=2)
+                if mono_allele == 1:
+                    mono_config = mono_config[::-1,:]
+                mono_config = tuple(map(tuple, np.transpose(mono_config)))
+                if mono_config not in config_2_row:
+                    config_2_row[mono_config] = n_rows
+                    n_rows += 1
+                ssize_2_corrections[mono_allele][s] = config_2_row[mono_config]
         corrections_2_denom = [np.array([corr_row[s] for s in sample_sizes], dtype=int)
                                for corr_row in ssize_2_corrections]
         
@@ -94,54 +107,32 @@ class ConfigList(object):
                         n_rows += 1
                     folded_2_row += [config_2_row[rc]]
             folded_2_row = np.array(folded_2_row, dtype=int)
+            folded_2_row[monomorphic] = 0 ## dont use monomorphic configs
            
         # construct the vecs
         vecs = [np.zeros((n_rows, n+1)) for n in self.sampled_n]
         
         # construct rows for each config
         configs, rows = zip(*config_2_row.items())
+        rows = np.array(rows, ndmin=1)
         configs = np.array(configs, ndmin=3)
 
-        ## remove monomorphic configs
-        ## (if there is missing data or error matrices,
-        ##  expected_sfs_tensor_prod will return nonzero SFS
-        ##  for monomorphic configs)
-        polymorphic = np.all(np.sum(configs, axis=1) != 0, axis=1)
-        configs = configs[polymorphic,:,:]
-
-        rows = np.array(rows, ndmin=1)[polymorphic]        
         for i in range(len(vecs)):
             n = self.sampled_n[i]
             derived = np.einsum("i,j->ji", np.ones(len(rows)), np.arange(n+1))
             curr = comb(derived, configs[:,i,1]) * comb(n-derived, configs[:,i,0]) / comb(n, np.sum(configs[:,i,:], axis=1))
             vecs[i][rows,:] = np.transpose(curr)
-            #derived = configs[:,i,1]
-            #vecs[i][rows, derived] = 1.0
-                
-        # denominator rows for each sample size
-        rows = ssize_2_row.values()        
-        for i,n in enumerate(self.sampled_n):
-            vecs[i][rows,:] = np.ones(n+1)
 
-        # monomorphic correction rows
-        for j,corr_row in enumerate(ssize_2_corrections):
-            ssizes, rows = zip(*corr_row.items())
-            ssizes = np.array(ssizes, ndmin=2)
-            for i,n in enumerate(self.sampled_n):
-                # counts = ancestral (j=0) or derived (j=1) counts
-                counts = np.einsum("i,j->ji", np.ones(len(rows)), np.arange(n+1))
-                if j == 0:
-                    counts = n-counts
-                curr_deme_sizes = ssizes[:,i]
-                curr = comb(counts, curr_deme_sizes) / comb(n, curr_deme_sizes)
-                vecs[i][rows,:] = np.transpose(curr)
-            
-        ret = {'vecs': vecs, 'denom_2_row': denom_2_row, 'idx_2_row': idx_2_row, 'corrections_2_denom': corrections_2_denom}
+            # the normalization constant
+            vecs[i][denom_idx,:] = np.ones(n+1)
+        
+        ret = {'vecs': vecs, 'denom_idx': denom_idx, 'idx_2_row': idx_2_row, 'corrections_2_denom': corrections_2_denom}
         try:
             ret['folded_2_row'] = folded_2_row
         except UnboundLocalError:
             pass
-        return ret
+        ## return value is cached; for safety, return an immutable object
+        return tuple(ret.items())
 
 class ObservedSfs(object):
     """
