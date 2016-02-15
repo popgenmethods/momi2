@@ -18,6 +18,29 @@ def simple_three_pop_demo(t0, t1):
     return Demography([('-ej', t0, 1, 2), ('-ej', t0+t1, 2, 3)],
                       (1,2,3), (1,1,1))
 
+def simple_nea_admixture_demo(N_chb_bottom, N_chb_top, pulse_t, pulse_p, ej_chb, ej_yri):
+    ej_chb = pulse_t + ej_chb
+    ej_yri = ej_chb + ej_yri
+
+    # use autograd.numpy for math functions (e.g. logarithm)                                                          
+    # This will allow us to take derivatives later                                                                    
+    G_chb = -np.log(N_chb_top / N_chb_bottom) / ej_chb
+
+    events = [('-en', 0., 'chb', N_chb_bottom),
+              ('-eg', 0, 'chb' , G_chb),
+              ('-ep', pulse_t, 'chb', 'nea', pulse_p),
+              ('-ej', ej_chb, 'chb', 'yri'),
+              ('-ej', ej_yri, 'yri', 'nea'),
+              ]
+
+    return Demography(events, ('yri','chb'), (14,10))
+simple_nea_admixture_demo.bounds = [(.01, 100.),
+                                    (.01, 100.),
+                                    (.01,5.),
+                                    (.001,.25),
+                                    (.01,5.),
+                                    (.01,5.)]
+simple_nea_admixture_demo.true_params = [10., .1, .25, .03, .25, 1.]
 
 def piecewise_constant_demo(x = np.random.normal(size=15), n_lins = (10,)):
     assert x.shape[0] % 2 == 1

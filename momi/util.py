@@ -199,6 +199,14 @@ def check_symmetric(X):
     assert np.allclose(X, Xt)
     return 0.5 * (X + Xt)
 
+def check_psd(X):
+    X = check_symmetric(X)
+    d,U = np.linalg.eigh(X)
+    d = truncate0(d)
+    ret = np.dot(U, np.dot(np.diag(d), np.transpose(U)))
+    assert np.allclose(ret, X)
+    return np.array(ret, ndmin=2)
+
 def truncate0(x, axis=None, strict=False, tol=1e-13):
     '''make sure everything in x is non-negative'''
     # the maximum along axis

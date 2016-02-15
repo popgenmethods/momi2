@@ -1,8 +1,8 @@
 
-from .util import make_constant, check_symmetric, optimize, _npstr, folded_sfs, truncate0, get_sfs_list
+from .util import make_constant, optimize, _npstr, folded_sfs, truncate0, get_sfs_list, check_psd
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
-from .math_functions import einsum2, invh
+from .math_functions import einsum2, inv_psd
 import scipy
 from autograd import hessian
 from collections import Counter
@@ -250,6 +250,40 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
     return optimize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
 
 
+def log_lik_ratio_p(method, n_sims, unconstrained_mle, constrained_mle,
+                    constrained_params, seg_sites, demo_func,
+                    mut_rate_per_locus = None,
+                    **kwargs):
+    unconstrained_mle, constrained_mle, constrained_params = (np.array(x) for x in (unconstrained_mle,
+                                                                                    constrained_mle,
+                                                                                    constrained_params))
+    gsi = godambe_scaled_inv(method, unconstrained_mle, seg_sites, demo_func,
+                             mut_rate_per_locus, **kwargs)
+    gsi = gsi[constrained_params,:][:,constrained_params]
+    ## null distribution for the constrained params
+    null_sims = np.random.multivariate_normal(np.zeros(sum(constrained_params)), gsi,
+                                              size=n_sims)
+    assert null_sims.shape == (n_sims, sum(constrained_params))
+
+    ## null distribution of the likelihood ratio
+    observed_sfs_list = get_sfs_list(seg_sites)    
+    h = observed_fisher_information(unconstrained_mle, observed_sfs_list, demo_func, mut_rate_per_locus, **kwargs)
+    h = inv_psd(inv_psd(h)[constrained_params,:][:,constrained_params])
+
+    null_sims = np.einsum("ij,ji->i",
+                          null_sims,
+                          np.dot(h, np.transpose(null_sims)))
+    assert null_sims.shape == (n_sims,)
+    null_sims = truncate0(null_sims)  # check its positive
+
+    ## the log-likelihood ratio
+    ll = lambda x: np.sum(composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs))
+    llr = 2.*(ll(unconstrained_mle) - ll(constrained_mle))
+
+    ## the p-value
+    p = 1. - np.sum(llr > null_sims) / float(n_sims)
+    return p
+
 def godambe_scaled_inv(method, params, seg_sites, demo_func,
                        mut_rate_per_locus=None,
                        **kwargs):
@@ -312,17 +346,23 @@ def godambe_scaled_inv(method, params, seg_sites, demo_func,
     observed_sfs_list = get_sfs_list(seg_sites)
     
     h = observed_fisher_information(params, observed_sfs_list, demo_func, mut_rate_per_locus, **kwargs)
-    h_inv = invh(h)
+    h_inv = inv_psd(h)
     
     g_out = observed_score_covariance(method, params, seg_sites, demo_func,
                                       mut_rate_per_locus, **kwargs)
 
-    return check_symmetric(np.dot(h_inv, np.dot(g_out, h_inv)))
+    return check_psd(np.dot(h_inv, np.dot(g_out, h_inv)))
     
-def observed_fisher_information(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, **kwargs):
+def observed_fisher_information(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, assert_psd=True, **kwargs):
     params = np.array(params)
     f = lambda x: np.sum(composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs))
-    return -check_symmetric(hessian(f)(params))
+    ret = -hessian(f)(params)
+    if assert_psd:
+        try:
+            ret = check_psd(ret)
+        except AssertionError:
+            raise Exception("Observed Fisher Information is not PSD (either due to numerical instability, or because the parameters are not a local maxima in the interior)")
+    return ret
 
 def observed_score_covariance(method, params, seg_sites, demo_func,
                               mut_rate_per_locus=None,
@@ -330,13 +370,19 @@ def observed_score_covariance(method, params, seg_sites, demo_func,
     if method == "series":
         if mut_rate_per_locus != None:
             raise NotImplementedError("'series' godambe method not implemented for Poisson approximation")
-        return _series_score_cov(params, seg_sites, demo_func, **kwargs)
+        ret = _series_score_cov(params, seg_sites, demo_func, **kwargs)
     elif method == "iid":
-        return _iid_score_cov(params, get_sfs_list(seg_sites), demo_func,
+        ret = _iid_score_cov(params, get_sfs_list(seg_sites), demo_func,
                                mut_rate_per_locus=mut_rate_per_locus, **kwargs)
     else:
         raise Exception("Unrecognized method")
 
+    try:
+        ret = check_psd(ret)
+    except AssertionError:
+        raise Exception("Numerical instability: score covariance is not PSD")
+    return ret
+    
 def _iid_score_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, **kwargs):    
     params = np.array(params)
     #mut_rate_per_locus = make_function(mut_rate_per_locus)
@@ -349,7 +395,7 @@ def _iid_score_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus=None
         l = f_vec(x)
         lc = make_constant(l)
         return np.sum(0.5 * (l**2 - l*lc - lc*l))
-    return check_symmetric(hessian(_g_out_antihess)(params))
+    return hessian(_g_out_antihess)(params)
 
 
 def _series_score_cov(params, seg_sites, demo_func, **kwargs):
