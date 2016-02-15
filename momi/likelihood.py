@@ -1,8 +1,8 @@
 
-from .util import make_constant, check_symmetric, make_function, optimize, _npstr, folded_sfs, truncate0, get_sfs_list
+from .util import make_constant, check_symmetric, optimize, _npstr, folded_sfs, truncate0, get_sfs_list
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
-from .math_functions import einsum2
+from .math_functions import einsum2, invh
 import scipy
 from autograd import hessian
 from collections import Counter
@@ -163,14 +163,11 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
     start_params : list
         The starting point for the parameter search.
         len(start_params) should equal the number of arguments of demo_func
-    mut_rate : None or float or function, optional
-        The mutation rate, or a function that takes in the parameters
-        and returns the mutation rate. If None (the default), uses a multinomial
+    mut_rate : None or float, optional
+        The mutation rate. If None (the default), uses a multinomial
         distribution; if a float, uses a Poisson random field. See
         composite_log_likelihood for additional details.
         Note the Poisson model is not implemented for missing data.
-
-        if mut_rate is function and jac=True, mut_rate should work with autograd.
     folded : optional, bool
         if True, compute likelihoods for folded SFS
     jac : bool, optional
@@ -222,22 +219,20 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
     See Also
     --------
     composite_log_likelihood : the objective that is optimized here
-    composite_mle_approx_cov : approximate covariance matrix of the
+    godambe_scaled_inv : approximate covariance matrix of the
          composite MLE, used for constructing approximate confidence
          intervals.
     sum_sfs_list : combine SFS's of multiple loci into one SFS, before
          passing into this function
     """
-    old_demo_func = demo_func
-    demo_func = lambda x: old_demo_func(*x)
     start_params = np.array(start_params)
 
-    mut_rate = make_function(mut_rate)
+    #mut_rate = make_function(mut_rate)
 
     # wrap it in ObservedSfs to avoid repeating computation
     if not isinstance(observed_sfs, ObservedSfs):
-        observed_sfs = ObservedSfs(observed_sfs, demo_func(start_params).sampled_n)
-    f = lambda params: -composite_log_likelihood(observed_sfs, demo_func(params), mut_rate(params), truncate_probs = truncate_probs, folded=folded, **sfs_kwargs)
+        observed_sfs = ObservedSfs(observed_sfs, demo_func(*start_params).sampled_n)
+    f = lambda params: -composite_log_likelihood(observed_sfs, demo_func(*params), mut_rate, truncate_probs = truncate_probs, folded=folded, **sfs_kwargs)
 
     if output_progress is True:
         # print the Demography after every iteration
@@ -246,7 +241,7 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
         kwargs = dict(kwargs)
         callback0 = kwargs.get('callback', lambda x: None)
         def callback1(x):
-            print("demo_func(%s) = %s" % (_npstr(x), demo_func(x)))
+            print("demo_func(%s) = %s" % (_npstr(x), demo_func(*x)))
         def callback(x):
             callback1(x)            
             callback0(x)
@@ -254,12 +249,13 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
     
     return optimize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
 
-def composite_mle_approx_cov(method, params, seg_sites, demo_func,
-                             mut_rate_per_locus=None,
-                             **kwargs):
+
+def godambe_scaled_inv(method, params, seg_sites, demo_func,
+                       mut_rate_per_locus=None,
+                       **kwargs):
     """
     Approximate covariance matrix for the composite MLE, i.e. the scaled
-    inverse 'Godambe Information'.
+    inverse Godambe Information.
 
     Under certain regularity conditions (e.g. identifiability, consistency),
     the composite MLE is asymptotically Gaussian, with covariance given
@@ -308,32 +304,44 @@ def composite_mle_approx_cov(method, params, seg_sites, demo_func,
     composite_log_likelihood : the composite log likelihood function
     composite_log_lik_vector : composite log likelihoods for each locus
     composite_mle_search : search for the composite MLE    
-    """
+    """    
     if hasattr(seg_sites, "sampled_pops"):
         if seg_sites.sampled_pops != demo_func(*params).sampled_pops:
             raise Exception("seg_sites.sampled_pops should equal demo.sampled_pops")
+
+    observed_sfs_list = get_sfs_list(seg_sites)
+    
+    h = observed_fisher_information(params, observed_sfs_list, demo_func, mut_rate_per_locus, **kwargs)
+    h_inv = invh(h)
+    
+    g_out = observed_score_covariance(method, params, seg_sites, demo_func,
+                                      mut_rate_per_locus, **kwargs)
+
+    return check_symmetric(np.dot(h_inv, np.dot(g_out, h_inv)))
+    
+def observed_fisher_information(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, **kwargs):
+    params = np.array(params)
+    f = lambda x: np.sum(composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs))
+    return -check_symmetric(hessian(f)(params))
+
+def observed_score_covariance(method, params, seg_sites, demo_func,
+                              mut_rate_per_locus=None,
+                              **kwargs):
     if method == "series":
         if mut_rate_per_locus != None:
-            raise NotImplementedError("'series' covariance method not implemented for Poisson approximation")
-        return _series_cov(params, seg_sites, demo_func, **kwargs)
+            raise NotImplementedError("'series' godambe method not implemented for Poisson approximation")
+        return _series_score_cov(params, seg_sites, demo_func, **kwargs)
     elif method == "iid":
-        return _iid_cov(params, get_sfs_list(seg_sites), demo_func,
-                        mut_rate_per_locus=mut_rate_per_locus, **kwargs)
+        return _iid_score_cov(params, get_sfs_list(seg_sites), demo_func,
+                               mut_rate_per_locus=mut_rate_per_locus, **kwargs)
     else:
         raise Exception("Unrecognized method")
-    
-def _iid_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, **kwargs):    
-    old_demo_func = demo_func
-    demo_func = lambda x: old_demo_func(*x)
+
+def _iid_score_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, **kwargs):    
     params = np.array(params)
-
-    mut_rate_per_locus = make_function(mut_rate_per_locus)
+    #mut_rate_per_locus = make_function(mut_rate_per_locus)
         
-    f_vec = lambda x: composite_log_lik_vector(observed_sfs_list, demo_func(x), mut_rate_per_locus(x), **kwargs)
-    # the sum of f_vec
-    f_sum = lambda x: np.sum(f_vec(x))
-
-    h = hessian(f_sum)(params)
+    f_vec = lambda x: composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs)
     
     # g_out = einsum('ij,ik', jacobian(f_vec)(params), jacobian(f_vec)(params))
     # but computed in a roundabout way because jacobian implementation is slow
@@ -341,21 +349,10 @@ def _iid_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, **kw
         l = f_vec(x)
         lc = make_constant(l)
         return np.sum(0.5 * (l**2 - l*lc - lc*l))
-    g_out = hessian(_g_out_antihess)(params)
-    
-    h,g_out = (check_symmetric(_) for _ in (h,g_out))
-
-    h_inv = np.linalg.inv(h)
-    h_inv = check_symmetric(h_inv)
-
-    cov = np.dot(h_inv, np.dot(g_out,h_inv))
-    return check_symmetric(cov)
+    return check_symmetric(hessian(_g_out_antihess)(params))
 
 
-def _series_cov(params, seg_sites, demo_func, **kwargs):
-    """
-    Composite MLE covariance, for a few long loci (rather than many short loci)
-    """
+def _series_score_cov(params, seg_sites, demo_func, **kwargs):
     if "mut_rate" in kwargs:
         raise NotImplementedError("Currently only implemented for multinomial composite likelihood")    
     params = np.array(params)
@@ -369,10 +366,7 @@ def _series_cov(params, seg_sites, demo_func, **kwargs):
     snp_counts = np.array(snp_counts)
 
     snp_log_probs = lambda x: np.log(expected_sfs(demo_func(*x), uniq_snps, normalized=True, **kwargs))
-    
-    h = hessian(lambda x: np.sum(snp_counts * snp_log_probs(x)))(params)
-    h_inv = check_symmetric(np.linalg.inv(h))
-    
+       
     uniq_snp_idxs = {snp: i for i,snp in enumerate(uniq_snps)}
     idx_series_list = [np.array([uniq_snp_idxs[snp] for snp in chrom], dtype=int)
                        for chrom in seg_sites]
@@ -405,5 +399,4 @@ def _series_cov(params, seg_sites, demo_func, **kwargs):
         return ret
     g_out = hessian(g_out_antihess)(params)
     g_out = 0.5 * (g_out + np.transpose(g_out))
-    
-    return check_symmetric(np.dot(h_inv, np.dot(g_out, h_inv)))
+    return g_out

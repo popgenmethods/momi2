@@ -298,13 +298,13 @@ def smooth_pos_map(x):
     
     return (x < 0) * f1 + np.logical_and(x >= 0, x < 1) * f2 + (x >= 1) * f3
 
-def make_function(f):
-    def func(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except TypeError:
-            return f
-    return func
+# def make_function(f):
+#     def func(*args, **kwargs):
+#         try:
+#             return f(*args, **kwargs)
+#         except TypeError:
+#             return f
+#     return func
 
 def optimize(f, start_params,
              jac = True, hess = False, hessp = False,

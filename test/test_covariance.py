@@ -2,18 +2,21 @@ import pytest
 import os, random
 import autograd.numpy as np
 
-from momi import Demography, simulate_ms, composite_mle_approx_cov
+from momi import Demography, simulate_ms, godambe_scaled_inv
 import momi
+from momi.math_functions import invh
 from test_ms import ms_path
 
 from demo_utils import simple_three_pop_demo, simple_admixture_demo
+
+import scipy
 
 def check_cov(method, params, demo_func, num_runs, theta):
     true_demo = demo_func(*params)
     seg_sites = momi.seg_sites_from_ms(simulate_ms(ms_path, true_demo,
                                                    num_loci=num_runs, mut_rate=theta,
                                                    additional_ms_params="-r %f 1000" % theta))
-    composite_mle_approx_cov(method, params, seg_sites, demo_func)    
+    cov = godambe_scaled_inv(method, params, seg_sites, demo_func)
 
 
 def check_jointime_cov(method, num_runs, theta):

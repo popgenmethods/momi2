@@ -2,7 +2,7 @@
 import autograd.numpy as np
 from autograd.core import primitive
 import scipy
-from .util import memoize
+from .util import memoize, check_symmetric
 from .convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes, roll_trailing_axes, unroll_trailing_axes
 
 def einsum2(*args):
@@ -180,3 +180,11 @@ def _apply_error_matrices(vecs, error_matrices):
         raise Exception("Columns of error matrix should sum to 1")
     
     return [np.dot(v, err) for v,err in zip(vecs, error_matrices)]
+
+## inverse of symmetric square matrix
+@primitive
+def invh(x):
+    if not (len(x.shape) == 2 and x.shape[0] == x.shape[1] and np.allclose(x, np.transpose(x))):
+        raise Exception("x must be a square symmetric matrix")
+    return check_symmetric(scipy.linalg.pinvh(x))
+invh.defgrad(lambda ans, x: lambda g: -np.dot(np.dot(ans, g), ans))
