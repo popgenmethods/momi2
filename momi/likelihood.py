@@ -1,10 +1,10 @@
 
-from .util import make_constant, optimize, _npstr, folded_sfs, truncate0, get_sfs_list, check_psd
+from .util import make_constant, optimize, _npstr, folded_sfs, truncate0, get_sfs_list, check_psd, sum_sfs_list
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2, inv_psd
 import scipy
-from autograd import hessian
+import autograd
 from collections import Counter
 from .data_structure import ObservedSfs, ObservedSfsList
 
@@ -249,41 +249,6 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
     
     return optimize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
 
-
-def log_lik_ratio_p(method, n_sims, unconstrained_mle, constrained_mle,
-                    constrained_params, seg_sites, demo_func,
-                    mut_rate_per_locus = None,
-                    **kwargs):
-    unconstrained_mle, constrained_mle, constrained_params = (np.array(x) for x in (unconstrained_mle,
-                                                                                    constrained_mle,
-                                                                                    constrained_params))
-    gsi = godambe_scaled_inv(method, unconstrained_mle, seg_sites, demo_func,
-                             mut_rate_per_locus, **kwargs)
-    gsi = gsi[constrained_params,:][:,constrained_params]
-    ## null distribution for the constrained params
-    null_sims = np.random.multivariate_normal(np.zeros(sum(constrained_params)), gsi,
-                                              size=n_sims)
-    assert null_sims.shape == (n_sims, sum(constrained_params))
-
-    ## null distribution of the likelihood ratio
-    observed_sfs_list = get_sfs_list(seg_sites)    
-    h = observed_fisher_information(unconstrained_mle, observed_sfs_list, demo_func, mut_rate_per_locus, **kwargs)
-    h = inv_psd(inv_psd(h)[constrained_params,:][:,constrained_params])
-
-    null_sims = np.einsum("ij,ji->i",
-                          null_sims,
-                          np.dot(h, np.transpose(null_sims)))
-    assert null_sims.shape == (n_sims,)
-    null_sims = truncate0(null_sims)  # check its positive
-
-    ## the log-likelihood ratio
-    ll = lambda x: np.sum(composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs))
-    llr = 2.*(ll(unconstrained_mle) - ll(constrained_mle))
-
-    ## the p-value
-    p = 1. - np.sum(llr > null_sims) / float(n_sims)
-    return p
-
 def godambe_scaled_inv(method, params, seg_sites, demo_func,
                        mut_rate_per_locus=None,
                        **kwargs):
@@ -356,7 +321,7 @@ def godambe_scaled_inv(method, params, seg_sites, demo_func,
 def observed_fisher_information(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, assert_psd=True, **kwargs):
     params = np.array(params)
     f = lambda x: np.sum(composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs))
-    ret = -hessian(f)(params)
+    ret = -autograd.hessian(f)(params)
     if assert_psd:
         try:
             ret = check_psd(ret)
@@ -386,8 +351,12 @@ def observed_score_covariance(method, params, seg_sites, demo_func,
 def _iid_score_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, **kwargs):    
     params = np.array(params)
     #mut_rate_per_locus = make_function(mut_rate_per_locus)
-        
-    f_vec = lambda x: composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs)
+
+    #f_vec = lambda x: composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs)
+    def f_vec(x):
+        ret = composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs)
+        # normalize
+        return ret - np.mean(ret)
     
     # g_out = einsum('ij,ik', jacobian(f_vec)(params), jacobian(f_vec)(params))
     # but computed in a roundabout way because jacobian implementation is slow
@@ -395,7 +364,7 @@ def _iid_score_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus=None
         l = f_vec(x)
         lc = make_constant(l)
         return np.sum(0.5 * (l**2 - l*lc - lc*l))
-    return hessian(_g_out_antihess)(params)
+    return autograd.hessian(_g_out_antihess)(params)
 
 
 def _series_score_cov(params, seg_sites, demo_func, **kwargs):
@@ -410,8 +379,12 @@ def _series_score_cov(params, seg_sites, demo_func, **kwargs):
     
     uniq_snps, snp_counts = zip(*Counter(sum(seg_sites, [])).items())
     snp_counts = np.array(snp_counts)
-
-    snp_log_probs = lambda x: np.log(expected_sfs(demo_func(*x), uniq_snps, normalized=True, **kwargs))
+    weights = snp_counts / float(np.sum(snp_counts))
+    
+    #snp_log_probs = lambda x: np.log(expected_sfs(demo_func(*x), uniq_snps, normalized=True, **kwargs))
+    def snp_log_probs(x):
+        ret = np.log(expected_sfs(demo_func(*x), uniq_snps, normalized=True, **kwargs))
+        return ret - np.sum(weights * snp_counts) # subtract off mean
        
     uniq_snp_idxs = {snp: i for i,snp in enumerate(uniq_snps)}
     idx_series_list = [np.array([uniq_snp_idxs[snp] for snp in chrom], dtype=int)
@@ -443,6 +416,176 @@ def _series_score_cov(params, seg_sites, demo_func, **kwargs):
             curr = curr[0] + 2.0 * np.sum(curr[1:int(np.sqrt(L))])
             ret = ret + curr
         return ret
-    g_out = hessian(g_out_antihess)(params)
+    g_out = autograd.hessian(g_out_antihess)(params)
     g_out = 0.5 * (g_out + np.transpose(g_out))
     return g_out
+
+
+def project_scores(simulated_scores, fisher_information, polyhedral_cone, init_vals=None, method="tnc"):
+    """
+    Under usual theory, the score is asymptotically 
+    Gaussian, with covariance == Fisher information.
+    
+    For Gaussian location model w~N(x,Fisher^{-1}),
+    with location parameter x, the likelihood ratio
+    of x vs. 0 is
+    
+    LR0 = x*z - x*Fisher*x / 2
+    
+    where the "score" z=Fisher*w has covariance==Fisher.
+    
+    This function takes a bunch of simulated scores,
+    and returns LR0 for the corresponding Gaussian 
+    location MLEs on a polyhedral cone.
+    
+    Input:
+    simulated_scores: list or array of simulated values.
+        For a correctly specified model in the interior
+        of parameter space, this would be Gaussian with
+        mean 0 and cov == Fisher information.
+        For composite or misspecified model, or model
+        on boundary of parameter space, this may have
+        a different distribution.
+    fisher information: 2d array
+    polyhedral_cone: list
+        length is the number of parameters
+        entries are 0,1,-1,None
+            None: parameter is unconstrained
+            0: parameter == 0
+            1: parameter is >= 0
+            -1: parameter is <= 0
+    """    
+    if init_vals is None:
+        init_vals = np.zeros(simulated_scores.shape)
+    
+    fixed_params = [c == 0 for c in polyhedral_cone]
+    if any(fixed_params):
+        if all(fixed_params):
+            return np.zeros(init_vals.shape[0]), init_vals
+        fixed_params = np.array(fixed_params)
+        proj = np.eye(len(polyhedral_cone))[~fixed_params,:]
+        fisher_information = np.dot(proj, np.dot(fisher_information, proj.T))
+        simulated_scores = np.einsum("ij,kj->ik", simulated_scores, proj)
+        polyhedral_cone = [c for c in polyhedral_cone if c != 0 ]
+        init_vals = np.einsum("ij,kj->ik", init_vals, proj)
+        
+        liks, mles = project_scores(simulated_scores, fisher_information, polyhedral_cone, init_vals, method)
+        mles = np.einsum("ik,kj->ij", mles, proj)
+        return liks,mles
+    else:
+        if all(c is None for c in polyhedral_cone):
+           # solve analytically
+           try:
+               fisher_information = check_psd(fisher_information)
+           except AssertionError:
+               raise Exception("Optimization problem is unbounded and unconstrained")
+           mles = np.linalg.solve(fisher_information, simulated_scores.T).T
+           liks = np.einsum("ij,ij->i", mles, simulated_scores)
+           liks = liks-.5*np.einsum("ij,ij->i", mles, 
+                                    np.dot(mles, fisher_information))
+           return liks,mles
+        
+        bounds = []
+        for c in polyhedral_cone:
+            assert c in (None,-1,1)
+            if c == -1:
+                bounds += [(None,0)]
+            elif c == 1:
+                bounds += [(0,None)]
+            else:
+                bounds += [(None,None)]
+        
+        assert init_vals.shape == simulated_scores.shape
+        def obj(x):
+            return -np.dot(z,x) + .5 * np.dot(x, np.dot(fisher_information, x))
+        def jac(x):
+            return -z + np.dot(fisher_information, x)
+        sols = []
+        for z,i in zip(simulated_scores,init_vals):
+            sols += [scipy.optimize.minimize(obj, i, method=method, jac=jac, bounds=bounds)]
+        liks = np.array([-s.fun for s in sols])
+        mles = np.array([s.x for s in sols])
+        return liks, mles
+
+def simulate_log_lik_ratios(n_sims, cone0, coneA, score, score_covariance, fisher_information):
+    """
+    Returns a simulated asymptotic null distribution for the log likelihood
+    ratio.
+    Under the "usual" theory this distribution is known to be chi-square.
+    But for composite or misspecified likelihood, or parameter on the
+    boundary, this will have a nonstandard distribution.
+    
+    Input:
+    n_sims : the number of simulated Gaussians
+    cone0, coneA: 
+        the constraints for the null, alternate models,
+        in a small neighborhood around the "truth".
+        
+        cone is represented as a list,
+        whose length is the number of parameters,
+        with entries 0,1,-1,None.
+            None: model is unconstrained
+            0: model is fixed at "truth"
+            1: model can be >= "truth"
+            -1: model can be <= "truth"
+    score : the score.
+        Typically 0, but may be non-0 at the boundary
+    score_covariance : the covariance of the score
+        For correct model, this will be Fisher information
+        But this is not true for composite or misspecified likelihood
+    fisher_information : the fisher information
+    """
+    assert len(cone0) == len(score) and len(coneA) == len(score)
+    for c0,cA in zip(cone0,coneA):
+        if not all(c in (0,1,-1,None) for c in (c0,cA)):
+            raise Exception("Invalid cone")
+        if c0 != 0 and cA is not None and c0 != cA:
+            raise Exception("Null and alternative cones not nested")
+    score_sims = np.random.multivariate_normal(score, score_covariance, size=n_sims)
+    null_liks,null_mles = project_scores(score_sims, fisher_information, cone0)    
+    alt_liks,alt_mles = project_scores(score_sims, fisher_information, coneA, init_vals=null_mles)
+    return alt_liks, alt_mles, null_liks, null_mles
+    #ret = (1. - np.isclose(alt_liks, null_liks)) * (null_liks - alt_liks)
+    #assert np.all(ret <= 0.0)
+    #return ret
+
+def test_log_lik_ratio(null_lik, alt_lik, n_sims, cone0, coneA, score, score_covariance, fisher_information):
+    if alt_lik > 0 or null_lik > 0:
+        raise Exception("Log likelihoods should be non-positive.")
+    def trunc_lik_ratio(null, alt):
+        return (1-np.isclose(alt,null)) * (null - alt)
+    lik_ratio = trunc_lik_ratio(null_lik, alt_lik)
+    if lik_ratio > 0:
+        raise Exception("Likelihood of full model is less than likelihood of sub-model")
+    alt_lik_distn,_,null_lik_distn,_ = simulate_log_lik_ratios(n_sims, cone0, coneA, 
+                                                               score, score_covariance, fisher_information)
+    lik_ratio_distn = trunc_lik_ratio(null_lik_distn, alt_lik_distn)
+    assert np.all(lik_ratio_distn <= 0.0)
+    return tuple(map(np.mean, [lik_ratio > lik_ratio_distn, 
+                               lik_ratio == lik_ratio_distn, 
+                               lik_ratio < lik_ratio_distn]))
+
+def log_lik_ratio_p(method, n_sims, unconstrained_mle, constrained_mle,
+                    constrained_params, seg_sites, demo_func,
+                    mut_rate_per_locus = None,
+                    **kwargs):
+    unconstrained_mle, constrained_mle = (np.array(x) for x in (unconstrained_mle,
+                                                                constrained_mle))
+
+    sfs_list = get_sfs_list(seg_sites)
+    combined_sfs = sum_sfs_list(sfs_list)
+    
+    log_lik_fun = lambda x: composite_log_likelihood(combined_sfs, demo_func(*x))
+    alt_lik = log_lik_fun(unconstrained_mle)
+    null_lik = log_lik_fun(constrained_mle)
+    
+    score = autograd.grad(log_lik_fun)(unconstrained_mle)
+    score_cov = observed_score_covariance(method, unconstrained_mle, seg_sites, demo_func)
+    fish = observed_fisher_information(unconstrained_mle, sfs_list, demo_func, assert_psd=False)
+
+    null_cone = [0 if c else None for c in constrained_params]
+    alt_cone = [None] * len(constrained_params)
+    
+    return test_log_lik_ratio(null_lik, alt_lik, n_sims,
+                              null_cone, alt_cone,
+                              score, score_cov, fish)[0]
