@@ -3,7 +3,7 @@ import os, random
 import autograd.numpy as np
 from autograd import grad
 
-from momi import Demography, simulate_ms, sfs_list_from_ms, sum_sfs_list, composite_mle_search
+from momi import Demography, simulate_ms, seg_sites_from_ms, composite_mle_search
 import momi
 from test_ms import ms_path
 
@@ -20,13 +20,15 @@ def test_jointime_inference(folded, add_n):
                           (1,2,3), (5,5,5))
 
     true_demo = get_demo(t0)
-    true_demo = Demography(true_demo.events,
-                           true_demo.sampled_pops,
-                           np.array(true_demo.sampled_n) - add_n)
-    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(ms_path, true_demo.rescaled(),
-                                                    num_loci=num_runs, mut_rate=theta)))
+    #true_demo = Demography(true_demo.events,
+    #                       true_demo.sampled_pops,
+    #                       np.array(true_demo.sampled_n) - add_n)
+    true_demo = true_demo.copy(sampled_n = np.array(true_demo.sampled_n) - add_n)
+    sfs = seg_sites_from_ms(simulate_ms(ms_path, true_demo.rescaled(),
+                                        num_loci=num_runs, mut_rate=theta), true_demo.sampled_pops).sfs
+    sfs = sfs.copy(sampled_n=np.array(true_demo.sampled_n)+add_n)
     if folded:
-        sfs = momi.util.folded_sfs(sfs)
+        sfs = sfs.copy(fold=True)
     
     print(t0,t1)
     
@@ -47,10 +49,10 @@ def test_underflow_robustness(folded):
     true_x = np.array([np.log(.5),np.log(.2)])
     true_demo = get_demo(*true_x)
 
-    sfs = sum_sfs_list(sfs_list_from_ms(simulate_ms(ms_path, true_demo.rescaled(),
-                                                    num_loci=num_runs, mut_rate=mu*true_demo.default_N)))
+    sfs = seg_sites_from_ms(simulate_ms(ms_path, true_demo.rescaled(),
+                                        num_loci=num_runs, mut_rate=mu*true_demo.default_N), true_demo.sampled_pops).sfs
     if folded:
-        sfs = momi.util.folded_sfs(sfs)
+        sfs = sfs.copy(fold=True)
     
     optimize_res = composite_mle_search(sfs, get_demo, np.array([np.log(0.1),np.log(100.0)]), mu * num_runs, hessp=True, method='newton-cg', folded=folded)
     print optimize_res

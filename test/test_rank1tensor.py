@@ -14,8 +14,8 @@ def check_random_tensor(demo, *args, **kwargs):
     leaves = demo.sampled_pops
     ranges = [range(n+1) for n in demo.sampled_n]
 
-    config_list = momi.util._configs_from_derived(list(itertools.product(*ranges)),
-                                                  demo.sampled_n)
+    config_list = momi.data_structure._configs_from_derived(list(itertools.product(*ranges)),
+                                                            demo.sampled_n, demo.sampled_pops)
     sfs = expected_sfs(demo, config_list, *args, **kwargs)
 
     tensor_components = [np.random.normal(size=(1,n+1)) for n in demo.sampled_n]

@@ -40,6 +40,10 @@ def test_hypergeom_pinv_eye():
     assert np.allclose(hypergeom_quasi_inverse(i,i),
                        np.eye(i+1,i+1))
 
+def test_copy():
+    demo = Demography([("-ej",1.,"a","b")], ["a","b"], (3,2))
+    demo.copy(sampled_n=(5,6))
+    
 def test_P():
     t1 = np.random.exponential(.25)
     t2 = np.random.exponential(.25) + t1

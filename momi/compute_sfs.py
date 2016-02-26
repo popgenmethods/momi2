@@ -4,11 +4,11 @@ import autograd.numpy as np
 import scipy
 from .util import memoize_instance, memoize, make_constant, set0
 from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs, _apply_error_matrices
-from .data_structure import ConfigList
+from .data_structure import Configs
 from autograd.core import primitive
 from autograd import hessian
 
-def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_matrices=None, folded=False):
+def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_matrices=None):
     """
     Expected sample frequency spectrum (SFS) entries for the specified
     demography and configs. The expected SFS is the expected number of
@@ -30,8 +30,6 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
          expected total branch length.
          The returned values then represent probabilities, that a given
          mutation will segregate according to the specified configurations.
-    folded : optional, bool
-         if True, return the folded SFS entry for each config
 
     Returns
     -------
@@ -53,12 +51,9 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
     --------
     expected_total_branch_len : sum of all expected SFS entries
     expected_sfs_tensor_prod : compute summary statistics of SFS
-    """
-    if not isinstance(config_list, ConfigList):
-        config_list = ConfigList(config_list, demography.sampled_n)
-        
-    if config_list.sampled_n != demography.sampled_n:
-        raise Exception("config_list.sampled_n must equal demography.sampled_n")
+    """       
+    if np.any(config_list.sampled_n != demography.sampled_n) or np.any(config_list.sampled_pops != demography.sampled_pops):
+        raise ValueError("config_list and demography must have same sampled_n, sampled_pops")
 
     def operator(vecs):
         if error_matrices is not None:
@@ -66,7 +61,7 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
         return expected_sfs_tensor_prod(vecs, demography, mut_rate=mut_rate)
     
     sfs = config_list._apply_to_vecs(operator,
-                                     normalized=normalized, folded=folded)
+                                     normalized=normalized)
     assert np.all(np.logical_or(sfs >= 0.0, np.isclose(sfs, 0.0)))
     return sfs
 

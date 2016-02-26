@@ -117,6 +117,12 @@ class Demography(object):
            self._event_tree = _build_event_tree(self._G)
         except DemographyError,e:
            raise DemographyError(*(list(e.args) + [old_events, ('sampled_pops', sampled_pops), ('sampled_n', sampled_n), ('sampled_t', sampled_t), ('default_N', old_default_N), ('time_scale', time_scale)]))
+
+
+    def copy(self, sampled_n=None):
+       if sampled_n is None:
+          sampled_n = self.sampled_n
+       return Demography(self.events, self.sampled_pops, sampled_n, self.sampled_t, self.default_N)
         
     @property
     def events(self):
@@ -137,7 +143,7 @@ class Demography(object):
         """
         The list of number of samples per population
         """
-        return tuple(self._G.node[(l,0)]['lineages'] for l in self.sampled_pops)
+        return np.array(tuple(self._G.node[(l,0)]['lineages'] for l in self.sampled_pops), dtype=int)
 
     @property
     def sampled_t(self):
@@ -152,7 +158,7 @@ class Demography(object):
         The scaled size N of all populations, unless changed by -en or -eg
         """
         return self._G.graph['default_N']
-        
+    
     def rescaled(self,factor=None):
         """
         Returns the equivalent Demography, but with time rescaled by factor

@@ -14,12 +14,11 @@ def check_cov(method, params, demo_func, num_runs, theta, **kwargs):
     true_demo = demo_func(*params)
     seg_sites = momi.seg_sites_from_ms(simulate_ms(ms_path, true_demo,
                                                    num_loci=num_runs, mut_rate=theta,
-                                                   additional_ms_params="-r %f 1000" % theta))
+                                                   additional_ms_params="-r %f 1000" % theta),
+                                       true_demo.sampled_pops)
 
-    sfs_list = momi.get_sfs_list(seg_sites)
-    sfs = momi.sum_sfs_list(sfs_list)
     
-    cmle_search_res = momi.composite_mle_search(sfs, demo_func, params, maxiter=1000, **kwargs)
+    cmle_search_res = momi.composite_mle_search(seg_sites, demo_func, params, maxiter=1000, **kwargs)
     est_params = cmle_search_res.x
     
     cov = godambe_scaled_inv(method, est_params, seg_sites, demo_func)

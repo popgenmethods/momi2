@@ -1,7 +1,7 @@
 from __future__ import division
 import pytest
 import momi
-from momi import expected_sfs, expected_total_branch_len, sum_sfs_list, simulate_ms, sfs_list_from_ms
+from momi import expected_sfs, expected_total_branch_len, simulate_ms
 
 from demo_utils import simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model, exp_growth_0_model
 
@@ -40,9 +40,9 @@ def test_generated_cases(m_name,v,v2):
         assert np.allclose(stat1,stat2)
     
 def compute_stats(demo, sampled_sfs):
-    sampled_sfs = to_dict(sampled_sfs)
-    agg_sfs = sum_sfs_list(sampled_sfs)
-    config_list = tuple(sorted(agg_sfs.keys()))
+    sampled_sfs = momi.Sfs(demo.sampled_pops, to_dict(sampled_sfs))
+    config_list = momi.Configs(demo.sampled_pops,
+                               tuple(sorted(sampled_sfs.total.keys())))
        
     return expected_sfs(demo,config_list), expected_total_branch_len(demo)
 

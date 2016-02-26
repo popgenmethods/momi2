@@ -17,182 +17,23 @@ class mylist(list):
         for k,v in kwargs.iteritems():
             setattr(self,k,v)
 
-def sum_sfs_list(sfs_list):
-    """
-    Combines a list of SFS's into a single SFS by summing their entries.
-
-    Parameters
-    ----------
-    sfs_list : list of dict
-         A list where each entry is a dict mapping configs (tuples) to
-         frequencies (floats or ints).
-
-    Returns
-    -------
-    combined_sfs : dict
-         The combined SFS, represented as a dict mapping configs (tuples)
-         to frequencies (floats or ints).
-    """
-    return dict(sum([Counter(sfs) for sfs in sfs_list], Counter()))
-
-def get_sfs_list(seg_sites):
-    return [dict(Counter(zip(*sequence)[1]))
-            if len(sequence) > 0 else {}
-            for sequence in seg_sites]
-
-def folded_sfs(sfs):
-    if len(sfs) == 0:
-        return {}
-    configs, counts = list(zip(*sfs.items()))
-    configs = np.array(configs, ndmin=3)
-    reverse_configs = configs[:,:,::-1]
-
-    config_tuple = lambda c: tuple(map(tuple,c))
-    min_configs = [min(config_tuple(c), config_tuple(r))
-                   for c,r in zip(configs, reverse_configs)]
-
-    ret = Counter()
-    for conf,cnt in zip(min_configs, counts):
-        ret[conf] += cnt
-    return dict(ret)    
-
-def _hashable_config(config):
-    return tuple(map(tuple, config))
-
-def _configs_from_derived(derived_counts, sampled_n):
-    input_counts = np.array(derived_counts)
-    
-    derived_counts = np.array(input_counts, ndmin=2)
-    ret = np.transpose([sampled_n - derived_counts, derived_counts],
-                       axes=[1,2,0])
-    ret = [tuple(map(tuple,x)) for x in ret]
-    
-    if input_counts.shape != derived_counts.shape:
-        assert derived_counts.shape[0] == 1
-        ret = ret[0]
-    return ret
-    
-def write_seg_sites(sequences_file, seg_sites, sampled_pops=None):
-    if sampled_pops is None:
-        try:
-            sampled_pops = seg_sites.sampled_pops
-        except AttributeError:
-            raise AttributeError("seg_sites.sampled_pops attribute does not exist; must provide sampled_pops argument")
-    elif hasattr(seg_sites, 'sampled_pops'):
-        warnings.warn("sampled_pops provided, ignoring seg_sites.sampled_pops attribute")
-    sequences_file.write("Position\t:\t" + "\t".join(map(str,sampled_pops)) + "\n")
-    for seq in seg_sites:
-        sequences_file.write("\n//\n\n")
-        for pos,config in seq:
-            sequences_file.write(str(pos) + "\t:\t" + "\t".join([",".join(map(str,x)) for x in config]) + "\n")
-
-def read_seg_sites(sequences_file):
-    ret = []
-    linenum = 0
-    for line in sequences_file:
-        line = line.strip()
-        if line == "" or line[0] == "#":
-            continue
-
-        if linenum == 0:
-            _,sampled_pops = line.split(":")
-            sampled_pops = tuple(sampled_pops.strip().split())
-        elif line[:2] == "//":
-            ret += [[]]
-        else:
-            pos,config = line.split(":")
-            pos = float(pos)
-            config = config.strip().split()
-            config = tuple(tuple(map(int,x.split(","))) for x in config)
-            ret[-1] += [(pos,config)]
-        
-        linenum += 1
-    return mylist(ret, sampled_pops=sampled_pops)
-        
-                
-# def write_sfs_list(sfs_list, filename):
-#     """Write SFS list to file
+# def sum_sfs_list(sfs_list):
+#     """
+#     Combines a list of SFS's into a single SFS by summing their entries.
 
 #     Parameters
 #     ----------
 #     sfs_list : list of dict
-#          list of SFS for each locus
-#     filename : str
-#          path of file to be written to
-
-#     See Also
-#     --------
-#     read_sfs_list : read SFS from file
-#     """
-#     f = file(filename,'w')
-#     f.write("# Num loci:\n")
-#     f.write("%d\n" % len(sfs_list))
-#     f.write("# <locus> <count> <x_0> <x_1> ... <x_(D-1)>\n")
-#     f.write("# <x_i> == derived alleles at population i\n")
-#     for locus,sfs in enumerate(sfs_list):
-#         for config,count in sfs.items():
-#             line = [str(locus), str(count)] + [str(x_i) for x_i in config]
-#             f.write("\t".join(line) + "\n")
-#     f.close()
-
-# def read_sfs_list(filename):
-#     """Read in list of SFS from file
-
-#     Parameters
-#     ----------
-#     filename : str
-#          path to the file
-
-#          first line should be the number of loci
-#              <num_loci>
-#          subsequent lines should be of format
-#              <x_0> <x_1> ... <x_(D-1)> <locus> <count>
-#          where
-#              x_i = derived alleles in pop i
-#              count = # SNPs observed at locus with config (x_0,...,x_(D-1))
-
-#          empty lines, and lines commented with #, are ignored             
+#          A list where each entry is a dict mapping configs (tuples) to
+#          frequencies (floats or ints).
 
 #     Returns
 #     -------
-#     sfs_list : list of dict
-#          sfs_list[i] is the observed sfs at locus i
-#          sfs is a dict mapping configs (tuples) to counts (int or float)
-
-#     See Also
-#     --------
-#     write_sfs_list : write sfs_list to file
+#     combined_sfs : dict
+#          The combined SFS, represented as a dict mapping configs (tuples)
+#          to frequencies (floats or ints).
 #     """
-#     f = file(filename,'r')
-#     lines = [l.strip() for l in f]
-#     f.close()
-#     # remove commented and empty lines
-#     lines = [l for l in lines if (l[0] != "#" and l != "")]
-
-#     n_loci = int(lines[0])
-#     sfs_list = [{} for _ in range(n_loci)]
-
-#     for line in lines[1:]:
-#         line = line.split()
-#         locus, count = int(line[0]), int(line[1])        
-#         config = tuple(int(x) for x in line[2:])
-
-#         if config in sfs_list[locus]:
-#             raise Exception("Same config was specified multiple times for the same locus")
-#         sfs_list[locus][config] = count
-#     return sfs_list
-    
-    
-# def polymorphic_configs(demo):
-#     n = sum(demo.sampled_n)
-#     ranges = [list(range(n)) for n in demo.sampled_n]
-
-#     config_list = []
-#     for config in itertools.product(*ranges):
-#         if sum(config) == n or sum(config) == 0:
-#             continue
-#         config_list.append(config)
-#     return config_list
+#     return dict(sum([Counter(sfs) for sfs in sfs_list], Counter()))
 
 def check_symmetric(X):
     Xt = np.transpose(X)
@@ -330,25 +171,22 @@ def optimize(f, start_params,
     
     options = dict(options)
     options['maxiter'] = maxiter
+
+    def check_nan(fun,name, check_inf=True):
+        def new_fun(*a):
+            ret = fun(*a)
+            if np.any(np.isnan(ret)) or (check_inf and not np.all(np.isfinite(ret))):
+                raise OptimizationError("%s ( %s ) == %s. Consider setting stricter bounds (e.g. set a lower bound of 1e-100 instead of 0)." % (name,str(*a),str(ret)))
+            return ret
+        return new_fun
     
     kwargs = dict(kwargs)
-    kwargs.update({kw : d(f)
+    kwargs.update({kw : check_nan(d(f),kw)
                    for kw, b, d in [('jac', jac, grad), ('hessp', hessp, hessian_vector_product), ('hess', hess, hessian)]
                    if b})
 
-    if output_progress is True: # need 'is True' in case output_progress is an int
-        def deriv_after_print(deriv_name):
-            # inside a function for scoping reasons
-            return lambda i,ret,*x: "%s ( %s ) == %s" % (deriv_name, " , ".join(map(_npstr,x)), _npstr(ret))
-        
-        for kw in ['jac','hessp','hess']:
-            try:
-                d = kwargs[kw]
-                # need to do some fancy scoping
-                kwargs[kw] = _verbosify(d, after = deriv_after_print(kw))
-            except KeyError:
-                pass
-                
+    f = check_nan(f, "objective", check_inf=False)
+    
     if output_progress:
         f = _verbosify(f,
                        before = lambda i,x: "iter %d" % i,
@@ -356,6 +194,9 @@ def optimize(f, start_params,
                        print_freq = output_progress)
 
     return scipy.optimize.minimize(f, start_params, method=method, bounds=bounds, tol=tol, options=options, **kwargs)
+
+class OptimizationError(Exception):
+    pass
 
 def _verbosify(func, before = None, after = None, print_freq = 1):
     i = [0] # can't do i=0 because of unboundlocalerror

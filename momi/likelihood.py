@@ -1,119 +1,30 @@
 
-from .util import make_constant, optimize, _npstr, folded_sfs, truncate0, get_sfs_list, check_psd, sum_sfs_list
+from .util import make_constant, optimize, _npstr, truncate0, check_psd
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2, inv_psd
+from .demography import DemographyError
+from .data_structure import _hashable_config
 import scipy
 import autograd
 from collections import Counter
-from .data_structure import ObservedSfs, ObservedSfsList
 
-def composite_log_likelihood(observed_sfs, demo, mut_rate=None, truncate_probs = 0.0, folded=False, **kwargs):
-    """
-    Compute the log likelihood for a collection of SNPs, assuming they are
-    unlinked (independent). Calls expected_sfs to compute the individual SFS
-    entries.
+def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, folded=False, vector=False, **kwargs):
+    try:
+        sfs = data.sfs
+    except AttributeError:
+        sfs = data
     
-    Parameters
-    ----------
-    observed_sfs : dict, or ObservedSfs
-        maps configs (tuples) to their observed counts (ints or floats).
-
-        If there are D sampled populations, then each config is
-        represented by a D-tuple (i_0,i_1,...,i_{D-1}), where i_j is the
-        number of derived mutants in deme j.
-    demo : Demography
-    mut_rate : float or None
-        The mutation rate. If None (as by default), the number of SNPs is assumed to be
-        fixed and a multinomial distribution is used. Otherwise the number
-        of SNPs is assumed to be Poisson with parameter mut_rate*E[branch_len]
-
-        Note the Poisson model is not implemented for missing data.
-    folded : optional, bool
-        if True, compute likelihoods for folded SFS
-
-    Returns
-    -------
-    log_lik : numpy.float
-        Log-likelihood of observed SNPs, under either a multinomial
-        distribution or a Poisson random field.
-
-    Other Parameters
-    ----------------
-    truncate_probs : float, optional
-        Replace log(sfs_probs) with log(max(sfs_probs, truncate_probs)),
-        where sfs_probs are the normalized theoretical SFS entries.
-        Setting truncate_probs to a small positive number (e.g. 1e-100)
-        will avoid taking log(0) due to precision or underflow error.
-    **kwargs : optional
-        Additional optional arguments to be passed to expected_sfs
-        (e.g. error_matrices)
-
-    See Also
-    --------
-    expected_sfs : compute SFS of individual entries
-    composite_log_lik_vector : efficiently compute log-likelihoods for each
-                              of several loci
-    """
-    if not isinstance(observed_sfs, ObservedSfs):
-        observed_sfs = ObservedSfs(observed_sfs, demo.sampled_n)
-    return np.squeeze(composite_log_lik_vector(observed_sfs._sfs_list(), demo, mut_rate, truncate_probs = truncate_probs, folded=folded, **kwargs))
-
-
-def composite_log_lik_vector(observed_sfs_list, demo, mut_rate=None, truncate_probs = 0.0, folded=False, **kwargs):
-    """
-    Return a vector of log likelihoods for a collection of loci. Equivalent
-    to, but much more efficient than, calling composite_log_likelihood on
-    each locus separately.
-
-    Parameters
-    ----------
-    observed_sfs_list : list of dicts, or ObservedSfsList
-        a list whose i-th entry is the SFS at locus i. Each SFS is a dict
-        mapping configs (tuples) to observed counts (floats or ints)
-    demo : Demography
-    mut_rate : float or numpy.ndarray or None
-        The mutation rate. If None (as by default), the number of SNPs is assumed to be
-        fixed and a multinomial distribution is used. If a numpy.ndarray,
-        the number of SNPs at locus i is assumed to be Poisson with
-        parameter mut_rate[i]*E[branch_len]. If a float, the mutation rate at
-        all loci are assumed to be equal.
-
-        Note the Poisson model is not implemented for missing data.
-    folded : optional, bool
-        if True, compute likelihoods for folded SFS
-
-    Returns
-    -------
-    log_lik : numpy.ndarray
-        The i-th entry is the log-likelihood of the observed SNPs at locus i,
-        under either a multinomial distribution or a Poisson random field.
-
-    Other Parameters
-    ----------------
-    truncate_probs : float, optional
-        Replace log(sfs_probs) with log(max(sfs_probs, truncate_probs)),
-        where sfs_probs are the normalized theoretical SFS entries.
-        Setting truncate_probs to a small positive number (e.g. 1e-100)
-        will avoid taking log(0) due to precision or underflow error.
-    **kwargs : optional
-        Additional optional arguments to be passed to expected_sfs
-        (e.g. error_matrices)
-
-
-    See Also
-    --------
-    composite_log_likelihood : likelihood for a single locus
-    """
-    if not isinstance(observed_sfs_list, ObservedSfsList):
-        observed_sfs_list = ObservedSfsList(observed_sfs_list, demo.sampled_n)
-
-    config_list = observed_sfs_list._config_list(folded)
+    #config_list = sfs._config_list(tuple(demo.sampled_n))
     # get the expected counts for each config
-    sfs_probs = np.maximum(expected_sfs(demo, config_list, normalized=True, folded=folded, **kwargs),
+    sfs_probs = np.maximum(expected_sfs(demo, sfs.configs, normalized=True, **kwargs),
                            truncate_probs)
     
-    counts_ij = observed_sfs_list._counts_ij(folded)
+    #counts_ij = sfs._counts_ij(tuple(demo.sampled_n))
+    counts_ij = sfs._counts_ij()
+    if not vector:
+        counts_ij = np.array(np.sum(counts_ij, axis=0), ndmin=2)
+            
     # counts_i is the total number of SNPs at each locus
     counts_i = np.einsum('ij->i',counts_ij)
     
@@ -124,13 +35,15 @@ def composite_log_lik_vector(observed_sfs_list, demo, mut_rate=None, truncate_pr
     log_lik = np.dot(counts_ij, np.log(sfs_probs)) - np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
-        sampled_n = np.sum(config_list.config_array, axis=2)
+        sampled_n = np.sum(sfs.configs.config_array, axis=2)
         if np.any(sampled_n != demo.sampled_n):
             raise NotImplementedError("Poisson model not implemented for missing data.")
         E_total = expected_total_branch_len(demo, **kwargs)        
         lambd = mut_rate * E_total
         log_lik = log_lik - lambd + counts_i * np.log(lambd) - lnfact(counts_i)
 
+    if not vector:
+        log_lik = np.squeeze(log_lik)
     return log_lik
 
 
@@ -227,25 +140,16 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
     """
     start_params = np.array(start_params)
 
+    old_demo_func = demo_func
+    def demo_func(params):
+        try:
+            return old_demo_func(*params)
+        except DemographyError as err:
+            raise DemographyError("DemographyError at params %s. Error message:\n\t%s" % (str(params), str(err)))
+    
     #mut_rate = make_function(mut_rate)
 
-    # wrap it in ObservedSfs to avoid repeating computation
-    if not isinstance(observed_sfs, ObservedSfs):
-        observed_sfs = ObservedSfs(observed_sfs, demo_func(*start_params).sampled_n)
-    f = lambda params: -composite_log_likelihood(observed_sfs, demo_func(*params), mut_rate, truncate_probs = truncate_probs, folded=folded, **sfs_kwargs)
-
-    if output_progress is True:
-        # print the Demography after every iteration
-        ## TODO: this prints after every scipy.minimize.optimize iteration,
-        ##       whereas other printing occurs after every function evaluation...
-        kwargs = dict(kwargs)
-        callback0 = kwargs.get('callback', lambda x: None)
-        def callback1(x):
-            print("demo_func(%s) = %s" % (_npstr(x), demo_func(*x)))
-        def callback(x):
-            callback1(x)            
-            callback0(x)
-        kwargs['callback'] = callback
+    f = lambda params: -composite_log_likelihood(observed_sfs, demo_func(params), mut_rate, truncate_probs = truncate_probs, folded=folded, **sfs_kwargs)
     
     return optimize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
 
@@ -304,13 +208,8 @@ def godambe_scaled_inv(method, params, seg_sites, demo_func,
     composite_log_lik_vector : composite log likelihoods for each locus
     composite_mle_search : search for the composite MLE    
     """    
-    if hasattr(seg_sites, "sampled_pops"):
-        if seg_sites.sampled_pops != demo_func(*params).sampled_pops:
-            raise Exception("seg_sites.sampled_pops should equal demo.sampled_pops")
-
-    observed_sfs_list = get_sfs_list(seg_sites)
-    
-    h = observed_fisher_information(params, observed_sfs_list, demo_func, mut_rate_per_locus, **kwargs)
+   
+    h = observed_fisher_information(params, seg_sites, demo_func, mut_rate_per_locus, **kwargs)
     h_inv = inv_psd(h)
     
     g_out = observed_score_covariance(method, params, seg_sites, demo_func,
@@ -320,7 +219,7 @@ def godambe_scaled_inv(method, params, seg_sites, demo_func,
     
 def observed_fisher_information(params, observed_sfs_list, demo_func, mut_rate_per_locus=None, assert_psd=True, **kwargs):
     params = np.array(params)
-    f = lambda x: np.sum(composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs))
+    f = lambda x: np.sum(composite_log_likelihood(observed_sfs_list, demo_func(*x), mut_rate_per_locus, vector=True, **kwargs))
     ret = -autograd.hessian(f)(params)
     if assert_psd:
         try:
@@ -337,7 +236,7 @@ def observed_score_covariance(method, params, seg_sites, demo_func,
             raise NotImplementedError("'series' godambe method not implemented for Poisson approximation")
         ret = _series_score_cov(params, seg_sites, demo_func, **kwargs)
     elif method == "iid":
-        ret = _iid_score_cov(params, get_sfs_list(seg_sites), demo_func,
+        ret = _iid_score_cov(params, seg_sites, demo_func,
                                mut_rate_per_locus=mut_rate_per_locus, **kwargs)
     else:
         raise Exception("Unrecognized method")
@@ -354,7 +253,7 @@ def _iid_score_cov(params, observed_sfs_list, demo_func, mut_rate_per_locus=None
 
     #f_vec = lambda x: composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs)
     def f_vec(x):
-        ret = composite_log_lik_vector(observed_sfs_list, demo_func(*x), mut_rate_per_locus, **kwargs)
+        ret = composite_log_likelihood(observed_sfs_list, demo_func(*x), mut_rate_per_locus, vector=True, **kwargs)
         # normalize
         return ret - np.mean(ret)
     
@@ -373,20 +272,23 @@ def _series_score_cov(params, seg_sites, demo_func, **kwargs):
     params = np.array(params)
 
     # sort the loci by position
-    seg_sites = [sorted(locus, key=lambda x:x[0]) for locus in seg_sites]
+    #seg_sites = [sorted(locus, key=lambda x:x[0]) for locus in seg_sites]
     # discard the positions
-    seg_sites = [[config for position,config in locus] for locus in seg_sites]
+    #seg_sites = [[config for position,config in locus] for locus in seg_sites]
+    #seg_sites = map(list,seg_sites.config_arrays)
     
-    uniq_snps, snp_counts = zip(*Counter(sum(seg_sites, [])).items())
-    snp_counts = np.array(snp_counts)
+    #uniq_snps, snp_counts = zip(*Counter(sum(seg_sites, [])).items())
+    configs = seg_sites.sfs.configs
+    snp_counts = np.sum(seg_sites.sfs._counts_ij(), axis=0)
     weights = snp_counts / float(np.sum(snp_counts))
     
     #snp_log_probs = lambda x: np.log(expected_sfs(demo_func(*x), uniq_snps, normalized=True, **kwargs))
     def snp_log_probs(x):
-        ret = np.log(expected_sfs(demo_func(*x), uniq_snps, normalized=True, **kwargs))
+        ret = np.log(expected_sfs(demo_func(*x), configs, normalized=True, **kwargs))
         return ret - np.sum(weights * snp_counts) # subtract off mean
        
-    uniq_snp_idxs = {snp: i for i,snp in enumerate(uniq_snps)}
+    uniq_snp_idxs = {snp: i for i,snp in enumerate(configs)}
+    seg_sites = [map(_hashable_config, chrom) for chrom in seg_sites.config_arrays]
     idx_series_list = [np.array([uniq_snp_idxs[snp] for snp in chrom], dtype=int)
                        for chrom in seg_sites]
 
@@ -572,16 +474,16 @@ def log_lik_ratio_p(method, n_sims, unconstrained_mle, constrained_mle,
     unconstrained_mle, constrained_mle = (np.array(x) for x in (unconstrained_mle,
                                                                 constrained_mle))
 
-    sfs_list = get_sfs_list(seg_sites)
-    combined_sfs = sum_sfs_list(sfs_list)
+    #sfs_list = seg_sites.sfs_list
+    #combined_sfs = sum_sfs_list(sfs_list)
     
-    log_lik_fun = lambda x: composite_log_likelihood(combined_sfs, demo_func(*x))
+    log_lik_fun = lambda x: composite_log_likelihood(seg_sites, demo_func(*x))
     alt_lik = log_lik_fun(unconstrained_mle)
     null_lik = log_lik_fun(constrained_mle)
     
     score = autograd.grad(log_lik_fun)(unconstrained_mle)
     score_cov = observed_score_covariance(method, unconstrained_mle, seg_sites, demo_func)
-    fish = observed_fisher_information(unconstrained_mle, sfs_list, demo_func, assert_psd=False)
+    fish = observed_fisher_information(unconstrained_mle, seg_sites, demo_func, assert_psd=False)
 
     null_cone = [0 if c else None for c in constrained_params]
     alt_cone = [None] * len(constrained_params)
