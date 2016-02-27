@@ -53,7 +53,7 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
     expected_sfs_tensor_prod : compute summary statistics of SFS
     """       
     if np.any(config_list.sampled_n != demography.sampled_n) or np.any(config_list.sampled_pops != demography.sampled_pops):
-        raise ValueError("config_list and demography must have same sampled_n, sampled_pops")
+        raise ValueError("config_list and demography must have same sampled_n, sampled_pops. Use Demography.copy() or Configs.copy() to make a copy with different sampled_n.")
 
     def operator(vecs):
         if error_matrices is not None:

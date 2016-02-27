@@ -159,6 +159,37 @@ def optimize(f, start_params,
              jac = True, hess = False, hessp = False,
              method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
              output_progress = False, **kwargs):
+    fixed_params = []    
+    if bounds is not None:
+        for i,b in enumerate(bounds):
+            if b is not None:
+                try:
+                    if b[0] == b[1]:
+                        fixed_params += [(i,b[0])]
+                except (TypeError,IndexError) as e:
+                    fixed_params += [(i,b)]
+        if any(start_params[i] != b for i,b in fixed_params):
+            raise ValueError("start_params does not agree with fixed parameters in bounds")
+
+    if fixed_params:
+        fixed_idxs, fixed_offset = map(np.array, zip(*fixed_params))
+        
+        fixed_idxs = np.array([(i in fixed_idxs) for i in range(len(start_params))])
+        proj0 = np.eye(len(fixed_idxs))[:,fixed_idxs]
+        proj1 = np.eye(len(fixed_idxs))[:,~fixed_idxs]
+
+        fixed_offset = np.dot(proj0, fixed_offset)
+
+        f0 = lambda x: f(np.dot(proj1, x) + fixed_offset)
+        start0 = np.array([s for (fxd,s) in zip(fixed_idxs,start_params) if not fxd])
+        bounds0 = [b for (fxd,b) in zip(fixed_idxs, bounds) if not fxd]
+        ret = optimize(f0, start0, jac=jac, hess=hess, hessp=hessp,
+                       method=method, maxiter=maxiter, bounds=bounds0,
+                       tol=tol, options=options, output_progress=output_progress,
+                       **kwargs)
+        ret.x = np.dot(proj1,ret.x) + fixed_offset
+        return ret
+        
     if (hess or hessp) and not isinstance(method, collections.Callable) and method.lower() not in ('newton-cg','trust-ncg','dogleg'):
         raise ValueError("Only methods newton-cg, trust-ncg, and dogleg use hessian")
     if bounds is not None and not isinstance(method, collections.Callable) and method.lower() not in ('l-bfgs-b', 'tnc', 'slsqp'):

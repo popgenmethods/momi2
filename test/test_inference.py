@@ -54,7 +54,7 @@ def test_underflow_robustness(folded):
     if folded:
         sfs = sfs.copy(fold=True)
     
-    optimize_res = composite_mle_search(sfs, get_demo, np.array([np.log(0.1),np.log(100.0)]), mu * num_runs, hessp=True, method='newton-cg', folded=folded)
+    optimize_res = composite_mle_search(sfs, get_demo, np.array([np.log(0.1),np.log(100.0)]), mu, hessp=True, method='newton-cg', folded=folded)
     print optimize_res
     
     inferred_x = optimize_res.x
