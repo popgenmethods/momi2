@@ -17,6 +17,9 @@ except NameError: # no, it doesn't (it's Python3); use 'str' instead
    basestring=str
 
 class Demography(object):
+    """
+    The demographic history relating a sample of individuals.
+    """
     def __init__(self, events, sampled_pops, sampled_n, sampled_t = None, default_N=1.0, time_scale='ms'):
         """
         Constructor for Demography.
@@ -120,6 +123,14 @@ class Demography(object):
 
 
     def copy(self, sampled_n=None):
+       """
+       Notes
+       -----
+       Note that momi.expected_sfs, momi.composite_log_likelihood require
+       Demography.sampled_n == Configs.sampled_n.
+       If this is not the case, you can use copy() to create a copy with the correct
+       sampled_n.
+       """       
        if sampled_n is None:
           sampled_n = self.sampled_n
        return Demography(self.events, self.sampled_pops, sampled_n, self.sampled_t, self.default_N)

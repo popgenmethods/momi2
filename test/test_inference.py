@@ -33,8 +33,7 @@ def test_jointime_inference(folded, add_n):
     print(t0,t1)
     
     x0 = np.array([random.uniform(0,t1)])
-    #res = composite_mle_search(sfs, get_demo, x0, mu * num_runs, bounds=[(0,t1)], folded=folded)
-    res = composite_mle_search(sfs, get_demo, x0, None, bounds=[(0,t1)], folded=folded)
+    res = composite_mle_search(sfs, get_demo, x0, None, bounds=[(0,t1)])
     
     print res.jac
     assert abs(res.x - t0) / t0 < .05
@@ -54,7 +53,7 @@ def test_underflow_robustness(folded):
     if folded:
         sfs = sfs.copy(fold=True)
     
-    optimize_res = composite_mle_search(sfs, get_demo, np.array([np.log(0.1),np.log(100.0)]), mu, hessp=True, method='newton-cg', folded=folded)
+    optimize_res = composite_mle_search(sfs, get_demo, np.array([np.log(0.1),np.log(100.0)]), mu, hessp=True, method='newton-cg')
     print optimize_res
     
     inferred_x = optimize_res.x

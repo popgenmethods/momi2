@@ -9,7 +9,35 @@ import scipy, scipy.stats
 import autograd
 from collections import Counter
 
-def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, folded=False, vector=False, **kwargs):
+def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, **kwargs):
+    """
+    Returns the composite log likelihood for the data.
+
+    Parameters
+    ----------
+    data : SegSites or Sfs
+          if data.folded==True, functions returns composite log likelihood for folded SFS
+    demo : Demography
+    mut_rate : None or float or list of floats
+           if None, function returns the multinomial composite log likelihood
+           if float or list of floats, it is the mutation rate per locus, 
+           and returns Poisson random field approximation.
+           Note the Poisson model is not implemented for missing data.
+    vector : boolean
+           if False, return composite log-likelihood for the whole SFS
+           if True, return list of the composite log-likelihood for each locus
+
+    Other Parameters
+    ----------------
+    truncate_probs : float, optional
+        Replace log(sfs_probs) with log(max(sfs_probs, truncate_probs)),
+        where sfs_probs are the normalized theoretical SFS entries.
+        Setting truncate_probs to a small positive number (e.g. 1e-100)
+        will avoid taking log(0) due to precision or underflow error.
+    **kwargs : optional
+        Additional optional arguments to be passed to expected_sfs
+        (e.g. error_matrices)
+    """
     try:
         sfs = data.sfs
     except AttributeError:
@@ -47,10 +75,8 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, fo
         log_lik = np.squeeze(log_lik)
     return log_lik
 
-
-def composite_mle_search(observed_sfs, demo_func, start_params,
+def composite_mle_search(data, demo_func, start_params,
                          mut_rate = None,
-                         folded = False,
                          jac = True, hess = False, hessp = False,
                          method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
                          output_progress = False,                        
@@ -66,14 +92,10 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
 
     Parameters
     ----------
-    observed_sfs : dict, or ObservedSfs
-        maps configs (tuples) to their observed counts (ints or floats)
-        See composite_log_likelihood for details
+    data : SegSites or Sfs
     demo_func : function
         function that returns a Demography
-
-        if jac=True, demo_func should work with autograd;
-        see examples/tutorial.py (Section 5 FOOTNOTE)
+        if jac=True, demo_func should work with autograd (see tutorial)
     start_params : list
         The starting point for the parameter search.
         len(start_params) should equal the number of arguments of demo_func
@@ -82,8 +104,6 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
         distribution; if a float, uses a Poisson random field. See
         composite_log_likelihood for additional details.
         Note the Poisson model is not implemented for missing data.
-    folded : optional, bool
-        if True, compute likelihoods for folded SFS
     jac : bool, optional
         If True, use autograd to compute the gradient (jacobian)
     hess, hessp : bool, optional
@@ -94,17 +114,17 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
         The solver for scipy.optimize.minimize() to use
     maxiter : int, optional
         The maximum number of iterations to use
-    bounds : list of (lower,upper), optional
+    bounds : list of (lower,upper) or float, optional
         lower and upper bounds for each parameter. Use None to indicate
-        parameter is unbounded in a direction.
-        if bounds!=None, 'method' must be one of 'l-bfgs-b','tnc','slsqp'.
+        parameter is unbounded in a direction. Use a float to indicate
+        the parameter should be fixed to a specific value.
+        if using lower,upper bounds, 'method' must be one of 'l-bfgs-b','tnc','slsqp'.
     tol : float, optional
         Tolerance for termination. For detailed control, use solver-specific options.
     options : dict, optional
         A dictionary of solver-specific options.
-    output_progress : bool or int, optional
-        if True, print every function/gradient/hessian evaluation
-        if int i, print function evaluation at every i-th iteration
+    output_progress : int, optional
+        print function evaluation at every i-th iteration
 
     Returns
     -------
@@ -133,11 +153,6 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
     See Also
     --------
     composite_log_likelihood : the objective that is optimized here
-    godambe_scaled_inv : approximate covariance matrix of the
-         composite MLE, used for constructing approximate confidence
-         intervals.
-    sum_sfs_list : combine SFS's of multiple loci into one SFS, before
-         passing into this function
     """
     start_params = np.array(start_params)
 
@@ -150,12 +165,34 @@ def composite_mle_search(observed_sfs, demo_func, start_params,
     
     #mut_rate = make_function(mut_rate)
 
-    f = lambda params: -composite_log_likelihood(observed_sfs, demo_func(params), mut_rate, truncate_probs = truncate_probs, folded=folded, **sfs_kwargs)
+    f = lambda params: -composite_log_likelihood(data, demo_func(params), mut_rate, truncate_probs = truncate_probs, **sfs_kwargs)
     
     return optimize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
 
 class ConfidenceRegion(object):
+    """
+    Constructs asymptotic confidence regions and hypothesis tests,
+    using the Limit of Experiments theory.
+    """
     def __init__(self, point_estimate, demo_func, data, regime="long", **kwargs):
+        """
+        Parameters
+        ----------
+        point_estimate : array
+                 a statistically consistent estimate for the true parameters.
+                 confidence regions and hypothesis tests are computed for a (shrinking)
+                 neighborhood around this point.
+        demo_func : function that returns a Demography from parameters
+        data : SegSites (or Sfs, if regime="many")
+        regime : the limiting regime for the asymptotic confidence region
+              if "long", number of loci is fixed, and the length of the loci -> infinity.
+                 * uses time series information to estimate covariance structure
+                 * requires isinstance(data, SegSites)
+                 * loci should be independent. they don't have to be identically distributed
+              if "many", the number of loci -> infinity
+                 * loci should be independent, and roughly identically distributed
+        **kwargs : additional arguments passed into composite_log_likelihood
+        """
         if regime not in ("long","many"):
             raise ValueError("Unrecognized regime '%s'" % regime)
         
@@ -172,10 +209,17 @@ class ConfidenceRegion(object):
                                                   assert_psd=False, **self.kwargs)
         
     def lik_fun(self, params, vector=False):
+        """Returns composite log likelihood from params"""
         return composite_log_likelihood(self.data, self.demo_func(*params), vector=vector, **self.kwargs)
     
     @memoize_instance
     def godambe(self, inverse=False):
+        """
+        Returns Godambe Information.
+        If the true params are in the interior of the parameter space,
+        the composite MLE will be approximately Gaussian with mean 0,
+        and covariance given by the Godambe information.
+        """
         fisher_inv = inv_psd(self.fisher)
         ret = check_psd(np.dot(fisher_inv, np.dot(self.score_cov, fisher_inv)))
         if not inverse:
@@ -183,6 +227,55 @@ class ConfidenceRegion(object):
         return ret
 
     def test(self, null_point, sims=int(1e3), test_type="ratio", alt_point=None, null_cone=None, alt_cone=None, p_only=True):
+        """
+        Returns p-value for a single or several hypothesis tests.
+        By default, does a simple hypothesis test with the log-likelihood ratio.
+
+        Note that for tests on the boundary, the MLE for the null and alternative
+        models are often the same (up to numerical precision), leading to a p-value of 1
+
+        Parameters
+        ----------
+        null_point : array or list of arrays
+              the MLE of the null model
+              if a list of points, will do a hypothesis test for each point
+        sims : the number of Gaussian simulations to use for computing null distribution
+              ignored if test_type="wald"
+        test_type : "ratio" for likelihood ratio, "wald" for Wald test
+              only simple hypothesis tests are implemented for "wald"
+
+              For "ratio" test:
+              Note that we set the log likelihood ratio to 0 if the two
+              likelihoods are within numerical precision (as defined by numpy.isclose)
+
+              For tests on interior of parameter space, it generally shouldn't happen
+              to get a log likelihood ratio of 0 (and hence p-value of 1).
+              But this can happen on the interior of the parameter space.
+
+        alt_point : the MLE for the alternative models
+              if None, use self.point (the point estimate used for this ConfidenceRegion)
+              dimensions should be compatible with null_point
+        null_cone, alt_cone : the nested Null and Alternative models
+              represented as a list, whose length is the number of parameters
+              each entry of the list should be in (None,0,1,-1)
+                     None: parameter is unconstrained around the "truth"
+                     0: parameter is fixed at "truth"
+                     1: parameter can be >= "truth"
+                     -1: parameter can be <= "truth"
+
+              if null_cone=None, it is set to (0,0,...,0), i.e. totally fixed
+              if alt_cone=None, it is set to (None,None,...), i.e. totally unconstrained
+        p_only : bool
+              if True, only return the p-value (probability of observing a more extreme statistic)
+              if False, return 3 values per test:
+                   [0] the p-value: (probability of more extreme statistic)
+                   [1] probability of equally extreme statistic (up to numerical precision)
+                   [2] probability of less extreme statistic
+
+              [1] should generally be 0 in the interior of the parameter space.
+              But on the boundary, the log likelihood ratio will frequently be 0,
+              leading to a point mass at the boundary of the null distribution.
+        """
         in_shape = np.broadcast(np.array(null_point), np.array(alt_point),
                                 np.array(null_cone), np.array(alt_cone)).shape
 
@@ -252,6 +345,9 @@ class ConfidenceRegion(object):
         return ret        
 
     def wald_intervals(self, lower=.025, upper=.975):
+        """
+        Marginal wald-type confidence intervals.
+        """
         conf_lower, conf_upper = scipy.stats.norm.interval(.95,
                                                            loc = self.point,
                                                            scale = np.sqrt(np.diag(self.godambe(inverse=True))))
@@ -260,9 +356,9 @@ class ConfidenceRegion(object):
 def _trunc_lik_ratio(null, alt):
     return (1-np.isclose(alt,null)) * (null - alt)
     
-def _observed_fisher_information(params, observed_sfs_list, demo_func, assert_psd=True, **kwargs):
+def _observed_fisher_information(params, data, demo_func, assert_psd=True, **kwargs):
     params = np.array(params)
-    f = lambda x: composite_log_likelihood(observed_sfs_list, demo_func(*x), **kwargs)
+    f = lambda x: composite_log_likelihood(data, demo_func(*x), **kwargs)
     ret = -autograd.hessian(f)(params)
     if assert_psd:
         try:
@@ -287,11 +383,11 @@ def _observed_score_covariance(method, params, seg_sites, demo_func, **kwargs):
         raise Exception("Numerical instability: score covariance is not PSD")
     return ret
     
-def _many_score_cov(params, observed_sfs_list, demo_func, **kwargs):    
+def _many_score_cov(params, data, demo_func, **kwargs):    
     params = np.array(params)
 
     def f_vec(x):
-        ret = composite_log_likelihood(observed_sfs_list, demo_func(*x), vector=True, **kwargs)
+        ret = composite_log_likelihood(data, demo_func(*x), vector=True, **kwargs)
         # centralize
         return ret - np.mean(ret)
     

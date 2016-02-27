@@ -1,7 +1,7 @@
 from __future__ import division
 import pytest
 import momi
-from momi import expected_sfs, expected_total_branch_len, simulate_ms
+from momi import expected_sfs, expected_total_branch_len, simulate_ms, seg_sites_from_ms
 
 from demo_utils import simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model, exp_growth_0_model
 
@@ -65,8 +65,9 @@ if __name__=="__main__":
                 x = np.random.normal(size=m_val['params'])
                 demo = m_val['demo'](x, m_val['nlins']).rescaled()
                 
-                sampled_sfs = sfs_list_from_ms(simulate_ms(ms_path, demo, num_loci=100, mut_rate=1.0))
-                sampled_sfs = from_dict(sampled_sfs)
+                seg_sites = seg_sites_from_ms(simulate_ms(ms_path, demo, num_loci=100, mut_rate=1.0),
+                                              demo.sampled_pops)
+                sampled_sfs = from_dict(seg_sites.sfs.loci)
                 results[(m_name, tuple(x), sampled_sfs)] = compute_stats(demo, sampled_sfs)
         pickle.dump(results, open(PICKLE, "wb"))
     elif len(sys.argv) == 1:

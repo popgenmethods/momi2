@@ -8,7 +8,7 @@ from .data_structure import Configs
 from autograd.core import primitive
 from autograd import hessian
 
-def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_matrices=None):
+def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, error_matrices=None):
     """
     Expected sample frequency spectrum (SFS) entries for the specified
     demography and configs. The expected SFS is the expected number of
@@ -18,11 +18,8 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
     Parameters
     ----------
     demography : Demography
-    config_list : list of tuples, or ConfigList
-         list of the configs to compute the SFS entries for.
-         If there are D sampled populations, then each config is
-         represented by a D-tuple (i_1,i_2,...,i_D), where i_j is the
-         number of derived mutants in deme j.
+    configs : Configs
+        if configs.folded == True, returns the folded SFS entries
     mut_rate : float
          mutation rate per unit time
     normalized : optional, bool
@@ -34,7 +31,7 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
     Returns
     -------
     sfs : 1d numpy.ndarray
-         sfs[j] is the SFS entry corresponding to config_list[j]
+         sfs[j] is the SFS entry corresponding to configs[j]
 
 
     Other Parameters
@@ -52,16 +49,16 @@ def expected_sfs(demography, config_list, mut_rate=1.0, normalized=False, error_
     expected_total_branch_len : sum of all expected SFS entries
     expected_sfs_tensor_prod : compute summary statistics of SFS
     """       
-    if np.any(config_list.sampled_n != demography.sampled_n) or np.any(config_list.sampled_pops != demography.sampled_pops):
-        raise ValueError("config_list and demography must have same sampled_n, sampled_pops. Use Demography.copy() or Configs.copy() to make a copy with different sampled_n.")
+    if np.any(configs.sampled_n != demography.sampled_n) or np.any(configs.sampled_pops != demography.sampled_pops):
+        raise ValueError("configs and demography must have same sampled_n, sampled_pops. Use Demography.copy() or Configs.copy() to make a copy with different sampled_n.")
 
     def operator(vecs):
         if error_matrices is not None:
            vecs = _apply_error_matrices(vecs, error_matrices)
         return expected_sfs_tensor_prod(vecs, demography, mut_rate=mut_rate)
     
-    sfs = config_list._apply_to_vecs(operator,
-                                     normalized=normalized)
+    sfs = configs._apply_to_vecs(operator,
+                                 normalized=normalized)
     assert np.all(np.logical_or(sfs >= 0.0, np.isclose(sfs, 0.0)))
     return sfs
 
