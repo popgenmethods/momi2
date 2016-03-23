@@ -3,9 +3,30 @@ import os, random
 import autograd.numpy as np
 from autograd import grad
 
-from momi import Demography, simulate_ms, seg_sites_from_ms, composite_mle_search
+from momi import Demography, simulate_ms, composite_mle_search
 import momi
-from test_ms import ms_path
+from test_ms import ms_path, scrm_path
+
+def test_archaic_sample():
+    theta=.1
+    join_time = 1.0
+    num_runs = 10000
+    true_sample_t=random.uniform(0,join_time)
+    def get_demo(sample_t):
+        return Demography([('-ej',join_time,'a','b')],
+                          sampled_pops=['a','b'],
+                          sampled_n=[2,2],
+                          sampled_t=[0,sample_t])
+    true_demo = get_demo(true_sample_t)
+
+    sfs = simulate_ms(scrm_path, true_demo,
+                      num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
+    
+    x0 = np.array([random.uniform(0,join_time)])
+    res = composite_mle_search(sfs, get_demo, x0, None, bounds=[(0,join_time)])
+    
+    print res.jac
+    assert abs(res.x - true_sample_t) < .1
 
 @pytest.mark.parametrize("folded,add_n",
                          ((f,n) for f in (True,False) for n in (0,3)))
@@ -24,8 +45,8 @@ def test_jointime_inference(folded, add_n):
     #                       true_demo.sampled_pops,
     #                       np.array(true_demo.sampled_n) - add_n)
     true_demo = true_demo.copy(sampled_n = np.array(true_demo.sampled_n) - add_n)
-    sfs = seg_sites_from_ms(simulate_ms(ms_path, true_demo.rescaled(),
-                                        num_loci=num_runs, mut_rate=theta), true_demo.sampled_pops).sfs
+    sfs = simulate_ms(ms_path, true_demo.rescaled(),
+                      num_loci=num_runs, mut_rate=theta).sfs
     sfs = sfs.copy(sampled_n=np.array(true_demo.sampled_n)+add_n)
     if folded:
         sfs = sfs.copy(fold=True)
@@ -48,8 +69,8 @@ def test_underflow_robustness(folded):
     true_x = np.array([np.log(.5),np.log(.2)])
     true_demo = get_demo(*true_x)
 
-    sfs = seg_sites_from_ms(simulate_ms(ms_path, true_demo.rescaled(),
-                                        num_loci=num_runs, mut_rate=mu*true_demo.default_N), true_demo.sampled_pops).sfs
+    sfs = simulate_ms(ms_path, true_demo.rescaled(),
+                      num_loci=num_runs, mut_rate=mu*true_demo.default_N).sfs
     if folded:
         sfs = sfs.copy(fold=True)
     

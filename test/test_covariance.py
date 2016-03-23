@@ -12,11 +12,9 @@ import scipy
 
 def check_cov(method, params, demo_func, num_runs, theta, bounds=None, **kwargs):
     true_demo = demo_func(*params)
-    seg_sites = momi.seg_sites_from_ms(simulate_ms(ms_path, true_demo,
-                                                   num_loci=num_runs, mut_rate=theta,
-                                                   additional_ms_params="-r %f 1000" % theta),
-                                       true_demo.sampled_pops)
-
+    seg_sites = simulate_ms(ms_path, true_demo,
+                            num_loci=num_runs, mut_rate=theta,
+                            additional_ms_params="-r %f 1000" % theta)
     
     cmle_search_res = momi.composite_mle_search(seg_sites, demo_func, params, maxiter=1000, bounds=bounds, **kwargs)
     est_params = cmle_search_res.x

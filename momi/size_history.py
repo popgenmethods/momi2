@@ -178,9 +178,9 @@ class FunctionalHistory(SizeHistory):
             ret.append(r1 + j2 * r2)
         return ret
 
-class _TrivialHistory(object):
-    def sfs(self, n):
-        return np.zeros(n+1)
+# class _TrivialHistory(object):
+#     def sfs(self, n):
+#         return np.zeros(n+1)
 
-    def transition_prob(self, v, axis=0):
-        return v + 0.0 # return copy of v
+#     def transition_prob(self, v, axis=0):
+#         return v + 0.0 # return copy of v

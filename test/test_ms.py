@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import Demography, expected_sfs, expected_total_branch_len, simulate_ms, seg_sites_from_ms, run_ms
+from momi import Demography, expected_sfs, expected_total_branch_len, simulate_ms, run_ms
 import momi
 import pytest
 import random
@@ -13,8 +13,9 @@ from demo_utils import *
 import os
 try:
     ms_path = os.environ["MS_PATH"]
+    scrm_path = os.environ["SCRM_PATH"]
 except KeyError:
-    raise Exception("Need to set system variable $MS_PATH, or run py.test with 'MS_PATH=/path/to/ms py.test ...'")
+    raise Exception("Need to set system variable $MS_PATH and $SCRM_PATH, or run py.test with 'MS_PATH=/path/to/ms SCRM_PATH=/path/to/scrm py.test ...'")
 
 
 demo_funcs = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, exp_growth_model]}
@@ -30,7 +31,7 @@ def test_sfs_counts(k,folded):
 
 
 def check_sfs_counts(demo, theta=10., rho=10.0, num_loci=1000, folded=False):
-    seg_sites = seg_sites_from_ms(simulate_ms(ms_path, demo, num_loci=num_loci, mut_rate=theta, additional_ms_params='-r %f %d' % (rho, num_loci)), demo.sampled_pops)
+    seg_sites = simulate_ms(ms_path, demo, num_loci=num_loci, mut_rate=theta, additional_ms_params='-r %f %d' % (rho, num_loci))
     sfs_list = seg_sites.sfs
     
     if folded:

@@ -5,7 +5,7 @@ from .math_functions import einsum2, sum_antidiagonals, convolve_axes, binom_coe
 import scipy, scipy.misc
 import autograd.numpy as np
 
-from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory, _TrivialHistory
+from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory#, _TrivialHistory
 from .parse_ms import _convert_ms_cmd
 
 import os, itertools
@@ -486,7 +486,9 @@ def _eSample(G, t, i, n):
         if G.graph['roots'][i] is None:
             raise DemographyError("Invalid events: pop %s removed by -ej before sample time" % str(i))
         
-        G.node[(i,0)]['model'] = _TrivialHistory()
+        #G.node[(i,0)]['model'] = _TrivialHistory()
+        G.node[(i,0)]['sizes'] = [{'t':t,'N':G.graph['default_N'],'growth_rate':None}]
+        _set_sizes(G.node[(i,0)], t)
         
         prev = G.graph['roots'][i]
         _set_sizes(G.node[prev], t)
