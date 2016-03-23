@@ -77,49 +77,46 @@ class Demography(object):
         old_default_N = default_N
         default_N = default_N * time_scale
         old_events, events = events, []
-        try:           
-           for e in old_events:
-               if e[0] == '-en':
-                   flag,t,i,N = e
-                   e = flag,t,i,N*time_scale
-               events += [e]
+        for e in old_events:
+            if e[0] == '-en':
+                flag,t,i,N = e
+                e = flag,t,i,N*time_scale
+            events += [e]
 
-           ## process all events
-           self._G = nx.DiGraph()
-           self._G.graph['event_cmds'] = tuple(events)
-           self._G.graph['default_N'] = default_N
-           self._G.graph['events_as_edges'] = []
-           # the nodes currently at the root of the graph, as we build it up from the leafs
-           self._G.graph['roots'] = {} 
+        ## process all events
+        self._G = nx.DiGraph()
+        self._G.graph['event_cmds'] = tuple(events)
+        self._G.graph['default_N'] = default_N
+        self._G.graph['events_as_edges'] = []
+        # the nodes currently at the root of the graph, as we build it up from the leafs
+        self._G.graph['roots'] = {} 
 
-           if sampled_t is None:
-               sampled_t = (0.0,) * len(sampled_n)
+        if sampled_t is None:
+            sampled_t = (0.0,) * len(sampled_n)
 
-           ## create sampling events
-           sampling_events = [('-eSample', t, i, n) for i,n,t in zip(sampled_pops, sampled_n, sampled_t)]
-           events = sampling_events + list(events)
+        ## create sampling events
+        sampling_events = [('-eSample', t, i, n) for i,n,t in zip(sampled_pops, sampled_n, sampled_t)]
+        events = sampling_events + list(events)
 
-           ## sort events by time
-           events = sorted(events, key=lambda x: x[1])
+        ## sort events by time
+        events = sorted(events, key=lambda x: x[1])
 
-           event_funs = {"-" + f.__name__[1:]: f for f in [_ep, _eg, _en, _ej, _es, _eSample]}
-           for event in events:
-               flag, args = event[0], event[1:]
-               event_funs[flag](self._G, *args)
+        event_funs = {"-" + f.__name__[1:]: f for f in [_ep, _eg, _en, _ej, _es, _eSample]}
+        for event in events:
+            flag, args = event[0], event[1:]
+            event_funs[flag](self._G, *args)
 
-           assert self._G.node
-           self._G.graph['roots'] = [r for _,r in self._G.graph['roots'].items() if r is not None]
+        assert self._G.node
+        self._G.graph['roots'] = [r for _,r in self._G.graph['roots'].items() if r is not None]
 
-           if len(self._G.graph['roots']) != 1:
-               raise DemographyError("Must have a single root population")
+        if len(self._G.graph['roots']) != 1:
+            raise DemographyError("Must have a single root population")
 
-           node, = self._G.graph['roots']
-           _set_sizes(self._G.node[node], float('inf'))
+        node, = self._G.graph['roots']
+        _set_sizes(self._G.node[node], float('inf'))
 
-           self._G.graph['sampled_pops'] = tuple(sampled_pops)
-           self._event_tree = _build_event_tree(self._G)
-        except DemographyError,e:
-           raise DemographyError(*(list(e.args) + [old_events, ('sampled_pops', sampled_pops), ('sampled_n', sampled_n), ('sampled_t', sampled_t), ('default_N', old_default_N), ('time_scale', time_scale)]))
+        self._G.graph['sampled_pops'] = tuple(sampled_pops)
+        self._event_tree = _build_event_tree(self._G)
 
 
     def copy(self, sampled_n=None):
