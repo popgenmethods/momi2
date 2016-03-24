@@ -156,12 +156,12 @@ def composite_mle_search(data, demo_func, start_params,
     """
     start_params = np.array(start_params)
 
-    old_demo_func = demo_func
-    def demo_func(params):
-        try:
-            return old_demo_func(*params)
-        except DemographyError as err:
-            raise DemographyError("DemographyError at params %s. Error message:\n\t%s" % (str(params), str(err)))
+    # old_demo_func = demo_func
+    # def demo_func(params):
+    #     try:
+    #         return old_demo_func(*params)
+    #     except DemographyError as err:
+    #         raise DemographyError("DemographyError at params %s. Error message:\n\t%s" % (str(params), str(err)))
     
     #mut_rate = make_function(mut_rate)
 
