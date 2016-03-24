@@ -156,7 +156,8 @@ def composite_mle_search(data, demo_func, start_params,
     """
     start_params = np.array(start_params)
 
-    # old_demo_func = demo_func
+    old_demo_func = demo_func
+    demo_func = lambda params: old_demo_func(*params)
     # def demo_func(params):
     #     try:
     #         return old_demo_func(*params)

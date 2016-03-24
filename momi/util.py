@@ -1,5 +1,5 @@
 
-from future.utils import raise_from
+from future.utils import raise_with_traceback
 import functools
 import autograd.numpy as np
 from functools import partial
@@ -213,7 +213,7 @@ def optimize(f, start_params,
                 return ret
             except Exception as e:
                 #raise OptimizationError("at %s( %s ):\n%s" % (name, str(*a), str(e))), None, sys.exc_info()[2]
-                raise_from(OptimizationError("Exception at %s( %s )" % (name, str(*a))), e)
+                raise_with_traceback(OptimizationError("at %s( %s ):\n%s: %s" % (name, str(*a), type(e).__name__, str(e))))
         return new_fun
     
     kwargs = dict(kwargs)
