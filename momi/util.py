@@ -203,24 +203,27 @@ def optimize(f, start_params,
     options = dict(options)
     options['maxiter'] = maxiter
 
-    def check_nan(fun,name, check_inf=True):
+    def safe_fun(fun,name, check_inf=True):
         def new_fun(*a):
-            ret = fun(*a)
-            if np.any(np.isnan(ret)) or (check_inf and not np.all(np.isfinite(ret))):
-                raise OptimizationError("%s ( %s ) == %s. Consider setting stricter bounds (e.g. set a lower bound of 1e-100 instead of 0)." % (name,str(*a),str(ret)))
-            return ret
+            try:
+                ret = fun(*a)
+                if np.any(np.isnan(ret)) or (check_inf and not np.all(np.isfinite(ret))):
+                    raise OptimizationError("%s ( %s ) == %s. Consider setting stricter bounds? (e.g. set a lower bound of 1e-100 instead of 0)" % (name,str(*a),str(ret)))
+                return ret
+            except Exception, e:
+                raise OptimizationError("Exception at %s( %s )!\n\nCaused by:\n%s" % (name, str(*a), str(e)))
         return new_fun
     
     kwargs = dict(kwargs)
-    kwargs.update({kw : check_nan(d(f),kw)
+    kwargs.update({kw : safe_fun(d(f),kw)
                    for kw, b, d in [('jac', jac, grad), ('hessp', hessp, hessian_vector_product), ('hess', hess, hessian)]
                    if b})
 
-    f = check_nan(f, "objective", check_inf=False)
+    f = safe_fun(f, "objective", check_inf=False)
     
     if output_progress:
         f = _verbosify(f,
-                       before = lambda i,x: "iter %d" % i,
+                       before = lambda i,x: "evaluation %d" % i,
                        after = lambda i,ret,x: "objective ( %s ) == %g" % (_npstr(x), ret),
                        print_freq = output_progress)
 

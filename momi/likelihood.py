@@ -124,7 +124,7 @@ def composite_mle_search(data, demo_func, start_params,
     options : dict, optional
         A dictionary of solver-specific options.
     output_progress : int, optional
-        print function evaluation at every i-th iteration
+        print output at every i-th call to the function
 
     Returns
     -------
