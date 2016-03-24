@@ -1,4 +1,5 @@
 
+from future.utils import raise_from
 import functools
 import autograd.numpy as np
 from functools import partial
@@ -210,8 +211,9 @@ def optimize(f, start_params,
                 if np.any(np.isnan(ret)) or (check_inf and not np.all(np.isfinite(ret))):
                     raise OptimizationError("%s ( %s ) == %s. (Consider setting stricter bounds? e.g. set a lower bound of 1e-100 instead of 0)" % (name,str(*a),str(ret)))
                 return ret
-            except Exception, e:
-                raise OptimizationError("at %s( %s ):\n%s" % (name, str(*a), str(e))), None, sys.exc_info()[2]
+            except Exception as e:
+                #raise OptimizationError("at %s( %s ):\n%s" % (name, str(*a), str(e))), None, sys.exc_info()[2]
+                raise_from(OptimizationError("Exception at %s( %s )" % (name, str(*a))), e)
         return new_fun
     
     kwargs = dict(kwargs)
