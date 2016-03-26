@@ -223,9 +223,26 @@ class Sfs(object):
         self.sampled_pops = tuple(sampled_pops)
         if np.array(self.total.keys(),ndmin=3).shape[1:] != (len(sampled_pops), 2):
             raise TypeError("len(sampled_pops) != len of individual configs")
-        self.configs = Configs(self.sampled_pops, list(self.total.keys()),
-                               fold, sampled_n)
+        self._sampled_n = sampled_n
+        # self.configs = Configs(self.sampled_pops, list(self.total.keys()),
+        #                        fold, sampled_n)
 
+    def __getstate__(self):
+        return {'sampled_pops' : self.sampled_pops,
+                'sampled_n' : self._sampled_n,
+                'loci' : self.loci,
+                'fold' : self.folded}
+    def __setstate__(self, state):
+        self.__init__(**state)
+        
+    @property
+    def configs(self):
+        return self._configs()
+    @memoize_instance
+    def _configs(self):
+        return Configs(self.sampled_pops, list(self.total.keys()),
+                       self.folded, self._sampled_n)
+        
     def freq(self, configuration, locus=None):
         """
         Notes
@@ -241,7 +258,9 @@ class Sfs(object):
 
     @property
     def sampled_n(self):
-        return self.configs.sampled_n
+        if self._sampled_n is None:
+            return self.configs.sampled_n
+        return self._sampled_n
         
     def copy(self, fold=False, sampled_n=None):
         """
@@ -311,8 +330,28 @@ class SegSites(object):
         self.config_arrays = tuple(_format_configurations(c, len(sampled_pops), fold) for c in config_arrays)
         self.folded = fold
 
-        self.sfs = Sfs(sampled_pops, self.config_arrays, fold=fold, sampled_n=sampled_n)
+        self._sampled_pops = sampled_pops
+        self._sampled_n = sampled_n # could be None instead of the true sampled_n
+        
+        #self.sfs = Sfs(sampled_pops, self.config_arrays, fold=fold, sampled_n=sampled_n)
 
+    def __getstate__(self):
+        return {'position_arrays' : self.position_arrays,
+                'config_arrays' : self.config_arrays,
+                'fold' : self.folded,
+                'sampled_pops' : self._sampled_pops,
+                'sampled_n' : self._sampled_n}
+
+    def __setstate__(self, state):
+        self.__init__(**state)
+        
+    @property
+    def sfs(self):
+        return self._sfs()
+    @memoize_instance
+    def _sfs(self):
+        return Sfs(self.sampled_pops, self.config_arrays, fold=self.folded, sampled_n=self._sampled_n)
+    
     def position(self,locus,site):
         return self.position_arrays[locus][site]
 
@@ -324,11 +363,13 @@ class SegSites(object):
         
     @property
     def sampled_pops(self):
-        return self.sfs.sampled_pops
+        return self._sampled_pops
 
     @property
     def sampled_n(self):
-        return self.sfs.sampled_n
+        if self._sampled_n is None:
+            return self.sfs.sampled_n
+        return self._sampled_n
     
     def copy(self, fold=False, sampled_n=None):
         if sampled_n is None:
