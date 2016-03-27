@@ -1,5 +1,5 @@
 
-from .util import make_constant, optimize, _npstr, truncate0, check_psd, memoize_instance
+from .util import make_constant, maximize, _npstr, truncate0, check_psd, memoize_instance
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2, inv_psd
@@ -83,9 +83,9 @@ def composite_mle_search(data, demo_func, start_params,
                          sfs_kwargs = {}, truncate_probs = 1e-100,
                          **kwargs):
     """
-    Find the maximum of composite_log_likelihood(), by calling
-    scipy.optimize.minimize() on -1*composite_log_likelihood().
+    Find the maximum of composite_log_likelihood().
 
+    This is essentially a wrapper around scipy.optimize.minimize.
     See http://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
     or help(scipy.optimize.minimize) for more details on these parameters:
     (method, bounds, tol, options, **kwargs)
@@ -111,7 +111,7 @@ def composite_mle_search(data, demo_func, start_params,
         At most one of hess or hessp should be True. If True, 'method' must
         be one of 'newton-cg','trust-ncg','dogleg', or a custom minimizer
     method : str or callable, optional
-        The solver for scipy.optimize.minimize() to use
+        The solver for to use (see help(scipy.optimize.minimize))
     maxiter : int, optional
         The maximum number of iterations to use
     bounds : list of (lower,upper) or float, optional
@@ -129,14 +129,10 @@ def composite_mle_search(data, demo_func, start_params,
     Returns
     -------
     res : scipy.optimize.OptimizeResult
-         Return value of scipy.optimize.minimize.
 
          Important attributes are: x the solution array, success a Boolean
          flag indicating if the optimizer exited successfully and message 
          which describes the cause of the termination.
-
-         Note function & derivative values are for -1*composite_log_likelihood(),
-         since that is the function minimized.
 
     Other Parameters
     ----------------
@@ -148,7 +144,7 @@ def composite_mle_search(data, demo_func, start_params,
         Setting truncate_probs to a small positive number (e.g. 1e-100)
         will avoid taking log(0) due to precision or underflow error.
     **kwargs : optional
-        additional arguments to pass to scipy.optimize.minimize
+        additional arguments for scipy.optimize.minimize
 
     See Also
     --------
@@ -158,17 +154,10 @@ def composite_mle_search(data, demo_func, start_params,
 
     old_demo_func = demo_func
     demo_func = lambda params: old_demo_func(*params)
-    # def demo_func(params):
-    #     try:
-    #         return old_demo_func(*params)
-    #     except DemographyError as err:
-    #         raise DemographyError("DemographyError at params %s. Error message:\n\t%s" % (str(params), str(err)))
-    
-    #mut_rate = make_function(mut_rate)
 
-    f = lambda params: -composite_log_likelihood(data, demo_func(params), mut_rate, truncate_probs = truncate_probs, **sfs_kwargs)
+    f = lambda params: composite_log_likelihood(data, demo_func(params), mut_rate, truncate_probs = truncate_probs, **sfs_kwargs)
     
-    return optimize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
+    return maximize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
 
 class ConfidenceRegion(object):
     """

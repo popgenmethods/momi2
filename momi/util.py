@@ -156,7 +156,7 @@ def smooth_pos_map(x):
 #             return f
 #     return func
 
-def optimize(f, start_params,
+def maximize(f, start_params,
              jac = True, hess = False, hessp = False,
              method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
              output_progress = False, **kwargs):
@@ -184,7 +184,7 @@ def optimize(f, start_params,
         f0 = lambda x: f(np.dot(proj1, x) + fixed_offset)
         start0 = np.array([s for (fxd,s) in zip(fixed_idxs,start_params) if not fxd])
         bounds0 = [b for (fxd,b) in zip(fixed_idxs, bounds) if not fxd]
-        ret = optimize(f0, start0, jac=jac, hess=hess, hessp=hessp,
+        ret = maximize(f0, start0, jac=jac, hess=hess, hessp=hessp,
                        method=method, maxiter=maxiter, bounds=bounds0,
                        tol=tol, options=options, output_progress=output_progress,
                        **kwargs)
@@ -204,10 +204,10 @@ def optimize(f, start_params,
     options = dict(options)
     options['maxiter'] = maxiter
 
-    def safe_fun(fun,name, check_inf=True):
+    def neg_fun(fun,name, check_inf=True):
         def new_fun(*a):
             try:
-                ret = fun(*a)
+                ret = -fun(*a)
                 if np.any(np.isnan(ret)) or (check_inf and not np.all(np.isfinite(ret))):
                     raise OptimizationError("%s ( %s ) == %s. (Consider setting stricter bounds? e.g. set a lower bound of 1e-100 instead of 0)" % (name,str(*a),str(ret)))
                 return ret
@@ -217,19 +217,25 @@ def optimize(f, start_params,
         return new_fun
     
     kwargs = dict(kwargs)
-    kwargs.update({kw : safe_fun(d(f),kw)
+    kwargs.update({kw : neg_fun(d(f),kw)
                    for kw, b, d in [('jac', jac, grad), ('hessp', hessp, hessian_vector_product), ('hess', hess, hessian)]
                    if b})
 
-    f = safe_fun(f, "objective", check_inf=False)
+    f = neg_fun(f, "objective", check_inf=False)
     
     if output_progress:
         f = _verbosify(f,
                        before = lambda i,x: "evaluation %d" % i,
-                       after = lambda i,ret,x: "objective ( %s ) == %g" % (_npstr(x), ret),
+                       after = lambda i,ret,x: "objective ( %s ) == %g" % (_npstr(x), -ret),
                        print_freq = output_progress)
 
-    return scipy.optimize.minimize(f, start_params, method=method, bounds=bounds, tol=tol, options=options, **kwargs)
+    ret = scipy.optimize.minimize(f, start_params, method=method, bounds=bounds, tol=tol, options=options, **kwargs)
+    for k,v in list(ret.items()):
+        if k in ("fun","jac") or k.startswith("hess"):
+            ret[k] = -v
+        else:
+            ret[k] = v
+    return ret
 
 class OptimizationError(Exception):
     pass
@@ -250,6 +256,28 @@ def _verbosify(func, before = None, after = None, print_freq = 1):
 
 def _npstr(x):
     return np.array_str(x, max_line_width=sys.maxsize)
+
+def adam(, x0, bounds, maxiter):
+    pass
+
+## based on code from autograd/examples
+def adam(fun_and_jac_list, x0, callback=None,
+         step_size=0.001, b1=0.9, b2=0.999, eps=10**-8):
+    """Adam as described in http://arxiv.org/pdf/1412.6980.pdf.
+    It's basically RMSprop with momentum and some correction terms."""
+    m = np.zeros(len(x))
+    v = np.zeros(len(x))
+    x = x0
+    for i in range(maxiters):
+        for fun,jac in fun_and_jac_list:
+            g = jac(x)
+
+            m = (1 - b1) * g      + b1 * m  # First  moment estimate.
+            v = (1 - b2) * (g**2) + b2 * v  # Second moment estimate.
+            mhat = m / float(1 - b1**(i + 1))    # Bias correction.
+            vhat = v / float(1 - b2**(i + 1))
+            x = x-step_size*mhat/float(np.sqrt(vhat) + eps)
+    return x
 
 ## TODO: uncomment and rewrite simulate_inference
 # def simulate_inference(ms_path, num_loci, mu, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', surface_type='kl', n_sfs_dirs=0, tensor_method='greedy-hosvd', conf_intervals=False):
