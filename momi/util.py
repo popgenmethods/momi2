@@ -257,27 +257,27 @@ def _verbosify(func, before = None, after = None, print_freq = 1):
 def _npstr(x):
     return np.array_str(x, max_line_width=sys.maxsize)
 
-def adam(, x0, bounds, maxiter):
-    pass
+# def adam(, x0, bounds, maxiter):
+#     pass
 
-## based on code from autograd/examples
-def adam(fun_and_jac_list, x0, callback=None,
-         step_size=0.001, b1=0.9, b2=0.999, eps=10**-8):
-    """Adam as described in http://arxiv.org/pdf/1412.6980.pdf.
-    It's basically RMSprop with momentum and some correction terms."""
-    m = np.zeros(len(x))
-    v = np.zeros(len(x))
-    x = x0
-    for i in range(maxiters):
-        for fun,jac in fun_and_jac_list:
-            g = jac(x)
+# ## based on code from autograd/examples
+# def adam(fun_and_jac_list, x0, callback=None,
+#          step_size=0.001, b1=0.9, b2=0.999, eps=10**-8):
+#     """Adam as described in http://arxiv.org/pdf/1412.6980.pdf.
+#     It's basically RMSprop with momentum and some correction terms."""
+#     m = np.zeros(len(x))
+#     v = np.zeros(len(x))
+#     x = x0
+#     for i in range(maxiters):
+#         for fun,jac in fun_and_jac_list:
+#             g = jac(x)
 
-            m = (1 - b1) * g      + b1 * m  # First  moment estimate.
-            v = (1 - b2) * (g**2) + b2 * v  # Second moment estimate.
-            mhat = m / float(1 - b1**(i + 1))    # Bias correction.
-            vhat = v / float(1 - b2**(i + 1))
-            x = x-step_size*mhat/float(np.sqrt(vhat) + eps)
-    return x
+#             m = (1 - b1) * g      + b1 * m  # First  moment estimate.
+#             v = (1 - b2) * (g**2) + b2 * v  # Second moment estimate.
+#             mhat = m / float(1 - b1**(i + 1))    # Bias correction.
+#             vhat = v / float(1 - b2**(i + 1))
+#             x = x-step_size*mhat/float(np.sqrt(vhat) + eps)
+#     return x
 
 ## TODO: uncomment and rewrite simulate_inference
 # def simulate_inference(ms_path, num_loci, mu, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', surface_type='kl', n_sfs_dirs=0, tensor_method='greedy-hosvd', conf_intervals=False):
