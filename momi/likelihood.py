@@ -1,7 +1,7 @@
 
 from .util import make_constant, maximize, _npstr, truncate0, check_psd, memoize_instance
 import autograd.numpy as np
-from .compute_sfs import expected_sfs, expected_total_branch_len
+from .compute_sfs import expected_sfs, expected_total_branch_len, _expected_sfs
 from .math_functions import einsum2, inv_psd
 from .demography import DemographyError
 from .data_structure import _hashable_config
@@ -9,7 +9,7 @@ import scipy, scipy.stats
 import autograd
 from collections import Counter
 
-def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, **kwargs):
+def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, error_matrices=None):
     """
     Returns the composite log likelihood for the data.
 
@@ -34,18 +34,20 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, ve
         where sfs_probs are the normalized theoretical SFS entries.
         Setting truncate_probs to a small positive number (e.g. 1e-100)
         will avoid taking log(0) due to precision or underflow error.
-    **kwargs : optional
-        Additional optional arguments to be passed to expected_sfs
-        (e.g. error_matrices)
+    error_matrices: optional
+        see help(momi.expected_sfs)
     """
     try:
         sfs = data.sfs
     except AttributeError:
         sfs = data
-    
-    # get the expected counts for each config
-    sfs_probs = np.maximum(expected_sfs(demo, sfs.configs, normalized=True, **kwargs),
-                           truncate_probs)
+
+    E_sfs, denom = _expected_sfs(demo, sfs.configs, error_matrices=error_matrices)
+    sfs_probs = np.maximum(E_sfs / denom, truncate_probs)
+        
+    # # get the expected counts for each config
+    # sfs_probs = np.maximum(expected_sfs(demo, sfs.configs, normalized=True, error_matrices=error_matrices),
+    #                        truncate_probs)
     
     counts_ij = sfs._counts_ij()
     if not vector:
@@ -67,7 +69,9 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, ve
         sampled_n = np.sum(sfs.configs.config_array, axis=2)
         if np.any(sampled_n != demo.sampled_n):
             raise NotImplementedError("Poisson model not implemented for missing data.")
-        E_total = expected_total_branch_len(demo, **kwargs)        
+        assert np.all(denom == denom[0])
+        E_total = denom[0]
+        
         lambd = mut_rate * E_total
         log_lik = log_lik - lambd + counts_i * np.log(lambd) - lnfact(counts_i)
 

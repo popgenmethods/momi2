@@ -75,22 +75,9 @@ class Configs(tuple):
         if sampled_n is None:
             sampled_n = self.sampled_n
         return Configs(self.sampled_pops, self, fold=(fold or self.folded), sampled_n=sampled_n)
-
-    def _apply_to_vecs(self, f, normalized=False):
-        vecs = dict(self._get_vecs())
-        vals = f(vecs['vecs'])
-        ret = vals[vecs['idx_2_row']]
-        if self.folded:
-            ret = ret + vals[vecs['folded_2_row']]
-        if normalized:
-            denom = vals[vecs['denom_idx']]
-            for i,corr_idxs in enumerate(vecs["corrections_2_denom"]):
-                denom = denom - vals[corr_idxs]
-            ret = ret / denom
-        return ret
-   
+    
     @memoize_instance
-    def _get_vecs(self):       
+    def _vecs_and_idxs(self):       
         # get row indices for each config
         n_rows = 0
         n_rows += 1 # initial row is a "zero" config
@@ -168,14 +155,13 @@ class Configs(tuple):
 
             # the normalization constant
             vecs[i][denom_idx,:] = np.ones(n+1)
-        
-        ret = {'vecs': vecs, 'denom_idx': denom_idx, 'idx_2_row': idx_2_row, 'corrections_2_denom': corrections_2_denom}
+
+        idxs = {'denom_idx': denom_idx, 'idx_2_row': idx_2_row, 'corrections_2_denom': corrections_2_denom}
         try:
-            ret['folded_2_row'] = folded_2_row
+            idxs['folded_2_row'] = folded_2_row
         except UnboundLocalError:
             pass
-        ## return value is cached; for safety, return an immutable object
-        return tuple(ret.items())
+        return vecs, idxs
 
     
 class Sfs(object):

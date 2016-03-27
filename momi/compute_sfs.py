@@ -48,19 +48,36 @@ def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, error_matr
     --------
     expected_total_branch_len : sum of all expected SFS entries
     expected_sfs_tensor_prod : compute summary statistics of SFS
-    """       
+    """
+    sfs, denom = _expected_sfs(demography, configs, error_matrices)
+    if normalized:
+        sfs = sfs / denom
+    else:
+        sfs = sfs*mut_rate
+    return sfs
+
+def _expected_sfs(demography, configs, error_matrices=None):    
     if np.any(configs.sampled_n != demography.sampled_n) or np.any(configs.sampled_pops != demography.sampled_pops):
         raise ValueError("configs and demography must have same sampled_n, sampled_pops. Use Demography.copy() or Configs.copy() to make a copy with different sampled_n.")
 
-    def operator(vecs):
-        if error_matrices is not None:
-           vecs = _apply_error_matrices(vecs, error_matrices)
-        return expected_sfs_tensor_prod(vecs, demography, mut_rate=mut_rate)
+    vecs, idxs = configs._vecs_and_idxs()
     
-    sfs = configs._apply_to_vecs(operator,
-                                 normalized=normalized)
-    assert np.all(np.logical_or(sfs >= 0.0, np.isclose(sfs, 0.0)))
-    return sfs
+    if error_matrices is not None:
+        vecs = _apply_error_matrices(vecs, error_matrices)
+        
+    vals = expected_sfs_tensor_prod(vecs, demography)
+
+    sfs = vals[idxs['idx_2_row']]
+    if configs.folded:
+        sfs = sfs + vals[idxs['folded_2_row']]
+        
+    denom = vals[idxs['denom_idx']]
+    for corr_idxs in idxs["corrections_2_denom"]:
+        denom = denom - vals[corr_idxs]
+    
+    assert np.all(np.logical_or(vals >= 0.0, np.isclose(vals, 0.0)))
+    
+    return sfs, denom
 
 def expected_total_branch_len(demography, error_matrices=None):
     """
