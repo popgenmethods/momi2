@@ -2,9 +2,13 @@ from __future__ import division
 import pytest
 import momi
 from momi import expected_sfs
+import momi.likelihood
 from demo_utils import simple_admixture_demo
 import autograd.numpy as np
-import itertools
+import itertools, random
+from collections import Counter
+
+from test_ms import ms_path, scrm_path
 
 @pytest.mark.parametrize("folded,n_lins",
                          ((f,n) for f in (True,False) for n in ((2,3),(0,3))))

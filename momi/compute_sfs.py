@@ -72,8 +72,8 @@ def _expected_sfs(demography, configs, error_matrices=None):
         sfs = sfs + vals[idxs['folded_2_row']]
         
     denom = vals[idxs['denom_idx']]
-    for corr_idxs in idxs["corrections_2_denom"]:
-        denom = denom - vals[corr_idxs]
+    for i in (0,1):
+        denom = denom - vals[idxs[("corrections_2_denom",i)]]
     
     assert np.all(np.logical_or(vals >= 0.0, np.isclose(vals, 0.0)))
     

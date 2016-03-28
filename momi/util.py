@@ -8,33 +8,12 @@ from autograd import hessian, grad, hessian_vector_product, jacobian
 import itertools
 from collections import Counter
 import scipy, scipy.optimize
-import sys
-import collections
-import warnings
+import sys, warnings, collections
 
-class mylist(list):
+class mypartial(functools.partial):
     def __init__(self, *args, **kwargs):
-        list.__init__(self, *args)
-        for k,v in kwargs.iteritems():
-            setattr(self,k,v)
-
-# def sum_sfs_list(sfs_list):
-#     """
-#     Combines a list of SFS's into a single SFS by summing their entries.
-
-#     Parameters
-#     ----------
-#     sfs_list : list of dict
-#          A list where each entry is a dict mapping configs (tuples) to
-#          frequencies (floats or ints).
-
-#     Returns
-#     -------
-#     combined_sfs : dict
-#          The combined SFS, represented as a dict mapping configs (tuples)
-#          to frequencies (floats or ints).
-#     """
-#     return dict(sum([Counter(sfs) for sfs in sfs_list], Counter()))
+        functools.partial.__init__(self, *args, **kwargs)
+        functools.update_wrapper(self, self.func)
 
 def check_symmetric(X):
     Xt = np.transpose(X)
@@ -156,86 +135,84 @@ def smooth_pos_map(x):
 #             return f
 #     return func
 
-def maximize(f, start_params,
-             jac = True, hess = False, hessp = False,
-             method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
-             output_progress = False, **kwargs):
-    fixed_params = []    
-    if bounds is not None:
-        for i,b in enumerate(bounds):
-            if b is not None:
-                try:
-                    if b[0] == b[1]:
-                        fixed_params += [(i,b[0])]
-                except (TypeError,IndexError) as e:
-                    fixed_params += [(i,b)]
-        if any(start_params[i] != b for i,b in fixed_params):
-            raise ValueError("start_params does not agree with fixed parameters in bounds")
+def wrap_generic_maximizer(generic_minimizer):
+    def wrapped(f, start_params, maxiter, bounds = None, **kwargs):
+        fixed_params = []    
+        if bounds is not None:
+            for i,b in enumerate(bounds):
+                if b is not None:
+                    try:
+                        if b[0] == b[1]:
+                            fixed_params += [(i,b[0])]
+                    except (TypeError,IndexError) as e:
+                        fixed_params += [(i,b)]
+            if any(start_params[i] != b for i,b in fixed_params):
+                raise ValueError("start_params does not agree with fixed parameters in bounds")
 
-    if fixed_params:
-        fixed_idxs, fixed_offset = map(np.array, zip(*fixed_params))
-        
-        fixed_idxs = np.array([(i in fixed_idxs) for i in range(len(start_params))])
-        proj0 = np.eye(len(fixed_idxs))[:,fixed_idxs]
-        proj1 = np.eye(len(fixed_idxs))[:,~fixed_idxs]
+        if fixed_params:
+            fixed_idxs, fixed_offset = map(np.array, zip(*fixed_params))
 
-        fixed_offset = np.dot(proj0, fixed_offset)
+            fixed_idxs = np.array([(i in fixed_idxs) for i in range(len(start_params))])
+            proj0 = np.eye(len(fixed_idxs))[:,fixed_idxs]
+            proj1 = np.eye(len(fixed_idxs))[:,~fixed_idxs]
 
-        f0 = lambda x: f(np.dot(proj1, x) + fixed_offset)
-        start0 = np.array([s for (fxd,s) in zip(fixed_idxs,start_params) if not fxd])
-        bounds0 = [b for (fxd,b) in zip(fixed_idxs, bounds) if not fxd]
-        ret = maximize(f0, start0, jac=jac, hess=hess, hessp=hessp,
-                       method=method, maxiter=maxiter, bounds=bounds0,
-                       tol=tol, options=options, output_progress=output_progress,
-                       **kwargs)
-        ret.x = np.dot(proj1,ret.x) + fixed_offset
+            fixed_offset = np.dot(proj0, fixed_offset)
+
+            f0 = lambda x,*fargs,**fkwargs: f(np.dot(proj1, x) + fixed_offset, *fargs, **fkwargs)
+            start0 = np.array([s for (fxd,s) in zip(fixed_idxs,start_params) if not fxd])
+            bounds0 = [b for (fxd,b) in zip(fixed_idxs, bounds) if not fxd]
+            ret = generic_minimizer(f0, start0, maxiter, bounds0, **kwargs)
+            ret.x = np.dot(proj1,ret.x) + fixed_offset
+        else:
+            ret = generic_minimizer(f, start_params, maxiter, bounds, **kwargs)
+        for k,v in list(ret.items()):
+            if k in ("fun","jac") or k.startswith("hess"):
+                ret[k] = -v
+            else:
+                ret[k] = v
         return ret
-        
-    if (hess or hessp) and not isinstance(method, collections.Callable) and method.lower() not in ('newton-cg','trust-ncg','dogleg'):
-        raise ValueError("Only methods newton-cg, trust-ncg, and dogleg use hessian")
-    if bounds is not None and not isinstance(method, collections.Callable) and method.lower() not in ('l-bfgs-b', 'tnc', 'slsqp'):
-        raise ValueError("Only methods l-bfgs-b, tnc, slsqp use bounds")
+    functools.update_wrapper(wrapped, generic_minimizer)
+    return wrapped
 
-    if maxiter is None:
-        raise ValueError("maxiter must be a finite positive integer")
+@wrap_generic_maximizer
+def _maximize(f, start_params, maxiter, bounds,
+             jac = True, hess = False, hessp = False,
+             method = 'tnc', tol = None, options = {},
+             output_progress = False, **kwargs):        
     if 'maxiter' in options:
         raise ValueError("Please specify maxiter thru function argument 'maxiter', rather than 'options'")
     
     options = dict(options)
     options['maxiter'] = maxiter
-
-    def neg_fun(fun,name, check_inf=True):
-        def new_fun(*a):
-            try:
-                ret = -fun(*a)
-                if np.any(np.isnan(ret)) or (check_inf and not np.all(np.isfinite(ret))):
-                    raise OptimizationError("%s ( %s ) == %s. (Consider setting stricter bounds? e.g. set a lower bound of 1e-100 instead of 0)" % (name,str(*a),str(ret)))
-                return ret
-            except Exception as e:
-                #raise OptimizationError("at %s( %s ):\n%s" % (name, str(*a), str(e))), None, sys.exc_info()[2]
-                raise_with_traceback(OptimizationError("at %s( %s ):\n%s: %s" % (name, str(*a), type(e).__name__, str(e))))
-        return new_fun
-    
+   
     kwargs = dict(kwargs)
-    kwargs.update({kw : neg_fun(d(f),kw)
+    kwargs.update({kw : wrap_objective(d(f),kw)
                    for kw, b, d in [('jac', jac, grad), ('hessp', hessp, hessian_vector_product), ('hess', hess, hessian)]
                    if b})
 
-    f = neg_fun(f, "objective", check_inf=False)
+    f = wrap_objective(f, "objective", check_inf=False, output_progress=output_progress)
     
-    if output_progress:
-        f = _verbosify(f,
-                       before = lambda i,x: "evaluation %d" % i,
-                       after = lambda i,ret,x: "objective ( %s ) == %g" % (_npstr(x), -ret),
-                       print_freq = output_progress)
+    return scipy.optimize.minimize(f, start_params, method=method, bounds=bounds, tol=tol, options=options, **kwargs)
 
-    ret = scipy.optimize.minimize(f, start_params, method=method, bounds=bounds, tol=tol, options=options, **kwargs)
-    for k,v in list(ret.items()):
-        if k in ("fun","jac") or k.startswith("hess"):
-            ret[k] = -v
-        else:
-            ret[k] = v
-    return ret
+def wrap_objective(fun,name, check_inf=True, output_progress=False):
+    def new_fun(*a, **kw):
+        try:
+            ret = -fun(*a,**kw)
+            if np.any(np.isnan(ret)) or (check_inf and not np.all(np.isfinite(ret))):
+                raise OptimizationError("%s ( %s ) == %s. (Consider setting stricter bounds? e.g. set a lower bound of 1e-100 instead of 0)" % (name,str(*a),str(ret)))
+            return ret
+        except Exception as e:
+            #raise OptimizationError("at %s( %s ):\n%s" % (name, str(*a), str(e))), None, sys.exc_info()[2]
+            raise_with_traceback(OptimizationError("at %s( %s ):\n%s: %s" % (name, str(*a), type(e).__name__, str(e))))
+    if output_progress:
+        new_fun = _verbosify(new_fun,
+                             before = lambda i,x: "evaluation %d" % i,
+                             after = lambda i,ret,x: "%s ( %s ) == %g" % (name, _npstr(x), -ret),
+                             print_freq = output_progress)
+
+    functools.update_wrapper(new_fun, fun)
+    return new_fun
+
 
 class OptimizationError(Exception):
     pass
@@ -257,27 +234,124 @@ def _verbosify(func, before = None, after = None, print_freq = 1):
 def _npstr(x):
     return np.array_str(x, max_line_width=sys.maxsize)
 
-# def adam(, x0, bounds, maxiter):
-#     pass
+def _get_stochastic_optimizer(method):
+    if method == "adam":
+        return adam
+    if method == "adadelta":
+        return adadelta
+    raise ValueError("Unrecognized method")
 
-# ## based on code from autograd/examples
-# def adam(fun_and_jac_list, x0, callback=None,
-#          step_size=0.001, b1=0.9, b2=0.999, eps=10**-8):
-#     """Adam as described in http://arxiv.org/pdf/1412.6980.pdf.
-#     It's basically RMSprop with momentum and some correction terms."""
-#     m = np.zeros(len(x))
-#     v = np.zeros(len(x))
-#     x = x0
-#     for i in range(maxiters):
-#         for fun,jac in fun_and_jac_list:
-#             g = jac(x)
+def wrap_sgd(optimizer):
+    def wrapped_optimizer(meta_fun, start_params, maxiter, bounds, output_progress, *args, **kwargs):
+        if bounds is None:
+            bounds = [None] * len(start_params)
+        bounds = [b if b is not None else (None,None)
+                  for b in bounds]
+        upper_bounds = [b if b is not None else float('inf')
+                        for _,b in bounds]
+        lower_bounds = [b if b is not None else -float('inf')
+                        for b,_ in bounds]
+        bounds = zip(lower_bounds, upper_bounds)
+            
+        n_minibatches = meta_fun.n_minibatches
+        
+        meta_fun = wrap_objective(meta_fun, 'objective', check_inf=False, output_progress=output_progress)        
+        fun_list = [mypartial(meta_fun, minibatch=i) for i in range(n_minibatches)]
+        
+        old_grad_list = [grad(fun) for fun in fun_list]
+        meta_grad = lambda x, minibatch: old_grad_list[minibatch](x)
+        meta_grad = wrap_objective(meta_grad, 'jac')
+        grad_list = [mypartial(meta_grad, minibatch=i) for i in range(n_minibatches)]
 
-#             m = (1 - b1) * g      + b1 * m  # First  moment estimate.
-#             v = (1 - b2) * (g**2) + b2 * v  # Second moment estimate.
-#             mhat = m / float(1 - b1**(i + 1))    # Bias correction.
-#             vhat = v / float(1 - b2**(i + 1))
-#             x = x-step_size*mhat/float(np.sqrt(vhat) + eps)
-#     return x
+        return optimizer(zip(fun_list, grad_list), start_params, maxiter, bounds, *args, **kwargs)
+    functools.update_wrapper(wrapped_optimizer, optimizer)
+    return wrapped_optimizer
+        
+## based on code from autograd/examples
+@wrap_generic_maximizer
+@wrap_sgd
+def adam(fun_and_jac_list, start_params, maxiter, bounds,
+         tol=None,
+         random_generator=np.random, step_size=1., b1=0.9, b2=0.999, eps=10**-8):
+    """Adam as described in http://arxiv.org/pdf/1412.6980.pdf.
+    It's basically RMSprop with momentum and some correction terms."""
+    lower_bounds, upper_bounds = zip(*bounds)
+    if tol is not None:
+        raise NotImplementedError("tol not yet implemented")
+    
+    x = start_params    
+    m = np.zeros(len(x))
+    v = np.zeros(len(x))
+
+    step_size = step_size / float(len(fun_and_jac_list))
+    
+    history = OptimizeHistory()
+    for curr_pass in range(maxiter):
+        history.new_batch()
+        for i in random_generator.permutation(len(fun_and_jac_list)):
+            fun,jac = fun_and_jac_list[i]
+            
+            f = fun(x)
+            g = jac(x)
+            history.update(x,f,g)
+
+            m = (1 - b1) * g      + b1 * m  # First  moment estimate.
+            v = (1 - b2) * (g**2) + b2 * v  # Second moment estimate.
+            mhat = m / float(1 - b1**(i + 1))    # Bias correction.
+            vhat = v / float(1 - b2**(i + 1))
+            x = x+step_size*mhat/(np.sqrt(vhat) + eps)
+            x = np.maximum(np.minimum(x, upper_bounds), lower_bounds)
+    return scipy.optimize.OptimizeResult({'x':x, 'fun':f, 'jac':g, 'history':history})
+
+@wrap_generic_maximizer
+@wrap_sgd
+def adadelta(fun_and_jac_list, start_params, maxiter, bounds,
+             tol=None,
+             random_generator=np.random, rho=.95, eps=1e-6):
+    lower_bounds, upper_bounds = zip(*bounds)
+    if tol is not None:
+        raise NotImplementedError("tol not yet implemented")
+    
+    x = start_params    
+    EG2 = 0.
+    EDelX2 = 0.
+
+    history = OptimizeHistory()
+    for curr_pass in range(maxiter):
+        history.new_batch()
+        for i in random_generator.permutation(len(fun_and_jac_list)):
+            fun,jac = fun_and_jac_list[i]
+            
+            f = fun(x)
+            g = jac(x)
+            history.update(x,f,g)
+
+            EG2 = rho * EG2 + (1.-rho) * (g**2)
+            stepsize = - np.sqrt(EDelX2 + eps) / np.sqrt(EG2 + eps) * g
+
+            EDelX2 = rho * EDelX2 + (1.-rho) * (stepsize**2)
+            
+            x = x-stepsize
+            x = np.maximum(np.minimum(x, upper_bounds), lower_bounds)
+    return scipy.optimize.OptimizeResult({'x':x, 'fun':f, 'jac':g, 'history':history})
+
+class OptimizeHistory(object):
+    def __init__(self):
+        self.x = []
+        self.f = []
+        self.g = []
+
+    def new_batch(self):
+        self.x += [[]]
+        self.f += [[]]
+        self.g += [[]]
+
+    def update(self, x,f,g):
+        self.x[-1] += [x]
+        self.f[-1] += [f]
+        self.g[-1] += [g]
+
+
 
 ## TODO: uncomment and rewrite simulate_inference
 # def simulate_inference(ms_path, num_loci, mu, additional_ms_params, true_ms_params, init_opt_params, demo_factory, n_iter=10, transform_params=lambda x:x, verbosity=0, method='trust-ncg', surface_type='kl', n_sfs_dirs=0, tensor_method='greedy-hosvd', conf_intervals=False):

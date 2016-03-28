@@ -60,6 +60,9 @@ class Configs(tuple):
             raise ValueError("config greater than sampled_n")
         self.sampled_n = sampled_n
 
+        config_sampled_n = np.sum(self.config_array, axis=2)
+        self.has_missing_data = np.any(config_sampled_n != self.sampled_n)
+
     def copy(self, fold=False, sampled_n=None):
         """
         Notes
@@ -75,9 +78,14 @@ class Configs(tuple):
         if sampled_n is None:
             sampled_n = self.sampled_n
         return Configs(self.sampled_pops, self, fold=(fold or self.folded), sampled_n=sampled_n)
+
+    def _vecs_and_idxs(self):
+        vecs,idxs = self._build_vecs_and_idxs()
+        ## copy idxs to make it safe
+        return vecs, dict(idxs)
     
     @memoize_instance
-    def _vecs_and_idxs(self):       
+    def _build_vecs_and_idxs(self):       
         # get row indices for each config
         n_rows = 0
         n_rows += 1 # initial row is a "zero" config
@@ -105,7 +113,7 @@ class Configs(tuple):
             raise Exception("There is a config that is larger than the specified sample size!")
         
         sample_sizes = [tuple(s) for s in sample_sizes_array]
-        ssize_2_row = {}
+        #ssize_2_row = {}
         ssize_2_corrections = [{}, {}] # corrections for monomorphic sites (all ancestral & all derived)
         for s in set(sample_sizes):
             ## add rows for monomorphic correction terms
@@ -156,13 +164,15 @@ class Configs(tuple):
             # the normalization constant
             vecs[i][denom_idx,:] = np.ones(n+1)
 
-        idxs = {'denom_idx': denom_idx, 'idx_2_row': idx_2_row, 'corrections_2_denom': corrections_2_denom}
+        idxs = {'denom_idx': denom_idx, 'idx_2_row': idx_2_row}
+        assert len(corrections_2_denom) == 2
+        idxs.update({('corrections_2_denom',0): corrections_2_denom[0],
+                     ('corrections_2_denom',1): corrections_2_denom[1]})
         try:
             idxs['folded_2_row'] = folded_2_row
         except UnboundLocalError:
             pass
         return vecs, idxs
-
     
 class Sfs(object):
     """
@@ -260,7 +270,8 @@ class Sfs(object):
         return self.loci == other.loci and self.sampled_pops == other.sampled_pops
     def __ne__(self, other):
         return not self == other
-        
+
+    @property
     @memoize_instance
     def _counts_ij(self):
         # counts_ij is a matrix whose [i,j]th entry is the count of config j at locus i

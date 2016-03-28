@@ -1,15 +1,17 @@
 
-from .util import make_constant, maximize, _npstr, truncate0, check_psd, memoize_instance
+from .util import make_constant, _maximize, _npstr, truncate0, check_psd, memoize_instance, mypartial, _get_stochastic_optimizer
 import autograd.numpy as np
-from .compute_sfs import expected_sfs, expected_total_branch_len, _expected_sfs
+from .compute_sfs import expected_sfs, _expected_sfs
 from .math_functions import einsum2, inv_psd
 from .demography import DemographyError
 from .data_structure import _hashable_config
 import scipy, scipy.stats
 import autograd
 from collections import Counter
+#from functools import partial
+import random
 
-def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, error_matrices=None):
+def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, error_matrices=None, comb=True):
     """
     Returns the composite log likelihood for the data.
 
@@ -36,6 +38,9 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, ve
         will avoid taking log(0) due to precision or underflow error.
     error_matrices: optional
         see help(momi.expected_sfs)
+    comb : bool, optional
+        if True, include the combinatorial factors in the log-likelihood(s)
+        (affects the returned log-likelihood by a constant that doesn't depend on the demo)
     """
     try:
         sfs = data.sfs
@@ -49,7 +54,9 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, ve
     # sfs_probs = np.maximum(expected_sfs(demo, sfs.configs, normalized=True, error_matrices=error_matrices),
     #                        truncate_probs)
     
-    counts_ij = sfs._counts_ij()
+    counts_ij = sfs._counts_ij
+    assert len(counts_ij.shape) == 2
+    n_loci = counts_ij.shape[0]
     if not vector:
         counts_ij = np.array(np.sum(counts_ij, axis=0), ndmin=2)
             
@@ -60,21 +67,25 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, ve
     lnfact = lambda x: scipy.special.gammaln(x+1)
 
     # log likelihood of the multinomial distribution for observed SNPs
-    log_lik = np.dot(counts_ij, np.log(sfs_probs)) - np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
+    log_lik = np.dot(counts_ij, np.log(sfs_probs))
+    comb_fac =  -np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
-        mut_rate = mut_rate * np.ones(len(sfs.loci))
+        mut_rate = mut_rate * np.ones(n_loci)
         if not vector:
             mut_rate = np.sum(mut_rate)
-        sampled_n = np.sum(sfs.configs.config_array, axis=2)
-        if np.any(sampled_n != demo.sampled_n):
+        if sfs.configs.has_missing_data:
             raise NotImplementedError("Poisson model not implemented for missing data.")
         assert np.all(denom == denom[0])
         E_total = denom[0]
         
         lambd = mut_rate * E_total
-        log_lik = log_lik - lambd + counts_i * np.log(lambd) - lnfact(counts_i)
+        log_lik = log_lik - lambd + counts_i * np.log(lambd) 
+        comb_fac = comb_fac - lnfact(counts_i)
 
+    if comb:
+        log_lik = log_lik + comb_fac
+        
     if not vector:
         log_lik = np.squeeze(log_lik)
     return log_lik
@@ -82,7 +93,7 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, ve
 def composite_mle_search(data, demo_func, start_params,
                          mut_rate = None,
                          jac = True, hess = False, hessp = False,
-                         method = 'tnc', maxiter = 100, bounds = None, tol = None, options = {},
+                         method = 'tnc', maxiter = None, bounds = None, tol = None, options = {},
                          output_progress = False,                        
                          sfs_kwargs = {}, truncate_probs = 1e-100,
                          **kwargs):
@@ -117,7 +128,8 @@ def composite_mle_search(data, demo_func, start_params,
     method : str or callable, optional
         The solver for to use (see help(scipy.optimize.minimize))
     maxiter : int, optional
-        The maximum number of iterations to use
+        The maximum number of iterations to use.
+        Defaults to 100 for regular gradient descent, and 10 for stochastic gradient descent.
     bounds : list of (lower,upper) or float, optional
         lower and upper bounds for each parameter. Use None to indicate
         parameter is unbounded in a direction. Use a float to indicate
@@ -156,13 +168,113 @@ def composite_mle_search(data, demo_func, start_params,
     """
     start_params = np.array(start_params)
 
-    old_demo_func = demo_func
-    demo_func = lambda params: old_demo_func(*params)
+    f = lambda X,params,mut_rate: composite_log_likelihood(X, demo_func(*params), mut_rate, truncate_probs = truncate_probs, **sfs_kwargs)    
+    try:
+        sgd_fun = _get_stochastic_optimizer(method)
+    except ValueError:
+        if maxiter is None:
+            maxiter = 100
+            
+        f = mypartial(f, data, mut_rate=mut_rate)
+        return _maximize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
+    else:
+        if maxiter is None:
+            maxiter=10
+            
+        if not jac or hess or hessp:
+            raise ValueError("For stochastic gradient descent methods, must have jac=True, hess=False, hessp=False")
+        kwargs = dict(kwargs)
+        kwargs.update(options)
+        return _sgd_composite_lik(sgd_fun, start_params, f, data, mut_rate=mut_rate, maxiter=maxiter, bounds=bounds, tol=tol, output_progress=output_progress, **kwargs)
 
-    f = lambda params: composite_log_likelihood(data, demo_func(params), mut_rate, truncate_probs = truncate_probs, **sfs_kwargs)
+
+### stuff for stochastic gradient descent
+def _sgd_composite_lik(sgd_method, x0, lik_fun, data, n_chunks=None, random_generator=np.random, mut_rate=None, **sgd_kwargs):
+    if n_chunks is None:
+        raise ValueError("n_chunks must be specified")
     
-    return maximize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
+    liks = _sgd_liks(lik_fun, data, n_chunks, random_generator, mut_rate)
+    meta_lik = lambda x,minibatch: liks[minibatch](x)
+    meta_lik.n_minibatches = len(liks)
 
+    ret = sgd_method(meta_lik, x0, random_generator=random_generator, **sgd_kwargs)
+    return ret
+
+def _sgd_liks(lik_fun, data, n_chunks, rnd, mut_rate):
+    try:
+        sfs = data.sfs
+    except AttributeError:
+        sfs = data
+    
+    chunks = _subsfs_list(sfs, n_chunks, rnd)
+    
+    if mut_rate is not None:
+        mut_rate = np.sum(mut_rate * np.ones(len(sfs.loci))) / float(n_chunks)
+
+    # def lik_fun(sfs_chunk, params):
+    #     return composite_log_likelihood(sfs_chunk, demo_func(*params), mut_rate=mut_rate, **kwargs)
+    return [mypartial(lik_fun, chnk, mut_rate=mut_rate) for chnk in chunks]
+
+def _subsfs_list(sfs, n_chunks, rnd):
+    configs = sfs.configs
+    
+    total_counts = np.array([sfs.total[conf] for conf in configs], dtype=int)
+
+    # row = SFS entry, column=chunk
+    random_counts = np.array([rnd.multinomial(cnt_i, [1./float(n_chunks)]*n_chunks)
+                              for cnt_i in total_counts], dtype=int)
+    assert random_counts.shape == (len(total_counts), n_chunks)
+    
+    return [_SubSfs(configs, column) for column in np.transpose(random_counts)]
+
+
+class _SubConfigs(object):
+    ## Efficient access to subset of configs
+    def __init__(self, configs, sub_idxs):
+        self.sub_idxs = sub_idxs
+        self.full_configs = configs
+        for a in ("folded", "sampled_n", "sampled_pops", "has_missing_data"):
+            setattr(self, a, getattr(self.full_configs, a))
+        
+    def _vecs_and_idxs(self):
+        vecs,_ = self.full_configs._vecs_and_idxs()
+        old_idxs, idxs = self._build_idxs()
+
+        vecs = [v[old_idxs,:] for v in vecs]
+        ## copy idxs to make it safe
+        return vecs, dict(idxs)
+        
+    @memoize_instance
+    def _build_idxs(self):
+        _,idxs = self.full_configs._vecs_and_idxs()
+
+        denom_idx_key = 'denom_idx'
+        denom_idx = idxs[denom_idx_key]
+        idxs = {k: v[self.sub_idxs] for k,v in idxs.items() if k != denom_idx_key}
+
+        old_idxs = np.array(list(set(sum(map(list, idxs.values()) + [[denom_idx]], []))))
+        old_2_new_idxs = {old_id: new_id for new_id, old_id in enumerate(old_idxs)}
+
+        idxs = {k: np.array([old_2_new_idxs[old_id]
+                             for old_id in v])
+                for k,v in idxs.items()}
+        idxs[denom_idx_key] = old_2_new_idxs[denom_idx]
+        return old_idxs, idxs
+
+class _SubSfs(object):
+    ## represents a subsample of SFS
+    ## Just used by stochastic gradient descent for now
+    def __init__(self, configs, counts):
+        assert len(counts.shape) == 1 and len(counts) == len(configs)
+        
+        subidxs = np.arange(len(counts))[counts != 0]
+        self.configs = _SubConfigs(configs, subidxs)
+        
+        counts = counts[counts != 0]
+        self._counts_ij = np.array(counts, ndmin=2)
+
+
+### stuff for confidence intervals
 class ConfidenceRegion(object):
     """
     Constructs asymptotic confidence regions and hypothesis tests,
@@ -400,7 +512,7 @@ def _long_score_cov(params, seg_sites, demo_func, **kwargs):
     params = np.array(params)
    
     configs = seg_sites.sfs.configs
-    snp_counts = np.sum(seg_sites.sfs._counts_ij(), axis=0)
+    snp_counts = np.sum(seg_sites.sfs._counts_ij, axis=0)
     weights = snp_counts / float(np.sum(snp_counts))
     
     def snp_log_probs(x):
