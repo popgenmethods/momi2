@@ -206,8 +206,8 @@ def wrap_objective(fun,name, check_inf=True, output_progress=False):
             raise_with_traceback(OptimizationError("at %s( %s ):\n%s: %s" % (name, str(*a), type(e).__name__, str(e))))
     if output_progress:
         new_fun = _verbosify(new_fun,
-                             before = lambda i,x: "evaluation %d" % i,
-                             after = lambda i,ret,x: "%s ( %s ) == %g" % (name, _npstr(x), -ret),
+                             before = lambda i,x,*a,**kw: "evaluation %d" % i,
+                             after = lambda i,ret,x,*a,**kw: "%s ( %s ) == %g" % (name, _npstr(x), -ret),
                              print_freq = output_progress)
 
     functools.update_wrapper(new_fun, fun)
@@ -252,15 +252,12 @@ def wrap_sgd(optimizer):
         lower_bounds = [b if b is not None else -float('inf')
                         for b,_ in bounds]
         bounds = zip(lower_bounds, upper_bounds)
-            
+
+        meta_grad = wrap_objective(grad(meta_fun), 'jac')        
+        meta_fun = wrap_objective(meta_fun, 'objective', check_inf=False, output_progress=output_progress)
+
         n_minibatches = meta_fun.n_minibatches
-        
-        meta_fun = wrap_objective(meta_fun, 'objective', check_inf=False, output_progress=output_progress)        
         fun_list = [mypartial(meta_fun, minibatch=i) for i in range(n_minibatches)]
-        
-        old_grad_list = [grad(fun) for fun in fun_list]
-        meta_grad = lambda x, minibatch: old_grad_list[minibatch](x)
-        meta_grad = wrap_objective(meta_grad, 'jac')
         grad_list = [mypartial(meta_grad, minibatch=i) for i in range(n_minibatches)]
 
         return optimizer(zip(fun_list, grad_list), start_params, maxiter, bounds, *args, **kwargs)
@@ -299,7 +296,7 @@ def adam(fun_and_jac_list, start_params, maxiter, bounds,
             v = (1 - b2) * (g**2) + b2 * v  # Second moment estimate.
             mhat = m / float(1 - b1**(i + 1))    # Bias correction.
             vhat = v / float(1 - b2**(i + 1))
-            x = x+step_size*mhat/(np.sqrt(vhat) + eps)
+            x = x-step_size*mhat/(np.sqrt(vhat) + eps)
             x = np.maximum(np.minimum(x, upper_bounds), lower_bounds)
     return scipy.optimize.OptimizeResult({'x':x, 'fun':f, 'jac':g, 'history':history})
 

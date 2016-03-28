@@ -101,7 +101,7 @@ def test_subliks(fold):
 
     lik = lambda X,params,**kwargs: momi.composite_log_likelihood(X, demo_func(*params), comb=False, **kwargs)
     
-    lik_funs = momi.likelihood._sgd_liks(lik, sfs, n_chunks, rnd, None)
+    lik_funs = momi.likelihood._sgd_liks(lik, sfs, n_chunks, rnd, None, True)
 
        
     val0 = [f(x0) for f in lik_funs]
@@ -124,7 +124,7 @@ def test_stochastic_inference(method='adam',folded=False):
     if folded:
         sfs = sfs.copy(fold=True)
     
-    optimize_res = momi.composite_mle_search(sfs, get_demo, np.array([.1,.9]), mu, bounds=[(1e-100,None),(1e-100,None)], method=method, maxiter=10, options={'n_chunks':10})
+    optimize_res = momi.composite_mle_search(sfs, get_demo, np.array([.1,.9]), mu, bounds=[(1e-100,None),(1e-100,None)], method=method, maxiter=10, options={'n_chunks':10}, output_progress =10)
     print optimize_res
     
     inferred_x = optimize_res.x
