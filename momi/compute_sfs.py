@@ -8,7 +8,7 @@ from .data_structure import Configs
 from autograd.core import primitive
 from autograd import hessian
 
-def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, error_matrices=None):
+def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, error_matrices=None, batchsize=None):
     """
     Expected sample frequency spectrum (SFS) entries for the specified
     demography and configs. The expected SFS is the expected number of
@@ -43,20 +43,27 @@ def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, error_matr
          If error_matrices is not None, then the returned value is adjusted
          to account for this sampling error, in particular the effect it
          has on the total number of observed mutations.
+    batchsize : None or int
+        A parameter for controlling memory usage.
+        By default (batchsize=None), all the return values are computed in a
+        single "batch", which may be memory intensive.
+        Otherwise, return values are computed in "batches" of the given size,
+        reducing the memory usage.
+
 
     See Also
     --------
     expected_total_branch_len : sum of all expected SFS entries
     expected_sfs_tensor_prod : compute summary statistics of SFS
     """
-    sfs, denom = _expected_sfs(demography, configs, error_matrices)
+    sfs, denom = _expected_sfs(demography, configs, error_matrices, batchsize)
     if normalized:
         sfs = sfs / denom
     else:
         sfs = sfs*mut_rate
     return sfs
 
-def _expected_sfs(demography, configs, error_matrices=None):    
+def _expected_sfs(demography, configs, error_matrices, batchsize):    
     if np.any(configs.sampled_n != demography.sampled_n) or np.any(configs.sampled_pops != demography.sampled_pops):
         raise ValueError("configs and demography must have same sampled_n, sampled_pops. Use Demography.copy() or Configs.copy() to make a copy with different sampled_n.")
 
@@ -65,7 +72,7 @@ def _expected_sfs(demography, configs, error_matrices=None):
     if error_matrices is not None:
         vecs = _apply_error_matrices(vecs, error_matrices)
         
-    vals = expected_sfs_tensor_prod(vecs, demography)
+    vals = expected_sfs_tensor_prod(vecs, demography, batchsize=batchsize)
 
     sfs = vals[idxs['idx_2_row']]
     if configs.folded:
@@ -179,7 +186,7 @@ def expected_deme_tmrca(demography, deme):
     
     return np.squeeze(expected_sfs_tensor_prod(vecs, demography))
 
-def expected_sfs_tensor_prod(vecs, demography, mut_rate=1.0):
+def expected_sfs_tensor_prod(vecs, demography, mut_rate=1.0, batchsize=None):
     """
     Viewing the SFS as a D-tensor (where D is the number of demes), this
     returns a 1d array whose j-th entry is a certain summary statistic of the
@@ -208,30 +215,56 @@ def expected_sfs_tensor_prod(vecs, demography, mut_rate=1.0):
         res[j] is the tensor multiplication of the sfs against the vectors
         vecs[0][j,:], vecs[1][j,:], ... along its tensor modes.
 
+    Other Parameters
+    ----------------
+    batchsize : None or int
+        A parameter for controlling memory usage.
+        By default (batchsize=None), all the return values are computed in a
+        single "batch", which may be memory intensive.
+        Otherwise, return values are computed in "batches" of the given size,
+        reducing the memory usage.
+
     See Also
     --------
     sfs_tensor_prod : compute the same summary statistics for an observed SFS
     expected_sfs : compute individual SFS entries
     expected_total_branch_len, expected_tmrca, expected_deme_tmrca : 
          examples of coalescent statistics that use this function
-    """
-    leaf_states = dict(list(zip(demography.sampled_pops, vecs)))
+    """   
+    ## NOTE cannot use vecs[i] = ... due to autograd issues
+    vecs = [np.vstack([np.array([1.0] + [0.0]*n), # all ancestral state
+                       np.array([0.0]*n + [1.0]), # all derived state
+                       v])
+            for v,n in zip(vecs, demography.sampled_n)]
     
-    for leaf,n in zip(demography.sampled_pops, demography.sampled_n):
-        # add states for all ancestral/derived
-        leaf_states[leaf] = np.vstack([np.array([1.0] + [0.0]*n), # all ancestral state
-                                       np.array([0.0]*n + [1.0]), # all derived state
-                                       leaf_states[leaf]])
+    nrows = vecs[0].shape[0]
+    if batchsize is None:
+        batchsize = nrows
 
-    _,res = _partial_likelihood(leaf_states,
-                                demography, demography._event_root)
+    split_points = [batchsize]
+    while split_points[-1] < nrows:
+        split_points += [split_points[-1] + batchsize]
+
+    vecs_list = zip(*map(lambda x: np.split(x, split_points)[:-1], vecs))
+
+    res = [_expected_sfs_tensor_prod(curr_vecs, demography, mut_rate=mut_rate) for curr_vecs in vecs_list]
+    res = np.concatenate(res)
 
     # subtract out mass for all ancestral/derived state
     for k in (0,1):
-        res = res - res[k] * np.prod([l[:,-k] for l in list(leaf_states.values())], axis=0)
+        res = res - res[k] * np.prod([l[:,-k] for l in vecs], axis=0)
         assert np.isclose(res[k], 0.0)
     # remove monomorphic states
-    res = res[2:]
+    res = res[2:]    
+    
+    return res
+    
+def _expected_sfs_tensor_prod(vecs, demography, mut_rate=1.0):    
+    leaf_states = dict(list(zip(demography.sampled_pops, vecs)))
+    
+    _,res = _partial_likelihood(leaf_states,
+                                demography, demography._event_root)
+
     return res * mut_rate
 
 def _partial_likelihood(leaf_states, demo, event):

@@ -265,7 +265,7 @@ class Demography(object):
         '''
         return self._event_tree.node[event]['child_pops']
    
-    #@memoize_instance
+    @memoize_instance
     def _pulse_prob(self, event):
         ## returns 4-tensor
         ## running time is O(n^5), because of pseudo-inverse
@@ -317,7 +317,7 @@ class Demography(object):
 
         return recipient, non_recipient, donor, non_donor
     
-    #@memoize_instance
+    @memoize_instance
     def _admixture_prob(self, admixture_node):
         return self._admixture_prob_helper(admixture_node)
     

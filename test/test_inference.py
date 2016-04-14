@@ -54,7 +54,7 @@ def test_jointime_inference(folded, add_n):
     print(t0,t1)
     
     x0 = np.array([random.uniform(0,t1)])
-    res = composite_mle_search(sfs, get_demo, x0, None, bounds=[(0,t1)])
+    res = composite_mle_search(sfs, get_demo, x0, None, bounds=[(0,t1),], sfs_kwargs={'batchsize':int(len(sfs.total)/3)+1})
     
     print res.jac
     assert abs(res.x - t0) / t0 < .05

@@ -11,7 +11,7 @@ from collections import Counter
 #from functools import partial
 import random
 
-def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, error_matrices=None, comb=True):
+def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, error_matrices=None, comb=True, batchsize=None):
     """
     Returns the composite log likelihood for the data.
 
@@ -41,13 +41,19 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, ve
     comb : bool, optional
         if True, include the combinatorial factors in the log-likelihood(s)
         (affects the returned log-likelihood by a constant that doesn't depend on the demo)
+    batchsize : None or int
+        A parameter for controlling memory usage.
+        By default (batchsize=None), all the return values are computed in a
+        single "batch", which may be memory intensive.
+        Otherwise, return values are computed in "batches" of the given size,
+        reducing the memory usage.
     """
     try:
         sfs = data.sfs
     except AttributeError:
         sfs = data
 
-    E_sfs, denom = _expected_sfs(demo, sfs.configs, error_matrices=error_matrices)
+    E_sfs, denom = _expected_sfs(demo, sfs.configs, error_matrices=error_matrices, batchsize=batchsize)
     sfs_probs = np.maximum(E_sfs / denom, truncate_probs)
         
     # # get the expected counts for each config
