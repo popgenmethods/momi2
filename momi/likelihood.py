@@ -195,24 +195,28 @@ def composite_mle_search(data, demo_func, start_params,
 
 
 ### stuff for stochastic gradient descent
-def _sgd_composite_lik(sgd_method, x0, lik_fun, data, n_chunks=None, random_generator=np.random, mut_rate=None, **sgd_kwargs):
+def _sgd_composite_lik(sgd_method, x0, lik_fun, data, output_progress, n_chunks=None, random_generator=np.random, mut_rate=None, **sgd_kwargs):
     if n_chunks is None:
         raise ValueError("n_chunks must be specified")
     
-    liks = _sgd_liks(lik_fun, data, n_chunks, random_generator, mut_rate)
+    liks = _sgd_liks(lik_fun, data, n_chunks, random_generator, mut_rate, output_progress)
     meta_lik = lambda x,minibatch: liks[minibatch](x)
     meta_lik.n_minibatches = len(liks)
 
-    ret = sgd_method(meta_lik, x0, random_generator=random_generator, **sgd_kwargs)
+    ret = sgd_method(meta_lik, x0, random_generator=random_generator, output_progress=output_progress, **sgd_kwargs)
     return ret
 
-def _sgd_liks(lik_fun, data, n_chunks, rnd, mut_rate):
+def _sgd_liks(lik_fun, data, n_chunks, rnd, mut_rate, output_progress):
     try:
         sfs = data.sfs
     except AttributeError:
         sfs = data
     
     chunks = _subsfs_list(sfs, n_chunks, rnd)
+    if output_progress:
+        print "n_chunks", n_chunks
+        print "avg snps per chunk", np.mean([np.sum(chnk._counts_ij) for chnk in chunks])
+        print "avg UNIQUE snps per chunk", np.mean([len(np.squeeze(chnk._counts_ij)) for chnk in chunks])
     
     if mut_rate is not None:
         mut_rate = np.sum(mut_rate * np.ones(len(sfs.loci))) / float(n_chunks)
