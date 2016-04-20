@@ -7,6 +7,7 @@ import autograd.numpy as np
 import scipy, scipy.stats
 import itertools
 import sys
+from collections import Counter
 
 from demo_utils import *
 
@@ -35,13 +36,12 @@ def check_sfs_counts(demo, theta=10., rho=10.0, num_loci=1000, folded=False):
     sfs_list = seg_sites.sfs
     
     if folded:
-        #seg_sites = seg_sites.copy(fold=True)
-        #sfs_list = seg_sites.sfs
-        sfs_list = sfs_list.copy(fold=True)
+        #pass
+        sfs_list = sfs_list.fold()
         
     #config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list.loci],[])))
     
-    sfs_vals,branch_len = expected_sfs(demo, sfs_list.configs), expected_total_branch_len(demo)
+    sfs_vals,branch_len = expected_sfs(demo, sfs_list.configs, folded=folded), expected_total_branch_len(demo)
     theoretical = sfs_vals * theta
 
     observed = np.zeros((len(sfs_list.configs), len(sfs_list.loci)))

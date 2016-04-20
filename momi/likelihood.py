@@ -1,7 +1,7 @@
 
 from .util import make_constant, _maximize, _npstr, truncate0, check_psd, memoize_instance, mypartial, _get_stochastic_optimizer
 import autograd.numpy as np
-from .compute_sfs import expected_sfs, _expected_sfs
+from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2, inv_psd
 from .demography import DemographyError
 from .data_structure import _hashable_config
@@ -11,7 +11,7 @@ from collections import Counter
 #from functools import partial
 import random
 
-def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, error_matrices=None, comb=True):
+def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, **kwargs):
     """
     Returns the composite log likelihood for the data.
 
@@ -36,24 +36,16 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, ve
         where sfs_probs are the normalized theoretical SFS entries.
         Setting truncate_probs to a small positive number (e.g. 1e-100)
         will avoid taking log(0) due to precision or underflow error.
-    error_matrices: optional
-        see help(momi.expected_sfs)
-    comb : bool, optional
-        if True, include the combinatorial factors in the log-likelihood(s)
-        (affects the returned log-likelihood by a constant that doesn't depend on the demo)
+    **kwargs : additional arguments to pass to expected_sfs(), i.e. error_matrices, folded
     """
     try:
         sfs = data.sfs
     except AttributeError:
         sfs = data
 
-    E_sfs, denom = _expected_sfs(demo, sfs.configs, error_matrices=error_matrices)
-    sfs_probs = np.maximum(E_sfs / denom, truncate_probs)
-        
-    # # get the expected counts for each config
-    # sfs_probs = np.maximum(expected_sfs(demo, sfs.configs, normalized=True, error_matrices=error_matrices),
-    #                        truncate_probs)
-    
+    sfs_probs = np.maximum(expected_sfs(demo, sfs.configs, normalized=True, **kwargs),
+                           truncate_probs)
+           
     counts_ij = sfs._counts_ij
     assert len(counts_ij.shape) == 2
     n_loci = counts_ij.shape[0]
@@ -68,7 +60,7 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, ve
 
     # log likelihood of the multinomial distribution for observed SNPs
     log_lik = np.dot(counts_ij, np.log(sfs_probs))
-    comb_fac =  -np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
+    #comb_fac =  -np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
         mut_rate = mut_rate * np.ones(n_loci)
@@ -76,15 +68,14 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, ve
             mut_rate = np.sum(mut_rate)
         if sfs.configs.has_missing_data:
             raise NotImplementedError("Poisson model not implemented for missing data.")
-        assert np.all(denom == denom[0])
-        E_total = denom[0]
+        E_total = expected_total_branch_len(demo)
         
         lambd = mut_rate * E_total
         log_lik = log_lik - lambd + counts_i * np.log(lambd) 
-        comb_fac = comb_fac - lnfact(counts_i)
+        #comb_fac = comb_fac - lnfact(counts_i)
 
-    if comb:
-        log_lik = log_lik + comb_fac
+    #if comb:
+    #    log_lik = log_lik + comb_fac
         
     if not vector:
         log_lik = np.squeeze(log_lik)
@@ -237,20 +228,20 @@ class _SubConfigs(object):
     def __init__(self, configs, sub_idxs):
         self.sub_idxs = sub_idxs
         self.full_configs = configs
-        for a in ("folded", "sampled_n", "sampled_pops", "has_missing_data"):
+        for a in ("sampled_n", "sampled_pops", "has_missing_data"):
             setattr(self, a, getattr(self.full_configs, a))
         
-    def _vecs_and_idxs(self):
-        vecs,_ = self.full_configs._vecs_and_idxs()
-        old_idxs, idxs = self._build_idxs()
+    def _vecs_and_idxs(self, folded):
+        vecs,_ = self.full_configs._vecs_and_idxs(folded)
+        old_idxs, idxs = self._build_idxs(folded)
 
         vecs = [v[old_idxs,:] for v in vecs]
         ## copy idxs to make it safe
         return vecs, dict(idxs)
         
     @memoize_instance
-    def _build_idxs(self):
-        _,idxs = self.full_configs._vecs_and_idxs()
+    def _build_idxs(self, folded):
+        _,idxs = self.full_configs._vecs_and_idxs(folded)
 
         denom_idx_key = 'denom_idx'
         denom_idx = idxs[denom_idx_key]

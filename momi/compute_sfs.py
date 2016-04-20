@@ -8,7 +8,7 @@ from .data_structure import Configs
 from autograd.core import primitive
 from autograd import hessian
 
-def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, error_matrices=None):
+def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, folded=False, error_matrices=None):
     """
     Expected sample frequency spectrum (SFS) entries for the specified
     demography and configs. The expected SFS is the expected number of
@@ -36,6 +36,9 @@ def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, error_matr
 
     Other Parameters
     ----------------
+    folded: optional, bool
+         if True, return the folded SFS value for each entry
+         Default is False.
     error_matrices : optional, sequence of 2-dimensional numpy.ndarray
          length-D sequence, where D = number of demes in demography.
          error_matrices[i] describes the sampling error in deme i as:
@@ -49,18 +52,18 @@ def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, error_matr
     expected_total_branch_len : sum of all expected SFS entries
     expected_sfs_tensor_prod : compute summary statistics of SFS
     """
-    sfs, denom = _expected_sfs(demography, configs, error_matrices)
+    sfs, denom = _expected_sfs(demography, configs, folded, error_matrices)
     if normalized:
         sfs = sfs / denom
     else:
         sfs = sfs*mut_rate
     return sfs
 
-def _expected_sfs(demography, configs, error_matrices):    
+def _expected_sfs(demography, configs, folded, error_matrices):    
     if np.any(configs.sampled_n != demography.sampled_n) or np.any(configs.sampled_pops != demography.sampled_pops):
         raise ValueError("configs and demography must have same sampled_n, sampled_pops. Use Demography.copy() or Configs.copy() to make a copy with different sampled_n.")
 
-    vecs, idxs = configs._vecs_and_idxs()
+    vecs, idxs = configs._vecs_and_idxs(folded)
     
     if error_matrices is not None:
         vecs = _apply_error_matrices(vecs, error_matrices)
@@ -68,7 +71,7 @@ def _expected_sfs(demography, configs, error_matrices):
     vals = expected_sfs_tensor_prod(vecs, demography)
 
     sfs = vals[idxs['idx_2_row']]
-    if configs.folded:
+    if folded:
         sfs = sfs + vals[idxs['folded_2_row']]
         
     denom = vals[idxs['denom_idx']]

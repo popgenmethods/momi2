@@ -35,15 +35,14 @@ class Configs(tuple):
 
     Configs.sampled_pops: the population labels
     Configs[i] : the i-th config in the list
-    Configs.folded : boolean if the configs are folded
     Configs.sampled_n : the number of alleles sampled per population.
                         used to construct the likelihood vectors for
                         junction tree algorithm.
     """
-    def __new__(cls, sampled_pops, configs, fold=False, sampled_n=None):
+    def __new__(cls, sampled_pops, configs, sampled_n=None):
         return tuple.__new__(cls, map(_hashable_config, configs))
     
-    def __init__(self, sampled_pops, configs, fold=False, sampled_n=None):
+    def __init__(self, sampled_pops, configs, sampled_n=None):
         """
         Notes
         -----
@@ -51,8 +50,8 @@ class Configs(tuple):
         individuals/alleles per population.
         """
         self.sampled_pops = sampled_pops
-        self.config_array = _format_configurations(configs, len(sampled_pops), fold)
-        self.folded = fold
+        self.config_array = _format_configurations(configs, len(sampled_pops))
+
         max_n = np.max(np.sum(configs, axis=2), axis=0)
         if sampled_n is None:
             sampled_n = max_n
@@ -63,29 +62,29 @@ class Configs(tuple):
         config_sampled_n = np.sum(self.config_array, axis=2)
         self.has_missing_data = np.any(config_sampled_n != self.sampled_n)
 
-    def copy(self, fold=False, sampled_n=None):
+    ## TODO: remove this method (and self.sampled_n attribute)
+    def _copy(self, sampled_n=None):
         """
         Notes
         -----
-        If self.folded=True, then fold has no affect (the copy will always be folded).
         Note that momi.expected_sfs, momi.composite_log_likelihood require
         Demography.sampled_n == Configs.sampled_n.
-        If this is not the case, you can use copy() to create a copy with the correct
+        If this is not the case, you can use _copy() to create a copy with the correct
         sampled_n.
         Note this has no affect on the actual allele counts, as missing data is allowed.
         sampled_n is just used to construct (and store) certain vectors for the SFS algorithm.
         """
         if sampled_n is None:
             sampled_n = self.sampled_n
-        return Configs(self.sampled_pops, self, fold=(fold or self.folded), sampled_n=sampled_n)
+        return Configs(self.sampled_pops, self, sampled_n=sampled_n)
 
-    def _vecs_and_idxs(self):
-        vecs,idxs = self._build_vecs_and_idxs()
+    def _vecs_and_idxs(self, folded):
+        vecs,idxs = self._build_vecs_and_idxs(folded)
         ## copy idxs to make it safe
         return vecs, dict(idxs)
     
     @memoize_instance
-    def _build_vecs_and_idxs(self):       
+    def _build_vecs_and_idxs(self, folded):
         # get row indices for each config
         n_rows = 0
         n_rows += 1 # initial row is a "zero" config
@@ -130,7 +129,7 @@ class Configs(tuple):
                                for corr_row in ssize_2_corrections]
         
         # get row indices for folded configs
-        if self.folded:
+        if folded:
             rev_confs = self.config_array[:,:,::-1]
             is_symm = np.all(self.config_array == rev_confs, axis=(1,2))
             rev_confs = map(_hashable_config, rev_confs)
@@ -183,7 +182,7 @@ class Sfs(object):
     Sfs.loci : list of dicts, with Sfs.loci[locus][config] == Sfs.freq(config, locus=locus)
     Sfs.total : dict, with Sfs.total[config] == Sfs.freq(config, locus=None)
     """    
-    def __init__(self, sampled_pops, loci, fold=False, sampled_n=None):
+    def __init__(self, sampled_pops, loci, sampled_n=None):
         """
         Parameters
         ----------
@@ -195,8 +194,7 @@ class Sfs(object):
 
                if loci[i] is a list, then loci[i][j]
                is the config of the j-th SNP at locus i
-        fold : boolean to fold the SFS
-        sampled_n : list of number of sampled alleles per population. (see copy())
+        sampled_n : list of number of sampled alleles per population. (see _copy())
         """
         old, loci = loci, []
         for l in old:
@@ -209,11 +207,10 @@ class Sfs(object):
                 continue
             configs,freqs = zip(*l)
             configs = map(_hashable_config,
-                          _format_configurations(configs, len(sampled_pops), fold))
+                          _format_configurations(configs, len(sampled_pops)))
             for c,f in zip(configs, freqs):
                 loci[-1][c] += f
         
-        self.folded = fold        
         self.loci = map(_ConfigDict, loci)
         self.total = _ConfigDict(sum(self.loci, Counter()))
         self.sampled_pops = tuple(sampled_pops)
@@ -223,11 +220,25 @@ class Sfs(object):
         # self.configs = Configs(self.sampled_pops, list(self.total.keys()),
         #                        fold, sampled_n)
 
+    def fold(self):
+        """
+        Returns a copy of the SFS, but with folded entries.
+        """
+        loci = []
+        for l in self.loci:
+            loci += [Counter()]
+            for k,v in l.items():
+                k = np.array(k)
+                if tuple(k[:,0]) < tuple(k[:,1]):
+                    k = k[:,::-1]
+                k = _hashable_config(k)
+                loci[-1][k] = loci[-1][k] + v
+        return Sfs(self.sampled_pops, loci, self._sampled_n)
+        
     def __getstate__(self):
         return {'sampled_pops' : self.sampled_pops,
                 'sampled_n' : self._sampled_n,
-                'loci' : self.loci,
-                'fold' : self.folded}
+                'loci' : self.loci}
     def __setstate__(self, state):
         self.__init__(**state)
         
@@ -237,7 +248,7 @@ class Sfs(object):
     @memoize_instance
     def _configs(self):
         return Configs(self.sampled_pops, list(self.total.keys()),
-                       self.folded, self._sampled_n)
+                       self._sampled_n)
         
     def freq(self, configuration, locus=None):
         """
@@ -258,13 +269,13 @@ class Sfs(object):
             return self.configs.sampled_n
         return self._sampled_n
         
-    def copy(self, fold=False, sampled_n=None):
+    def _copy(self, sampled_n=None):
         """
-        See also: Configs.copy()
+        See also: Configs._copy()
         """
         if sampled_n is None:
             sampled_n = self.sampled_n        
-        return Sfs(self.sampled_pops, self.loci, fold=(fold or self.folded), sampled_n=sampled_n)
+        return Sfs(self.sampled_pops, self.loci, sampled_n=sampled_n)
         
     def __eq__(self, other):
         return self.loci == other.loci and self.sampled_pops == other.sampled_pops
@@ -304,15 +315,14 @@ class SegSites(object):
     SegSites.config_arrays: list of arrays. config_arrays[locus][i, pop, allele] is the allele count in pop at the i-th site in locus
     SegSites.position_arrays: list of lists. position_arrays[locus][i] is the position (between 0 and 1) of the i-th site on the locus.
     """
-    def __init__(self, sampled_pops, config_arrays, position_arrays, fold=False, sampled_n=None):
+    def __init__(self, sampled_pops, config_arrays, position_arrays, sampled_n=None):
         """
         Parameters
         ----------
         sampled_pops : list of the population labels
         config_arrays : list of array-likes
         position_arrays : list of list
-        fold : boolean to fold the configs
-        sampled_n : list of number of samples per population (see SegSites.copy())
+        sampled_n : list of number of samples per population (see SegSites._copy())
         """
         if len(position_arrays) != len(config_arrays) or any(len(p) != len(c) for p,c in zip(position_arrays,config_arrays)):
             raise TypeError("position_arrays and config_arrays should have the same lengths")
@@ -324,18 +334,14 @@ class SegSites(object):
                 raise TypeError("position_arrays are not sorted")
         
         self.position_arrays = tuple(map(tuple, position_arrays))
-        self.config_arrays = tuple(_format_configurations(c, len(sampled_pops), fold) for c in config_arrays)
-        self.folded = fold
+        self.config_arrays = tuple(_format_configurations(c, len(sampled_pops)) for c in config_arrays)
 
         self._sampled_pops = sampled_pops
         self._sampled_n = sampled_n # could be None instead of the true sampled_n
         
-        #self.sfs = Sfs(sampled_pops, self.config_arrays, fold=fold, sampled_n=sampled_n)
-
     def __getstate__(self):
         return {'position_arrays' : self.position_arrays,
                 'config_arrays' : self.config_arrays,
-                'fold' : self.folded,
                 'sampled_pops' : self._sampled_pops,
                 'sampled_n' : self._sampled_n}
 
@@ -347,7 +353,7 @@ class SegSites(object):
         return self._sfs()
     @memoize_instance
     def _sfs(self):
-        return Sfs(self.sampled_pops, self.config_arrays, fold=self.folded, sampled_n=self._sampled_n)
+        return Sfs(self.sampled_pops, self.config_arrays, sampled_n=self._sampled_n)
     
     def position(self,locus,site):
         return self.position_arrays[locus][site]
@@ -368,10 +374,10 @@ class SegSites(object):
             return self.sfs.sampled_n
         return self._sampled_n
     
-    def copy(self, fold=False, sampled_n=None):
+    def _copy(self, sampled_n=None):
         if sampled_n is None:
             sampled_n = self.sampled_n        
-        return SegSites(self.sampled_pops, self.config_arrays, self.position_arrays, fold=(fold or self.folded), sampled_n=sampled_n)
+        return SegSites(self.sampled_pops, self.config_arrays, self.position_arrays, sampled_n=sampled_n)
     
     def __eq__(self, other):
         try:
@@ -381,17 +387,12 @@ class SegSites(object):
     def __ne__(self, other):
         return not self == other    
 
-def _format_configurations(configurations, n_pops, fold):
+def _format_configurations(configurations, n_pops):
     if len(configurations) == 0:
         configurations = np.zeros((0,n_pops,2))
     else:
         configurations = np.array(configurations, ndmin=3, dtype=int)
         assert configurations.shape[1:] == (n_pops,2)
-
-    if fold:
-        for i,c in list(enumerate(configurations)):
-            if tuple(c[:,0]) < tuple(c[:,1]):
-                configurations[i,:,:] = c[:,::-1]
 
     configurations.setflags(write=False)                
     return configurations

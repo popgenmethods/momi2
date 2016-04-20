@@ -47,14 +47,14 @@ def test_jointime_inference(folded, add_n):
     true_demo = true_demo.copy(sampled_n = np.array(true_demo.sampled_n) - add_n)
     sfs = simulate_ms(ms_path, true_demo.rescaled(),
                       num_loci=num_runs, mut_rate=theta).sfs
-    sfs = sfs.copy(sampled_n=np.array(true_demo.sampled_n)+add_n)
+    sfs = sfs._copy(sampled_n=np.array(true_demo.sampled_n)+add_n)
     if folded:
-        sfs = sfs.copy(fold=True)
+        sfs = sfs.fold()
     
     print(t0,t1)
     
     x0 = np.array([random.uniform(0,t1)])
-    res = composite_mle_search(sfs, get_demo, x0, None, bounds=[(0,t1),])
+    res = composite_mle_search(sfs, get_demo, x0, None, bounds=[(0,t1),], sfs_kwargs={'folded':folded})
     
     print res.jac
     assert abs(res.x - t0) / t0 < .05
@@ -72,9 +72,9 @@ def test_underflow_robustness(folded):
     sfs = simulate_ms(ms_path, true_demo.rescaled(),
                       num_loci=num_runs, mut_rate=mu*true_demo.default_N).sfs
     if folded:
-        sfs = sfs.copy(fold=True)
+        sfs = sfs.fold()
     
-    optimize_res = composite_mle_search(sfs, get_demo, np.array([np.log(0.1),np.log(100.0)]), mu, hessp=True, method='newton-cg')
+    optimize_res = composite_mle_search(sfs, get_demo, np.array([np.log(0.1),np.log(100.0)]), mu, hessp=True, method='newton-cg', sfs_kwargs={'folded':folded})
     print optimize_res
     
     inferred_x = optimize_res.x
