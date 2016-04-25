@@ -2,7 +2,7 @@ import pytest
 import os, random
 import autograd.numpy as np
 
-from momi import Demography, simulate_ms
+from momi import simulate_ms
 import momi
 from test_ms import ms_path
 

@@ -16,108 +16,117 @@ try: # check whether python knows about 'basestring'
 except NameError: # no, it doesn't (it's Python3); use 'str' instead
    basestring=str
 
+def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N=1.0, time_scale='ms'):
+   """
+     Create a demography object. Use this instead of the Demography() constructor directly.
+
+     Parameters
+     ----------
+     events : list of tuples
+          The demographic history as a list of events.
+          Events are represented as tuples. There are 4 kinds of events:
+               ('-en',t,i,N) : size change
+                    At time t, scaled size of pop. i is set to N, 
+                    and its growth rate is set to 0.
+               ('-eg',t,i,g) : exponential growth
+                    At time t, exponential growth rate of pop. i is
+                    set to g.
+                    So for s >= t, the pop size of i will be
+                         N(s) = N(t) exp( (t-s) * g)
+               ('-ej',t,i,j) : join event
+                    At time t, all lineages in pop. i move into pop. j.
+                    Additionally, pop. i is removed, and not allowed to
+                    be affected by further events.
+               ('-ep',t,i,j,p_ij) : pulse event
+                    At time t, each lineage in pop. i moves into pop. j
+                    independently with probability p_ij.
+                    (Forward-in-time, migration is from j to i, with
+                     fraction p_ij of the alleles in i replaced)
+          Time is measured backwards from the present (so t==0 is the present, t>0 is the past)
+          Events are processed in order, backwards in time from the present.
+          If two events occur at the same time, they will be processed according to their
+          order in the list.
+     sampled_pops : list of population labels
+           labels can be any hashable type (e.g. str, int, tuple)
+     sampled_n : list of ints
+           the number of alleles sampled from each pop
+           should satisfy len(sampled_n) == len(sampled_pops)
+     sampled_t : None, or list of floats
+           the time each pop was sampled.
+           if None, all populations are sampled at the present (t=0)
+           if not None, should have len(sampled_t) == len(sampled_pops)
+     default_N : float
+           the scaled size N of all populations, unless changed by -en or -eg
+     time_scale : str or float
+           if time_scale=='ms', coalescence rate is 2/N per unit time
+           if time_scale=='standard', coalescence rate is 1/N
+           if float, coalescence rate is 2/(N*time_scale)
+   """
+   if time_scale == 'ms':
+      time_scale = 1.0
+   elif time_scale == 'standard':
+      time_scale = 2.0
+   elif isinstance(time_scale, basestring):
+      raise DemographyError("time_scale must be float, 'ms', or 'standard'")
+
+   old_default_N = default_N
+   default_N = default_N * time_scale
+   old_events, events = events, []
+   for e in old_events:
+      if e[0] == '-en':
+         flag,t,i,N = e
+         e = flag,t,i,N*time_scale
+      events += [e]
+
+   ## process all events
+   _G = nx.DiGraph()
+   _G.graph['event_cmds'] = tuple(events)
+   _G.graph['default_N'] = default_N
+   _G.graph['events_as_edges'] = []
+   # the nodes currently at the root of the graph, as we build it up from the leafs
+   _G.graph['roots'] = {} 
+   
+   if sampled_t is None:
+      sampled_t = (0.0,) * len(sampled_n)
+
+   ## create sampling events
+   sampling_events = [('-eSample', t, i, n) for i,n,t in zip(sampled_pops, sampled_n, sampled_t)]
+   events = sampling_events + list(events)
+
+   ## sort events by time
+   events = sorted(events, key=lambda x: x[1])
+
+   event_funs = {"-" + f.__name__[1:]: f for f in [_ep, _eg, _en, _ej, _es, _eSample]}
+   for event in events:
+      flag, args = event[0], event[1:]
+      event_funs[flag](_G, *args)
+
+   assert _G.node
+   _G.graph['roots'] = [r for _,r in _G.graph['roots'].items() if r is not None]
+
+   if len(_G.graph['roots']) != 1:
+      raise DemographyError("Must have a single root population")
+
+   node, = _G.graph['roots']
+   _set_sizes(_G.node[node], float('inf'))
+
+   _G.graph['sampled_pops'] = tuple(sampled_pops)
+   _event_tree = _build_event_tree(_G)
+
+   return Demography(_G, _event_tree)
+
+   
 class Demography(object):
     """
     The demographic history relating a sample of individuals.
     """
-    def __init__(self, events, sampled_pops, sampled_n, sampled_t = None, default_N=1.0, time_scale='ms'):
+    def __init__(self, G, event_tree):
         """
-        Constructor for Demography.
-
-        Parameters
-        ----------
-        events : list of tuples
-             The demographic history as a list of events.
-             Events are represented as tuples. There are 4 kinds of events:
-                  ('-en',t,i,N) : size change
-                       At time t, scaled size of pop. i is set to N, 
-                       and its growth rate is set to 0.
-                  ('-eg',t,i,g) : exponential growth
-                       At time t, exponential growth rate of pop. i is
-                       set to g.
-                       So for s >= t, the pop size of i will be
-                            N(s) = N(t) exp( (t-s) * g)
-                  ('-ej',t,i,j) : join event
-                       At time t, all lineages in pop. i move into pop. j.
-                       Additionally, pop. i is removed, and not allowed to
-                       be affected by further events.
-                  ('-ep',t,i,j,p_ij) : pulse event
-                       At time t, each lineage in pop. i moves into pop. j
-                       independently with probability p_ij.
-                       (Forward-in-time, migration is from j to i, with
-                        fraction p_ij of the alleles in i replaced)
-             Time is measured backwards from the present (so t==0 is the present, t>0 is the past)
-             Events are processed in order, backwards in time from the present.
-             If two events occur at the same time, they will be processed according to their
-             order in the list.
-        sampled_pops : list of population labels
-              labels can be any hashable type (e.g. str, int, tuple)
-        sampled_n : list of ints
-              the number of alleles sampled from each pop
-              should satisfy len(sampled_n) == len(sampled_pops)
-        sampled_t : None, or list of floats
-              the time each pop was sampled.
-              if None, all populations are sampled at the present (t=0)
-              if not None, should have len(sampled_t) == len(sampled_pops)
-        default_N : float
-              the scaled size N of all populations, unless changed by -en or -eg
-        time_scale : str or float
-              if time_scale=='ms', coalescence rate is 2/N per unit time
-              if time_scale=='standard', coalescence rate is 1/N
-              if float, coalescence rate is 2/(N*time_scale)
+        For internal use only.
+        Use make_demography() to create a Demography.
         """
-
-        if time_scale == 'ms':
-            time_scale = 1.0
-        elif time_scale == 'standard':
-            time_scale = 2.0
-        elif isinstance(time_scale, basestring):
-            raise DemographyError("time_scale must be float, 'ms', or 'standard'")
-         
-        old_default_N = default_N
-        default_N = default_N * time_scale
-        old_events, events = events, []
-        for e in old_events:
-            if e[0] == '-en':
-                flag,t,i,N = e
-                e = flag,t,i,N*time_scale
-            events += [e]
-
-        ## process all events
-        self._G = nx.DiGraph()
-        self._G.graph['event_cmds'] = tuple(events)
-        self._G.graph['default_N'] = default_N
-        self._G.graph['events_as_edges'] = []
-        # the nodes currently at the root of the graph, as we build it up from the leafs
-        self._G.graph['roots'] = {} 
-
-        if sampled_t is None:
-            sampled_t = (0.0,) * len(sampled_n)
-
-        ## create sampling events
-        sampling_events = [('-eSample', t, i, n) for i,n,t in zip(sampled_pops, sampled_n, sampled_t)]
-        events = sampling_events + list(events)
-
-        ## sort events by time
-        events = sorted(events, key=lambda x: x[1])
-
-        event_funs = {"-" + f.__name__[1:]: f for f in [_ep, _eg, _en, _ej, _es, _eSample]}
-        for event in events:
-            flag, args = event[0], event[1:]
-            event_funs[flag](self._G, *args)
-
-        assert self._G.node
-        self._G.graph['roots'] = [r for _,r in self._G.graph['roots'].items() if r is not None]
-
-        if len(self._G.graph['roots']) != 1:
-            raise DemographyError("Must have a single root population")
-
-        node, = self._G.graph['roots']
-        _set_sizes(self._G.node[node], float('inf'))
-
-        self._G.graph['sampled_pops'] = tuple(sampled_pops)
-        self._event_tree = _build_event_tree(self._G)
-
+        self._G = G
+        self._event_tree = event_tree
 
     def copy(self, sampled_n=None):
        """
@@ -130,7 +139,7 @@ class Demography(object):
        """       
        if sampled_n is None:
           sampled_n = self.sampled_n
-       return Demography(self.events, self.sampled_pops, sampled_n, self.sampled_t, self.default_N)
+       return make_demography(self.events, self.sampled_pops, sampled_n, self.sampled_t, self.default_N)
         
     @property
     def events(self):
@@ -207,9 +216,9 @@ class Demography(object):
             sampled_t = self.sampled_t * factor
         except:
             sampled_t = None
-        return Demography(rescaled_events,
-                          self.sampled_pops, self.sampled_n,
-                          sampled_t = sampled_t, default_N = default_N)
+        return make_demography(rescaled_events,
+                               self.sampled_pops, self.sampled_n,
+                               sampled_t = sampled_t, default_N = default_N)
            
     @memoize_instance
     def _n_at_node(self, node):

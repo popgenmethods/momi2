@@ -20,7 +20,7 @@ def check_subsampling(demo, add_n, folded=False, **kwargs):
     ranges = [range(n+1) for n in demo.sampled_n]
 
     demo = demo.rescaled()
-    demo2 = momi.Demography(demo.events, demo.sampled_pops,
+    demo2 = momi.make_demography(demo.events, demo.sampled_pops,
                             np.array(demo.sampled_n, dtype=int) + add_n,
                             sampled_t = demo.sampled_t)
     

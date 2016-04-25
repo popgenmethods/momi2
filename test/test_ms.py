@@ -1,5 +1,5 @@
 from __future__ import division
-from momi import Demography, expected_sfs, expected_total_branch_len, simulate_ms, run_ms
+from momi import expected_sfs, expected_total_branch_len, simulate_ms, run_ms
 import momi
 import pytest
 import random
@@ -93,6 +93,6 @@ def my_t_test(labels, theoretical, observed, min_samples=25):
     return scipy.stats.beta.cdf(np.min(p_vals), 1, len(p_vals))
 
 
-if  __name__=="__main__":
-    demo = Demography.from_ms(1.0," ".join(sys.argv[3:]))
-    check_sfs_counts(demo, mu=float(sys.argv[2]), num_loci=int(sys.argv[1]))
+# if  __name__=="__main__":
+#     demo = Demography.from_ms(1.0," ".join(sys.argv[3:]))
+#     check_sfs_counts(demo, mu=float(sys.argv[2]), num_loci=int(sys.argv[1]))

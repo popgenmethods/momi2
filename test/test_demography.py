@@ -3,13 +3,14 @@ import pytest
 
 import numpy as np
 
-from momi import expected_sfs_tensor_prod, Demography
+import momi
+from momi import expected_sfs_tensor_prod, make_demography
 from demo_utils import simple_admixture_demo
 from momi.math_functions import hypergeom_quasi_inverse
 
-class TestDemography(Demography):
-    def __init__(self, *args, **kwargs):
-        super(TestDemography, self).__init__(*args, **kwargs)
+class TestDemography(momi.demography.Demography):
+    def __init__(self, demo):
+        super(TestDemography, self).__init__(demo._G, demo._event_tree)
 
     def _n_at_node(self, node):
         if node[0] in self.sampled_pops and node[1] == 0:
@@ -20,8 +21,8 @@ def test_pseudoinverse():
     demo = simple_admixture_demo()
 
     # construct from same event_list so that nodes have same labels
-    demo0 = Demography(demo.events, demo.sampled_pops, demo.sampled_n, demo.sampled_t, demo.default_N)
-    demo1 = TestDemography(demo.events, demo.sampled_pops, demo.sampled_n, demo.sampled_t, demo.default_N)
+    demo0 = make_demography(demo.events, demo.sampled_pops, demo.sampled_n, demo.sampled_t, demo.default_N)
+    demo1 = TestDemography(demo)
 
     p = 20
     vecs = [np.random.normal(size=(p,n+1)) for n in demo0.sampled_n]
@@ -41,7 +42,7 @@ def test_hypergeom_pinv_eye():
                        np.eye(i+1,i+1))
 
 def test_copy():
-    demo = Demography([("-ej",1.,"a","b")], ["a","b"], (3,2))
+    demo = make_demography([("-ej",1.,"a","b")], ["a","b"], (3,2))
     demo.copy(sampled_n=(5,6))
     
 def test_P():
@@ -60,9 +61,9 @@ def test_P():
     pulse_events1 = [('-ep',t1,0,'x',p1),('-ej',t1,'x',1),
                      ('-ep',t2,i,'y',p2),('-ej',t2,'y',j)]
 
-    demo0 = Demography(pulse_events0 + [root_event],
+    demo0 = make_demography(pulse_events0 + [root_event],
                        (0,1), (5,5))
-    demo1 = Demography(pulse_events1 + [root_event],
+    demo1 = make_demography(pulse_events1 + [root_event],
                        (0,1), (5,5))    
     
     p = 20
@@ -83,13 +84,13 @@ def test_events_before_sample():
     
     events = [('-ep',t[0],'a','b',np.random.uniform(0,1))]
     
-    demo0 = Demography(events + [('-en', 0.0, 'c', 10.0), ('-eg', 0.0, 'c', 1.0),
+    demo0 = make_demography(events + [('-en', 0.0, 'c', 10.0), ('-eg', 0.0, 'c', 1.0),
                                  ('-ej', t[1], 'a','c'),
                                  ('-ej',t[2], 'c', 'b')],
                        sampled_pops=('a','b'), sampled_n=(7,5),
                        sampled_t=(0.,t[3]))
 
-    demo1 = Demography(events + [('-en',t[1],'a',10.0*np.exp(-t[1])), ('-eg',t[1],'a',1.0),
+    demo1 = make_demography(events + [('-en',t[1],'a',10.0*np.exp(-t[1])), ('-eg',t[1],'a',1.0),
                                  ('-ej', t[2], 'a','b')],
                        sampled_pops=('a','b'), sampled_n=(7,5),
                        sampled_t=(0.,t[3]))                      
@@ -106,14 +107,14 @@ def test_time_scale():
         t += [np.random.exponential(1./float(n_events)) + t[-1]]
     t = t[1:]
 
-    demo0 = Demography([('-en',t[0],'a',.3),
+    demo0 = make_demography([('-en',t[0],'a',.3),
                         ('-eg',t[0],'a',0.5),
                         ('-ej',t[2],'a','b')],
                        sampled_pops=('a','b'), sampled_n=(7,5),
                        sampled_t=(0.,t[1]),
                        time_scale='ms')
 
-    demo1 = Demography([('-en',2.0*t[0],'a',.3),
+    demo1 = make_demography([('-en',2.0*t[0],'a',.3),
                         ('-eg',2.0*t[0],'a',0.5/2.0),
                         ('-ej',2.0*t[2],'a','b')],
                        sampled_pops=('a','b'), sampled_n=(7,5),

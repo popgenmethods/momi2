@@ -1,21 +1,21 @@
-from momi import Demography
+from momi import make_demography
 import autograd.numpy as np
 import random
 
 def simple_admixture_demo(x=np.random.normal(size=7), n_lins=(2,3)):
     t = np.cumsum(np.exp(x[:5])) * 1e4
     p = 1.0 / (1.0 + np.exp(x[5:]))
-    return Demography([("-ep", t[1], 'a', 2, 1.-p[1]),('-ep',t[0],'a',3, 1.-p[0]),
+    return make_demography([("-ep", t[1], 'a', 2, 1.-p[1]),('-ep',t[0],'a',3, 1.-p[0]),
                        ('-ej',t[2],2,3),('-ej',t[3],3,'b'),('-ej',t[4],'a','b')],
                       sampled_pops = ('b','a'), sampled_n = n_lins, default_N = 1e4)
 
 def simple_two_pop_demo(x=np.random.normal(size=4), n_lins=(5,6)):
     x = [1e4*np.exp(xi) for xi in x]
-    return Demography([('-en',0.,1,x[1]), ('-en',0.,0,x[2]), ('-ej',x[0],0,1), ('-en',x[0],1,x[3])],
+    return make_demography([('-en',0.,1,x[1]), ('-en',0.,0,x[2]), ('-ej',x[0],0,1), ('-en',x[0],1,x[3])],
                       sampled_pops = (1,0), sampled_n = n_lins, default_N = 1e4)
 
 def simple_three_pop_demo(t0, t1):
-    return Demography([('-ej', t0, 1, 2), ('-ej', t0+t1, 2, 3)],
+    return make_demography([('-ej', t0, 1, 2), ('-ej', t0+t1, 2, 3)],
                       (1,2,3), (1,1,1))
 
 def simple_nea_admixture_demo(N_chb_bottom, N_chb_top, pulse_t, pulse_p, ej_chb, ej_yri):
@@ -33,7 +33,7 @@ def simple_nea_admixture_demo(N_chb_bottom, N_chb_top, pulse_t, pulse_p, ej_chb,
               ('-ej', ej_yri, 'yri', 'nea'),
               ]
 
-    return Demography(events, ('yri','chb'), (14,10))
+    return make_demography(events, ('yri','chb'), (14,10))
 simple_nea_admixture_demo.bounds = [(.01, 100.),
                                     (.01, 100.),
                                     (.01,5.),
@@ -52,14 +52,14 @@ def piecewise_constant_demo(x = np.random.normal(size=15), n_lins = (10,)):
         prev_time = np.exp(x[2*i+1]) + prev_time
         N = np.exp(x[2*i+2])
         events_list += [('-en',1e4*prev_time,0,1e4*N)]
-    return Demography(events_list,
+    return make_demography(events_list,
                       sampled_pops = (0,), sampled_n = n_lins, default_N = 1e4)
 
 
 def exp_growth_model(x = np.random.normal(size=3), n_lins = (10,)):
     t,g,g2 = x
     t,g2 = np.exp(t), np.exp(g2)
-    return Demography([('-eg',0.,0,g/1e4),('-eg',t*1e4,0,g2/1e4),('-eg',3*t*1e4,0,0.)],
+    return make_demography([('-eg',0.,0,g/1e4),('-eg',t*1e4,0,g2/1e4),('-eg',3*t*1e4,0,0.)],
                       sampled_pops = (0,), sampled_n = n_lins, default_N = 1e4)
 
 def exp_growth_0_model(x, n_lins):
@@ -93,7 +93,7 @@ def simple_five_pop_demo(x = np.random.normal(size=30), n_lins=(1,2,3,4,5)):
                    ('-ej',x[12],3,2),('-en',x[12],2,x[27]),
                    ('-en',x[13],1,x[28]),
                    ('-ej',x[14],2,1),('-en',x[14],1,x[29])]
-    demo = Demography(events_list,
+    demo = make_demography(events_list,
                       sampled_pops = range(1,len(n_lins)+1), sampled_n = n_lins)
     demo = demo.rescaled(1e4)
     return demo
@@ -111,4 +111,4 @@ def random_tree_demo(num_leaf_pops, lins_per_pop):
         events_list += [('-ej', t, i ,j),
                         ('-en', t, j, random.expovariate(1.0))]
         roots.remove(i)
-    return Demography(events_list, sampled_pops, [lins_per_pop] * num_leaf_pops)
+    return make_demography(events_list, sampled_pops, [lins_per_pop] * num_leaf_pops)

@@ -3,7 +3,7 @@ import os, random
 import autograd.numpy as np
 from autograd import grad
 
-from momi import Demography, simulate_ms, composite_mle_search
+from momi import make_demography, simulate_ms, composite_mle_search
 import momi
 from test_ms import ms_path, scrm_path
 
@@ -13,7 +13,7 @@ def test_archaic_sample():
     num_runs = 10000
     true_sample_t=random.uniform(0,join_time)
     def get_demo(sample_t):
-        return Demography([('-ej',join_time,'a','b')],
+        return make_demography([('-ej',join_time,'a','b')],
                           sampled_pops=['a','b'],
                           sampled_n=[2,2],
                           sampled_t=[0,sample_t])
@@ -37,11 +37,11 @@ def test_jointime_inference(folded, add_n):
     num_runs = 10000
 
     def get_demo(join_time):
-        return Demography([('-ej', join_time, 1, 2), ('-ej', t1, 2, 3)],
+        return make_demography([('-ej', join_time, 1, 2), ('-ej', t1, 2, 3)],
                           (1,2,3), (5,5,5))
 
     true_demo = get_demo(t0)
-    #true_demo = Demography(true_demo.events,
+    #true_demo = make_demography(true_demo.events,
     #                       true_demo.sampled_pops,
     #                       np.array(true_demo.sampled_n) - add_n)
     true_demo = true_demo.copy(sampled_n = np.array(true_demo.sampled_n) - add_n)
@@ -64,7 +64,7 @@ def test_underflow_robustness(folded):
     num_runs = 1000
     mu=1e-3
     def get_demo(t0, t1):
-        return Demography([('-ej', np.exp(t0), 1, 2), ('-ej', np.exp(t0) + np.exp(t1), 2, 3)],
+        return make_demography([('-ej', np.exp(t0), 1, 2), ('-ej', np.exp(t0) + np.exp(t1), 2, 3)],
                           (1,2,3), (5,5,5)).rescaled(1e4)
     true_x = np.array([np.log(.5),np.log(.2)])
     true_demo = get_demo(*true_x)

@@ -117,7 +117,7 @@ def test_stochastic_inference(folded, method='adam'):
     num_runs = 1000
     mu=1.0
     def get_demo(t0, t1):
-        return momi.Demography([('-ej', t0, 1, 2), ('-ej', t0 + t1, 2, 3)],
+        return momi.make_demography([('-ej', t0, 1, 2), ('-ej', t0 + t1, 2, 3)],
                                (1,2,3), (5,5,5))
     true_x = np.array([.5,.2])
     true_demo = get_demo(*true_x)
