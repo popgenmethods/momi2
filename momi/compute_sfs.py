@@ -5,6 +5,7 @@ import scipy
 from .util import memoize_instance, memoize, make_constant, set0
 from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs, _apply_error_matrices
 from .data_structure import Configs
+from .moran_model import moran_action
 from autograd.core import primitive
 from autograd import hessian
 
@@ -275,7 +276,9 @@ def _partial_likelihood_top(leaf_states, demo, event, popList):
     lik,sfs = _partial_likelihood(leaf_states, demo, event)
     for pop in popList:
         idx = (_lik_axes(demo, event)).index(pop)
-        lik = demo._apply_transition(pop, lik, idx)
+        #lik = demo._apply_transition(pop, lik, idx)
+        assert lik.shape[idx] == demo._n_at_node(pop)+1
+        lik = moran_action(demo._scaled_time(pop), lik, axis=idx)
 
     return lik,sfs
 

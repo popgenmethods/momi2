@@ -4,9 +4,13 @@ from .util import memoize_instance, memoize
 from .math_functions import einsum2, sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse
 import scipy, scipy.misc
 import autograd.numpy as np
+import autograd
+from autograd import primitive
 
 from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory#, _TrivialHistory
 from .parse_ms import _convert_ms_cmd
+from .compute_sfs import expected_total_branch_len
+from functools import partial
 
 import os, itertools
 from operator import itemgetter
@@ -111,23 +115,79 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
    _set_sizes(_G.node[node], float('inf'))
 
    _G.graph['sampled_pops'] = tuple(sampled_pops)
-   _event_tree = _build_event_tree(_G)
+   return Demography(_G)
 
-   return Demography(_G, _event_tree)
+class differentiable_method(object):
+   """
+   a descriptor for cacheing all the differentiable objects in the demography
+   this is used to reorganize some of the computations during automatic differentiation,
+   which can be very resource intensive
 
-   
+   based on memoize_instance in util.py, which is itself based on http://code.activestate.com/recipes/577452-a-memoize-decorator-for-instance-methods/
+   """
+   def __init__(self, func):
+      self.func = func
+   def __get__(self, obj, objtype=None):
+      if obj is None:
+         return self.func
+      return partial(self, obj)
+   def __call__(self, *args, **kw):
+      obj = args[0]
+      cache = obj._diff_cache
+
+      key = (self.func, args[1:], frozenset(list(kw.items())))
+      try:
+         res = cache[key]
+      except KeyError:
+         res = cache[key] = self.func(*args, **kw)
+      return res
+
 class Demography(object):
     """
     The demographic history relating a sample of individuals.
     """
-    def __init__(self, G, event_tree):
+    def __init__(self, G, diff_cache_keys=[], diff_cache_vals=[]):
         """
         For internal use only.
         Use make_demography() to create a Demography.
         """
         self._G = G
-        self._event_tree = event_tree
+        self._event_tree = _build_event_tree(self._G)
 
+        ## a hack that allows us reorganize some computations during auto differentiation
+        ## methods decorated by @differentiable_method will first look if result is in diff_cache before computing it
+        assert len(diff_cache_keys) == len(diff_cache_vals)
+        self._diff_cache = dict(zip(diff_cache_keys, diff_cache_vals))
+        
+    def _get_differentiable_part(self):
+       ## use this with _get_graph_structure()
+       ## to re-organize certain computations during automatic differentiation
+       if not self._diff_cache:
+          expected_total_branch_len(self)
+       assert self._diff_cache
+
+       keys,vals = zip(*self._diff_cache.items())
+       ## convert vals to autograd.TupleNode (as opposed to a tuple of autograd.Node)
+       vals = autograd.container_types.make_tuple(*vals)
+       
+       return keys, vals
+
+    def _get_graph_structure(self):
+       ## returns just the graph structure, i.e. the "non-differentiable" part of the Demography
+       ## use this with _get_differentiable_part()
+       ## to re-organize certain computations during automatic differentiation
+       ret = nx.DiGraph()
+       ret.add_edges_from(self._G.edges(data=False))
+
+       for v,d in self._G.nodes(data=True):
+          if 'lineages' in d:
+             ret.node[v]['lineages'] = d['lineages']
+       
+       ret.graph['events_as_edges'] = tuple(self._G.graph['events_as_edges'])
+       ret.graph['sampled_pops'] = self.sampled_pops
+
+       return ret
+    
     def copy(self, sampled_n=None):
        """
        Notes
@@ -140,7 +200,7 @@ class Demography(object):
        if sampled_n is None:
           sampled_n = self.sampled_n
        return make_demography(self.events, self.sampled_pops, sampled_n, self.sampled_t, self.default_N)
-        
+    
     @property
     def events(self):
         """
@@ -154,7 +214,7 @@ class Demography(object):
         The list of population labels
         """
         return self._G.graph['sampled_pops']
-    
+
     @property
     def sampled_n(self):
         """
@@ -162,20 +222,6 @@ class Demography(object):
         """
         return np.array(tuple(self._G.node[(l,0)]['lineages'] for l in self.sampled_pops), dtype=int)
 
-    @property
-    def sampled_t(self):
-        """
-        An array of times at which each population was sampled
-        """
-        return np.array(tuple(self._G.node[(l,0)]['sizes'][0]['t'] for l in self.sampled_pops))
-       
-    @property
-    def default_N(self):
-        """
-        The scaled size N of all populations, unless changed by -en or -eg
-        """
-        return self._G.graph['default_N']
-    
     def rescaled(self,factor=None):
         """
         Returns the equivalent Demography, but with time rescaled by factor
@@ -219,23 +265,13 @@ class Demography(object):
         return make_demography(rescaled_events,
                                self.sampled_pops, self.sampled_n,
                                sampled_t = sampled_t, default_N = default_N)
-           
+
     @memoize_instance
     def _n_at_node(self, node):
         return np.sum(self._G.node[(pop,idx)]['lineages']
                       for pop,idx in nx.dfs_preorder_nodes(self._G, node)
                       if idx==0)
-        
-    def _truncated_sfs(self, node):
-        return self._G.node[node]['model'].sfs(self._n_at_node(node))
 
-    def _apply_transition(self, node, array, axis):
-        assert array.shape[axis] == self._n_at_node(node)+1
-        if array.shape[axis] == 1:
-            return array
-        return self._G.node[node]['model'].transition_prob(array, axis)
-
-   
     @property
     def _root(self):
         ret, = self._parent_pops(self._event_root)
@@ -273,17 +309,74 @@ class Demography(object):
         and the corresponding child events in the junction tree.
         '''
         return self._event_tree.node[event]['child_pops']
-   
-    @memoize_instance
+
+    def _pulse_nodes(self, event):
+        parent_pops = self._parent_pops(event)    
+        child_pops_events = self._child_pops(event)
+        assert len(child_pops_events) == 2
+        child_pops, child_events = zip(*child_pops_events.items())
+
+        child_in = self._G.in_degree(child_pops)
+        recipient, = [k for k,v in child_in.items() if v == 2]
+        non_recipient, = [k for k,v in child_in.items() if v == 1]
+
+        parent_out = self._G.out_degree(parent_pops)
+        donor, = [k for k,v in parent_out.items() if v == 2]
+        non_donor, = [k for k,v in parent_out.items() if v == 1]
+
+        return recipient, non_recipient, donor, non_donor
+
+     
+    """
+    ALL methods returning floats BELOW HERE
+    They should be decorated by @differentiable_method to ensure cacheing of differentiable objects!!!!
+    """
+     
+    @property
+    @differentiable_method
+    def sampled_t(self):
+        """
+        An array of times at which each population was sampled
+        """
+        return np.array(tuple(self._G.node[(l,0)]['sizes'][0]['t'] for l in self.sampled_pops))
+
+    @property
+    @differentiable_method
+    def default_N(self):
+        """
+        The scaled size N of all populations, unless changed by -en or -eg
+        """
+        return self._G.graph['default_N']
+
+    @differentiable_method
+    def _truncated_sfs(self, node):
+        return self._G.node[node]['model'].sfs(self._n_at_node(node))
+
+    @differentiable_method
+    def _scaled_time(self, node):
+       return self._G.node[node]['model'].scaled_time
+
+
     def _pulse_prob(self, event):
+       return self._pulse_prob_helper(event), self._pulse_prob_idxs(event)
+    
+    def _pulse_prob_idxs(self, event):
+        recipient, non_recipient, donor, non_donor = self._pulse_nodes(event)
+        admixture_idxs = self._admixture_prob_idxs(recipient)
+        return admixture_idxs + [non_recipient]
+     
+    @differentiable_method
+    def _pulse_prob_helper(self, event):
         ## returns 4-tensor
         ## running time is O(n^5), because of pseudo-inverse
         ## if pulse from ghost population, only costs O(n^4)
         recipient, non_recipient, donor, non_donor = self._pulse_nodes(event)
-        
-        admixture_prob, admixture_idxs = self._admixture_prob_helper(recipient)
+
+        admixture_prob, admixture_idxs = self._admixture_prob(recipient)
 
         pulse_idxs = admixture_idxs + [non_recipient]
+        assert pulse_idxs == self._pulse_prob_idxs(event)
+        
         pulse_prob = einsum2(admixture_prob, admixture_idxs,
                              binom_coeffs(self._n_at_node(non_recipient)), [non_recipient],
                              pulse_idxs)
@@ -308,28 +401,17 @@ class Demography(object):
                                  [-1,donor], pulse_idxs)
         assert pulse_prob.shape[donor_idx] == n + 1
 
-        return pulse_prob, pulse_idxs
+        return pulse_prob
 
-    def _pulse_nodes(self, event):
-        parent_pops = self._parent_pops(event)    
-        child_pops_events = self._child_pops(event)
-        assert len(child_pops_events) == 2
-        child_pops, child_events = zip(*child_pops_events.items())
-
-        child_in = self._G.in_degree(child_pops)
-        recipient, = [k for k,v in child_in.items() if v == 2]
-        non_recipient, = [k for k,v in child_in.items() if v == 1]
-
-        parent_out = self._G.out_degree(parent_pops)
-        donor, = [k for k,v in parent_out.items() if v == 2]
-        non_donor, = [k for k,v in parent_out.items() if v == 1]
-
-        return recipient, non_recipient, donor, non_donor
-    
-    @memoize_instance
     def _admixture_prob(self, admixture_node):
-        return self._admixture_prob_helper(admixture_node)
-    
+        return self._admixture_prob_helper(admixture_node), self._admixture_prob_idxs(admixture_node)
+
+    def _admixture_prob_idxs(self, admixture_node):
+        edge1,edge2 = sorted(self._G.in_edges([admixture_node], data=True))
+        parent1,parent2 = [e[0] for e in (edge1,edge2)]
+        return [admixture_node, parent1, parent2]
+     
+    @differentiable_method 
     def _admixture_prob_helper(self, admixture_node):
         '''
         Array with dim [n_admixture_node+1, n_parent1_node+1, n_parent2_node+1],
@@ -338,9 +420,9 @@ class Demography(object):
         n_node = self._n_at_node(admixture_node)
 
         # admixture node must have two parents
-        edge1,edge2 = self._G.in_edges([admixture_node], data=True)
+        edge1,edge2 = sorted(self._G.in_edges([admixture_node], data=True))
         parent1,parent2 = [e[0] for e in (edge1,edge2)]
-        prob1,prob2 = [e[2]['prob'] for e in (edge1,edge2)]        
+        prob1,prob2 = [e[2]['prob'] for e in (edge1,edge2)]
         assert prob1 + prob2 == 1.0
 
         n_from_1 = np.arange(n_node+1)
@@ -350,7 +432,9 @@ class Demography(object):
                       binom_coeffs, [0],
                       [1,2,3])
         assert ret.shape == tuple([n_node+1] * 3)
-        return ret, [admixture_node, parent1, parent2]
+
+        assert [admixture_node, parent1, parent2] == self._admixture_prob_idxs(admixture_node)
+        return ret
 
 @memoize
 def _der_in_admixture_node(n_node):
@@ -373,8 +457,8 @@ def _der_in_admixture_node(n_node):
 
 
 def _build_event_tree(G):
-    def node_time(v):
-        return G.node[v]['sizes'][0]['t']
+    # def node_time(v):
+    #     return G.node[v]['sizes'][0]['t']
     
     eventEdgeList = []
     currEvents = {k : (k,) for k,v in G.out_degree().items() if v == 0}
@@ -388,12 +472,12 @@ def _build_event_tree(G):
         sub_pops.difference_update(child_pops)
         sub_pops.update(parent_pops)
 
-        try:
-            times = [t for t in map(node_time, parent_pops)]
-            assert np.allclose(times, times[0])
-        except TypeError:
-            ## autograd sometimes raise TypeError for this assertion
-            pass
+        # try:
+        #     times = [t for t in map(node_time, parent_pops)]
+        #     assert np.allclose(times, times[0])
+        # except TypeError:
+        #     ## autograd sometimes raise TypeError for this assertion
+        #     pass
         
         eventDict[e] = {'parent_pops' : tuple(parent_pops), 'subpops' : tuple(sub_pops), 'child_pops' : {c : currEvents[c] for c in child_pops}}        
         currEvents.update({p : e for p in sub_pops})

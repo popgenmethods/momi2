@@ -4,13 +4,58 @@ import pytest
 import numpy as np
 
 import momi
-from momi import expected_sfs_tensor_prod, make_demography
+from momi import expected_sfs_tensor_prod, expected_total_branch_len, make_demography
 from demo_utils import simple_admixture_demo
 from momi.math_functions import hypergeom_quasi_inverse
 
+import autograd
+
+def test_constructor():
+    demo = simple_admixture_demo()
+    demo2 = momi.demography.Demography(demo._get_graph_structure(), *demo._get_differentiable_part())
+
+    assert np.allclose(expected_total_branch_len(demo),
+                       expected_total_branch_len(demo2))
+
+    ## make sure it fails if we don't pass in the array values
+    demo3 = momi.demography.Demography(demo._get_graph_structure())
+    try:
+        expected_total_branch_len(demo3)
+    except:
+        return
+    assert False
+
+def test_constructor_grad():
+    fun1 = lambda x: expected_total_branch_len(simple_admixture_demo(x))
+
+    fun2_helper = lambda diff_vals, diff_keys, G: expected_total_branch_len(momi.demography.Demography(G, diff_keys, diff_vals))
+
+    was_called = [False]
+    def check_called(fun):
+        def new_fun(*args, **kwargs):
+            was_called[0] = True
+            return fun(*args, **kwargs)
+        return new_fun
+    
+    helper_grad = check_called(autograd.grad(fun2_helper))
+   
+    fun2_helper = autograd.primitive(fun2_helper)
+    fun2_helper.defgrad(lambda ans, diff_vals, diff_keys, G: lambda g: tuple(g*y for y in helper_grad(diff_vals.value, diff_keys, G)))
+
+    def fun2(x):
+        demo = simple_admixture_demo(x)
+        return fun2_helper(*reversed([demo._get_graph_structure()] + list(demo._get_differentiable_part())))
+
+    x_val = np.random.normal(size=7)
+   
+    assert not was_called[0]
+    assert np.allclose(autograd.grad(fun1)(x_val), autograd.grad(fun2)(x_val))
+    assert was_called[0]
+        
+    
 class TestDemography(momi.demography.Demography):
     def __init__(self, demo):
-        super(TestDemography, self).__init__(demo._G, demo._event_tree)
+        super(TestDemography, self).__init__(demo._G)
 
     def _n_at_node(self, node):
         if node[0] in self.sampled_pops and node[1] == 0:

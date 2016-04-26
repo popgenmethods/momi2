@@ -33,8 +33,8 @@ class SizeHistory(object):
         ret = np.concatenate((np.array([0.0]), ret, np.array([before_tmrca])))
         return ret
 
-    def transition_prob(self, v, axis=0):
-        return moran_model.moran_action(self.scaled_time, v, axis=axis)
+    # def transition_prob(self, v, axis=0):
+    #     return moran_model.moran_action(self.scaled_time, v, axis=axis)
 
 class ConstantHistory(SizeHistory):
     '''Constant size population truncated to time tau.'''

@@ -9,6 +9,9 @@ from autograd.numpy import dot, diag, exp
 def moran_action(t,v, axis=0):
     assert t >= 0.0
 
+    if v.shape[axis] == 1:
+        return v
+    
     n = v.shape[axis] - 1
     P, d, Pinv = moran_eigensystem(n)
     D = diag(exp(t * d))

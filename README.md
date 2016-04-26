@@ -44,3 +44,7 @@ See the [tutorial](examples/tutorial.ipynb).
 momi is not yet publicly released; please do not share with others.
 
 When momi is publicly released, it will be free software under conditions of GNU GPL v3.
+
+## TODO
+
+* Few tests checking `Demography._pulse_probs()`. Change `test.demo_utils.simple_admixture_demo()` to use a direct pulse event.
