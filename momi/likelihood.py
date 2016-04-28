@@ -1,17 +1,131 @@
 
-from .util import make_constant, _maximize, _npstr, truncate0, check_psd, memoize_instance, mypartial, _get_stochastic_optimizer
+from .util import make_constant, _maximize, _npstr, truncate0, check_psd, memoize_instance, mypartial, _get_stochastic_optimizer, count_calls
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2, inv_psd
-from .demography import DemographyError
-from .data_structure import _hashable_config
+from .demography import DemographyError, Demography
+from .data_structure import _hashable_config, Sfs
 import scipy, scipy.stats
 import autograd
+from autograd import grad, hessian_vector_product, hessian
 from collections import Counter
 #from functools import partial
 import random
 
-def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, **kwargs):
+class CompositeLogLikelihood(object):
+    def __init__(self, data, demo_func=None, mut_rate=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200):
+        self.data = data
+        
+        try: self.sfs = self.data.sfs
+        except AttributeError: self.sfs = self.data
+        
+        self.demo_func = demo_func
+
+        self.mut_rate = mut_rate
+        self.folded = folded
+        self.error_matrices = error_matrices
+
+        self.truncate_probs = truncate_probs
+
+        self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
+        #self.sfs_batches = [self.sfs]
+
+    def evaluate(self, x):
+        if self.demo_func:
+            demo = self.demo_func(*x)
+        else:
+            demo = x
+        #return _composite_log_likelihood(data=self.sfs, demo=demo, mut_rate=self.mut_rate, truncate_probs=self.truncate_probs,
+        #                                 vector=False, folded=self.folded, error_matrices=self.error_matrices)
+
+        G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
+        ret = 0.0
+        for batch in self.sfs_batches:
+            ret = ret + _prim_log_lik(diff_vals, diff_keys, G, batch, self.truncate_probs, self.folded, self.error_matrices)
+
+        if self.mut_rate:
+            ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False)
+
+        return ret
+
+    def gradient(self, x):
+        _prim_log_lik_grad.reset_count()
+        ret = grad(self.evaluate)(x)
+        ## make sure that autograd is making use of _prim_log_lik_grad
+        assert _prim_log_lik_grad.num_calls() == len(self.sfs_batches)
+        return ret
+            
+    def find_maximum(self, x0, maxiter=100, bounds=None, method="newton", output_progress = False, **kwargs):
+        if method=="newton":
+            return self.newton(x0, maxiter, bounds, output_progress, **kwargs)
+        elif method=="adam":
+            try: kwargs['n_chunks']
+            except KeyError: raise TypeError("Argument n_chunks required for method='%s'"%method)
+            
+            return self.adam(x0, maxiter, bounds, output_progress, **kwargs)
+        else:
+            raise ValueError("Unrecognized method %s" % method)
+    
+    def newton(self, x0, maxiter, bounds, output_progress,
+               xtol=-1, ftol=-1, gtol=-1, finite_diff_eps=None):
+        f = self.evaluate
+
+        options = {'ftol':ftol,'xtol':xtol,'gtol':gtol}
+
+        if not finite_diff_eps: jac = self.gradient
+        else:
+            jac = None
+            options['eps'] = finite_diff_eps
+
+        return _maximize(f=f, start_params=x0, jac=jac, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress)
+        
+    def adam(self, x0, maxiter, bounds, output_progress,
+             n_chunks, **kwargs):
+        if len(self.sfs_batches) != 1:
+            ## TODO: make this work, by making LikelihoodSurface for each minibatch, with the correct batch_size
+            raise NotImplementedError("adam not yet implemented for finite SFS batch_size -- set batch_size=float('inf') in constructor")
+        start_params = np.array(x0)
+        
+        f = lambda minibatch, params, minibatch_mut_rate: _composite_log_likelihood(minibatch, self.demo_func(*params), minibatch_mut_rate, truncate_probs = self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
+        
+        sgd_fun = _get_stochastic_optimizer("adam")
+        
+        return _sgd_composite_lik(sgd_fun, start_params, f, self.sfs, mut_rate=self.mut_rate, maxiter=maxiter, bounds=bounds, output_progress=output_progress, n_chunks=n_chunks, **kwargs)
+
+    ## TODO: make this the main confidence region, deprecate the other one
+    class _ConfidenceRegion(object):
+        pass
+
+def _build_sfs_batches(sfs, batch_size):
+    ## TODO: use _SubSfs
+    ## TODO: sort configs by (sampled_n,min(unfolded, folded)) to reduce redundant computation
+    n_snps = len(sfs.total)
+    if n_snps <= batch_size:
+        return [sfs]
+
+    batch_size = int(batch_size)
+    slices = []
+    prev_idx, next_idx = 0, batch_size    
+    while prev_idx < n_snps:
+        slices.append(slice(prev_idx, next_idx))
+        prev_idx = next_idx
+        next_idx = prev_idx + batch_size
+
+    assert len(slices) == int(np.ceil(n_snps / float(batch_size)))
+        
+    all_snps = sfs.total.items()
+    return [Sfs(sfs.sampled_pops, [dict(all_snps[s])]) for s in slices]
+    
+    
+def _prim_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_matrices):
+    demo = Demography(G, diff_keys, diff_vals)
+    return _composite_log_likelihood(data, demo, truncate_probs=truncate_probs, folded=folded, error_matrices=error_matrices)
+_prim_log_lik_grad = count_calls(grad(_prim_log_lik))
+
+_prim_log_lik = autograd.primitive(_prim_log_lik)
+_prim_log_lik.defgrad(lambda ans, diff_vals, *args: lambda g: tuple(g*y for y in _prim_log_lik_grad(diff_vals, *args)))
+    
+def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, **kwargs):
     """
     Returns the composite log likelihood for the data.
 
@@ -63,120 +177,143 @@ def composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, ve
     #comb_fac =  -np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
-        mut_rate = mut_rate * np.ones(n_loci)
-        if not vector:
-            mut_rate = np.sum(mut_rate)
-        if sfs.configs.has_missing_data:
-            raise NotImplementedError("Poisson model not implemented for missing data.")
-        E_total = expected_total_branch_len(demo)
+        log_lik = log_lik + _mut_factor(sfs, demo, mut_rate, vector)
+        # mut_rate = mut_rate * np.ones(n_loci)
+        # if not vector:
+        #     mut_rate = np.sum(mut_rate)
+        # if sfs.configs.has_missing_data:
+        #     raise NotImplementedError("Poisson model not implemented for missing data.")
+        # E_total = expected_total_branch_len(demo)
         
-        lambd = mut_rate * E_total
-        log_lik = log_lik - lambd + counts_i * np.log(lambd) 
-        #comb_fac = comb_fac - lnfact(counts_i)
-
-    #if comb:
-    #    log_lik = log_lik + comb_fac
+        # lambd = mut_rate * E_total
+        # log_lik = log_lik - lambd + counts_i * np.log(lambd) 
         
     if not vector:
         log_lik = np.squeeze(log_lik)
     return log_lik
 
-def composite_mle_search(data, demo_func, start_params,
-                         mut_rate = None,
-                         jac = True, hess = False, hessp = False,
-                         method = 'tnc', maxiter = None, bounds = None, tol = None, options = {},
-                         output_progress = False,                        
-                         sfs_kwargs = {}, truncate_probs = 1e-100,
-                         **kwargs):
-    """
-    Find the maximum of composite_log_likelihood().
+def _mut_factor(sfs, demo, mut_rate, vector):
+    mut_rate = mut_rate * np.ones(len(sfs._counts_i))
 
-    This is essentially a wrapper around scipy.optimize.minimize.
-    See http://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
-    or help(scipy.optimize.minimize) for more details on these parameters:
-    (method, bounds, tol, options, **kwargs)
+    if sfs.configs.has_missing_data:
+        raise NotImplementedError("Poisson model not implemented for missing data.")
+    E_total = expected_total_branch_len(demo)
+    lambd = mut_rate * E_total
+    
+    ret = -lambd + sfs._counts_i * np.log(lambd)
+    if not vector:
+        ret = np.sum(ret)
+    return ret
 
-    Parameters
-    ----------
-    data : SegSites or Sfs
-    demo_func : function
-        function that returns a Demography
-        if jac=True, demo_func should work with autograd (see tutorial)
-    start_params : list
-        The starting point for the parameter search.
-        len(start_params) should equal the number of arguments of demo_func
-    mut_rate : None or float, optional
-        The mutation rate. If None (the default), uses a multinomial
-        distribution; if a float, uses a Poisson random field. See
-        composite_log_likelihood for additional details.
-        Note the Poisson model is not implemented for missing data.
-    jac : bool, optional
-        If True, use autograd to compute the gradient (jacobian)
-    hess, hessp : bool, optional
-        If True, use autograd for the hessian or hessian-vector-product.
-        At most one of hess or hessp should be True. If True, 'method' must
-        be one of 'newton-cg','trust-ncg','dogleg', or a custom minimizer
-    method : str or callable, optional
-        The solver for to use (see help(scipy.optimize.minimize))
-    maxiter : int, optional
-        The maximum number of iterations to use.
-        Defaults to 100 for regular gradient descent, and 10 for stochastic gradient descent.
-    bounds : list of (lower,upper) or float, optional
-        lower and upper bounds for each parameter. Use None to indicate
-        parameter is unbounded in a direction. Use a float to indicate
-        the parameter should be fixed to a specific value.
-        if using lower,upper bounds, 'method' must be one of 'l-bfgs-b','tnc','slsqp'.
-    tol : float, optional
-        Tolerance for termination. For detailed control, use solver-specific options.
-    options : dict, optional
-        A dictionary of solver-specific options.
-    output_progress : int, optional
-        print output at every i-th call to the function
 
-    Returns
-    -------
-    res : scipy.optimize.OptimizeResult
+# def _composite_mle_search(data, demo_func, start_params,
+#                          mut_rate = None,
+#                          jac = True, hess = False, hessp = False,
+#                          method = 'tnc', maxiter = None, bounds = None, tol = None, options = {},
+#                          output_progress = False,                        
+#                          sfs_kwargs = {}, truncate_probs = 1e-100,
+#                          **kwargs):
+# """
+# Find the maximum of composite_log_likelihood().
 
-         Important attributes are: x the solution array, success a Boolean
-         flag indicating if the optimizer exited successfully and message 
-         which describes the cause of the termination.
+# This is essentially a wrapper around scipy.optimize.minimize.
+# See http://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
+# or help(scipy.optimize.minimize) for more details on these parameters:
+# (method, bounds, tol, options, **kwargs)
 
-    Other Parameters
-    ----------------
-    sfs_kwargs : dict, optional
-        additional keyword arguments to pass to composite_log_likelihood
-    truncate_probs : float, optional
-        Replace log(sfs_probs) with log(max(sfs_probs, truncate_probs)),
-        where sfs_probs are the normalized theoretical SFS entries.
-        Setting truncate_probs to a small positive number (e.g. 1e-100)
-        will avoid taking log(0) due to precision or underflow error.
-    **kwargs : optional
-        additional arguments for scipy.optimize.minimize
+# Parameters
+# ----------
+# data : SegSites or Sfs
+# demo_func : function
+#     function that returns a Demography
+#     if jac=True, demo_func should work with autograd (see tutorial)
+# start_params : list
+#     The starting point for the parameter search.
+#     len(start_params) should equal the number of arguments of demo_func
+# mut_rate : None or float, optional
+#     The mutation rate. If None (the default), uses a multinomial
+#     distribution; if a float, uses a Poisson random field. See
+#     composite_log_likelihood for additional details.
+#     Note the Poisson model is not implemented for missing data.
+# jac : bool, optional
+#     If True, use autograd to compute the gradient (jacobian)
+# hess, hessp : bool, optional
+#     If True, use autograd for the hessian or hessian-vector-product.
+#     At most one of hess or hessp should be True. If True, 'method' must
+#     be one of 'newton-cg','trust-ncg','dogleg', or a custom minimizer
+# method : str or callable, optional
+#     The solver for to use (see help(scipy.optimize.minimize))
+# maxiter : int, optional
+#     The maximum number of iterations to use.
+#     Defaults to 100 for regular gradient descent, and 10 for stochastic gradient descent.
+# bounds : list of (lower,upper) or float, optional
+#     lower and upper bounds for each parameter. Use None to indicate
+#     parameter is unbounded in a direction. Use a float to indicate
+#     the parameter should be fixed to a specific value.
+#     if using lower,upper bounds, 'method' must be one of 'l-bfgs-b','tnc','slsqp'.
+# tol : float, optional
+#     Tolerance for termination. For detailed control, use solver-specific options.
+# options : dict, optional
+#     A dictionary of solver-specific options.
+# output_progress : int, optional
+#     print output at every i-th call to the function
 
-    See Also
-    --------
-    composite_log_likelihood : the objective that is optimized here
-    """
-    start_params = np.array(start_params)
+# Returns
+# -------
+# res : scipy.optimize.OptimizeResult
 
-    f = lambda X,params,mut_rate: composite_log_likelihood(X, demo_func(*params), mut_rate, truncate_probs = truncate_probs, **sfs_kwargs)    
-    try:
-        sgd_fun = _get_stochastic_optimizer(method)
-    except ValueError:
-        if maxiter is None:
-            maxiter = 100
+#      Important attributes are: x the solution array, success a Boolean
+#      flag indicating if the optimizer exited successfully and message 
+#      which describes the cause of the termination.
+
+# Other Parameters
+# ----------------
+# sfs_kwargs : dict, optional
+#     additional keyword arguments to pass to composite_log_likelihood
+# truncate_probs : float, optional
+#     Replace log(sfs_probs) with log(max(sfs_probs, truncate_probs)),
+#     where sfs_probs are the normalized theoretical SFS entries.
+#     Setting truncate_probs to a small positive number (e.g. 1e-100)
+#     will avoid taking log(0) due to precision or underflow error.
+# **kwargs : optional
+#     additional arguments for scipy.optimize.minimize
+
+# See Also
+# --------
+# composite_log_likelihood : the objective that is optimized here
+# """
+#     start_params = np.array(start_params)
+
+#     f = lambda X,params,mut_rate: _composite_log_likelihood(X, demo_func(*params), mut_rate, truncate_probs = truncate_probs, **sfs_kwargs)    
+#     try:
+#         sgd_fun = _get_stochastic_optimizer(method)
+#     except ValueError:
+#         if maxiter is None:
+#             maxiter = 100
+           
+#         f = mypartial(f, data, mut_rate=mut_rate)
+
+#         if jac: jac = grad(f)
+#         else: jac=None
+
+#         if hessp: hessp = hessian_vector_product(f)
+#         else: hessp = None
+        
+#         if hess: hess = hessian(f)
+#         else: hess = None
             
-        f = mypartial(f, data, mut_rate=mut_rate)
-        return _maximize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
-    else:
-        if maxiter is None:
-            maxiter=10
-            
-        if not jac or hess or hessp:
-            raise ValueError("For stochastic gradient descent methods, must have jac=True, hess=False, hessp=False")
-        kwargs = dict(kwargs)
-        kwargs.update(options)
-        return _sgd_composite_lik(sgd_fun, start_params, f, data, mut_rate=mut_rate, maxiter=maxiter, bounds=bounds, tol=tol, output_progress=output_progress, **kwargs)
+        
+#         return _maximize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
+#     else:
+#         ## TODO: change maxiter to be number of steps, not number of passes, & set default to be the same as deterministic
+#         if maxiter is None:
+#             maxiter=10
+
+#         if not jac or hess or hessp:
+#             raise ValueError("For stochastic gradient descent methods, must have jac=True, hess=False, hessp=False")
+#         kwargs = dict(kwargs)
+#         kwargs.update(options)
+#         return _sgd_composite_lik(sgd_fun, start_params, f, data, mut_rate=mut_rate, maxiter=maxiter, bounds=bounds, tol=tol, output_progress=output_progress, **kwargs)
 
 
 ### stuff for stochastic gradient descent
@@ -208,7 +345,7 @@ def _sgd_liks(lik_fun, data, n_chunks, rnd, mut_rate, output_progress):
 
     # def lik_fun(sfs_chunk, params):
     #     return composite_log_likelihood(sfs_chunk, demo_func(*params), mut_rate=mut_rate, **kwargs)
-    return [mypartial(lik_fun, chnk, mut_rate=mut_rate) for chnk in chunks]
+    return [mypartial(lik_fun, chnk, minibatch_mut_rate=mut_rate) for chnk in chunks]
 
 def _subsfs_list(sfs, n_chunks, rnd):
     configs = sfs.configs
@@ -267,6 +404,7 @@ class _SubSfs(object):
         
         counts = counts[counts != 0]
         self._counts_ij = np.array(counts, ndmin=2)
+        self._counts_i = np.einsum("ij->i",self._counts_ij)
 
 
 ### stuff for confidence intervals
@@ -311,7 +449,7 @@ class ConfidenceRegion(object):
         
     def lik_fun(self, params, vector=False):
         """Returns composite log likelihood from params"""
-        return composite_log_likelihood(self.data, self.demo_func(*params), vector=vector, **self.kwargs)
+        return _composite_log_likelihood(self.data, self.demo_func(*params), vector=vector, **self.kwargs)
     
     @memoize_instance
     def godambe(self, inverse=False):
@@ -459,7 +597,7 @@ def _trunc_lik_ratio(null, alt):
     
 def _observed_fisher_information(params, data, demo_func, assert_psd=True, **kwargs):
     params = np.array(params)
-    f = lambda x: composite_log_likelihood(data, demo_func(*x), **kwargs)
+    f = lambda x: _composite_log_likelihood(data, demo_func(*x), **kwargs)
     ret = -autograd.hessian(f)(params)
     if assert_psd:
         try:
@@ -488,7 +626,7 @@ def _many_score_cov(params, data, demo_func, **kwargs):
     params = np.array(params)
 
     def f_vec(x):
-        ret = composite_log_likelihood(data, demo_func(*x), vector=True, **kwargs)
+        ret = _composite_log_likelihood(data, demo_func(*x), vector=True, **kwargs)
         # centralize
         return ret - np.mean(ret)
     

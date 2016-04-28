@@ -162,8 +162,7 @@ class Demography(object):
     def _get_differentiable_part(self):
        ## use this with _get_graph_structure()
        ## to re-organize certain computations during automatic differentiation
-       if not self._diff_cache:
-          expected_total_branch_len(self)
+       expected_total_branch_len(self)
        assert self._diff_cache
 
        keys,vals = zip(*self._diff_cache.items())

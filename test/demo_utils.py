@@ -70,29 +70,34 @@ def simple_five_pop_demo(x = np.random.normal(size=30), n_lins=(1,2,3,4,5)):
     assert len(x) == 30
     # make all params positive
     x = np.exp(x)
+    
+    # # allow negative growth rates
+    # for i in range(15,20):
+    #     x[i] = np.log(x[i])
+    # # make times increasing
+    # for i in range(1,15):
+    #     x[i] = x[i] + x[i-1]
+
+    t = np.cumsum(x[:15])
     # allow negative growth rates
-    for i in range(15,20):
-        x[i] = np.log(x[i])
-    # make times increasing
-    for i in range(1,15):
-        x[i] = x[i] + x[i-1]
+    g = np.log(x[15:20])
     
     # number of edges is 2n-1
-    events_list = [('-eg',x[0],5,x[15]),
-                   ('-eg',x[1],4,x[16]),
-                   ('-eg',x[2],3,x[17]),
-                   ('-eg',x[3],2,x[18]),
-                   ('-eg',x[4],1,x[19]),
-                   ('-ej',x[5],5,4),('-en',x[5],4,x[20]),
-                   ('-en',x[6],3,x[21]),
-                   ('-en',x[7],2,x[22]),
-                   ('-en',x[8],1,x[23]),
-                   ('-ej',x[9],4,3),('-en',x[9],3,x[24]),
-                   ('-en',x[10],2,x[25]),
-                   ('-en',x[11],1,x[26]),
-                   ('-ej',x[12],3,2),('-en',x[12],2,x[27]),
-                   ('-en',x[13],1,x[28]),
-                   ('-ej',x[14],2,1),('-en',x[14],1,x[29])]
+    events_list = [('-eg',t[0],5,g[0]),
+                   ('-eg',t[1],4,g[1]),
+                   ('-eg',t[2],3,g[2]),
+                   ('-eg',t[3],2,g[3]),
+                   ('-eg',t[4],1,g[4]),
+                   ('-ej',t[5],5,4),('-en',t[5],4,x[20]),
+                   ('-en',t[6],3,x[21]),
+                   ('-en',t[7],2,x[22]),
+                   ('-en',t[8],1,x[23]),
+                   ('-ej',t[9],4,3),('-en',t[9],3,x[24]),
+                   ('-en',t[10],2,x[25]),
+                   ('-en',t[11],1,x[26]),
+                   ('-ej',t[12],3,2),('-en',t[12],2,x[27]),
+                   ('-en',t[13],1,x[28]),
+                   ('-ej',t[14],2,1),('-en',t[14],1,x[29])]
     demo = make_demography(events_list,
                       sampled_pops = range(1,len(n_lins)+1), sampled_n = n_lins)
     demo = demo.rescaled(1e4)

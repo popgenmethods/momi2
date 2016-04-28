@@ -296,6 +296,11 @@ class Sfs(object):
                     pass
         return counts_ij
 
+    @property
+    @memoize_instance
+    def _counts_i(self):
+        return np.einsum("ij->i", self._counts_ij)
+
 class _ConfigDict(Counter):
     def __init__(self, *args, **kwargs):
         self.immutable = False

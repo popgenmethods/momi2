@@ -2,7 +2,7 @@
 from future.utils import raise_with_traceback
 import functools
 import autograd.numpy as np
-from functools import partial
+from functools import partial, update_wrapper
 from autograd.core import primitive
 from autograd import hessian, grad, hessian_vector_product, jacobian
 import itertools
@@ -15,6 +15,19 @@ class mypartial(functools.partial):
         functools.partial.__init__(self, *args, **kwargs)
         functools.update_wrapper(self, self.func)
 
+def count_calls(fun):
+    call_counter=[0]
+    def new_fun(*args, **kwargs):
+        call_counter[0] += 1
+        return fun(*args, **kwargs)
+    update_wrapper(new_fun, fun)
+
+    new_fun.num_calls = lambda : call_counter[0]
+    def reset_count(): call_counter[0] = 0
+    new_fun.reset_count = reset_count
+
+    return new_fun
+        
 def check_symmetric(X):
     Xt = np.transpose(X)
     assert np.allclose(X, Xt)
@@ -176,7 +189,7 @@ def wrap_generic_maximizer(generic_minimizer):
 
 @wrap_generic_maximizer
 def _maximize(f, start_params, maxiter, bounds,
-             jac = True, hess = False, hessp = False,
+             jac = None, hess = None, hessp = None,
              method = 'tnc', tol = None, options = {},
              output_progress = False, **kwargs):        
     if 'maxiter' in options:
@@ -186,9 +199,9 @@ def _maximize(f, start_params, maxiter, bounds,
     options['maxiter'] = maxiter
    
     kwargs = dict(kwargs)
-    kwargs.update({kw : wrap_objective(d(f),kw)
-                   for kw, b, d in [('jac', jac, grad), ('hessp', hessp, hessian_vector_product), ('hess', hess, hessian)]
-                   if b})
+    kwargs.update({kw : wrap_objective(df,kw)
+                   for kw, df in [('jac', jac), ('hessp', hessp), ('hess', hess)]
+                   if df})
 
     f = wrap_objective(f, "objective", check_inf=False, output_progress=output_progress)
     

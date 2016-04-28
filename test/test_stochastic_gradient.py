@@ -52,8 +52,9 @@ def test_subsfs(fold, use_mut):
     if not use_mut:
         mut_rate = None
     
-    val1 = momi.composite_log_likelihood(sfs, demo, mut_rate=mut_rate, vector=True, folded=fold)[locus]
-    val2 = momi.composite_log_likelihood(subsfs, demo, mut_rate=mut_rate, folded=fold)
+    val1 = momi.likelihood._composite_log_likelihood(sfs, demo, mut_rate=mut_rate, vector=True, folded=fold)[locus]
+    #val2 = momi.CompositeLogLikelihood(subsfs, mut_rate=mut_rate, folded=fold).evaluate(demo)
+    val2 = momi.likelihood._composite_log_likelihood(subsfs, demo, mut_rate=mut_rate, folded=fold)
 
     assert np.isclose(val1, val2)
 
@@ -100,20 +101,20 @@ def test_subliks(fold):
 
     n_chunks = 10
 
-    lik = lambda X,params,**kwargs: momi.composite_log_likelihood(X, demo_func(*params), folded=fold, **kwargs)
+    lik = lambda X,params,minibatch_mut_rate, **kwargs: momi.likelihood._composite_log_likelihood(X, demo_func(*params), mut_rate=minibatch_mut_rate, folded=fold, **kwargs)
     
     lik_funs = momi.likelihood._sgd_liks(lik, sfs, n_chunks, rnd, None, True)
 
        
     val0 = [f(x0) for f in lik_funs]
-    val1 = lik(sfs,x0, mut_rate=None)
-    val2 = np.sum(lik(sfs,x0,mut_rate=None, vector=True))
+    val1 = lik(sfs,x0, minibatch_mut_rate=None)
+    val2 = np.sum(lik(sfs,x0,minibatch_mut_rate=None, vector=True))
 
     assert np.isclose(np.sum(val0),val1) and np.isclose(val1,val2)
 
 @pytest.mark.parametrize("folded",
                          (random.choice((True,False)),))
-def test_stochastic_inference(folded, method='adam'):
+def test_stochastic_inference(folded):
     num_runs = 1000
     mu=1.0
     def get_demo(t0, t1):
@@ -127,7 +128,7 @@ def test_stochastic_inference(folded, method='adam'):
     if folded:
         sfs = sfs.fold()
     
-    optimize_res = momi.composite_mle_search(sfs, get_demo, np.array([.1,.9]), mu, bounds=[(1e-100,None),(1e-100,None)], method=method, maxiter=10, options={'n_chunks':10}, output_progress =10, sfs_kwargs={'folded':folded})
+    optimize_res = momi.CompositeLogLikelihood(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_maximum(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="adam", n_chunks=10, output_progress=10, maxiter=10)
     print optimize_res
     
     inferred_x = optimize_res.x

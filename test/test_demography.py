@@ -30,17 +30,11 @@ def test_constructor_grad():
 
     fun2_helper = lambda diff_vals, diff_keys, G: expected_total_branch_len(momi.demography.Demography(G, diff_keys, diff_vals))
 
-    was_called = [False]
-    def check_called(fun):
-        def new_fun(*args, **kwargs):
-            was_called[0] = True
-            return fun(*args, **kwargs)
-        return new_fun
+    helper_grad = momi.util.count_calls(autograd.grad(fun2_helper))
     
-    helper_grad = check_called(autograd.grad(fun2_helper))
-   
     fun2_helper = autograd.primitive(fun2_helper)
-    fun2_helper.defgrad(lambda ans, diff_vals, diff_keys, G: lambda g: tuple(g*y for y in helper_grad(diff_vals.value, diff_keys, G)))
+    #fun2_helper.defgrad(lambda ans, diff_vals, diff_keys, G: lambda g: tuple(g*y for y in helper_grad(diff_vals.value, diff_keys, G)))
+    fun2_helper.defgrad(lambda ans, diff_vals, diff_keys, G: lambda g: tuple(g*y for y in helper_grad(diff_vals, diff_keys, G)))
 
     def fun2(x):
         demo = simple_admixture_demo(x)
@@ -48,9 +42,9 @@ def test_constructor_grad():
 
     x_val = np.random.normal(size=7)
    
-    assert not was_called[0]
+    assert not helper_grad.num_calls()
     assert np.allclose(autograd.grad(fun1)(x_val), autograd.grad(fun2)(x_val))
-    assert was_called[0]
+    assert helper_grad.num_calls()
         
     
 class TestDemography(momi.demography.Demography):
