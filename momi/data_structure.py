@@ -172,8 +172,30 @@ class Configs(tuple):
         except UnboundLocalError:
             pass
         return vecs, idxs
+
+class _AbstractSfs(object):
+    @property
+    @memoize_instance
+    def _counts_i(self):
+        return np.einsum("ij->i", self._counts_ij)
+
+    @property
+    @memoize_instance
+    def _counts_j(self):
+        return np.einsum("ij->j", self._counts_ij)
+
+    @property
+    @memoize_instance
+    def _total_count(self):
+        return np.sum(self._counts_j)
     
-class Sfs(object):
+    @property
+    @memoize_instance
+    def _entropy(self):
+        p = self._counts_j / float(self._total_count)
+        return np.sum(p * np.log(p))
+    
+class Sfs(_AbstractSfs):
     """
     Represents an observed SFS across several loci.
 
@@ -295,12 +317,7 @@ class Sfs(object):
                 except KeyError:
                     pass
         return counts_ij
-
-    @property
-    @memoize_instance
-    def _counts_i(self):
-        return np.einsum("ij->i", self._counts_ij)
-
+    
 class _ConfigDict(Counter):
     def __init__(self, *args, **kwargs):
         self.immutable = False

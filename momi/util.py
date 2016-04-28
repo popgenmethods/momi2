@@ -148,7 +148,7 @@ def smooth_pos_map(x):
 #             return f
 #     return func
 
-def wrap_generic_maximizer(generic_minimizer):
+def wrap_minimizer(minimizer):
     def wrapped(f, start_params, maxiter, bounds = None, **kwargs):
         fixed_params = []    
         if bounds is not None:
@@ -171,27 +171,30 @@ def wrap_generic_maximizer(generic_minimizer):
 
             fixed_offset = np.dot(proj0, fixed_offset)
 
-            f0 = lambda x,*fargs,**fkwargs: f(np.dot(proj1, x) + fixed_offset, *fargs, **fkwargs)
+            get_x = lambda x0: np.dot(proj1, x0) + fixed_offset
+
+            def subfun(fun):
+                if fun is None: return None
+                new_fun = lambda x0, *fargs, **fkwargs: fun(get_x(x0), *fargs, **fkwargs)
+                functools.update_wrapper(new_fun, fun)
+                return new_fun
+            f0 = subfun(f)
+            
             start0 = np.array([s for (fxd,s) in zip(fixed_idxs,start_params) if not fxd])
             bounds0 = [b for (fxd,b) in zip(fixed_idxs, bounds) if not fxd]
-            ret = generic_minimizer(f0, start0, maxiter, bounds0, **kwargs)
+            ret = minimizer(f0, start0, maxiter, bounds0, **kwargs)
             ret.x = np.dot(proj1,ret.x) + fixed_offset
         else:
-            ret = generic_minimizer(f, start_params, maxiter, bounds, **kwargs)
-        for k,v in list(ret.items()):
-            if k in ("fun","jac") or k.startswith("hess"):
-                ret[k] = -v
-            else:
-                ret[k] = v
+            ret = minimizer(f, start_params, maxiter, bounds, **kwargs)
         return ret
-    functools.update_wrapper(wrapped, generic_minimizer)
+    functools.update_wrapper(wrapped, minimizer)
     return wrapped
 
-@wrap_generic_maximizer
-def _maximize(f, start_params, maxiter, bounds,
-             jac = None, hess = None, hessp = None,
-             method = 'tnc', tol = None, options = {},
-             output_progress = False, **kwargs):        
+@wrap_minimizer
+def _minimize(f, start_params, maxiter, bounds,
+              jac = True, hess = False, hessp = False,
+              method = 'tnc', tol = None, options = {},
+              output_progress = False, f_name="objective", **kwargs):        
     if 'maxiter' in options:
         raise ValueError("Please specify maxiter thru function argument 'maxiter', rather than 'options'")
     
@@ -199,18 +202,18 @@ def _maximize(f, start_params, maxiter, bounds,
     options['maxiter'] = maxiter
    
     kwargs = dict(kwargs)
-    kwargs.update({kw : wrap_objective(df,kw)
-                   for kw, df in [('jac', jac), ('hessp', hessp), ('hess', hess)]
-                   if df})
+    kwargs.update({kw : wrap_objective(d(f),kw)
+                   for kw,d,b in [('jac', grad, jac), ('hessp', hessian_vector_product, hessp), ('hess', hessian, hess)]
+                   if b})
 
-    f = wrap_objective(f, "objective", check_inf=False, output_progress=output_progress)
+    f = wrap_objective(f, f_name, check_inf=False, output_progress=output_progress)
     
     return scipy.optimize.minimize(f, start_params, method=method, bounds=bounds, tol=tol, options=options, **kwargs)
 
 def wrap_objective(fun,name, check_inf=True, output_progress=False):
     def new_fun(*a, **kw):
         try:
-            ret = -fun(*a,**kw)
+            ret = fun(*a,**kw)
             if np.any(np.isnan(ret)) or (check_inf and not np.all(np.isfinite(ret))):
                 raise OptimizationError("%s ( %s ) == %s. (Consider setting stricter bounds? e.g. set a lower bound of 1e-100 instead of 0)" % (name,str(*a),str(ret)))
             return ret
@@ -220,7 +223,7 @@ def wrap_objective(fun,name, check_inf=True, output_progress=False):
     if output_progress:
         new_fun = _verbosify(new_fun,
                              before = lambda i,x,*a,**kw: "evaluation %d" % i,
-                             after = lambda i,ret,x,*a,**kw: "%s ( %s ) == %g" % (name, _npstr(x), -ret),
+                             after = lambda i,ret,x,*a,**kw: "%s ( %s ) == %g" % (name, _npstr(x), ret),
                              print_freq = output_progress)
 
     functools.update_wrapper(new_fun, fun)
@@ -278,7 +281,7 @@ def wrap_sgd(optimizer):
     return wrapped_optimizer
         
 ## based on code from autograd/examples
-@wrap_generic_maximizer
+@wrap_minimizer
 @wrap_sgd
 def adam(fun_and_jac_list, start_params, maxiter, bounds,
          tol=None,
@@ -313,7 +316,7 @@ def adam(fun_and_jac_list, start_params, maxiter, bounds,
             x = np.maximum(np.minimum(x, upper_bounds), lower_bounds)
     return scipy.optimize.OptimizeResult({'x':x, 'fun':f, 'jac':g, 'history':history})
 
-@wrap_generic_maximizer
+@wrap_minimizer
 @wrap_sgd
 def adadelta(fun_and_jac_list, start_params, maxiter, bounds,
              tol=None,

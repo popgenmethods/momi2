@@ -1,10 +1,10 @@
 
-from .util import make_constant, _maximize, _npstr, truncate0, check_psd, memoize_instance, mypartial, _get_stochastic_optimizer, count_calls
+from .util import make_constant, _minimize, _npstr, truncate0, check_psd, memoize_instance, mypartial, _get_stochastic_optimizer, count_calls
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2, inv_psd
 from .demography import DemographyError, Demography
-from .data_structure import _hashable_config, Sfs
+from .data_structure import _hashable_config, Sfs, _AbstractSfs
 import scipy, scipy.stats
 import autograd
 from autograd import grad, hessian_vector_product, hessian
@@ -12,7 +12,7 @@ from collections import Counter
 #from functools import partial
 import random
 
-class CompositeLogLikelihood(object):
+class SfsLikelihoodSurface(object):
     def __init__(self, data, demo_func=None, mut_rate=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200):
         self.data = data
         
@@ -30,32 +30,26 @@ class CompositeLogLikelihood(object):
         self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
         #self.sfs_batches = [self.sfs]
 
-    def evaluate(self, x):
-        if self.demo_func:
-            demo = self.demo_func(*x)
-        else:
-            demo = x
-        #return _composite_log_likelihood(data=self.sfs, demo=demo, mut_rate=self.mut_rate, truncate_probs=self.truncate_probs,
-        #                                 vector=False, folded=self.folded, error_matrices=self.error_matrices)
+    def log_likelihood(self, x):
+        ret = _batched_log_likelihood(x, self.sfs_batches, self.demo_func, self.sfs, self.mut_rate,
+                                      truncate_probs=self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
+        
+        return ret
 
-        G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
-        ret = 0.0
-        for batch in self.sfs_batches:
-            ret = ret + _prim_log_lik(diff_vals, diff_keys, G, batch, self.truncate_probs, self.folded, self.error_matrices)
-
+    def kl_divergence(self, x):
+        ret = -self.log_likelihood(x) + self.sfs._total_count * self.sfs._entropy
         if self.mut_rate:
-            ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False)
+            ## KL divergence is for empirical distribution over all sites (monomorphic and polymorphic)
+            ## taking the limit so that each site has infinitessimal width
+            counts_i = self.sfs._counts_i
+            ret = ret + np.sum(-counts_i + counts_i * np.log(counts_i))
+
+        ret = ret / float(self.sfs._total_count)
+        assert ret >= 0
 
         return ret
-
-    def gradient(self, x):
-        _prim_log_lik_grad.reset_count()
-        ret = grad(self.evaluate)(x)
-        ## make sure that autograd is making use of _prim_log_lik_grad
-        assert _prim_log_lik_grad.num_calls() == len(self.sfs_batches)
-        return ret
-            
-    def find_maximum(self, x0, maxiter=100, bounds=None, method="newton", output_progress = False, **kwargs):
+    
+    def find_optimum(self, x0, maxiter=100, bounds=None, method="newton", output_progress = False, **kwargs):
         if method=="newton":
             return self.newton(x0, maxiter, bounds, output_progress, **kwargs)
         elif method=="adam":
@@ -68,16 +62,16 @@ class CompositeLogLikelihood(object):
     
     def newton(self, x0, maxiter, bounds, output_progress,
                xtol=-1, ftol=-1, gtol=-1, finite_diff_eps=None):
-        f = self.evaluate
+        f = self.kl_divergence
 
         options = {'ftol':ftol,'xtol':xtol,'gtol':gtol}
 
-        if not finite_diff_eps: jac = self.gradient
+        if not finite_diff_eps: jac = True
         else:
-            jac = None
+            jac = False
             options['eps'] = finite_diff_eps
 
-        return _maximize(f=f, start_params=x0, jac=jac, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress)
+        return _minimize(f=f, start_params=x0, jac=jac, hess=False, hessp=False, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence")
         
     def adam(self, x0, maxiter, bounds, output_progress,
              n_chunks, **kwargs):
@@ -86,7 +80,7 @@ class CompositeLogLikelihood(object):
             raise NotImplementedError("adam not yet implemented for finite SFS batch_size -- set batch_size=float('inf') in constructor")
         start_params = np.array(x0)
         
-        f = lambda minibatch, params, minibatch_mut_rate: _composite_log_likelihood(minibatch, self.demo_func(*params), minibatch_mut_rate, truncate_probs = self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
+        f = lambda minibatch, params, minibatch_mut_rate: -_composite_log_likelihood(minibatch, self.demo_func(*params), minibatch_mut_rate, truncate_probs = self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
         
         sgd_fun = _get_stochastic_optimizer("adam")
         
@@ -132,15 +126,41 @@ def _build_sfs_batches(sfs, batch_size):
 
     idx_list = [sorted_idxs[s] for s in slices]
     
-    counts_j = np.einsum("ij->j", sfs._counts_ij)
     counts_j_list = []
     for idx in idx_list:
-        curr = np.zeros(len(counts_j))
-        curr[idx] = counts_j[idx]
+        curr = np.zeros(len(sfs._counts_j))
+        curr[idx] = sfs._counts_j[idx]
         counts_j_list.append(curr)
 
     return [_SubSfs(sfs.configs, cj) for cj in counts_j_list]
+
+
+def _batched_log_likelihood(x, sfs_batches, demo_func, sfs, mut_rate, **kwargs):
+    if demo_func:
+        demo = demo_func(*x)
+    else:
+        demo = x
+
+    G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
+    ret = 0.0
+    for batch in sfs_batches:
+        ret = ret + _prim_log_lik(diff_vals, diff_keys, G, batch, **kwargs)
+
+    if mut_rate:
+        ret = ret + _mut_factor(sfs, demo, mut_rate, False)
+
+    return ret
+_batched_grad_helper = grad(_batched_log_likelihood)
+def _batched_log_lik_grad(x, sfs_batches, *args,**kwargs):
+    ## make sure that autograd is making use of _prim_log_lik_grad    
+    _prim_log_lik_grad.reset_count()
+    ret = _batched_grad_helper(x, sfs_batches, *args, **kwargs)
+    assert _prim_log_lik_grad.num_calls() == len(sfs_batches)
+    return ret
     
+_batched_log_likelihood = autograd.primitive(_batched_log_likelihood)
+_batched_log_likelihood.defgrad(lambda ans, *args, **kwargs: lambda g: g * _batched_log_lik_grad(*args, **kwargs))
+
     
 def _prim_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_matrices):
     demo = Demography(G, diff_keys, diff_vals)
@@ -148,7 +168,7 @@ def _prim_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_m
 _prim_log_lik_grad = count_calls(grad(_prim_log_lik))
 
 _prim_log_lik = autograd.primitive(_prim_log_lik)
-_prim_log_lik.defgrad(lambda ans, diff_vals, *args: lambda g: tuple(g*y for y in _prim_log_lik_grad(diff_vals, *args)))
+_prim_log_lik.defgrad(lambda ans, diff_vals, *args, **kwargs: lambda g: tuple(g*y for y in _prim_log_lik_grad(diff_vals, *args, **kwargs)))
     
 def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, **kwargs):
     """
@@ -422,9 +442,8 @@ class _SubConfigs(object):
         idxs[denom_idx_key] = old_2_new_idxs[denom_idx]
         return old_idxs, idxs
 
-class _SubSfs(object):
+class _SubSfs(_AbstractSfs):
     ## represents a subsample of SFS
-    ## Just used by stochastic gradient descent for now
     def __init__(self, configs, counts):
         assert len(counts.shape) == 1 and len(counts) == len(configs)
         
@@ -433,7 +452,6 @@ class _SubSfs(object):
         
         counts = counts[counts != 0]
         self._counts_ij = np.array(counts, ndmin=2)
-        self._counts_i = np.einsum("ij->i",self._counts_ij)
 
 
 ### stuff for confidence intervals

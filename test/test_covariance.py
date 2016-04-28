@@ -16,7 +16,7 @@ def check_cov(method, params, demo_func, num_runs, theta, bounds=None, **kwargs)
                             num_loci=num_runs, mut_rate=theta,
                             additional_ms_params="-r %f 1000" % theta)
     
-    cmle_search_res = momi.CompositeLogLikelihood(seg_sites, demo_func).find_maximum(params, maxiter=1000, bounds=bounds, **kwargs)
+    cmle_search_res = momi.SfsLikelihoodSurface(seg_sites, demo_func).find_optimum(params, maxiter=1000, bounds=bounds, **kwargs)
     est_params = cmle_search_res.x
 
     cr = momi.ConfidenceRegion(est_params, demo_func, seg_sites, regime=method, **kwargs)

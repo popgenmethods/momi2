@@ -2,7 +2,7 @@
 import pytest
 import momi
 import momi.likelihood
-from momi import CompositeLogLikelihood
+from momi import SfsLikelihoodSurface
 from demo_utils import simple_five_pop_demo
 
 import autograd.numpy as np
@@ -23,7 +23,7 @@ def test_batches():
 
     assert sfs_len > 30
 
-    assert np.isclose(CompositeLogLikelihood(sfs, batch_size=5).evaluate(demo),
+    assert np.isclose(SfsLikelihoodSurface(sfs, batch_size=5).log_likelihood(demo),
                       momi.likelihood._composite_log_likelihood(sfs, demo))
 
 def test_batches_grad():
@@ -41,5 +41,5 @@ def test_batches_grad():
 
     assert sfs_len > 30
 
-    assert np.allclose(CompositeLogLikelihood(sfs, batch_size=5, demo_func=demo_func).gradient(x0),
+    assert np.allclose(-sfs._total_count * grad(SfsLikelihoodSurface(sfs, batch_size=5, demo_func=demo_func).kl_divergence)(x0),
                        grad(lambda x: momi.likelihood._composite_log_likelihood(sfs, demo_func(*x)))(x0))

@@ -128,7 +128,7 @@ def test_stochastic_inference(folded):
     if folded:
         sfs = sfs.fold()
     
-    optimize_res = momi.CompositeLogLikelihood(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_maximum(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="adam", n_chunks=10, output_progress=10, maxiter=10)
+    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_optimum(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="adam", n_chunks=10, output_progress=10, maxiter=10)
     print optimize_res
     
     inferred_x = optimize_res.x

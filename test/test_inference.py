@@ -3,7 +3,7 @@ import os, random
 import autograd.numpy as np
 from autograd import grad
 
-from momi import make_demography, simulate_ms, CompositeLogLikelihood
+from momi import make_demography, simulate_ms, SfsLikelihoodSurface
 import momi
 from test_ms import ms_path, scrm_path
 
@@ -23,7 +23,7 @@ def test_archaic_sample():
                       num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
     
     x0 = np.array([random.uniform(0,join_time)])
-    res = CompositeLogLikelihood(sfs, demo_func=get_demo).find_maximum(x0, bounds=[(0,join_time)])
+    res = SfsLikelihoodSurface(sfs, demo_func=get_demo).find_optimum(x0, bounds=[(0,join_time)])
     
     print res.jac
     assert abs(res.x - true_sample_t) < .1
@@ -61,7 +61,7 @@ def check_jointime_inference(folded, add_n, finite_diff_eps=0):
     
     x0 = np.array([random.uniform(0,t1)])
     bound_eps = finite_diff_eps + 1e-12
-    res = CompositeLogLikelihood(sfs, get_demo, folded=folded).find_maximum(x0, bounds=[(bound_eps,t1-bound_eps),], finite_diff_eps=finite_diff_eps)
+    res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_optimum(x0, bounds=[(bound_eps,t1-bound_eps),], finite_diff_eps=finite_diff_eps)
     
     print res.jac
     assert abs(res.x - t0) / t0 < .05
@@ -82,7 +82,7 @@ def test_underflow_robustness(folded):
         sfs = sfs.fold()
     
     #optimize_res = composite_mle_search(sfs, get_demo, np.array([np.log(0.1),np.log(100.0)]), mu, hessp=True, method='newton-cg', sfs_kwargs={'folded':folded})
-    optimize_res = CompositeLogLikelihood(sfs, get_demo, mut_rate=mu, folded=folded).find_maximum(np.array([np.log(0.1),np.log(100.0)]))
+    optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_optimum(np.array([np.log(0.1),np.log(100.0)]))
     print optimize_res
     
     inferred_x = optimize_res.x
