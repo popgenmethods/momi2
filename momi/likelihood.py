@@ -97,24 +97,49 @@ class CompositeLogLikelihood(object):
         pass
 
 def _build_sfs_batches(sfs, batch_size):
-    ## TODO: use _SubSfs
-    ## TODO: sort configs by (sampled_n,min(unfolded, folded)) to reduce redundant computation
-    n_snps = len(sfs.total)
-    if n_snps <= batch_size:
+    sfs_len = len(sfs.total)
+    if sfs_len <= batch_size:
         return [sfs]
 
     batch_size = int(batch_size)
     slices = []
     prev_idx, next_idx = 0, batch_size    
-    while prev_idx < n_snps:
+    while prev_idx < sfs_len:
         slices.append(slice(prev_idx, next_idx))
         prev_idx = next_idx
         next_idx = prev_idx + batch_size
 
-    assert len(slices) == int(np.ceil(n_snps / float(batch_size)))
-        
-    all_snps = sfs.total.items()
-    return [Sfs(sfs.sampled_pops, [dict(all_snps[s])]) for s in slices]
+    assert len(slices) == int(np.ceil(sfs_len / float(batch_size)))
+
+    ## sort configs so that "(very) similar" configs end up in the same batch,
+    ## thus avoiding redundant computation
+    ## "similar" == configs have same num missing alleles
+    ## "very similar" == configs are folded copies of each other
+    
+    a = sfs.configs.config_array[:,:,0] # ancestral counts
+    d = sfs.configs.config_array[:,:,1] # derived counts
+    n = a+d # totals
+
+    n = map(tuple, n)
+    a = map(tuple, a)
+    d = map(tuple, d)
+    
+    folded = map(min, zip(a,d))
+
+    keys = zip(n,folded)
+    sorted_idxs = sorted(range(sfs_len), key=lambda i:keys[i])
+    sorted_idxs = np.array(sorted_idxs, dtype=int)
+
+    idx_list = [sorted_idxs[s] for s in slices]
+    
+    counts_j = np.einsum("ij->j", sfs._counts_ij)
+    counts_j_list = []
+    for idx in idx_list:
+        curr = np.zeros(len(counts_j))
+        curr[idx] = counts_j[idx]
+        counts_j_list.append(curr)
+
+    return [_SubSfs(sfs.configs, cj) for cj in counts_j_list]
     
     
 def _prim_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_matrices):
@@ -367,7 +392,11 @@ class _SubConfigs(object):
         self.full_configs = configs
         for a in ("sampled_n", "sampled_pops", "has_missing_data"):
             setattr(self, a, getattr(self.full_configs, a))
-        
+
+    @property
+    def config_array(self):
+        return self.full_configs.config_array[self.sub_idxs,:,:]
+            
     def _vecs_and_idxs(self, folded):
         vecs,_ = self.full_configs._vecs_and_idxs(folded)
         old_idxs, idxs = self._build_idxs(folded)

@@ -52,3 +52,4 @@ When momi is publicly released, it will be free software under conditions of GNU
 * Few tests checking `Demography._pulse_probs()`. Change `test.demo_utils.simple_admixture_demo()` to use a direct pulse event.
 * `import logging`
 * Use KL-divergence from data instead of log-likelihood (as it is already on a natural scale; useful for having a generic stepsize in SGD)
+* optimization method that sequentially fits larger subsets of the data. use ftol=std of log likelihood to stop. use empirical entropy as proxy for log likelihood, when computing the standard deviation
