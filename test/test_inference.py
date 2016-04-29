@@ -59,9 +59,18 @@ def check_jointime_inference(folded, add_n, finite_diff_eps=0):
     
     print(t0,t1)
     
+    prim_log_lik = momi.likelihood._log_lik_diff
+    prim_log_lik.reset_grad_count()
+    assert not prim_log_lik.num_grad_calls()
+
     x0 = np.array([random.uniform(0,t1)])
     bound_eps = finite_diff_eps + 1e-12
     res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_optimum(x0, bounds=[(bound_eps,t1-bound_eps),], finite_diff_eps=finite_diff_eps)
+    
+    #res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_optimum(x0, bounds=[(0,t1),])
+
+    # make sure autograd is calling the rearranged gradient function
+    assert bool(prim_log_lik.num_grad_calls()) != bool(finite_diff_eps)
     
     print res.jac
     assert abs(res.x - t0) / t0 < .05

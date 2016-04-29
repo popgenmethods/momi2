@@ -179,6 +179,8 @@ def wrap_minimizer(minimizer):
                 functools.update_wrapper(new_fun, fun)
                 return new_fun
             f0 = subfun(f)
+            if "f_diff" in kwargs:
+                kwargs["f_diff"] = subfun(kwargs["f_diff"])
             
             start0 = np.array([s for (fxd,s) in zip(fixed_idxs,start_params) if not fxd])
             bounds0 = [b for (fxd,b) in zip(fixed_idxs, bounds) if not fxd]
@@ -193,6 +195,7 @@ def wrap_minimizer(minimizer):
 @wrap_minimizer
 def _minimize(f, start_params, maxiter, bounds,
               jac = True, hess = False, hessp = False,
+              f_diff = None,
               method = 'tnc', tol = None, options = {},
               output_progress = False, f_name="objective", **kwargs):        
     if 'maxiter' in options:
@@ -200,9 +203,12 @@ def _minimize(f, start_params, maxiter, bounds,
     
     options = dict(options)
     options['maxiter'] = maxiter
-   
+
+    if f_diff is None:
+        f_diff = f
+    
     kwargs = dict(kwargs)
-    kwargs.update({kw : wrap_objective(d(f),kw)
+    kwargs.update({kw : wrap_objective(d(f_diff),kw)
                    for kw,d,b in [('jac', grad, jac), ('hessp', hessian_vector_product, hessp), ('hess', hessian, hess)]
                    if b})
 

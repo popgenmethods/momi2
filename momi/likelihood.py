@@ -11,6 +11,7 @@ from autograd import grad, hessian_vector_product, hessian
 from collections import Counter
 #from functools import partial
 import random
+import functools
 
 class SfsLikelihoodSurface(object):
     def __init__(self, data, demo_func=None, mut_rate=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200):
@@ -31,13 +32,27 @@ class SfsLikelihoodSurface(object):
         #self.sfs_batches = [self.sfs]
 
     def log_likelihood(self, x):
-        ret = _batched_log_likelihood(x, self.sfs_batches, self.demo_func, self.sfs, self.mut_rate,
-                                      truncate_probs=self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
-        
+        return self._log_likelihood(True, x)
+    def _log_likelihood(self, differentiable, x):
+        if self.demo_func:
+            demo = self.demo_func(*x)
+        else:
+            demo = x
+
+        G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
+        ret = 0.0
+        for batch in self.sfs_batches:
+            ret = ret + _log_lik(differentiable, diff_vals, diff_keys, G, batch, self.truncate_probs, self.folded, self.error_matrices)
+
+        if self.mut_rate:
+            ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False)
+
         return ret
 
     def kl_divergence(self, x):
-        ret = -self.log_likelihood(x) + self.sfs._total_count * self.sfs._entropy
+        return self._kl_divergence(True, x)
+    def _kl_divergence(self, differentiable, x):
+        ret = -self._log_likelihood(differentiable, x) + self.sfs._total_count * self.sfs._entropy
         if self.mut_rate:
             ## KL divergence is for empirical distribution over all sites (monomorphic and polymorphic)
             ## taking the limit so that each site has infinitessimal width
@@ -62,16 +77,16 @@ class SfsLikelihoodSurface(object):
     
     def newton(self, x0, maxiter, bounds, output_progress,
                xtol=-1, ftol=-1, gtol=-1, finite_diff_eps=None):
-        f = self.kl_divergence
+        f = mypartial(self._kl_divergence, False)
+        f_diff = mypartial(self._kl_divergence, True)
 
         options = {'ftol':ftol,'xtol':xtol,'gtol':gtol}
-
         if not finite_diff_eps: jac = True
         else:
             jac = False
             options['eps'] = finite_diff_eps
-
-        return _minimize(f=f, start_params=x0, jac=jac, hess=False, hessp=False, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence")
+        
+        return _minimize(f=f, start_params=x0, f_diff=f_diff, jac=jac, hess=False, hessp=False, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence")
         
     def adam(self, x0, maxiter, bounds, output_progress,
              n_chunks, **kwargs):
@@ -134,41 +149,46 @@ def _build_sfs_batches(sfs, batch_size):
 
     return [_SubSfs(sfs.configs, cj) for cj in counts_j_list]
 
+## a decorator that rearranges gradient computations to be more memory efficient
+## it turns the subroutine into a primitive so that its computations are not stored on the tape
+## subroutine is computed by value_and_grad and its gradient stored, to avoid computing subroutine in both the forward and backward passes
+def rearrange_gradient(subroutine):
+    @count_calls # used in some tests to make sure autograd is calling inner_gradmaker
+    def inner_gradmaker(ans, x, gx_container, *args, **kwargs):
+        gx, = gx_container
+        def inner_grad(g):
+            if any([not t.complete for t in x.tapes]):
+                raise NotImplementedError("For second order derivatives, use expected_sfs() directly instead of SfsLikelihoodSurface")
+            return tuple(g*y for y in gx)
+        return inner_grad
 
-def _batched_log_likelihood(x, sfs_batches, demo_func, sfs, mut_rate, **kwargs):
-    if demo_func:
-        demo = demo_func(*x)
-    else:
-        demo = x
+    @autograd.primitive
+    def inner_fun(x, gx_container, *args, **kwargs):
+        fx,gx = autograd.value_and_grad(subroutine)(x, *args, **kwargs)
+        gx_container.append(gx)
+        return fx
+    inner_fun.defgrad(inner_gradmaker)
 
-    G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
-    ret = 0.0
-    for batch in sfs_batches:
-        ret = ret + _prim_log_lik(diff_vals, diff_keys, G, batch, **kwargs)
+    def outer_fun(x, *args, **kwargs):
+        return inner_fun(x, [], *args, **kwargs)
+    functools.update_wrapper(outer_fun, subroutine)
 
-    if mut_rate:
-        ret = ret + _mut_factor(sfs, demo, mut_rate, False)
-
-    return ret
-_batched_grad_helper = grad(_batched_log_likelihood)
-def _batched_log_lik_grad(x, sfs_batches, *args,**kwargs):
-    ## make sure that autograd is making use of _prim_log_lik_grad    
-    _prim_log_lik_grad.reset_count()
-    ret = _batched_grad_helper(x, sfs_batches, *args, **kwargs)
-    assert _prim_log_lik_grad.num_calls() == len(sfs_batches)
-    return ret
-    
-_batched_log_likelihood = autograd.primitive(_batched_log_likelihood)
-_batched_log_likelihood.defgrad(lambda ans, *args, **kwargs: lambda g: g * _batched_log_lik_grad(*args, **kwargs))
-
-    
-def _prim_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_matrices):
+    outer_fun.num_grad_calls = inner_gradmaker.num_calls
+    outer_fun.reset_grad_count = inner_gradmaker.reset_count
+    return outer_fun
+            
+def _pre_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_matrices):
     demo = Demography(G, diff_keys, diff_vals)
     return _composite_log_likelihood(data, demo, truncate_probs=truncate_probs, folded=folded, error_matrices=error_matrices)
-_prim_log_lik_grad = count_calls(grad(_prim_log_lik))
 
-_prim_log_lik = autograd.primitive(_prim_log_lik)
-_prim_log_lik.defgrad(lambda ans, diff_vals, *args, **kwargs: lambda g: tuple(g*y for y in _prim_log_lik_grad(diff_vals, *args, **kwargs)))
+_log_lik_diff = rearrange_gradient(_pre_log_lik) # differentiable version of _log_lik
+_log_lik_nodiff = autograd.primitive(_pre_log_lik) # non-differentiable version that is more efficient (since it doesnt use autograd.value_and_grad)
+
+def _log_lik(differentiable, *args, **kwargs):
+    if differentiable:
+        return _log_lik_diff(*args, **kwargs)
+    if not differentiable:
+        return _log_lik_nodiff(*args, **kwargs)
     
 def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, **kwargs):
     """
@@ -223,15 +243,6 @@ def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, v
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
         log_lik = log_lik + _mut_factor(sfs, demo, mut_rate, vector)
-        # mut_rate = mut_rate * np.ones(n_loci)
-        # if not vector:
-        #     mut_rate = np.sum(mut_rate)
-        # if sfs.configs.has_missing_data:
-        #     raise NotImplementedError("Poisson model not implemented for missing data.")
-        # E_total = expected_total_branch_len(demo)
-        
-        # lambd = mut_rate * E_total
-        # log_lik = log_lik - lambd + counts_i * np.log(lambd) 
         
     if not vector:
         log_lik = np.squeeze(log_lik)
