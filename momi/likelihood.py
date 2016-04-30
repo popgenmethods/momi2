@@ -57,7 +57,8 @@ class SfsLikelihoodSurface(object):
             ## KL divergence is for empirical distribution over all sites (monomorphic and polymorphic)
             ## taking the limit so that each site has infinitessimal width
             counts_i = self.sfs._counts_i
-            ret = ret + np.sum(-counts_i + counts_i * np.log(counts_i))
+            mu = self.mut_rate * np.ones(len(counts_i))
+            ret = ret + np.sum(-counts_i + counts_i * np.log(np.sum(counts_i) * mu / float(np.sum(mu))))
 
         ret = ret / float(self.sfs._total_count)
         assert ret >= 0
