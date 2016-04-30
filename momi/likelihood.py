@@ -107,7 +107,7 @@ class SfsLikelihoodSurface(object):
         pass
 
 def _build_sfs_batches(sfs, batch_size):
-    sfs_len = len(sfs.total)
+    sfs_len = len(sfs._counts_j)
     if sfs_len <= batch_size:
         return [sfs]
 
@@ -457,7 +457,7 @@ class _SubConfigs(object):
 class _SubSfs(_AbstractSfs):
     ## represents a subsample of SFS
     def __init__(self, configs, counts):
-        assert len(counts.shape) == 1 and len(counts) == len(configs)
+        assert len(counts.shape) == 1 and len(counts) == len(configs.config_array)
         
         subidxs = np.arange(len(counts))[counts != 0]
         self.configs = _SubConfigs(configs, subidxs)
