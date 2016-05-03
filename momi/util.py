@@ -268,6 +268,8 @@ def wrap_objective(fun,name,jac):
             hist.recent.append((x,fx,gx))
             
             return ret
+        except InterruptOptimization:
+            raise
         except Exception as e:
             raise_with_traceback(OptimizationError("at %s( %s ):\n%s: %s" % (name, str(x), type(e).__name__, str(e))))
 
