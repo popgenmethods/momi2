@@ -100,7 +100,7 @@ class SfsLikelihoodSurface(object):
             
             sub_mutrate = self.mut_rate
             if sub_mutrate:
-                sub_mutrate = sub_mutrate * p * len(self.sfs._counts_i)
+                sub_mutrate = np.sum(sub_mutrate * p * np.ones(len(self.sfs._counts_i)))
             
             sub_lik, validation_lik = [SfsLikelihoodSurface(_SubSfs(self.sfs.configs, counts),
                                                             demo_func=self.demo_func, mut_rate=sub_mutrate,
