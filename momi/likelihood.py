@@ -28,12 +28,11 @@ class SfsLikelihoodSurface(object):
 
         self.truncate_probs = truncate_probs
 
+        self.batch_size = batch_size
         self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
         #self.sfs_batches = [self.sfs]
 
-    def log_likelihood(self, x):
-        return self._log_likelihood(True, x)
-    def _log_likelihood(self, differentiable, x):
+    def log_likelihood(self, x, differentiable=True):
         if self.demo_func:
             demo = self.demo_func(*x)
         else:
@@ -49,10 +48,8 @@ class SfsLikelihoodSurface(object):
 
         return ret
 
-    def kl_divergence(self, x):
-        return self._kl_divergence(True, x)
-    def _kl_divergence(self, differentiable, x):
-        ret = -self._log_likelihood(differentiable, x) + self.sfs._total_count * self.sfs._entropy
+    def kl_divergence(self, x, differentiable=True):
+        ret = -self.log_likelihood(x, differentiable) + self.sfs._total_count * self.sfs._entropy
         if self.mut_rate:
             ## KL divergence is for empirical distribution over all sites (monomorphic and polymorphic)
             ## taking the limit so that each site has infinitessimal width
@@ -77,18 +74,63 @@ class SfsLikelihoodSurface(object):
             raise ValueError("Unrecognized method %s" % method)
     
     def newton(self, x0, maxiter, bounds, output_progress,
-               xtol=-1, ftol=-1, gtol=-1, finite_diff_eps=None):
-        f = mypartial(self._kl_divergence, False)
-        f_diff = mypartial(self._kl_divergence, True)
-
+               xtol=-1, ftol=-1, gtol=-1, finite_diff_eps=None, subsample_steps=0, rgen=np.random):
         options = {'ftol':ftol,'xtol':xtol,'gtol':gtol}
         if not finite_diff_eps: jac = True
         else:
             jac = False
             options['eps'] = finite_diff_eps
-        
-        return _minimize(f=f, start_params=x0, f_diff=f_diff, jac=jac, hess=False, hessp=False, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence")
-        
+
+        subsample_results = []
+        for substep in reversed(range(1,subsample_steps+1)):
+            p = (2.0)**(-substep)
+            assert p <= .5
+
+            subsample_counts = rgen.binomial(np.array(self.sfs._counts_j, dtype=int), p*2.0)
+            
+            validation_counts = rgen.binomial(subsample_counts, .5)
+            subsample_counts = subsample_counts - validation_counts
+
+            if np.sum(validation_counts) == 0 or np.sum(subsample_counts) == 0:
+                if output_progress:
+                    print "Not enough data for subsample with p=%f, continuing" % p
+                continue
+            elif output_progress:
+                print "Fitting to subsample with p=%f, with %d unique entries and %d total SNPs" % (p, np.sum(subsample_counts != 0), np.sum(subsample_counts))
+            
+            sub_mutrate = self.mut_rate
+            if sub_mutrate:
+                sub_mutrate = sub_mutrate * p * len(self.sfs._counts_i)
+            
+            sub_lik, validation_lik = [SfsLikelihoodSurface(_SubSfs(self.sfs.configs, counts),
+                                                            demo_func=self.demo_func, mut_rate=sub_mutrate,
+                                                            folded=self.folded, error_matrices=self.error_matrices,
+                                                            truncate_probs=self.truncate_probs, batch_size=self.batch_size)
+                                       for counts in (subsample_counts, validation_counts)]
+
+            res = _minimize(f=sub_lik.kl_divergence, start_params=x0, jac=jac, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence", f_validation=lambda x: validation_lik.kl_divergence(x, differentiable=False))
+
+            x0 = res.x
+            res.update({'p':p,
+                        'uniq_snps': len(sub_lik.sfs._counts_j),
+                        'total_snps': np.sum(sub_lik.sfs._counts_j)})
+            subsample_results += [res]
+            if output_progress:
+                print "Finished fitting subsample p=%f after %d iterations" % (p, res.nit)
+            
+        if output_progress:
+            print "Fitting on full data, with %d unique entries and %d total SNPs" % (len(self.sfs._counts_j), int(np.sum(self.sfs._counts_j)))
+            
+        ret = _minimize(f=self.kl_divergence, start_params=x0, jac=jac, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence")
+
+        if subsample_steps:
+            subsample_results.append(scipy.optimize.OptimizeResult(dict(ret.items())))
+            subsample_results[-1].update({'p':1.0,
+                                          'uniq_snps': len(self.sfs._counts_j),
+                                          'total_snps': int(np.sum(self.sfs._counts_j))})
+            ret.subsample_results = subsample_results            
+        return ret
+            
     def adam(self, x0, maxiter, bounds, output_progress,
              n_chunks, **kwargs):
         if len(self.sfs_batches) != 1:

@@ -23,7 +23,8 @@ def test_archaic_sample():
                       num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
     
     x0 = np.array([random.uniform(0,join_time)])
-    res = SfsLikelihoodSurface(sfs, demo_func=get_demo).find_optimum(x0, bounds=[(0,join_time)])
+    res = SfsLikelihoodSurface(sfs, demo_func=get_demo).find_optimum(x0, bounds=[(0,join_time)], subsample_steps=2, output_progress=True)
+    #assert False
     
     print res.jac
     assert abs(res.x - true_sample_t) < .1
@@ -102,3 +103,15 @@ def test_underflow_robustness(folded):
     print "# Relative Error:","\n", error
 
     assert max(abs(error)) < .1
+
+def test_validation():
+    x1 = np.zeros(2)
+    x2 = np.array([10,10])
+
+    f1 = lambda x: np.sum((x-x1)**2)**(.25)
+    f2 = lambda x: np.sum((x-x2)**2)**(.25)    
+
+    x0 = x2
+    res = momi.util._minimize(f1, x0, maxiter=100, bounds=None, f_validation=f2)
+    print res
+    assert res.message == 'Validation function stopped improving'

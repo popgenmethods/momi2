@@ -2,9 +2,10 @@
 from future.utils import raise_with_traceback
 import functools
 import autograd.numpy as np
-from functools import partial, update_wrapper
+from functools import partial, update_wrapper, wraps
 from autograd.core import primitive
 from autograd import hessian, grad, hessian_vector_product, jacobian
+import autograd
 import itertools
 from collections import Counter
 import scipy, scipy.optimize
@@ -179,8 +180,8 @@ def wrap_minimizer(minimizer):
                 functools.update_wrapper(new_fun, fun)
                 return new_fun
             f0 = subfun(f)
-            if "f_diff" in kwargs:
-                kwargs["f_diff"] = subfun(kwargs["f_diff"])
+            if "f_validation" in kwargs:
+                kwargs["f_validation"] = subfun(kwargs["f_validation"])
             
             start0 = np.array([s for (fxd,s) in zip(fixed_idxs,start_params) if not fxd])
             bounds0 = [b for (fxd,b) in zip(fixed_idxs, bounds) if not fxd]
@@ -194,64 +195,106 @@ def wrap_minimizer(minimizer):
 
 @wrap_minimizer
 def _minimize(f, start_params, maxiter, bounds,
-              jac = True, hess = False, hessp = False,
-              f_diff = None,
-              method = 'tnc', tol = None, options = {},
-              output_progress = False, f_name="objective", **kwargs):        
-    if 'maxiter' in options:
-        raise ValueError("Please specify maxiter thru function argument 'maxiter', rather than 'options'")
-    
+              jac = True, method = 'tnc', tol = None, options = {},
+              output_progress = False, f_name="objective", f_validation=None):
     options = dict(options)
     options['maxiter'] = maxiter
-
-    if f_diff is None:
-        f_diff = f
+   
+    if jac:
+        f = autograd.value_and_grad(f)
     
-    kwargs = dict(kwargs)
-    kwargs.update({kw : wrap_objective(d(f_diff),kw)
-                   for kw,d,b in [('jac', grad, jac), ('hessp', hessian_vector_product, hessp), ('hess', hessian, hess)]
-                   if b})
+    f = wrap_objective(f, f_name, jac)
 
-    f = wrap_objective(f, f_name, check_inf=False, output_progress=output_progress)
+    hist = lambda : None
+    hist.itr = 0
+    hist.f_vals = []
+    hist.validations = []
     
-    return scipy.optimize.minimize(f, start_params, method=method, bounds=bounds, tol=tol, options=options, **kwargs)
+    def callback(x):
+        for y,fy,gy in reversed(f.hist.recent):
+            if np.allclose(y,x):
+                fx,gx = fy,gy
+                break
+        assert np.allclose(y,x)
+        
+        hist.f_vals += [fx]
+        
+        while f.hist.recent:
+            f.hist.recent.pop()
 
-def wrap_objective(fun,name, check_inf=True, output_progress=False):
-    def new_fun(*a, **kw):
+        if output_progress and hist.itr % int(output_progress) == 0:
+            print("iter %d: %s(%s) == %f" % (hist.itr, f_name, str(x), fx))
+        
+        hist.itr += 1
+        if f_validation is not None:
+            hist.validations += [f_validation(x)]
+            assert len(hist.validations) == len(hist.f_vals)
+
+            if len(hist.f_vals) >= 2 and hist.f_vals[-1] < hist.f_vals[-2] and hist.validations[-1] > hist.validations[-2]:
+                # validation function has failed to improve
+                e = InterruptOptimization(status=1, success=True, fun=hist.f_vals[-1], x=x, message="Validation function stopped improving", nit=hist.itr)
+                if jac:
+                    e.result["jac"] = gx
+                    e.result["nfev"] = f.hist.nfev-1 #nfev is not correct if using finite difference approximation to gradient
+                raise e
+
+    try:
+        ret = scipy.optimize.minimize(f, start_params, jac=jac, method=method, bounds=bounds, tol=tol, options=options, callback=callback)
+        assert ret.nfev == f.hist.nfev-1 or not jac
+    except InterruptOptimization, e:
+        ret = scipy.optimize.OptimizeResult(e.result)
+    return ret
+
+def wrap_objective(fun,name,jac):
+    hist = lambda : None
+    
+    hist.recent = []
+    hist.nfev = 0
+    
+    @wraps(fun)
+    def new_fun(x):
+        hist.nfev += 1
+        
         try:
-            ret = fun(*a,**kw)
-            if np.any(np.isnan(ret)) or (check_inf and not np.all(np.isfinite(ret))):
-                raise OptimizationError("%s ( %s ) == %s. (Consider setting stricter bounds? e.g. set a lower bound of 1e-100 instead of 0)" % (name,str(*a),str(ret)))
+            ret = fun(x)
+            
+            if jac: fx, gx = ret
+            else: fx,gx = ret,0
+
+            for (y,fun_name) in ((fx,name), (gx,"jac")):
+                if np.any(np.isnan(y)) or not np.all(np.isfinite(y)):
+                    raise OptimizationError("%s ( %s ) == %s. Try setting stricter bounds (e.g. lower bound of 1e-100 instead of 0) or higher truncate_probs" % (fun_name,str(x),str(y)))
+                
+            hist.recent.append((x,fx,gx))
+            
             return ret
         except Exception as e:
-            #raise OptimizationError("at %s( %s ):\n%s" % (name, str(*a), str(e))), None, sys.exc_info()[2]
-            raise_with_traceback(OptimizationError("at %s( %s ):\n%s: %s" % (name, str(*a), type(e).__name__, str(e))))
-    if output_progress:
-        new_fun = _verbosify(new_fun,
-                             before = lambda i,x,*a,**kw: "evaluation %d" % i,
-                             after = lambda i,ret,x,*a,**kw: "%s ( %s ) == %g" % (name, _npstr(x), ret),
-                             print_freq = output_progress)
+            raise_with_traceback(OptimizationError("at %s( %s ):\n%s: %s" % (name, str(x), type(e).__name__, str(e))))
 
-    functools.update_wrapper(new_fun, fun)
+    new_fun.hist = hist
+            
     return new_fun
-
 
 class OptimizationError(Exception):
     pass
 
-def _verbosify(func, before = None, after = None, print_freq = 1):
-    i = [0] # can't do i=0 because of unboundlocalerror
-    def new_func(*args, **kwargs):
-        ii = i[0]
-        if ii % print_freq == 0 and before is not None:
-            print(before(ii,*args, **kwargs))
-        ret = func(*args, **kwargs)
-        if ii % print_freq == 0 and after is not None:
-            print(after(ii,ret, *args, **kwargs))
-        i[0] += 1
-        return ret
-    new_func.__name__ = "_verbose" + func.__name__
-    return new_func
+class InterruptOptimization(Exception):
+    def __init__(self, **kwargs):
+        self.result = dict(kwargs)
+
+# def _verbosify(func, before = None, after = None, print_freq = 1):
+#     i = [0] # can't do i=0 because of unboundlocalerror
+#     def new_func(*args, **kwargs):
+#         ii = i[0]
+#         if ii % print_freq == 0 and before is not None:
+#             print(before(ii,*args, **kwargs))
+#         ret = func(*args, **kwargs)
+#         if ii % print_freq == 0 and after is not None:
+#             print(after(ii,ret, *args, **kwargs))
+#         i[0] += 1
+#         return ret
+#     new_func.__name__ = "_verbose" + func.__name__
+#     return new_func
 
 def _npstr(x):
     return np.array_str(x, max_line_width=sys.maxsize)
@@ -275,14 +318,21 @@ def wrap_sgd(optimizer):
                         for b,_ in bounds]
         bounds = zip(lower_bounds, upper_bounds)
 
-        meta_grad = wrap_objective(grad(meta_fun), 'jac')        
-        meta_fun = wrap_objective(meta_fun, 'objective', check_inf=False, output_progress=output_progress)
+        #meta_grad = wrap_objective(grad(meta_fun), 'jac')        
+        #meta_fun = wrap_objective(meta_fun, 'objective', check_inf=False, output_progress=output_progress)
 
         n_minibatches = meta_fun.n_minibatches
-        fun_list = [mypartial(meta_fun, minibatch=i) for i in range(n_minibatches)]
-        grad_list = [mypartial(meta_grad, minibatch=i) for i in range(n_minibatches)]
+        #fun_list = [mypartial(meta_fun, minibatch=i) for i in range(n_minibatches)]
+        #grad_list = [mypartial(meta_grad, minibatch=i) for i in range(n_minibatches)]
 
-        return optimizer(zip(fun_list, grad_list), start_params, maxiter, bounds, *args, **kwargs)
+        meta_grad = grad(meta_fun)
+        meta_fun_and_grad = lambda x,minibatch: (meta_fun(x,minibatch=minibatch), meta_grad(x,minibatch=minibatch))
+
+        fun_and_grad_list = [mypartial(meta_fun_and_grad, minibatch=i) for i in range(n_minibatches)]
+        fun_and_grad_list = [wrap_objective(fg, 'objective',jac=True) for fg in fun_and_grad_list]
+        
+        #return optimizer(zip(fun_list, grad_list), start_params, maxiter, bounds, *args, **kwargs)
+        return optimizer(fun_and_grad_list, start_params, maxiter, bounds, *args, **kwargs)
     functools.update_wrapper(wrapped_optimizer, optimizer)
     return wrapped_optimizer
         
@@ -308,10 +358,9 @@ def adam(fun_and_jac_list, start_params, maxiter, bounds,
     for curr_pass in range(maxiter):
         history.new_batch()
         for i in random_generator.permutation(len(fun_and_jac_list)):
-            fun,jac = fun_and_jac_list[i]
+            fun_and_jac = fun_and_jac_list[i]
             
-            f = fun(x)
-            g = jac(x)
+            f,g = fun_and_jac(x)
             history.update(x,f,g)
 
             m = (1 - b1) * g      + b1 * m  # First  moment estimate.
