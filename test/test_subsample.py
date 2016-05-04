@@ -1,4 +1,4 @@
-from __future__ import division
+
 import pytest
 import momi
 from momi import expected_sfs
@@ -17,7 +17,7 @@ def test_simple_admixture_subsampling(folded,n_lins):
     
 def check_subsampling(demo, add_n, folded=False, **kwargs):
     leaves = demo.sampled_pops
-    ranges = [range(n+1) for n in demo.sampled_n]
+    ranges = [list(range(n+1)) for n in demo.sampled_n]
 
     demo = demo.rescaled()
     demo2 = momi.make_demography(demo.events, demo.sampled_pops,

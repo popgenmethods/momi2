@@ -11,10 +11,16 @@ from collections import Counter
 import scipy, scipy.optimize
 import sys, warnings, collections
 
-class mypartial(functools.partial):
-    def __init__(self, *args, **kwargs):
-        functools.partial.__init__(self, *args, **kwargs)
-        functools.update_wrapper(self, self.func)
+
+# class mypartial(functools.partial):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(self, *args, **kwargs)
+#         functools.update_wrapper(self, self.func)
+
+def mypartial(fun, *args, **kwargs):
+    ret = functools.partial(fun, *args, **kwargs)
+    functools.update_wrapper(ret, fun)
+    return ret
 
 def count_calls(fun):
     call_counter=[0]
@@ -164,7 +170,7 @@ def wrap_minimizer(minimizer):
                 raise ValueError("start_params does not agree with fixed parameters in bounds")
 
         if fixed_params:
-            fixed_idxs, fixed_offset = map(np.array, zip(*fixed_params))
+            fixed_idxs, fixed_offset = list(map(np.array, list(zip(*fixed_params))))
 
             fixed_idxs = np.array([(i in fixed_idxs) for i in range(len(start_params))])
             proj0 = np.eye(len(fixed_idxs))[:,fixed_idxs]
@@ -223,7 +229,7 @@ def _minimize(f, start_params, maxiter, bounds,
             f.hist.recent.pop()
 
         if output_progress and hist.itr % int(output_progress) == 0:
-            print("iter %d: %s(%s) == %f" % (hist.itr, f_name, str(x), fx))
+            print(("iter %d: %s(%s) == %f" % (hist.itr, f_name, str(x), fx)))
         
         hist.itr += 1
         if f_validation is not None:
@@ -241,7 +247,7 @@ def _minimize(f, start_params, maxiter, bounds,
     try:
         ret = scipy.optimize.minimize(f, start_params, jac=jac, method=method, bounds=bounds, tol=tol, options=options, callback=callback)
         assert ret.nfev == f.hist.nfev-1 or not jac
-    except InterruptOptimization, e:
+    except InterruptOptimization as e:
         ret = scipy.optimize.OptimizeResult(e.result)
     return ret
 
@@ -318,7 +324,7 @@ def wrap_sgd(optimizer):
                         for _,b in bounds]
         lower_bounds = [b if b is not None else -float('inf')
                         for b,_ in bounds]
-        bounds = zip(lower_bounds, upper_bounds)
+        bounds = list(zip(lower_bounds, upper_bounds))
 
         #meta_grad = wrap_objective(grad(meta_fun), 'jac')        
         #meta_fun = wrap_objective(meta_fun, 'objective', check_inf=False, output_progress=output_progress)
@@ -346,7 +352,7 @@ def adam(fun_and_jac_list, start_params, maxiter, bounds,
          random_generator=np.random, step_size=1., b1=0.9, b2=0.999, eps=10**-8):
     """Adam as described in http://arxiv.org/pdf/1412.6980.pdf.
     It's basically RMSprop with momentum and some correction terms."""
-    lower_bounds, upper_bounds = zip(*bounds)
+    lower_bounds, upper_bounds = list(zip(*bounds))
     if tol is not None:
         raise NotImplementedError("tol not yet implemented")
     
@@ -378,7 +384,7 @@ def adam(fun_and_jac_list, start_params, maxiter, bounds,
 def adadelta(fun_and_jac_list, start_params, maxiter, bounds,
              tol=None,
              random_generator=np.random, rho=.95, eps=1e-6):
-    lower_bounds, upper_bounds = zip(*bounds)
+    lower_bounds, upper_bounds = list(zip(*bounds))
     if tol is not None:
         raise NotImplementedError("tol not yet implemented")
     

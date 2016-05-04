@@ -11,7 +11,7 @@ from demo_utils import simple_admixture_demo, random_tree_demo
 
 def check_demo_normalization(demo, **kwargs):
     leaves = demo.sampled_pops
-    ranges = [range(n+1) for n in demo.sampled_n]
+    ranges = [list(range(n+1)) for n in demo.sampled_n]
 
     config_list = momi.data_structure._configs_from_derived([np.array(x,dtype=int) for x in itertools.product(*ranges)],
                                                             demo.sampled_n, demo.sampled_pops)

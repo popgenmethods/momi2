@@ -1,4 +1,4 @@
-from __future__ import division
+
 import pytest
 import autograd.numpy as np
 from autograd import grad
@@ -12,23 +12,23 @@ from numdifftools import Gradient, Hessian
 
 
 def check_gradient(f, x):
-    print x, "\n", f(x)
+    print(x, "\n", f(x))
 
-    print "# grad2"
+    print("# grad2")
     grad2 = Gradient(f)(x)
-    print "# building grad1"
+    print("# building grad1")
     g = grad(f)
-    print "# computing grad1"
+    print("# computing grad1")
     grad1 = g(x)
 
-    print "gradient1\n", grad1, "\ngradient2\n", grad2
+    print("gradient1\n", grad1, "\ngradient2\n", grad2)
     np.allclose(grad1,grad2)
 
     ## check Hessian vector product
     y = np.random.normal(size=x.shape)
     gdot = lambda u : np.dot(g(u), y)
     hess1, hess2 = grad(gdot)(x), Gradient(gdot)(x)
-    print "hess1\n",hess1,"\nhess2\n",hess2
+    print("hess1\n",hess1,"\nhess2\n",hess2)
     np.allclose(hess1,hess2)
 
 
@@ -65,7 +65,7 @@ def sfs_func(demo_func, n_lins, normalized=True):
     def f(x):
         demo = demo_func(x, n_lins)
         configs = momi.data_structure._configs_from_derived(tuple(states), n_lins, demo.sampled_pops)
-        print configs        
+        print(configs)        
         #print demo.graph['cmd']
         sfs, branch_len = expected_sfs(demo,configs), expected_total_branch_len(demo)
         if normalized:

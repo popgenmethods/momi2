@@ -40,7 +40,7 @@ class Configs(tuple):
                         junction tree algorithm.
     """
     def __new__(cls, sampled_pops, configs, sampled_n=None):
-        return tuple.__new__(cls, map(_hashable_config, configs))
+        return tuple.__new__(cls, list(map(_hashable_config, configs)))
     
     def __init__(self, sampled_pops, configs, sampled_n=None):
         """
@@ -132,7 +132,7 @@ class Configs(tuple):
         if folded:
             rev_confs = self.config_array[:,:,::-1]
             is_symm = np.all(self.config_array == rev_confs, axis=(1,2))
-            rev_confs = map(_hashable_config, rev_confs)
+            rev_confs = list(map(_hashable_config, rev_confs))
             folded_2_row = []
             for rc,symm in zip(rev_confs, is_symm):
                 if symm:
@@ -150,7 +150,7 @@ class Configs(tuple):
         vecs = [np.zeros((n_rows, n+1)) for n in self.sampled_n]
         
         # construct rows for each config
-        configs, rows = zip(*config_2_row.items())
+        configs, rows = list(zip(*list(config_2_row.items())))
         rows = np.array(rows, ndmin=1)
         configs = np.array(configs, ndmin=3)
 
@@ -222,21 +222,21 @@ class Sfs(_AbstractSfs):
         for l in old:
             loci += [Counter()]
             try:
-                l = l.items()
+                l = list(l.items())
             except:
-                l = zip(l, [1]*len(l))
+                l = list(zip(l, [1]*len(l)))
             if len(l) == 0:
                 continue
-            configs,freqs = zip(*l)
-            configs = map(_hashable_config,
-                          _format_configurations(configs, len(sampled_pops)))
+            configs,freqs = list(zip(*l))
+            configs = list(map(_hashable_config,
+                          _format_configurations(configs, len(sampled_pops))))
             for c,f in zip(configs, freqs):
                 loci[-1][c] += f
         
-        self.loci = map(_ConfigDict, loci)
+        self.loci = list(map(_ConfigDict, loci))
         self.total = _ConfigDict(sum(self.loci, Counter()))
         self.sampled_pops = tuple(sampled_pops)
-        if np.array(self.total.keys(),ndmin=3).shape[1:] != (len(sampled_pops), 2):
+        if np.array(list(self.total.keys()),ndmin=3).shape[1:] != (len(sampled_pops), 2):
             raise TypeError("len(sampled_pops) != len of individual configs")
         self._sampled_n = sampled_n
         # self.configs = Configs(self.sampled_pops, list(self.total.keys()),
@@ -249,7 +249,7 @@ class Sfs(_AbstractSfs):
         loci = []
         for l in self.loci:
             loci += [Counter()]
-            for k,v in l.items():
+            for k,v in list(l.items()):
                 k = np.array(k)
                 if tuple(k[:,0]) < tuple(k[:,1]):
                     k = k[:,::-1]

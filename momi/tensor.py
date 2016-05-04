@@ -36,7 +36,7 @@ def sfs_tensor_prod(sfs, vecs):
          randomly sampled sfs.
     """
     res = 0.
-    entries, counts = zip(*sfs.items())
+    entries, counts = list(zip(*list(sfs.items())))
     entries = np.array(entries, ndmin=3)
 
     sampled_n = np.array([v.shape[1]-1 for v in vecs], dtype=int)

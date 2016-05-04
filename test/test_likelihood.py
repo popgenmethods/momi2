@@ -19,8 +19,8 @@ def test_batches():
 
     sfs_len = len(sfs.total)
     
-    print "total entries", sfs_len
-    print "total snps", sum(sfs.total.values())
+    print("total entries", sfs_len)
+    print("total snps", sum(sfs.total.values()))
 
     assert sfs_len > 30
 
@@ -38,8 +38,8 @@ def test_batches_grad():
 
     sfs_len = len(sfs.total)
     
-    print "total entries", sfs_len
-    print "total snps", sum(sfs.total.values())
+    print("total entries", sfs_len)
+    print("total snps", sum(sfs.total.values()))
 
     assert sfs_len > 30
 
@@ -56,8 +56,8 @@ def test_no_hessian():
 
     sfs_len = len(sfs.total)
     
-    print "total entries", sfs_len
-    print "total snps", sum(sfs.total.values())
+    print("total entries", sfs_len)
+    print("total snps", sum(sfs.total.values()))
 
     assert sfs_len > 30
 

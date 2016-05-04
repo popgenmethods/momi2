@@ -26,7 +26,7 @@ def test_archaic_sample():
     res = SfsLikelihoodSurface(sfs, demo_func=get_demo).find_optimum(x0, bounds=[(0,join_time)], subsample_steps=2, output_progress=True)
     #assert False
     
-    print res.jac
+    print(res.jac)
     assert abs(res.x - true_sample_t) < .1
 
 @pytest.mark.parametrize("folded,add_n",
@@ -58,7 +58,7 @@ def check_jointime_inference(folded, add_n, finite_diff_eps=0):
     if folded:
         sfs = sfs.fold()
     
-    print(t0,t1)
+    print((t0,t1))
     
     prim_log_lik = momi.likelihood._log_lik_diff
     prim_log_lik.reset_grad_count()
@@ -73,7 +73,7 @@ def check_jointime_inference(folded, add_n, finite_diff_eps=0):
     # make sure autograd is calling the rearranged gradient function
     assert bool(prim_log_lik.num_grad_calls()) != bool(finite_diff_eps)
     
-    print res.jac
+    print(res.jac)
     assert abs(res.x - t0) / t0 < .05
 
 @pytest.mark.parametrize("folded",(True,False))
@@ -93,14 +93,14 @@ def test_underflow_robustness(folded):
     
     #optimize_res = composite_mle_search(sfs, get_demo, np.array([np.log(0.1),np.log(100.0)]), mu, hessp=True, method='newton-cg', sfs_kwargs={'folded':folded})
     optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_optimum(np.array([np.log(0.1),np.log(100.0)]))
-    print optimize_res
+    print(optimize_res)
     
     inferred_x = optimize_res.x
     error = (true_x - inferred_x) / true_x
-    print "# Truth:\n", true_x
-    print "# Inferred:\n", inferred_x
-    print "# Max Relative Error: %f" % max(abs(error))
-    print "# Relative Error:","\n", error
+    print("# Truth:\n", true_x)
+    print("# Inferred:\n", inferred_x)
+    print("# Max Relative Error: %f" % max(abs(error)))
+    print("# Relative Error:","\n", error)
 
     assert max(abs(error)) < .1
 
@@ -113,5 +113,5 @@ def test_validation():
 
     x0 = x2
     res = momi.util._minimize(f1, x0, maxiter=100, bounds=None, f_validation=f2)
-    print res
+    print(res)
     assert res.message == 'Validation function stopped improving'

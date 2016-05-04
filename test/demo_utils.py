@@ -99,13 +99,13 @@ def simple_five_pop_demo(x = np.random.normal(size=30), n_lins=(1,2,3,4,5)):
                    ('-en',t[13],1,x[28]),
                    ('-ej',t[14],2,1),('-en',t[14],1,x[29])]
     demo = make_demography(events_list,
-                      sampled_pops = range(1,len(n_lins)+1), sampled_n = n_lins)
+                      sampled_pops = list(range(1,len(n_lins)+1)), sampled_n = n_lins)
     demo = demo.rescaled(1e4)
     return demo
 
 def random_tree_demo(num_leaf_pops, lins_per_pop):
     events_list = []
-    sampled_pops = range(1,num_leaf_pops+1)
+    sampled_pops = list(range(1,num_leaf_pops+1))
     roots = list(sampled_pops)
     for i in roots:
         events_list += [('-en', 0.0, i, random.expovariate(1.0))]

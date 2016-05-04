@@ -1,4 +1,4 @@
-from __future__ import division
+
 import pytest
 import momi
 from momi import expected_sfs
@@ -23,8 +23,8 @@ def test_subconfigs(fold, normalized):
         configs = momi.Sfs(configs.sampled_pops, [configs]).fold().configs
         #configs = configs.copy(fold=True)
     
-    sub_idxs = np.array(random.sample(range(len(configs)), int(len(configs)/2)+1))
-    assert len(sub_idxs) > 0 and len(sub_idxs) < configs
+    sub_idxs = np.array(random.sample(list(range(len(configs))), int(len(configs)/2)+1))
+    assert len(sub_idxs) > 0 and len(sub_idxs) < len(configs)
 
     val1 = momi.expected_sfs(demo, configs, normalized=normalized, folded=fold)[sub_idxs]
 
@@ -46,7 +46,7 @@ def test_subsfs(fold, use_mut):
     if fold:
         sfs = sfs.fold()
 
-    locus = random.choice(range(n_loci))
+    locus = random.choice(list(range(n_loci)))
     subsfs = momi.likelihood._SubSfs(sfs.configs, sfs._counts_ij[locus,:])
 
     if not use_mut:
@@ -75,7 +75,7 @@ def test_subsfs2(fold):
     total = [([sfs.configs[i] for i in subsfs.configs.sub_idxs],
               np.squeeze(subsfs._counts_ij))
              for subsfs in subsfs_list]
-    total = [Counter(dict(zip(cnfs,cnts))) for cnfs,cnts in total]
+    total = [Counter(dict(list(zip(cnfs,cnts)))) for cnfs,cnts in total]
     total = dict(sum(total, Counter()))
 
     assert total == sfs.total
@@ -129,14 +129,14 @@ def test_stochastic_inference(folded):
         sfs = sfs.fold()
     
     optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_optimum(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="adam", n_chunks=10, output_progress=10, maxiter=10)
-    print optimize_res
+    print(optimize_res)
     
     inferred_x = optimize_res.x
     error = (true_x - inferred_x) / true_x
-    print "# Truth:\n", true_x
-    print "# Inferred:\n", inferred_x
-    print "# Max Relative Error: %f" % max(abs(error))
-    print "# Relative Error:","\n", error
+    print("# Truth:\n", true_x)
+    print("# Inferred:\n", inferred_x)
+    print("# Max Relative Error: %f" % max(abs(error)))
+    print("# Relative Error:","\n", error)
 
     assert max(abs(error)) < .1
     #assert False

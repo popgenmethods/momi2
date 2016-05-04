@@ -83,7 +83,7 @@ class SfsLikelihoodSurface(object):
             options['eps'] = finite_diff_eps
 
         subsample_results = []
-        for substep in reversed(range(1,subsample_steps+1)):
+        for substep in reversed(list(range(1,subsample_steps+1))):
             p = (2.0)**(-substep)
             assert p <= .5
 
@@ -94,10 +94,10 @@ class SfsLikelihoodSurface(object):
 
             if np.sum(validation_counts) == 0 or np.sum(subsample_counts) == 0:
                 if output_progress:
-                    print "Not enough data for subsample with p=%f, continuing" % p
+                    print(("Not enough data for subsample with p=%f, continuing" % p))
                 continue
             elif output_progress:
-                print "Fitting to subsample with p=%f, with %d unique entries and %d total SNPs" % (p, np.sum(subsample_counts != 0), np.sum(subsample_counts))
+                print(("Fitting to subsample with p=%f, with %d unique entries and %d total SNPs" % (p, np.sum(subsample_counts != 0), np.sum(subsample_counts))))
             
             sub_mutrate = self.mut_rate
             if sub_mutrate:
@@ -117,15 +117,15 @@ class SfsLikelihoodSurface(object):
                         'total_snps': np.sum(sub_lik.sfs._counts_j)})
             subsample_results += [res]
             if output_progress:
-                print "Finished fitting subsample p=%f after %d iterations" % (p, res.nit)
+                print("Finished fitting subsample p=%f after %d iterations" % (p, res.nit))
             
         if output_progress:
-            print "Fitting on full data, with %d unique entries and %d total SNPs" % (len(self.sfs._counts_j), int(np.sum(self.sfs._counts_j)))
+            print("Fitting on full data, with %d unique entries and %d total SNPs" % (len(self.sfs._counts_j), int(np.sum(self.sfs._counts_j))))
             
         ret = _minimize(f=self.kl_divergence, start_params=x0, jac=jac, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence")
 
         if subsample_steps:
-            subsample_results.append(scipy.optimize.OptimizeResult(dict(ret.items())))
+            subsample_results.append(scipy.optimize.OptimizeResult(dict(list(ret.items()))))
             subsample_results[-1].update({'p':1.0,
                                           'uniq_snps': len(self.sfs._counts_j),
                                           'total_snps': int(np.sum(self.sfs._counts_j))})
@@ -173,14 +173,14 @@ def _build_sfs_batches(sfs, batch_size):
     d = sfs.configs.config_array[:,:,1] # derived counts
     n = a+d # totals
 
-    n = map(tuple, n)
-    a = map(tuple, a)
-    d = map(tuple, d)
+    n = list(map(tuple, n))
+    a = list(map(tuple, a))
+    d = list(map(tuple, d))
     
-    folded = map(min, zip(a,d))
+    folded = list(map(min, list(zip(a,d))))
 
-    keys = zip(n,folded)
-    sorted_idxs = sorted(range(sfs_len), key=lambda i:keys[i])
+    keys = list(zip(n,folded))
+    sorted_idxs = sorted(list(range(sfs_len)), key=lambda i:keys[i])
     sorted_idxs = np.array(sorted_idxs, dtype=int)
 
     idx_list = [sorted_idxs[s] for s in slices]
@@ -436,9 +436,9 @@ def _sgd_liks(lik_fun, data, n_chunks, rnd, mut_rate, output_progress):
     
     chunks = _subsfs_list(sfs, n_chunks, rnd)
     if output_progress:
-        print "n_chunks", n_chunks
-        print "avg snps per chunk", np.mean([np.sum(chnk._counts_ij) for chnk in chunks])
-        print "avg UNIQUE snps per chunk", np.mean([len(np.squeeze(chnk._counts_ij)) for chnk in chunks])
+        print("n_chunks", n_chunks)
+        print("avg snps per chunk", np.mean([np.sum(chnk._counts_ij) for chnk in chunks]))
+        print("avg UNIQUE snps per chunk", np.mean([len(np.squeeze(chnk._counts_ij)) for chnk in chunks]))
     
     if mut_rate is not None:
         mut_rate = np.sum(mut_rate * np.ones(len(sfs.loci))) / float(n_chunks)
@@ -486,14 +486,14 @@ class _SubConfigs(object):
 
         denom_idx_key = 'denom_idx'
         denom_idx = idxs[denom_idx_key]
-        idxs = {k: v[self.sub_idxs] for k,v in idxs.items() if k != denom_idx_key}
+        idxs = {k: v[self.sub_idxs] for k,v in list(idxs.items()) if k != denom_idx_key}
 
-        old_idxs = np.array(list(set(sum(map(list, idxs.values()) + [[denom_idx]], []))))
+        old_idxs = np.array(list(set(sum(list(map(list, list(idxs.values()))) + [[denom_idx]], []))))
         old_2_new_idxs = {old_id: new_id for new_id, old_id in enumerate(old_idxs)}
 
         idxs = {k: np.array([old_2_new_idxs[old_id]
                              for old_id in v])
-                for k,v in idxs.items()}
+                for k,v in list(idxs.items())}
         idxs[denom_idx_key] = old_2_new_idxs[denom_idx]
         return old_idxs, idxs
 
@@ -639,7 +639,7 @@ class ConfidenceRegion(object):
             assert all(bb.shape[1:] == (len(self.point),) for bb in b)
         except AssertionError:
             raise ValueError("points, cones have incompatible shapes")
-        b = [map(tuple, x) for x in b]
+        b = [list(map(tuple, x)) for x in b]
         null_point, null_cone, alt_point, alt_cone = b
         
         if test_type == "ratio":
@@ -661,9 +661,9 @@ class ConfidenceRegion(object):
             for n_p,n_c,a_p,a_c in zip(null_point, null_cone, alt_point, alt_cone):
                 lr = _trunc_lik_ratio(liks[n_p], liks[a_p])
                 lr_distn = _trunc_lik_ratio(*sim_mls[(n_c,a_c)])
-                ret += [map(np.mean, [lr > lr_distn,
+                ret += [list(map(np.mean, [lr > lr_distn,
                                       lr == lr_distn,
-                                      lr < lr_distn])]
+                                      lr < lr_distn]))]
             ret = np.array(ret)
         elif test_type == "wald":
             if np.any(np.array(null_cone) != 0) or any(a_c != tuple([None]*len(self.point)) for a_c in alt_cone):
@@ -755,7 +755,7 @@ def _long_score_cov(params, seg_sites, demo_func, **kwargs):
         return ret - np.sum(weights * snp_counts) # subtract off mean
        
     uniq_snp_idxs = {snp: i for i,snp in enumerate(configs)}
-    seg_sites = [map(_hashable_config, chrom) for chrom in seg_sites.config_arrays]
+    seg_sites = [list(map(_hashable_config, chrom)) for chrom in seg_sites.config_arrays]
     idx_series_list = [np.array([uniq_snp_idxs[snp] for snp in chrom], dtype=int)
                        for chrom in seg_sites]
 

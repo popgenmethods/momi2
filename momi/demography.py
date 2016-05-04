@@ -16,9 +16,9 @@ import os, itertools
 from operator import itemgetter
 
 try: # check whether python knows about 'basestring'
-   basestring
+   str
 except NameError: # no, it doesn't (it's Python3); use 'str' instead
-   basestring=str
+   str=str
 
 def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N=1.0, time_scale='ms'):
    """
@@ -70,7 +70,7 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
       time_scale = 1.0
    elif time_scale == 'standard':
       time_scale = 2.0
-   elif isinstance(time_scale, basestring):
+   elif isinstance(time_scale, str):
       raise DemographyError("time_scale must be float, 'ms', or 'standard'")
 
    old_default_N = default_N
@@ -106,7 +106,7 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
       event_funs[flag](_G, *args)
 
    assert _G.node
-   _G.graph['roots'] = [r for _,r in _G.graph['roots'].items() if r is not None]
+   _G.graph['roots'] = [r for _,r in list(_G.graph['roots'].items()) if r is not None]
 
    if len(_G.graph['roots']) != 1:
       raise DemographyError("Must have a single root population")
@@ -157,7 +157,7 @@ class Demography(object):
         ## a hack that allows us reorganize some computations during auto differentiation
         ## methods decorated by @differentiable_method will first look if result is in diff_cache before computing it
         assert len(diff_cache_keys) == len(diff_cache_vals)
-        self._diff_cache = dict(zip(diff_cache_keys, diff_cache_vals))
+        self._diff_cache = dict(list(zip(diff_cache_keys, diff_cache_vals)))
         
     def _get_differentiable_part(self):
        ## use this with _get_graph_structure()
@@ -165,7 +165,7 @@ class Demography(object):
        expected_total_branch_len(self)
        assert self._diff_cache
 
-       keys,vals = zip(*self._diff_cache.items())
+       keys,vals = list(zip(*list(self._diff_cache.items())))
        ## convert vals to autograd.TupleNode (as opposed to a tuple of autograd.Node)
        vals = autograd.container_types.make_tuple(*vals)
        
@@ -313,15 +313,15 @@ class Demography(object):
         parent_pops = self._parent_pops(event)    
         child_pops_events = self._child_pops(event)
         assert len(child_pops_events) == 2
-        child_pops, child_events = zip(*child_pops_events.items())
+        child_pops, child_events = list(zip(*list(child_pops_events.items())))
 
         child_in = self._G.in_degree(child_pops)
-        recipient, = [k for k,v in child_in.items() if v == 2]
-        non_recipient, = [k for k,v in child_in.items() if v == 1]
+        recipient, = [k for k,v in list(child_in.items()) if v == 2]
+        non_recipient, = [k for k,v in list(child_in.items()) if v == 1]
 
         parent_out = self._G.out_degree(parent_pops)
-        donor, = [k for k,v in parent_out.items() if v == 2]
-        non_donor, = [k for k,v in parent_out.items() if v == 1]
+        donor, = [k for k,v in list(parent_out.items()) if v == 2]
+        non_donor, = [k for k,v in list(parent_out.items()) if v == 1]
 
         return recipient, non_recipient, donor, non_donor
 
@@ -406,7 +406,7 @@ class Demography(object):
         return self._admixture_prob_helper(admixture_node), self._admixture_prob_idxs(admixture_node)
 
     def _admixture_prob_idxs(self, admixture_node):
-        edge1,edge2 = sorted(self._G.in_edges([admixture_node], data=True))
+        edge1,edge2 = sorted(self._G.in_edges([admixture_node], data=True), key=lambda x: str(x[:2]))
         parent1,parent2 = [e[0] for e in (edge1,edge2)]
         return [admixture_node, parent1, parent2]
      
@@ -419,7 +419,7 @@ class Demography(object):
         n_node = self._n_at_node(admixture_node)
 
         # admixture node must have two parents
-        edge1,edge2 = sorted(self._G.in_edges([admixture_node], data=True))
+        edge1,edge2 = sorted(self._G.in_edges([admixture_node], data=True), key=lambda x: str(x[:2]))
         parent1,parent2 = [e[0] for e in (edge1,edge2)]
         prob1,prob2 = [e[2]['prob'] for e in (edge1,edge2)]
         assert prob1 + prob2 == 1.0
@@ -460,8 +460,8 @@ def _build_event_tree(G):
     #     return G.node[v]['sizes'][0]['t']
     
     eventEdgeList = []
-    currEvents = {k : (k,) for k,v in G.out_degree().items() if v == 0}
-    eventDict = {e : {'subpops' : (v,), 'parent_pops' : (v,), 'child_pops' : {}} for v,e in currEvents.items()}    
+    currEvents = {k : (k,) for k,v in list(G.out_degree().items()) if v == 0}
+    eventDict = {e : {'subpops' : (v,), 'parent_pops' : (v,), 'child_pops' : {}} for v,e in list(currEvents.items())}    
     for e in G.graph['events_as_edges']:
         # get the population edges forming the event
         parent_pops, child_pops = list(map(set, list(zip(*e))))
@@ -488,7 +488,7 @@ def _build_event_tree(G):
         ret.add_node(e, **(eventDict[e]))
 
     assert len(currEvents) == 1
-    root, = [v for k,v in currEvents.items()]
+    root, = [v for k,v in list(currEvents.items())]
     ret.root = root
 
     return ret
@@ -545,14 +545,14 @@ def _ep(G, t, i, j, pij):
 
                           
     children = {k: G.graph['roots'][k] for k in (i,j)}
-    for v in children.values():
+    for v in list(children.values()):
         _set_sizes(G.node[v], t)
 
-    parents = {k: (v[0],v[1]+1) for k,v in children.items()}
-    assert all([par not in G.node for par in parents.values()])
+    parents = {k: (v[0],v[1]+1) for k,v in list(children.items())}
+    assert all([par not in G.node for par in list(parents.values())])
 
-    prev_sizes = {k: G.node[c]['sizes'][-1] for k,c in children.items()}
-    for k,s in prev_sizes.items():
+    prev_sizes = {k: G.node[c]['sizes'][-1] for k,c in list(children.items())}
+    for k,s in list(prev_sizes.items()):
         G.add_node(parents[k], sizes=[{'t':t,'N':s['N_top'],'growth_rate':s['growth_rate']}])
 
     G.add_edge(parents[i], children[i], prob=1.-pij)
@@ -564,7 +564,7 @@ def _ep(G, t, i, j, pij):
                       )
     G.graph['events_as_edges'] += [new_event]
 
-    for k,v in parents.items():
+    for k,v in list(parents.items()):
         G.graph['roots'][k] = v
 
 def _eSample(G, t, i, n):

@@ -1,4 +1,4 @@
-from __future__ import division
+
 import momi
 from momi import expected_sfs, expected_sfs_tensor_prod, sfs_tensor_prod
 import pytest
@@ -12,7 +12,7 @@ from demo_utils import simple_admixture_demo, random_tree_demo
 
 def check_random_tensor(demo, *args, **kwargs):
     leaves = demo.sampled_pops
-    ranges = [range(n+1) for n in demo.sampled_n]
+    ranges = [list(range(n+1)) for n in demo.sampled_n]
 
     config_list = momi.data_structure._configs_from_derived(list(itertools.product(*ranges)),
                                                             demo.sampled_n, demo.sampled_pops)
@@ -21,7 +21,7 @@ def check_random_tensor(demo, *args, **kwargs):
     tensor_components = [np.random.normal(size=(1,n+1)) for n in demo.sampled_n]
     #tensor_components_list = tuple(v[0,:] for _,v in sorted(tensor_components.iteritems()))
 
-    prod1 = sfs_tensor_prod(dict(zip(config_list,sfs)), tensor_components)
+    prod1 = sfs_tensor_prod(dict(list(zip(config_list,sfs))), tensor_components)
     prod2 = expected_sfs_tensor_prod(tensor_components, demo)
     
     assert np.allclose(prod1, prod2)

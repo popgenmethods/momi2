@@ -1,4 +1,4 @@
-from __future__ import division
+
 from momi import expected_sfs, expected_total_branch_len, simulate_ms, run_ms
 import momi
 import pytest
@@ -24,7 +24,7 @@ demo_funcs = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_dem
 
 @pytest.mark.parametrize("k,folded",
                          ((fname, bool(b))
-                          for fname,b in itertools.product(demo_funcs.keys(),
+                          for fname,b in itertools.product(list(demo_funcs.keys()),
                                                            [True,False])))
 def test_sfs_counts(k,folded):
     """Test to make sure converting momi demography to ms cmd works"""
@@ -55,7 +55,7 @@ def check_sfs_counts(demo, theta=10., rho=10.0, num_loci=1000, folded=False):
     labels = list(sfs_list.configs)
 
     p_val = my_t_test(labels, theoretical, observed)
-    print "p-value of smallest p-value under beta(1,num_configs)\n",p_val
+    print("p-value of smallest p-value under beta(1,num_configs)\n",p_val)
     cutoff = 0.05
     #cutoff = 1.0
     assert p_val > cutoff
@@ -68,7 +68,7 @@ def my_t_test(labels, theoretical, observed, min_samples=25):
 
     n_observed = np.sum(observed > 0, axis=1)
     theoretical, observed = theoretical[n_observed > min_samples], observed[n_observed > min_samples, :]
-    labels = np.array(map(str,labels))[n_observed > min_samples]
+    labels = np.array(list(map(str,labels)))[n_observed > min_samples]
     n_observed = n_observed[n_observed > min_samples]
 
     runs = observed.shape[1]

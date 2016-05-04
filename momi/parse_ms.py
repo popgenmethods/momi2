@@ -64,7 +64,7 @@ def seg_sites_from_ms(ms_file, sampled_pops):
 
     ret = [_snp_sequence_from_1_ms_sim(list(lines), pops_by_lin)
            for i,lines in runs]
-    positions, configs = zip(*ret)
+    positions, configs = list(zip(*ret))
     return SegSites(sampled_pops, configs, positions)
     #if sampled_pops is not None:
     #    ret = mylist(ret, sampled_pops=tuple(sampled_pops))
@@ -177,7 +177,7 @@ def to_ms_cmd(demo, cmd_format="ms"):
     if cmd_format == "ms" and not all(sampled_t == 0.0):
         raise Exception("ms command line doesn't allow for archaic leaf populations. Try setting cmd_format='scrm'")
 
-    pops = dict(zip(demo.sampled_pops, range(1,len(demo.sampled_pops)+1)))
+    pops = dict(list(zip(demo.sampled_pops, list(range(1,len(demo.sampled_pops)+1)))))
     sampled_n = demo.sampled_n
        
     npop = len(pops)
@@ -318,7 +318,7 @@ def _snp_sequence_from_1_ms_sim(lines, pops_by_lin):
     nss = int(lines[1].split(":")[1])
     if nss == 0:
         return [],ret
-    positions = map(float, lines[2].split(":")[1].strip().split())
+    positions = list(map(float, lines[2].split(":")[1].strip().split()))
     # remove header
     lines = lines[3:]
     # remove trailing line if necessary

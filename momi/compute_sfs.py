@@ -312,7 +312,7 @@ def _leaf_likelihood(leaf_states, demo, event):
     if idx == 0:
         return leaf_states[pop],0.
     else:
-        return np.ones((iter(leaf_states.values()).next().shape[0],1)),0.
+        return np.ones((next(iter(leaf_states.values())).shape[0],1)),0.
 
 # def _admixture_likelihood(leaf_states, demo, event):
 #     child_pop, = list(demo._child_pops(event).keys())
@@ -332,7 +332,7 @@ def _pulse_likelihood(leaf_states, demo, event):
     parent_pops = demo._parent_pops(event)    
     child_pops_events = demo._child_pops(event)
     assert len(child_pops_events) == 2
-    child_pops, child_events = zip(*child_pops_events.items())
+    child_pops, child_events = list(zip(*list(child_pops_events.items())))
     
     if len(set(child_events)) == 2:
         ## in this case, it is more efficient to model the pulse as a split (-es) followed by a join (-ej)
@@ -341,8 +341,8 @@ def _pulse_likelihood(leaf_states, demo, event):
         recipient, non_recipient, donor, non_donor = demo._pulse_nodes(event)
         admixture_prob, admixture_idxs = demo._admixture_prob(recipient)
 
-        child_liks = dict(zip(child_pops, child_liks))
-        child_axes = dict(zip(child_pops, child_axes))
+        child_liks = dict(list(zip(child_pops, child_liks)))
+        child_axes = dict(list(zip(child_pops, child_axes)))
 
         tmp_axes = child_axes[recipient]
         child_axes[recipient] = [x for x in tmp_axes if x != recipient] + list(parent_pops)
@@ -445,7 +445,7 @@ def _convolve_children_liks(child_pops, child_liks, child_axes, newpop, axes):
 
 def _disjoint_children_liks(leaf_states, demo, event):
     child_liks = []
-    for child_pop, child_event in demo._child_pops(event).items():
+    for child_pop, child_event in list(demo._child_pops(event).items()):
         axes = _lik_axes(demo, child_event)        
         lik,sfs = _partial_likelihood_top(leaf_states, demo, child_event, [child_pop])
         child_liks.append((child_pop,axes,lik,sfs))

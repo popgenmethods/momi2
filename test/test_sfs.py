@@ -1,4 +1,4 @@
-from __future__ import division
+
 import pytest
 import momi
 from momi import expected_sfs, expected_total_branch_len, simulate_ms
@@ -7,7 +7,7 @@ from demo_utils import simple_admixture_demo, simple_two_pop_demo, piecewise_con
 
 import autograd.numpy as np
 import sys, os
-import cPickle as pickle
+import pickle as pickle
 
 MODELS = [{'demo':simple_admixture_demo,'nlins':(5,5),'params':7},
           {'demo':simple_two_pop_demo,'nlins':(5,8),'params':4},
@@ -26,7 +26,7 @@ def generate_sfs():
     with open( PICKLE, "rb" ) as sfs_dict_file:
         sfs_dict = pickle.load(sfs_dict_file)
         ret = []
-        for k,v in sfs_dict.iteritems():
+        for k,v in sfs_dict.items():
             m_name,params,sampled_sfs = k
 
             n_lin = MODELS[m_name]['nlins']
@@ -48,7 +48,7 @@ def compute_stats(demo, sampled_sfs):
 
 def from_dict(sampled_sfs):
     # make it hashable
-    return tuple([tuple(locus.iteritems()) for locus in sampled_sfs])
+    return tuple([tuple(locus.items()) for locus in sampled_sfs])
 
 def to_dict(sampled_sfs):
     # make it a dictionary
@@ -59,8 +59,8 @@ if __name__=="__main__":
     
     if len(sys.argv) == 2 and sys.argv[1] == "generate":
         results = {}
-        for m_name,m_val in MODELS.iteritems():
-            print "# GENERATING %s" % m_name
+        for m_name,m_val in MODELS.items():
+            print("# GENERATING %s" % m_name)
             for i in range(10):
                 x = np.random.normal(size=m_val['params'])
                 demo = m_val['demo'](x, m_val['nlins']).rescaled()
