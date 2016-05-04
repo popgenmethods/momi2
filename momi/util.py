@@ -215,6 +215,7 @@ def _minimize(f, start_params, maxiter, bounds,
     hist.itr = 0
     hist.f_vals = []
     hist.validations = []
+    hist.result = None
     
     def callback(x):
         for y,fy,gy in reversed(f.hist.recent):
@@ -238,17 +239,20 @@ def _minimize(f, start_params, maxiter, bounds,
 
             if len(hist.f_vals) >= 2 and hist.f_vals[-1] < hist.f_vals[-2] and hist.validations[-1] > hist.validations[-2]:
                 # validation function has failed to improve
-                e = InterruptOptimization(status=1, success=True, fun=hist.f_vals[-1], x=x, message="Validation function stopped improving", nit=hist.itr)
+                hist.result = {'status':1, 'success':True, 'fun':hist.f_vals[-1], 'x':x, 'message':"Validation function stopped improving", 'nit':hist.itr}
                 if jac:
-                    e.result["jac"] = gx
-                    e.result["nfev"] = f.hist.nfev-1 #nfev is not correct if using finite difference approximation to gradient
-                raise e
+                    hist.result["jac"] = gx
+                    hist.result["nfev"] = f.hist.nfev-1 #nfev is not correct if using finite difference approximation to gradient
+                raise Exception()
 
     try:
         ret = scipy.optimize.minimize(f, start_params, jac=jac, method=method, bounds=bounds, tol=tol, options=options, callback=callback)
         assert ret.nfev == f.hist.nfev-1 or not jac
-    except InterruptOptimization as e:
-        ret = scipy.optimize.OptimizeResult(e.result)
+    except:
+        if hist.result:
+            ret = scipy.optimize.OptimizeResult(hist.result)
+        else:
+            raise
     return ret
 
 def wrap_objective(fun,name,jac):
@@ -274,8 +278,6 @@ def wrap_objective(fun,name,jac):
             hist.recent.append((x,fx,gx))
             
             return ret
-        except InterruptOptimization:
-            raise
         except Exception as e:
             raise_with_traceback(OptimizationError("at %s( %s ):\n%s: %s" % (name, str(x), type(e).__name__, str(e))))
 
@@ -286,9 +288,9 @@ def wrap_objective(fun,name,jac):
 class OptimizationError(Exception):
     pass
 
-class InterruptOptimization(Exception):
-    def __init__(self, **kwargs):
-        self.result = dict(kwargs)
+# class InterruptOptimization(Exception):
+#     def __init__(self, **kwargs):
+#         self.result = dict(kwargs)
 
 # def _verbosify(func, before = None, after = None, print_freq = 1):
 #     i = [0] # can't do i=0 because of unboundlocalerror
