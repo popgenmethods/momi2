@@ -40,9 +40,8 @@ def test_generated_cases(m_name,v,v2):
         assert np.allclose(stat1,stat2)
     
 def compute_stats(demo, sampled_sfs):
-    sampled_sfs = momi.Sfs(demo.sampled_pops, to_dict(sampled_sfs))
-    config_list = momi.Configs(demo.sampled_pops,
-                               tuple(sorted(sampled_sfs.total.keys())))
+    sampled_sfs = momi.make_sfs(demo.sampled_pops, to_dict(sampled_sfs))
+    config_list = momi.Configs(demo.sampled_pops, sorted(sampled_sfs.configs))
        
     return expected_sfs(demo,config_list), expected_total_branch_len(demo)
 
@@ -66,7 +65,7 @@ if __name__=="__main__":
                 demo = m_val['demo'](x, m_val['nlins']).rescaled()
                 
                 seg_sites = simulate_ms(ms_path, demo, num_loci=100, mut_rate=1.0)
-                sampled_sfs = from_dict(seg_sites.sfs.loci)
+                sampled_sfs = from_dict(seg_sites.sfs.get_dict(vector=True))
                 results[(m_name, tuple(x), sampled_sfs)] = compute_stats(demo, sampled_sfs)
         pickle.dump(results, open(PICKLE, "wb"))
     elif len(sys.argv) == 1:

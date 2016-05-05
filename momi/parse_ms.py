@@ -39,21 +39,6 @@ def seg_sites_from_ms(ms_file, sampled_pops):
     if pops_by_lin == []:
         pops_by_lin = [0]*int(firstline[1])
     
-    # # get out n_at_leaves    
-    # n_at_leaves = None    
-    # for i,flag in enumerate(firstline):
-    #     if flag == "-I":
-    #         n_at_leaves = tuple(int(x) for x in firstline[(i+2):][:int(firstline[i+1])])
-    #         break
-    # if n_at_leaves is None:
-    #     n_at_leaves = (int(firstline[1]),)
-        
-    # pops_by_lin = []
-    # for pop in range(len(n_at_leaves)):
-    #     for i in range(n_at_leaves[pop]):
-    #         pops_by_lin.append(pop)
-
-        
     def f(x):
         if x == "//":
             f.i += 1
@@ -62,10 +47,9 @@ def seg_sites_from_ms(ms_file, sampled_pops):
     runs = itertools.groupby((line.strip() for line in lines), f)
     next(runs)
 
-    ret = [_snp_sequence_from_1_ms_sim(list(lines), pops_by_lin)
-           for i,lines in runs]
-    positions, configs = list(zip(*ret))
-    return SegSites(sampled_pops, configs, positions)
+    configs = (_snp_sequence_from_1_ms_sim(list(lines), pops_by_lin)
+               for i,lines in runs)
+    return SegSites(sampled_pops, configs)
     #if sampled_pops is not None:
     #    ret = mylist(ret, sampled_pops=tuple(sampled_pops))
     #return ret
@@ -311,13 +295,13 @@ def _convert_ms_cmd(cmd_list, params):
 def _snp_sequence_from_1_ms_sim(lines, pops_by_lin):
     n_at_leaves = [v for k,v in sorted(Counter(pops_by_lin).items())]
     num_pops = len(n_at_leaves)
-    ret = []
+    #ret = []
     n = len(pops_by_lin)
 
     assert lines[0] == "//"
     nss = int(lines[1].split(":")[1])
     if nss == 0:
-        return [],ret
+        return
     positions = list(map(float, lines[2].split(":")[1].strip().split()))
     # remove header
     lines = lines[3:]
@@ -333,6 +317,8 @@ def _snp_sequence_from_1_ms_sim(lines, pops_by_lin):
         for i, line in enumerate(lines):
             dd[pops_by_lin[i]] += int(line[column])
         assert sum(dd) > 0
-        ret += [tuple([(n-d,d) for n,d in zip(n_at_leaves,dd)])]
+        yield tuple([(n-d,d) for n,d in zip(n_at_leaves,dd)])
+        #ret += []
     #return zip(positions,ret)
-    return positions, ret
+    #return positions, ret
+    #return ret

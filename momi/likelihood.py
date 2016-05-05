@@ -4,7 +4,8 @@ import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2, inv_psd
 from .demography import DemographyError, Demography
-from .data_structure import _hashable_config, Sfs, _AbstractSfs
+#from .data_structure import _config_tuple, Sfs, _AbstractSfs
+from .data_structure import _sfs_subset
 import scipy, scipy.stats
 import autograd
 from autograd import grad, hessian_vector_product, hessian
@@ -50,16 +51,16 @@ class SfsLikelihoodSurface(object):
 
     def kl_divergence(self, x, differentiable=True):
         log_lik = self.log_likelihood(x, differentiable)
-        ret = -log_lik + self.sfs._total_count * self.sfs._entropy
+        ret = -log_lik + self.sfs.n_snps() * self.sfs._entropy
         if self.mut_rate:
             ## KL divergence is for empirical distribution over all sites (monomorphic and polymorphic)
             ## taking the limit so that each site has infinitessimal width
-            counts_i = self.sfs._counts_i
+            counts_i = self.sfs.n_snps(vector=True)
             mu = self.mut_rate * np.ones(len(counts_i))
             ret = ret + np.sum(-counts_i + counts_i * np.log(np.sum(counts_i) * mu / float(np.sum(mu))))
 
-        ret = ret / float(self.sfs._total_count)
-        assert ret >= 0, "kl-div: %f, log_lik: %f, total_count: %d" % (ret, log_lik, int(self.sfs._total_count))
+        ret = ret / float(self.sfs.n_snps())
+        assert ret >= 0, "kl-div: %f, log_lik: %f, total_count: %d" % (ret, log_lik, int(self.sfs.n_snps()))
 
         return ret
     
@@ -87,7 +88,7 @@ class SfsLikelihoodSurface(object):
             p = (2.0)**(-substep)
             assert p <= .5
 
-            subsample_counts = rgen.binomial(np.array(self.sfs._counts_j, dtype=int), p*2.0)
+            subsample_counts = rgen.binomial(np.array(self.sfs._total_freqs, dtype=int), p*2.0)
             
             validation_counts = rgen.binomial(subsample_counts, .5)
             subsample_counts = subsample_counts - validation_counts
@@ -101,9 +102,9 @@ class SfsLikelihoodSurface(object):
             
             sub_mutrate = self.mut_rate
             if sub_mutrate:
-                sub_mutrate = np.sum(sub_mutrate * p * np.ones(len(self.sfs._counts_i)))
+                sub_mutrate = np.sum(sub_mutrate * p * np.ones(self.sfs.n_loci))
             
-            sub_lik, validation_lik = [SfsLikelihoodSurface(_SubSfs(self.sfs.configs, counts),
+            sub_lik, validation_lik = [SfsLikelihoodSurface(_sfs_subset(self.sfs.configs, counts),
                                                             demo_func=self.demo_func, mut_rate=sub_mutrate,
                                                             folded=self.folded, error_matrices=self.error_matrices,
                                                             truncate_probs=self.truncate_probs, batch_size=self.batch_size)
@@ -113,22 +114,22 @@ class SfsLikelihoodSurface(object):
 
             x0 = res.x
             res.update({'p':p,
-                        'uniq_snps': len(sub_lik.sfs._counts_j),
-                        'total_snps': np.sum(sub_lik.sfs._counts_j)})
+                        'uniq_snps': len(sub_lik.sfs._total_freqs),
+                        'total_snps': np.sum(sub_lik.sfs._total_freqs)})
             subsample_results += [res]
             if output_progress:
                 print("Finished fitting subsample p=%f after %d iterations" % (p, res.nit))
             
         if output_progress:
-            print("Fitting on full data, with %d unique entries and %d total SNPs" % (len(self.sfs._counts_j), int(np.sum(self.sfs._counts_j))))
+            print("Fitting on full data, with %d unique entries and %d total SNPs" % (self.sfs.n_nonzero_entries, self.sfs.n_snps()))
             
         ret = _minimize(f=self.kl_divergence, start_params=x0, jac=jac, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence")
 
         if subsample_steps:
             subsample_results.append(scipy.optimize.OptimizeResult(dict(list(ret.items()))))
             subsample_results[-1].update({'p':1.0,
-                                          'uniq_snps': len(self.sfs._counts_j),
-                                          'total_snps': int(np.sum(self.sfs._counts_j))})
+                                          'uniq_snps': len(self.sfs._total_freqs),
+                                          'total_snps': int(np.sum(self.sfs._total_freqs))})
             ret.subsample_results = subsample_results            
         return ret
             
@@ -150,7 +151,9 @@ class SfsLikelihoodSurface(object):
         pass
 
 def _build_sfs_batches(sfs, batch_size):
-    sfs_len = len(sfs._counts_j)
+    _,counts = sfs._idxs_counts(locus=None)
+    sfs_len = len(counts)
+    
     if sfs_len <= batch_size:
         return [sfs]
 
@@ -185,13 +188,13 @@ def _build_sfs_batches(sfs, batch_size):
 
     idx_list = [sorted_idxs[s] for s in slices]
     
-    counts_j_list = []
+    subcounts_list = []
     for idx in idx_list:
-        curr = np.zeros(len(sfs._counts_j))
-        curr[idx] = sfs._counts_j[idx]
-        counts_j_list.append(curr)
+        curr = np.zeros(len(counts))
+        curr[idx] = counts[idx]
+        subcounts_list.append(curr)
 
-    return [_SubSfs(sfs.configs, cj) for cj in counts_j_list]
+    return [_sfs_subset(sfs.configs, c) for c in subcounts_list]
 
 ## a decorator that rearranges gradient computations to be more memory efficient
 ## it turns the subroutine into a primitive so that its computations are not stored on the tape
@@ -268,22 +271,8 @@ def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, v
 
     sfs_probs = np.maximum(expected_sfs(demo, sfs.configs, normalized=True, **kwargs),
                            truncate_probs)
-           
-    counts_ij = sfs._counts_ij
-    assert len(counts_ij.shape) == 2
-    n_loci = counts_ij.shape[0]
-    if not vector:
-        counts_ij = np.array(np.sum(counts_ij, axis=0), ndmin=2)
-            
-    # counts_i is the total number of SNPs at each locus
-    counts_i = np.einsum('ij->i',counts_ij)
-    
-    # a function to return the log factorial
-    lnfact = lambda x: scipy.special.gammaln(x+1)
+    log_lik = sfs._integrate_sfs(np.log(sfs_probs), vector=vector)
 
-    # log likelihood of the multinomial distribution for observed SNPs
-    log_lik = np.dot(counts_ij, np.log(sfs_probs))
-    #comb_fac =  -np.einsum('ij->i',lnfact(counts_ij)) + lnfact(counts_i)
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
         log_lik = log_lik + _mut_factor(sfs, demo, mut_rate, vector)
@@ -293,14 +282,14 @@ def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, v
     return log_lik
 
 def _mut_factor(sfs, demo, mut_rate, vector):
-    mut_rate = mut_rate * np.ones(len(sfs._counts_i))
+    mut_rate = mut_rate * np.ones(sfs.n_loci)
 
     if sfs.configs.has_missing_data:
         raise NotImplementedError("Poisson model not implemented for missing data.")
     E_total = expected_total_branch_len(demo)
     lambd = mut_rate * E_total
     
-    ret = -lambd + sfs._counts_i * np.log(lambd)
+    ret = -lambd + sfs.n_snps(vector=True) * np.log(lambd)
     if not vector:
         ret = np.sum(ret)
     return ret
@@ -437,8 +426,8 @@ def _sgd_liks(lik_fun, data, n_chunks, rnd, mut_rate, output_progress):
     chunks = _subsfs_list(sfs, n_chunks, rnd)
     if output_progress:
         print("n_chunks", n_chunks)
-        print("avg snps per chunk", np.mean([np.sum(chnk._counts_ij) for chnk in chunks]))
-        print("avg UNIQUE snps per chunk", np.mean([len(np.squeeze(chnk._counts_ij)) for chnk in chunks]))
+        print("avg snps per chunk", np.mean([chnk.n_snps() for chnk in chunks]))
+        print("avg UNIQUE snps per chunk", np.mean([chnk.n_nonzero_entries for chnk in chunks]))
     
     if mut_rate is not None:
         mut_rate = np.sum(mut_rate * np.ones(len(sfs.loci))) / float(n_chunks)
@@ -450,63 +439,15 @@ def _sgd_liks(lik_fun, data, n_chunks, rnd, mut_rate, output_progress):
 def _subsfs_list(sfs, n_chunks, rnd):
     configs = sfs.configs
     
-    total_counts = np.array([sfs.total[conf] for conf in configs], dtype=int)
+    total_counts = np.array([sfs.freq(conf) for conf in configs], dtype=int)
 
     # row = SFS entry, column=chunk
     random_counts = np.array([rnd.multinomial(cnt_i, [1./float(n_chunks)]*n_chunks)
                               for cnt_i in total_counts], dtype=int)
     assert random_counts.shape == (len(total_counts), n_chunks)
+    assert np.sum(random_counts) == np.sum(total_counts)
     
-    return [_SubSfs(configs, column) for column in np.transpose(random_counts)]
-
-
-class _SubConfigs(object):
-    ## Efficient access to subset of configs
-    def __init__(self, configs, sub_idxs):
-        self.sub_idxs = sub_idxs
-        self.full_configs = configs
-        for a in ("sampled_n", "sampled_pops", "has_missing_data"):
-            setattr(self, a, getattr(self.full_configs, a))
-
-    @property
-    def config_array(self):
-        return self.full_configs.config_array[self.sub_idxs,:,:]
-            
-    def _vecs_and_idxs(self, folded):
-        vecs,_ = self.full_configs._vecs_and_idxs(folded)
-        old_idxs, idxs = self._build_idxs(folded)
-
-        vecs = [v[old_idxs,:] for v in vecs]
-        ## copy idxs to make it safe
-        return vecs, dict(idxs)
-        
-    @memoize_instance
-    def _build_idxs(self, folded):
-        _,idxs = self.full_configs._vecs_and_idxs(folded)
-
-        denom_idx_key = 'denom_idx'
-        denom_idx = idxs[denom_idx_key]
-        idxs = {k: v[self.sub_idxs] for k,v in list(idxs.items()) if k != denom_idx_key}
-
-        old_idxs = np.array(list(set(sum(list(map(list, list(idxs.values()))) + [[denom_idx]], []))))
-        old_2_new_idxs = {old_id: new_id for new_id, old_id in enumerate(old_idxs)}
-
-        idxs = {k: np.array([old_2_new_idxs[old_id]
-                             for old_id in v])
-                for k,v in list(idxs.items())}
-        idxs[denom_idx_key] = old_2_new_idxs[denom_idx]
-        return old_idxs, idxs
-
-class _SubSfs(_AbstractSfs):
-    ## represents a subsample of SFS
-    def __init__(self, configs, counts):
-        assert len(counts.shape) == 1 and len(counts) == len(configs.config_array)
-        
-        subidxs = np.arange(len(counts))[counts != 0]
-        self.configs = _SubConfigs(configs, subidxs)
-        
-        counts = counts[counts != 0]
-        self._counts_ij = np.array(counts, ndmin=2)
+    return [_sfs_subset(configs, column) for column in np.transpose(random_counts)]
 
 
 ### stuff for confidence intervals
@@ -747,17 +688,14 @@ def _long_score_cov(params, seg_sites, demo_func, **kwargs):
     params = np.array(params)
    
     configs = seg_sites.sfs.configs
-    snp_counts = np.sum(seg_sites.sfs._counts_ij, axis=0)
+    _,snp_counts = seg_sites.sfs._idxs_counts(None)
     weights = snp_counts / float(np.sum(snp_counts))
     
     def snp_log_probs(x):
         ret = np.log(expected_sfs(demo_func(*x), configs, normalized=True, **kwargs))
         return ret - np.sum(weights * snp_counts) # subtract off mean
        
-    uniq_snp_idxs = {snp: i for i,snp in enumerate(configs)}
-    seg_sites = [list(map(_hashable_config, chrom)) for chrom in seg_sites.config_arrays]
-    idx_series_list = [np.array([uniq_snp_idxs[snp] for snp in chrom], dtype=int)
-                       for chrom in seg_sites]
+    idx_series_list = [np.array(idxs) for idxs in seg_sites.idx_list]
 
     # g_out = sum(autocov(einsum("ij,ik->ikj",jacobian(idx_series), jacobian(idx_series))))
     # computed in roundabout way, in case jacobian is slow for many snps

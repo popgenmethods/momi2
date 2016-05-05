@@ -19,8 +19,7 @@ except KeyError:
     raise Exception("Need to set system variable $MS_PATH and $SCRM_PATH, or run py.test with 'MS_PATH=/path/to/ms SCRM_PATH=/path/to/scrm py.test ...'")
 
 
-demo_funcs = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, exp_growth_model]}
-
+demo_funcs = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, exp_growth_model]}   
 
 @pytest.mark.parametrize("k,folded",
                          ((fname, bool(b))
@@ -45,12 +44,9 @@ def check_sfs_counts(demo, theta=10., rho=10.0, num_loci=1000, folded=False):
     theoretical = sfs_vals * theta
 
     observed = np.zeros((len(sfs_list.configs), len(sfs_list.loci)))
-    for j,sfs in enumerate(sfs_list.loci):
+    for j in range(sfs_list.n_loci):
         for i,config in enumerate(sfs_list.configs):
-            try:
-                observed[i,j] = sfs[config]
-            except KeyError:
-                pass
+            observed[i,j] = sfs_list.freq(config,locus=j)
 
     labels = list(sfs_list.configs)
 

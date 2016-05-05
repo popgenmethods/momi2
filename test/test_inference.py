@@ -23,11 +23,13 @@ def test_archaic_sample():
                       num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
     
     x0 = np.array([random.uniform(0,join_time)])
-    res = SfsLikelihoodSurface(sfs, demo_func=get_demo).find_optimum(x0, bounds=[(0,join_time)], subsample_steps=2, output_progress=True)
+    res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta).find_optimum(x0, bounds=[(0,join_time)], subsample_steps=2, output_progress=True)
     #assert False
     
     print(res.jac)
     assert abs(res.x - true_sample_t) < .1
+    for i,subres in enumerate(res.subsample_results):
+        assert abs(subres.x - true_sample_t) < .15, "subsample %d did not fit truth well" % i
 
 @pytest.mark.parametrize("folded,add_n",
                          ((f,n) for f in (True,False) for n in (0,3)))

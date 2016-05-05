@@ -43,7 +43,7 @@ def test_batches_grad():
 
     assert sfs_len > 30
 
-    assert np.allclose(-sfs._total_count * grad(SfsLikelihoodSurface(sfs, batch_size=5, demo_func=demo_func, mut_rate=mu).kl_divergence)(x0),
+    assert np.allclose(-sfs.n_snps() * grad(SfsLikelihoodSurface(sfs, batch_size=5, demo_func=demo_func, mut_rate=mu).kl_divergence)(x0),
                        grad(lambda x: momi.likelihood._composite_log_likelihood(sfs, demo_func(*x), mut_rate=mu))(x0))
 
 def test_no_hessian():

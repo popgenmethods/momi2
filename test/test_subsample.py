@@ -27,7 +27,7 @@ def check_subsampling(demo, add_n, folded=False, **kwargs):
     config_list = momi.data_structure._configs_from_derived([np.array(x,dtype=int) for x in itertools.product(*ranges)],
                                                             demo.sampled_n, demo.sampled_pops)
     if folded:
-        config_list = momi.Sfs(config_list.sampled_pops, [config_list]).fold().configs
+        config_list = momi.make_sfs(config_list.sampled_pops, [config_list]).fold().configs
 
     sfs1 = expected_sfs(demo, config_list, normalized=True, folded=folded, **kwargs)
 

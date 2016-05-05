@@ -20,7 +20,7 @@ def test_subconfigs(fold, normalized):
                               num_loci=1000, mut_rate=1.).sfs.configs
 
     if fold:
-        configs = momi.Sfs(configs.sampled_pops, [configs]).fold().configs
+        configs = momi.make_sfs(configs.sampled_pops, [configs]).fold().configs
         #configs = configs.copy(fold=True)
     
     sub_idxs = np.array(random.sample(list(range(len(configs))), int(len(configs)/2)+1))
@@ -28,7 +28,7 @@ def test_subconfigs(fold, normalized):
 
     val1 = momi.expected_sfs(demo, configs, normalized=normalized, folded=fold)[sub_idxs]
 
-    sub_configs = momi.likelihood._SubConfigs(configs, sub_idxs)
+    sub_configs = momi.data_structure._Configs_Subset(configs, sub_idxs)
     val2 = momi.expected_sfs(demo, sub_configs, normalized=normalized, folded=fold)
 
     assert np.allclose(val1,val2)
@@ -47,7 +47,11 @@ def test_subsfs(fold, use_mut):
         sfs = sfs.fold()
 
     locus = random.choice(list(range(n_loci)))
-    subsfs = momi.likelihood._SubSfs(sfs.configs, sfs._counts_ij[locus,:])
+    #subsfs = momi.likelihood._SubSfs(sfs.configs, sfs._counts_ij[locus,:])
+    counts = np.zeros(sfs.n_nonzero_entries)
+    loc_idxs,loc_counts = sfs._idxs_counts(locus)
+    counts[loc_idxs] = loc_counts
+    subsfs = momi.data_structure._sfs_subset(sfs.configs, counts)
 
     if not use_mut:
         mut_rate = None
@@ -73,12 +77,12 @@ def test_subsfs2(fold):
 
     subsfs_list = momi.likelihood._subsfs_list(sfs, 10, np.random)
     total = [([sfs.configs[i] for i in subsfs.configs.sub_idxs],
-              np.squeeze(subsfs._counts_ij))
+              subsfs._total_freqs)
              for subsfs in subsfs_list]
     total = [Counter(dict(list(zip(cnfs,cnts)))) for cnfs,cnts in total]
     total = dict(sum(total, Counter()))
 
-    assert total == sfs.total
+    assert total == sfs.get_dict()
 
     
     
