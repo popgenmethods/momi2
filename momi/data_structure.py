@@ -67,7 +67,9 @@ class Configs(object):
         self.has_missing_data = np.any(config_sampled_n != self.sampled_n)
 
         self._index_dict = {c:i for i,c in enumerate(self.config_tuples)}
-       
+        self.has_monomorphic = _has_monomorphic(self.config_array)
+
+        
     def __getitem__(self, i): return self.config_tuples[i]
     def __len__(self): return len(self.config_tuples)
     def get_index(self, config): return self._index_dict[_config_tuple(config)]
@@ -274,9 +276,23 @@ class Sfs(object):
     @property
     @memoize_instance
     def _entropy(self):
-        _,counts = self._idxs_counts(None)
-        p = counts / float(self.n_snps())
-        return np.sum(p * np.log(p))
+        counts = self._total_freqs
+        n_snps = float(self.n_snps())
+        p = counts / n_snps
+        #return np.sum(p * np.log(p))
+        ret = np.sum(p * np.log(p))
+
+        ## correct for missing data        
+        sampled_n = np.sum(self.configs.config_array, axis=2)
+        sampled_n_counts = Counter()
+        assert len(counts) == len(sampled_n)
+        for c,n in zip(counts, sampled_n):
+            n = tuple(n)
+            sampled_n_counts[n] += c
+        sampled_n_counts = np.array(list(sampled_n_counts.values()), dtype=float)
+
+        ret = ret + np.sum(sampled_n_counts / n_snps * np.log(n_snps / sampled_n_counts))
+        return ret
 
         
     def fold(self):
@@ -445,6 +461,9 @@ def _sfs_subset(configs, counts):
 
     return Sfs([{i:c for i,c in enumerate(counts)}], sub_configs)
 
+def _has_monomorphic(config_array):
+    return np.any(np.sum(config_array,axis=1) == 0)
+    
 class _Configs_Subset(object):
     ## Efficient access to subset of configs
     def __init__(self, configs, sub_idxs):
@@ -452,10 +471,11 @@ class _Configs_Subset(object):
         self.full_configs = configs
         for a in ("sampled_n", "sampled_pops", "has_missing_data"):
             setattr(self, a, getattr(self.full_configs, a))
-
-    # @property
-    # def config_array(self):
-    #     return self.full_configs.config_array[self.sub_idxs,:,:]
+        self.has_monomorphic = _has_monomorphic(self.config_array)
+            
+    @property
+    def config_array(self):
+        return self.full_configs.config_array[self.sub_idxs,:,:]
             
     def _vecs_and_idxs(self, folded):
         vecs,_ = self.full_configs._vecs_and_idxs(folded)

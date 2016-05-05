@@ -34,16 +34,18 @@ def test_archaic_sample():
 @pytest.mark.parametrize("folded,add_n",
                          ((f,n) for f in (True,False) for n in (0,3)))
 def test_jointime_inference(folded, add_n):
-    check_jointime_inference(folded, add_n)
+    check_jointime_inference(folded=folded, add_n=add_n)
 
 def test_nodiff():
-    return check_jointime_inference(False, 0, finite_diff_eps=1e-8)
-    
-def check_jointime_inference(folded, add_n, finite_diff_eps=0):
-    theta=.1
+    return check_jointime_inference(finite_diff_eps=1e-8)
+
+def test_missing_data():
+    return check_jointime_inference(missing_p=.5, folded=True, num_runs=100, theta=10.)
+
+def check_jointime_inference(folded=False, add_n=0, finite_diff_eps=0, missing_p=0,
+                             use_theta=False, theta=.1, num_runs = 10000):
     t0=random.uniform(.25,2.5)
     t1= t0 + random.uniform(.5,5.0)
-    num_runs = 10000
 
     def get_demo(join_time):
         return make_demography([('-ej', join_time, 1, 2), ('-ej', t1, 2, 3)],
@@ -54,8 +56,26 @@ def check_jointime_inference(folded, add_n, finite_diff_eps=0):
     #                       true_demo.sampled_pops,
     #                       np.array(true_demo.sampled_n) - add_n)
     true_demo = true_demo.copy(sampled_n = np.array(true_demo.sampled_n) - add_n)
-    sfs = simulate_ms(ms_path, true_demo.rescaled(),
-                      num_loci=num_runs, mut_rate=theta).sfs
+    data = simulate_ms(ms_path, true_demo.rescaled(),
+                       num_loci=num_runs, mut_rate=theta)
+    if missing_p:
+        subsampled_data = []
+        for loc in range(data.n_loci):
+            curr = np.array(list(data[loc]), dtype=int)
+            if len(curr) == 0:
+                subsampled_data.append(list(curr))
+                continue
+            curr = np.random.binomial(curr, 1.0-missing_p)
+            curr_polymorphic = np.all(np.sum(curr, axis=1) != 0, axis=1)
+            curr = curr[curr_polymorphic,:,:]
+            subsampled_data.append(curr)
+        assert any([not np.array_equal(subsampled_data[loc],
+                                       np.array(list(data[loc]), dtype=int))
+                    for loc in range(data.n_loci)])
+        data = momi.make_seg_sites_data(data.sampled_pops, subsampled_data)
+
+    sfs = data.sfs
+    assert sfs.n_snps() > 0
     sfs = sfs._copy(sampled_n=np.array(true_demo.sampled_n)+add_n)
     if folded:
         sfs = sfs.fold()
@@ -66,9 +86,12 @@ def check_jointime_inference(folded, add_n, finite_diff_eps=0):
     prim_log_lik.reset_grad_count()
     assert not prim_log_lik.num_grad_calls()
 
+    if not use_theta:
+        theta = None
+    
     x0 = np.array([random.uniform(0,t1)])
     bound_eps = finite_diff_eps + 1e-12
-    res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_optimum(x0, bounds=[(bound_eps,t1-bound_eps),], finite_diff_eps=finite_diff_eps)
+    res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded).find_optimum(x0, bounds=[(bound_eps,t1-bound_eps),], finite_diff_eps=finite_diff_eps)
     
     #res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_optimum(x0, bounds=[(0,t1),])
 

@@ -60,7 +60,7 @@ class SfsLikelihoodSurface(object):
             ret = ret + np.sum(-counts_i + counts_i * np.log(np.sum(counts_i) * mu / float(np.sum(mu))))
 
         ret = ret / float(self.sfs.n_snps())
-        assert ret >= 0, "kl-div: %f, log_lik: %f, total_count: %d" % (ret, log_lik, int(self.sfs.n_snps()))
+        assert ret >= 0, "kl-div: %s, log_lik: %s, total_count: %s" % (str(ret), str(log_lik), str(self.sfs.n_snps()))
 
         return ret
     
@@ -269,6 +269,8 @@ def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, v
     except AttributeError:
         sfs = data
 
+    if sfs.configs.has_monomorphic:
+        raise ValueError("Need to remove monomorphic sites from dataset before computing likelihood")
     sfs_probs = np.maximum(expected_sfs(demo, sfs.configs, normalized=True, **kwargs),
                            truncate_probs)
     log_lik = sfs._integrate_sfs(np.log(sfs_probs), vector=vector)
