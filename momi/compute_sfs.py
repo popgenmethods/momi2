@@ -4,7 +4,7 @@ import autograd.numpy as np
 import scipy
 from .util import memoize_instance, memoize, make_constant, set0
 from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs, _apply_error_matrices
-from .data_structure import Configs
+#from .data_structure import Configs
 from .moran_model import moran_action
 from autograd.core import primitive
 from autograd import hessian
@@ -19,7 +19,7 @@ def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, folded=Fal
     Parameters
     ----------
     demography : Demography
-    configs : Configs
+    configs : ConfigArray
         if configs.folded == True, returns the folded SFS entries
     mut_rate : float
          mutation rate per unit time
@@ -62,7 +62,7 @@ def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, folded=Fal
 
 def _expected_sfs(demography, configs, folded, error_matrices):    
     if np.any(configs.sampled_n != demography.sampled_n) or np.any(configs.sampled_pops != demography.sampled_pops):
-        raise ValueError("configs and demography must have same sampled_n, sampled_pops. Use Demography.copy() or Configs.copy() to make a copy with different sampled_n.")
+        raise ValueError("configs and demography must have same sampled_n, sampled_pops. Use Demography.copy() or ConfigArray.copy() to make a copy with different sampled_n.")
 
     vecs, idxs = configs._vecs_and_idxs(folded)
     

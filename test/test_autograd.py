@@ -64,7 +64,8 @@ def sfs_func(demo_func, n_lins, normalized=True):
     
     def f(x):
         demo = demo_func(x, n_lins)
-        configs = momi.data_structure._configs_from_derived(tuple(states), n_lins, demo.sampled_pops)
+        #configs = momi.data_structure._configs_from_derived(tuple(states), n_lins, demo.sampled_pops)
+        configs = momi.config_array(demo.sampled_pops, tuple(states), n_lins)
         print(configs)        
         #print demo.graph['cmd']
         sfs, branch_len = expected_sfs(demo,configs), expected_total_branch_len(demo)

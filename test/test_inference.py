@@ -24,12 +24,13 @@ def test_archaic_sample():
     
     x0 = np.array([random.uniform(0,join_time)])
     res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta).find_optimum(x0, bounds=[(0,join_time)], subsample_steps=2, output_progress=True)
-    #assert False
     
     print(res.jac)
     assert abs(res.x - true_sample_t) < .1
     for i,subres in enumerate(res.subsample_results):
         assert abs(subres.x - true_sample_t) < .15, "subsample %d did not fit truth well" % i
+
+    #assert False
 
 @pytest.mark.parametrize("folded,add_n",
                          ((f,n) for f in (True,False) for n in (0,3)))
@@ -72,7 +73,7 @@ def check_jointime_inference(folded=False, add_n=0, finite_diff_eps=0, missing_p
         assert any([not np.array_equal(subsampled_data[loc],
                                        np.array(list(data[loc]), dtype=int))
                     for loc in range(data.n_loci)])
-        data = momi.make_seg_sites_data(data.sampled_pops, subsampled_data)
+        data = momi.seg_site_configs(data.sampled_pops, subsampled_data)
 
     sfs = data.sfs
     assert sfs.n_snps() > 0

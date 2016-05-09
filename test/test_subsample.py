@@ -24,10 +24,13 @@ def check_subsampling(demo, add_n, folded=False, **kwargs):
                             np.array(demo.sampled_n, dtype=int) + add_n,
                             sampled_t = demo.sampled_t)
     
-    config_list = momi.data_structure._configs_from_derived([np.array(x,dtype=int) for x in itertools.product(*ranges)],
-                                                            demo.sampled_n, demo.sampled_pops)
+    #config_list = momi.data_structure._configs_from_derived([np.array(x,dtype=int) for x in itertools.product(*ranges)],
+    #                                                        demo.sampled_n, demo.sampled_pops)
+    config_list = momi.config_array(demo.sampled_pops,
+                                    [np.array(x,dtype=int) for x in itertools.product(*ranges)],
+                                    demo.sampled_n)
     if folded:
-        config_list = momi.make_sfs(config_list.sampled_pops, [config_list]).fold().configs
+        config_list = momi.site_freq_spectrum(config_list.sampled_pops, [config_list]).fold().configs
 
     sfs1 = expected_sfs(demo, config_list, normalized=True, folded=folded, **kwargs)
 

@@ -104,7 +104,7 @@ class SfsLikelihoodSurface(object):
             if sub_mutrate:
                 sub_mutrate = np.sum(sub_mutrate * p * np.ones(self.sfs.n_loci))
             
-            sub_lik, validation_lik = [SfsLikelihoodSurface(_sfs_subset(self.sfs.configs, counts),
+            sub_lik, validation_lik = [SfsLikelihoodSurface(_sfs_subset(self.sfs, counts),
                                                             demo_func=self.demo_func, mut_rate=sub_mutrate,
                                                             folded=self.folded, error_matrices=self.error_matrices,
                                                             truncate_probs=self.truncate_probs, batch_size=self.batch_size)
@@ -172,8 +172,8 @@ def _build_sfs_batches(sfs, batch_size):
     ## "similar" == configs have same num missing alleles
     ## "very similar" == configs are folded copies of each other
     
-    a = sfs.configs.config_array[:,:,0] # ancestral counts
-    d = sfs.configs.config_array[:,:,1] # derived counts
+    a = sfs.configs.value[:,:,0] # ancestral counts
+    d = sfs.configs.value[:,:,1] # derived counts
     n = a+d # totals
 
     n = list(map(tuple, n))
@@ -194,7 +194,7 @@ def _build_sfs_batches(sfs, batch_size):
         curr[idx] = counts[idx]
         subcounts_list.append(curr)
 
-    return [_sfs_subset(sfs.configs, c) for c in subcounts_list]
+    return [_sfs_subset(sfs, c) for c in subcounts_list]
 
 ## a decorator that rearranges gradient computations to be more memory efficient
 ## it turns the subroutine into a primitive so that its computations are not stored on the tape
@@ -439,9 +439,10 @@ def _sgd_liks(lik_fun, data, n_chunks, rnd, mut_rate, output_progress):
     return [mypartial(lik_fun, chnk, minibatch_mut_rate=mut_rate) for chnk in chunks]
 
 def _subsfs_list(sfs, n_chunks, rnd):
-    configs = sfs.configs
+    #configs = sfs.configs
     
-    total_counts = np.array([sfs.freq(conf) for conf in configs], dtype=int)
+    #total_counts = np.array([sfs.freq(conf) for conf in configs], dtype=int)
+    total_counts = sfs._total_freqs
 
     # row = SFS entry, column=chunk
     random_counts = np.array([rnd.multinomial(cnt_i, [1./float(n_chunks)]*n_chunks)
@@ -449,7 +450,7 @@ def _subsfs_list(sfs, n_chunks, rnd):
     assert random_counts.shape == (len(total_counts), n_chunks)
     assert np.sum(random_counts) == np.sum(total_counts)
     
-    return [_sfs_subset(configs, column) for column in np.transpose(random_counts)]
+    return [_sfs_subset(sfs, column) for column in np.transpose(random_counts)]
 
 
 ### stuff for confidence intervals

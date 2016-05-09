@@ -3,7 +3,7 @@ import bisect
 import networkx as nx
 
 from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
-from .data_structure import SegSites
+from .data_structure import seg_site_configs
 from autograd.numpy import isnan, exp, array, ones
 
 import random
@@ -49,7 +49,7 @@ def seg_sites_from_ms(ms_file, sampled_pops):
 
     configs = (_snp_sequence_from_1_ms_sim(list(lines), pops_by_lin)
                for i,lines in runs)
-    return SegSites(sampled_pops, configs)
+    return seg_site_configs(sampled_pops, configs)
     #if sampled_pops is not None:
     #    ret = mylist(ret, sampled_pops=tuple(sampled_pops))
     #return ret

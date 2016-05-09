@@ -11,4 +11,4 @@ from .demography import make_demography
 from .compute_sfs import expected_sfs, expected_total_branch_len, expected_sfs_tensor_prod, expected_tmrca, expected_deme_tmrca
 from .likelihood import SfsLikelihoodSurface, ConfidenceRegion
 from .tensor import sfs_tensor_prod
-from .data_structure import Configs, SegSites, Sfs, write_seg_sites, read_seg_sites, config, make_sfs, make_seg_sites_data
+from .data_structure import write_seg_sites, read_seg_sites, seg_site_configs, site_freq_spectrum, config_array

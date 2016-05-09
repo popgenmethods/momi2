@@ -13,10 +13,7 @@ def sfs_tensor_prod(sfs, vecs):
 
     Parameters
     ----------
-    sfs : dict
-         maps configs (tuples) to frequencies (floats or ints).
-         sfs is viewed as a tensor whose indices are given by the configs,
-         and whose entries are given by the frequencies.
+    sfs : 
     vecs : list of 2-dimensional numpy.ndarray
          a list of length D, where D is the number of demes in the sample.
          vecs[k] is 2-dimensional array, with constant number of rows, and
@@ -36,8 +33,11 @@ def sfs_tensor_prod(sfs, vecs):
          randomly sampled sfs.
     """
     res = 0.
-    entries, counts = list(zip(*list(sfs.items())))
-    entries = np.array(entries, ndmin=3)
+    #sfs = sfs.get_dict()
+    #entries, counts = list(zip(*list(sfs.items())))
+    #entries = np.array(entries, ndmin=3)
+    entries = sfs.configs.value
+    counts = sfs._total_freqs
 
     sampled_n = np.array([v.shape[1]-1 for v in vecs], dtype=int)
     if np.any(np.sum(entries, axis=2) != sampled_n):
