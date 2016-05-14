@@ -159,17 +159,6 @@ class Demography(object):
         assert len(diff_cache_keys) == len(diff_cache_vals)
         self._diff_cache = dict(list(zip(diff_cache_keys, diff_cache_vals)))
         
-    def __getstate__(self):
-        if len(self._diff_cache) > 0:
-           keys,vals = zip(*self._diff_cache)
-        else:
-           keys,vals = [],[]
-        keys,vals = map(list, (keys,vals))
-        return (self._G, keys, vals)
-    def __setstate__(self,state):
-        self.__init__(*state)
-
-        
     def _get_differentiable_part(self):
        ## use this with _get_graph_structure()
        ## to re-organize certain computations during automatic differentiation

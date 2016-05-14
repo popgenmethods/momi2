@@ -47,7 +47,7 @@ When momi is publicly released, it will be free software under conditions of GNU
 
 ## TODO
 
-* Test affect of batch_size on running time and memory usage in ipython notebook
+* Pickling data_structures, demography fails because of decorators/descriptors. Very annoying for multiprocessing. Using setstate/getstate doesn't solve the problem.
 * Fix text of tutorial.py
 * Fix likelihood.py documentation
 * Few tests checking `Demography._pulse_probs()`. Change `test.demo_utils.simple_admixture_demo()` to use a direct pulse event.

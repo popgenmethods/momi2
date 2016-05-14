@@ -51,10 +51,6 @@ class ConfigArray(object):
         self.has_missing_data = np.any(config_sampled_n != self.sampled_n)
 
         self.has_monomorphic = _has_monomorphic(self.value)
-    def __getstate__(self):
-        return (self.sampled_pops, self.value, self.sampled_n)
-    def __setstate__(self,state):
-        self.__init__(*state)
         
     def __getitem__(self, *args): return self.value.__getitem__(*args)
     def __len__(self): return len(self.value)
@@ -234,10 +230,6 @@ class Sfs(object):
         self.total = sum(self.loci, Counter())
         self.configs = configs
         self.config2uniq = config2uniq
-    def __getstate__(self):
-        return (self.loci, self.configs, self.config2uniq)
-    def __setstate__(self,state):
-        self.__init__(*state)
         
     def freq(self, configuration, locus=None):
         """
@@ -412,10 +404,6 @@ class SegSites(object):
         self.configs = configs
         self.idx_list = idx_list
         self.sfs = Sfs(self.idx_list, self.configs, config2uniq)
-    def __getstate__(self):
-        return (self.configs, self.idx_list, self.config2uniq)
-    def __setstate__(self,state):
-        self.__init__(*state)
         
     def get_config(self, locus, site):
         return self.configs[self.idx_list[locus][site]]
