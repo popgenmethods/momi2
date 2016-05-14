@@ -123,7 +123,7 @@ class SfsLikelihoodSurface(object):
         if output_progress:
             print("Fitting on full data, with %d unique entries and %d total SNPs" % (self.sfs.n_nonzero_entries, self.sfs.n_snps()))
             
-        ret = _minimize(f=self.kl_divergence, start_params=x0, jac=jac, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence")
+        ret = _minimize(f=self.kl_divergence, start_params=x0, jac=jac, method=opt_method, maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence")
 
         if subsample_steps:
             subsample_results.append(scipy.optimize.OptimizeResult(dict(list(ret.items()))))
