@@ -242,12 +242,12 @@ def _minimize(f, start_params, maxiter, bounds,
                 hist.result = {'status':1, 'success':True, 'fun':hist.f_vals[-1], 'x':x, 'message':"Validation function stopped improving", 'nit':hist.itr}
                 if jac:
                     hist.result["jac"] = gx
-                    hist.result["nfev"] = f.hist.nfev-1 #nfev is not correct if using finite difference approximation to gradient
+                    hist.result["nfev"] = f.hist.nfev #nfev is not correct if using finite difference approximation to gradient
                 raise Exception()
 
     try:
         ret = scipy.optimize.minimize(f, start_params, jac=jac, method=method, bounds=bounds, tol=tol, options=options, callback=callback)
-        assert ret.nfev == f.hist.nfev-1 or not jac
+        #assert ret.nfev == f.hist.nfev-1 or not jac
     except:
         if hist.result:
             ret = scipy.optimize.OptimizeResult(hist.result)

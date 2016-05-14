@@ -76,8 +76,12 @@ class SfsLikelihoodSurface(object):
             raise ValueError("Unrecognized method %s" % method)
     
     def newton(self, x0, maxiter, bounds, output_progress, opt_method='tnc',
-               xtol=-1, ftol=-1, gtol=-1, finite_diff_eps=None, subsample_steps=0, rgen=np.random):
-        options = {'ftol':ftol,'xtol':xtol,'gtol':gtol}
+               xtol=None, ftol=None, gtol=None, finite_diff_eps=None, subsample_steps=0, rgen=np.random):
+        #options = {'ftol':ftol,'xtol':xtol,'gtol':gtol}
+        options = {}
+        for tolname,tolval in (('xtol',xtol), ('ftol',ftol), ('gtol',gtol)):
+            if tolval is not None:
+                options[tolname] = tolval
         if not finite_diff_eps: jac = True
         else:
             jac = False
