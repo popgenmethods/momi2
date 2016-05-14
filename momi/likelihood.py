@@ -75,7 +75,7 @@ class SfsLikelihoodSurface(object):
         else:
             raise ValueError("Unrecognized method %s" % method)
     
-    def newton(self, x0, maxiter, bounds, output_progress,
+    def newton(self, x0, maxiter, bounds, output_progress, opt_method='tnc',
                xtol=-1, ftol=-1, gtol=-1, finite_diff_eps=None, subsample_steps=0, rgen=np.random):
         options = {'ftol':ftol,'xtol':xtol,'gtol':gtol}
         if not finite_diff_eps: jac = True
@@ -110,7 +110,7 @@ class SfsLikelihoodSurface(object):
                                                             truncate_probs=self.truncate_probs, batch_size=self.batch_size)
                                        for counts in (subsample_counts, validation_counts)]
 
-            res = _minimize(f=sub_lik.kl_divergence, start_params=x0, jac=jac, method="tnc", maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence", f_validation=lambda x: validation_lik.kl_divergence(x, differentiable=False))
+            res = _minimize(f=sub_lik.kl_divergence, start_params=x0, jac=jac, method=opt_method, maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence", f_validation=lambda x: validation_lik.kl_divergence(x, differentiable=False))
 
             x0 = res.x
             res.update({'p':p,
