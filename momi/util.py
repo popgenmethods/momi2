@@ -204,7 +204,8 @@ def _minimize(f, start_params, maxiter, bounds,
               jac = True, method = 'tnc', tol = None, options = {},
               output_progress = False, f_name="objective", f_validation=None):
     options = dict(options)
-    options['maxiter'] = maxiter
+    if maxiter is not None:
+        options['maxiter'] = maxiter
    
     if jac:
         f = autograd.value_and_grad(f)
