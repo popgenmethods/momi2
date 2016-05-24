@@ -47,11 +47,10 @@ When momi is publicly released, it will be free software under conditions of GNU
 
 ## TODO
 
+* To make mutation work with missing data -- somehow incorporate the coverage probabilities as part of the Multinomial Poisson model, and/or treat the coverage probabilities as a nuisance parameter.
 * Pickling data_structures, demography fails because of decorators/descriptors. Very annoying for multiprocessing. Using setstate/getstate doesn't solve the problem.
 * Fix text of tutorial.py
-* Fix likelihood.py documentation
-* Few tests checking `Demography._pulse_probs()`. Change `test.demo_utils.simple_admixture_demo()` to use a direct pulse event.
+* Fix documentation (e.g. in likelihood.py, but also in a lot of other places now)
+* Relatively few tests checking `Demography._pulse_probs()`.
 * `import logging`
-* output_progress doesn't work properly with finite_differences (and generally doesn't work properly whenever the function is called more than once per iteration)
-* optimization method that sequentially fits larger subsets of the data. use ftol=std of log likelihood to stop. use empirical entropy as proxy for log likelihood, when computing the standard deviation
 * add composite_log_likelihood back to the API, as an alternative to SfsLikelihoodSurface that allows second-order derivatives
