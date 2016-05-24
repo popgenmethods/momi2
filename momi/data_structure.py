@@ -8,7 +8,7 @@ from collections import Counter
 import warnings
 import itertools
 
-def config_array(sampled_pops, counts, sampled_n=None):
+def config_array(sampled_pops, counts, sampled_n=None, ascertainment_pop=None):
     """
     if sampled_n is not None, counts is the derived allele counts
     if sampled_n is None, counts has an extra trailing axis, counts[...,0] is ancestral allele count, counts[...,1] is derived allele count
@@ -22,8 +22,22 @@ def config_array(sampled_pops, counts, sampled_n=None):
     counts = np.array(counts, ndmin=3, dtype=int)
     assert counts.shape[1:] == (len(sampled_pops), 2)
     counts.setflags(write=False)
-    return ConfigArray(sampled_pops, counts, sampled_n)
+    return ConfigArray(sampled_pops, counts, sampled_n, ascertainment_pop)
+
+def full_config_array(sampled_pops, sampled_n, ascertainment_pop=None):
+    if ascertainment_pop is None:
+        ascertainment_pop = [True]*len(sampled_pops)
+    ascertainment_pop = np.array(ascertainment_pop)
     
+    ranges = [list(range(n+1)) for n in sampled_n]
+    config_list = []
+    for x in itertools.product(*ranges):
+        x = np.array(x, dtype=int)
+        if not (np.all(x[ascertainment_pop] == 0) or np.all(x[ascertainment_pop] == sampled_n[ascertainment_pop])):
+            config_list.append(x)
+    return config_array(sampled_pops, config_list, sampled_n,
+                        ascertainment_pop=ascertainment_pop)    
+
 class ConfigArray(object):
     """
     Stores a list of configs. Important methods/attributes:
@@ -34,11 +48,18 @@ class ConfigArray(object):
                         used to construct the likelihood vectors for
                         junction tree algorithm.
     """
-    def __init__(self, sampled_pops, conf_arr, sampled_n):
+    def __init__(self, sampled_pops, conf_arr, sampled_n, ascertainment_pop):
         """Use config_array() instead of calling this constructor directly"""
-        ##If sampled_n=None, ConfigArray.sampled_n will be the max number of observed individuals/alleles per population.
+        ##If sampled_n=None, ConfigArray.sampled_n will be the max number of observed individuals/alleles per population.       
         self.sampled_pops = tuple(sampled_pops)
         self.value = conf_arr
+
+        if ascertainment_pop is None:
+            ascertainment_pop = [True]*len(sampled_pops)
+        self.ascertainment_pop = np.array(ascertainment_pop)
+        self.ascertainment_pop.setflags(write=False)
+        if all(not a for a in self.ascertainment_pop):
+            raise ValueError("At least one of the populations must be used for ascertainment of polymorphic sites")
 
         max_n = np.max(np.sum(self.value, axis=2), axis=0)
         
@@ -46,11 +67,15 @@ class ConfigArray(object):
         sampled_n = np.array(sampled_n)
         if np.any(sampled_n < max_n): raise ValueError("config greater than sampled_n")
         self.sampled_n = sampled_n
+        if not np.sum(sampled_n[self.ascertainment_pop]) >= 2:
+            raise ValueError("The total sample size of the ascertainment populations must be >= 2")
 
         config_sampled_n = np.sum(self.value, axis=2)
         self.has_missing_data = np.any(config_sampled_n != self.sampled_n)
 
-        self.has_monomorphic = _has_monomorphic(self.value)
+        #self.has_monomorphic = _has_monomorphic(self.value)
+        if np.any(np.sum(self.value[:,self.ascertainment_pop,:], axis=1) == 0):
+            raise ValueError("Monomorphic sites not allowed. In addition, all sites must be polymorphic when restricted to the ascertainment populations")
         
     def __getitem__(self, *args): return self.value.__getitem__(*args)
     def __len__(self): return len(self.value)
@@ -73,7 +98,7 @@ class ConfigArray(object):
         """
         if sampled_n is None:
             sampled_n = self.sampled_n
-        return ConfigArray(self.sampled_pops, self.value, sampled_n=sampled_n)
+        return ConfigArray(self.sampled_pops, self.value, sampled_n=sampled_n, ascertainment_pop=self.ascertainment_pop)
 
     def _vecs_and_idxs(self, folded):
         vecs,idxs = self._build_vecs_and_idxs(folded)
@@ -118,7 +143,8 @@ class ConfigArray(object):
         for s in set(sample_sizes):
             ## add rows for monomorphic correction terms
             for mono_allele in (0,1):
-                mono_config = np.array([s, [0]*len(s)], dtype=int, ndmin=2)
+                mono_config = tuple(ss if asc else 0 for ss,asc in zip(s,self.ascertainment_pop))
+                mono_config = np.array([mono_config, [0]*len(mono_config)], dtype=int, ndmin=2)
                 if mono_allele == 1:
                     mono_config = mono_config[::-1,:]
                 #mono_config = tuple(map(tuple, np.transpose(mono_config)))
@@ -213,7 +239,7 @@ def site_freq_spectrum(sampled_pops, loci):
     for loc,count,uniq in zip(index2loc, index2count, index2uniq):
         loci_counters[loc][uniq] += count
 
-    configs = ConfigArray(sampled_pops, conf_arr, None)
+    configs = ConfigArray(sampled_pops, conf_arr, None, None)
     return Sfs(loci_counters, configs, config2uniq)
     
 class Sfs(object):
@@ -248,6 +274,9 @@ class Sfs(object):
     @property
     def sampled_n(self):
         return self.configs.sampled_n
+    @property
+    def ascertainment_pop(self):
+        return self.configs.ascertainment_pop
     @property
     def sampled_pops(self):
         return self.configs.sampled_pops        
@@ -345,7 +374,7 @@ class Sfs(object):
         """
         if sampled_n is None:
             sampled_n = self.sampled_n        
-        return Sfs(self.loci, ConfigArray(self.sampled_pops, self.configs.value, sampled_n=sampled_n),
+        return Sfs(self.loci, ConfigArray(self.sampled_pops, self.configs.value, sampled_n=sampled_n, ascertainment_pop=self.ascertainment_pop),
                    dict(self.config2uniq))
 
     def _integrate_sfs(self, weights, vector=False, locus=None):
@@ -371,7 +400,7 @@ class Sfs(object):
         counts = np.array([self.loci[locus][k] for k in idxs], dtype=float)
         return idxs, counts    
 
-def seg_site_configs(sampled_pops, config_sequences):
+def seg_site_configs(sampled_pops, config_sequences, ascertainment_pop=None):
     """
     Parameters
     ----------
@@ -396,7 +425,7 @@ def seg_site_configs(sampled_pops, config_sequences):
     for loc,uniq_idx in zip(index2loc, index2uniq):
         idx_list[loc].append(uniq_idx)
 
-    configs = ConfigArray(sampled_pops, config_array, None)
+    configs = ConfigArray(sampled_pops, config_array, None, ascertainment_pop)
     return SegSites(configs, idx_list, config2uniq)
     
 class SegSites(object):
@@ -412,7 +441,8 @@ class SegSites(object):
         if loc >= self.n_loci: raise IndexError("Locus out of bounds")
         return (self.get_config(loc, site) for site in range(self.n_snps(locus=loc)))
         
-    
+    @property
+    def ascertainment_pop(self): return self.sfs.ascertainment_pop
     @property
     def sampled_pops(self): return self.sfs.sampled_pops
     @property
@@ -420,11 +450,11 @@ class SegSites(object):
     @property
     def n_loci(self): return self.sfs.n_loci
     def n_snps(self, locus=None): return self.sfs.n_snps(locus=locus)
-    
+   
     def __eq__(self, other):
-        configs, idx_list = self.configs, self.idx_list
+        configs, idx_list, ascertainment_pop = self.configs, self.idx_list, self.ascertainment_pop
         try:
-            return configs == other.configs and idx_list == other.idx_list
+            return configs == other.configs and idx_list == other.idx_list and np.all(ascertainment_pop == other.ascertainment_pop)
         except AttributeError:
             return False
 
@@ -466,6 +496,11 @@ def write_seg_sites(sequences_file, seg_sites):
     sampled_pops = seg_sites.sampled_pops
 
     sequences_file.write("\t".join(map(str,sampled_pops)) + "\n")
+
+    if not np.all(seg_sites.ascertainment_pop):
+        sequences_file.write("# Population used for ascertainment?\n")
+        sequences_file.write("\t".join(map(str, seg_sites.ascertainment_pop)) + "\n")
+    
     for locus_configs in seg_sites:
         sequences_file.write("\n//\n\n")
         for config in locus_configs:
@@ -488,13 +523,21 @@ def read_seg_sites(sequences_file):
     _,header = next(loci)
     sampled_pops = tuple(next(header).split())
 
+    def str2bool(s):
+        if any(a.startswith(s.lower()) for a in ("true","yes")): return True
+        elif any(a.startswith(s.lower()) for a in ("false","no")): return False
+        raise ValueError("Can't convert %s to boolean" % s)
+    
+    try: ascertainment_pop = list(map(str2bool, next(header).split()))
+    except (ValueError,StopIteration): ascertainment_pop = None
+
     def get_configs(locus):
         assert next(locus).startswith("//")
         for line in locus:
             #yield tuple(tuple(map(int,x.split(","))) for x in line.split())
             yield _hashed2config(line)
             
-    return seg_site_configs(sampled_pops, (get_configs(loc) for i,loc in loci))
+    return seg_site_configs(sampled_pops, (get_configs(loc) for i,loc in loci), ascertainment_pop=ascertainment_pop)
 
 
 # def _config(a=None,d=None,n=None):
@@ -536,17 +579,17 @@ def _sfs_subset(sfs, counts):
 
     return Sfs([{i:c for i,c in enumerate(counts)}], sub_configs, dict(sfs.config2uniq))
 
-def _has_monomorphic(config_array):
-    return np.any(np.sum(config_array,axis=1) == 0)
+# def _has_monomorphic(config_array):
+#     return np.any(np.sum(config_array,axis=1) == 0)
     
 class _ConfigArray_Subset(object):
     ## Efficient access to subset of configs
     def __init__(self, configs, sub_idxs):
         self.sub_idxs = sub_idxs
         self.full_configs = configs
-        for a in ("sampled_n", "sampled_pops", "has_missing_data"):
+        for a in ("sampled_n", "sampled_pops", "has_missing_data", "ascertainment_pop"):
             setattr(self, a, getattr(self.full_configs, a))
-        self.has_monomorphic = _has_monomorphic(self.value)
+        #self.has_monomorphic = _has_monomorphic(self.value)
             
     @property
     def value(self):

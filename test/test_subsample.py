@@ -26,9 +26,10 @@ def check_subsampling(demo, add_n, folded=False, **kwargs):
     
     #config_list = momi.data_structure._configs_from_derived([np.array(x,dtype=int) for x in itertools.product(*ranges)],
     #                                                        demo.sampled_n, demo.sampled_pops)
-    config_list = momi.config_array(demo.sampled_pops,
-                                    [np.array(x,dtype=int) for x in itertools.product(*ranges)],
-                                    demo.sampled_n)
+    #config_list = momi.config_array(demo.sampled_pops,
+    #                                [np.array(x,dtype=int) for x in itertools.product(*ranges)],
+    #                                demo.sampled_n)
+    config_list = momi.data_structure.full_config_array(demo.sampled_pops, demo.sampled_n)
     if folded:
         config_list = momi.site_freq_spectrum(config_list.sampled_pops, [config_list]).fold().configs
 

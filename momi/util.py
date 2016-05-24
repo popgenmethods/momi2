@@ -17,6 +17,7 @@ import sys, warnings, collections
 #         super().__init__(self, *args, **kwargs)
 #         functools.update_wrapper(self, self.func)
 
+
 def mypartial(fun, *args, **kwargs):
     ret = functools.partial(fun, *args, **kwargs)
     functools.update_wrapper(ret, fun)

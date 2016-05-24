@@ -19,15 +19,9 @@ def test_readwrite_segsites_parse_ms_equal():
     data = momi.parse_ms.seg_sites_from_ms(raw_ms, demo.sampled_pops)
     assert data.n_loci == n_loci
 
-    strio = StringIO()    
-    momi.write_seg_sites(strio, data)
-
-    strio = StringIO(strio.getvalue())
-    data2 = momi.read_seg_sites(strio)
-
-    assert data == data2
-    assert data.sfs == data2.sfs
-
+    check_readwrite_data(data)
+    check_readwrite_ascertain(data, [True,True,False,True,False])
+    
     raw_ms.seek(0)
     sfs_dict = Counter()
     curr_lines = None
@@ -57,5 +51,33 @@ def test_readwrite_segsites_parse_ms_equal():
     update_sfs_dict()
     sfs_dict = dict(sfs_dict)
     assert sfs_dict == data.sfs.to_dict()
-        
 
+def check_readwrite_data(data):
+    strio = StringIO()    
+    momi.write_seg_sites(strio, data)
+
+    strio = StringIO(strio.getvalue())
+    data2 = momi.read_seg_sites(strio)
+
+    assert data == data2
+    assert data.sfs == data2.sfs    
+
+def check_readwrite_ascertain(data, ascertainment_pop):
+    #assert not all(ascertainment_pop)    
+    ascertainment_pop = np.array(ascertainment_pop)
+    newdata = momi.seg_site_configs(data.sampled_pops,
+                                    ((conf
+                                      for conf in loc
+                                      if not np.any(np.sum(conf[ascertainment_pop,:], axis=0) == 0)
+                                      ) for loc in data),
+                                    ascertainment_pop=ascertainment_pop)
+    
+    assert np.all(newdata.ascertainment_pop == ascertainment_pop)
+    check_readwrite_data(newdata)
+    
+    # def _copy(self, ascertainment_pop=None):
+    #     if ascertainment_pop is None:
+    #         ascertainment_pop = self.ascertainment_pop
+    #     return seg_site_configs(self.sampled_pops, (self[loc] for loc in range(self.n_loci)),
+    #                             ascertainment_pop=ascertainment_pop)
+    

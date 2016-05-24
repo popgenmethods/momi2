@@ -3,6 +3,7 @@ import warnings
 import autograd.numpy as np
 import scipy
 from .util import memoize_instance, memoize, make_constant, set0
+from .data_structure import config_array
 from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs, _apply_error_matrices
 #from .data_structure import Configs
 from .moran_model import moran_action
@@ -83,7 +84,7 @@ def _expected_sfs(demography, configs, folded, error_matrices):
     
     return sfs, denom
 
-def expected_total_branch_len(demography, error_matrices=None):
+def expected_total_branch_len(demography, error_matrices=None, ascertainment_pop=None):
     """
     The expected total branch length of the sample genealogy.
     Equivalently, the expected number of observed mutations when 
@@ -114,24 +115,39 @@ def expected_total_branch_len(demography, error_matrices=None):
     expected_tmrca, expected_deme_tmrca : other interesting statistics
     expected_sfs_tensor_prod : compute general class of summary statistics
     """
-    vecs = [np.ones(n+1) for n in demography.sampled_n]
-    # if error_matrices is not None:
-    #     vecs = _apply_error_matrices(vecs, error_matrices) # has no effect
-    total = np.squeeze(expected_sfs_tensor_prod(vecs, demography))       
-    ## return in the simple case, without errors
-    if error_matrices is None:
-        return total
+    if ascertainment_pop is None:
+        ascertainment_pop = [True]*len(demography.sampled_n)
+    ascertainment_pop = np.array(ascertainment_pop)
+
+    for i,asc in enumerate(ascertainment_pop):
+        if asc: break
+
+    config = np.zeros((1,len(demography.sampled_pops),2), dtype=int)
+    config[:,i,:] = [-1,1]
+    config = config + np.array([(n,0) for n in demography.sampled_n], dtype=int)
     
-    ## for more complicated case, need to subtract off branch_len not to be considered
-    ## because error_matrices has made some actually polymorphic sites appear to be monomorphic
-    vecs = [np.array([[1.0]  + [0.0] * deme_n,
-                      [0.0] * deme_n + [1.0]])
-            for deme_n in demography.sampled_n]
+    config = config_array(demography.sampled_pops, config, ascertainment_pop = ascertainment_pop)
 
-    if error_matrices is not None:
-        vecs = _apply_error_matrices(vecs, error_matrices)
+    _, ret = _expected_sfs(demography, config, False, error_matrices)
+    return ret
+    # vecs = [np.ones(n+1) for n in demography.sampled_n]
+    # # if error_matrices is not None:
+    # #     vecs = _apply_error_matrices(vecs, error_matrices) # has no effect
+    # total = np.squeeze(expected_sfs_tensor_prod(vecs, demography))       
+    # ## return in the simple case, without errors
+    # if error_matrices is None:
+    #     return total
+    
+    # ## for more complicated case, need to subtract off branch_len not to be considered
+    # ## because error_matrices has made some actually polymorphic sites appear to be monomorphic
+    # vecs = [np.array([[1.0]  + [0.0] * deme_n,
+    #                   [0.0] * deme_n + [1.0]])
+    #         for deme_n in demography.sampled_n]
 
-    return total - np.sum(expected_sfs_tensor_prod(vecs, demography))    
+    # if error_matrices is not None:
+    #     vecs = _apply_error_matrices(vecs, error_matrices)
+
+    # return total - np.sum(expected_sfs_tensor_prod(vecs, demography))    
 
 def expected_tmrca(demography):
     """

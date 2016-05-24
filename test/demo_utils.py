@@ -9,6 +9,16 @@ def simple_admixture_demo(x=np.random.normal(size=7), n_lins=(2,3)):
                        ('-ej',t[2],2,3),('-ej',t[3],3,'b'),('-ej',t[4],'a','b')],
                       sampled_pops = ('b','a'), sampled_n = n_lins, default_N = 1e4)
 
+def simple_admixture_3pop(x=None, n_lins=(4,4,4)):
+    if x is None:
+        x = np.random.normal(size=7)
+    t = np.cumsum(np.exp(x[:5]))
+    p = 1.0 / (1.0 + np.exp(x[5:]))
+    return make_demography([("-ep", t[1], 'a', 'c', 1.-p[1]),('-ep',t[0],'a','d', 1.-p[0]),
+                            ('-ej',t[2],'c','d'),('-ej',t[3],'d','b'),('-ej',t[4],'a','b')],
+                           sampled_pops = ('b','a','c'), sampled_n = n_lins)    
+        
+    
 def simple_two_pop_demo(x=np.random.normal(size=4), n_lins=(5,6)):
     x = [1e4*np.exp(xi) for xi in x]
     return make_demography([('-en',0.,1,x[1]), ('-en',0.,0,x[2]), ('-ej',x[0],0,1), ('-en',x[0],1,x[3])],

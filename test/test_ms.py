@@ -19,7 +19,7 @@ except KeyError:
     raise Exception("Need to set system variable $MS_PATH and $SCRM_PATH, or run py.test with 'MS_PATH=/path/to/ms SCRM_PATH=/path/to/scrm py.test ...'")
 
 
-demo_funcs = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, exp_growth_model]}   
+demo_funcs = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, exp_growth_model, simple_admixture_3pop]}   
 
 @pytest.mark.parametrize("k,folded",
                          ((fname, bool(b))
