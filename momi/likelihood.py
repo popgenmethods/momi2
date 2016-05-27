@@ -1,18 +1,15 @@
 
-from .util import make_constant, _minimize, _npstr, truncate0, check_psd, memoize_instance, mypartial, _get_stochastic_optimizer, count_calls
+from .util import make_constant, _minimize, _npstr, truncate0, check_psd, memoize_instance, mypartial, _get_stochastic_optimizer, count_calls, logger
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2, inv_psd
 from .demography import DemographyError, Demography
-#from .data_structure import _config_tuple, Sfs, _AbstractSfs
 from .data_structure import _sfs_subset
 import scipy, scipy.stats
 import autograd
 from autograd import grad, hessian_vector_product, hessian
 from collections import Counter
-#from functools import partial
-import random
-import functools
+import random, functools, logging
 
 class SfsLikelihoodSurface(object):
     def __init__(self, data, demo_func=None, mut_rate=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200):
@@ -33,8 +30,9 @@ class SfsLikelihoodSurface(object):
         self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
         #self.sfs_batches = [self.sfs]
 
-    def log_likelihood(self, x, differentiable=True):
+    def log_likelihood(self, x, differentiable=True):       
         if self.demo_func:
+            logger.debug("Computing log-likelihood at x = ", x)            
             demo = self.demo_func(*x)
         else:
             demo = x
@@ -47,6 +45,7 @@ class SfsLikelihoodSurface(object):
         if self.mut_rate:
             ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False)
 
+        logger.debug("log-likelihood = ", ret)
         return ret
 
     def kl_divergence(self, x, differentiable=True):
@@ -64,20 +63,33 @@ class SfsLikelihoodSurface(object):
 
         return ret
     
-    def find_optimum(self, x0, maxiter=100, bounds=None, method="newton", output_progress = False, **kwargs):
-        if method=="newton":
-            return self.newton(x0, maxiter, bounds, output_progress, **kwargs)
-        elif method=="adam":
-            try: kwargs['n_chunks']
-            except KeyError: raise TypeError("Argument n_chunks required for method='%s'"%method)
-            
-            return self.adam(x0, maxiter, bounds, output_progress, **kwargs)
-        else:
-            raise ValueError("Unrecognized method %s" % method)
+    def find_optimum(self, x0, maxiter=100, bounds=None, method="newton", log_file=None, **kwargs):
+        if log_file is not None:
+            prev_level, prev_propagate = logger.level, logger.propagate
+            logger.propagate = False
+            logger.setLevel(min([logger.getEffectiveLevel(), logging.INFO]))
+            log_file = logging.StreamHandler(log_file)
+            logger.addHandler(log_file)
+
+        try:
+            if method=="newton":
+                return self.newton(x0, maxiter, bounds, **kwargs)
+            elif method=="adam":
+                try: kwargs['n_chunks']
+                except KeyError: raise TypeError("Argument n_chunks required for method='%s'"%method)
+
+                return self.adam(x0, maxiter, bounds, **kwargs)
+            else:
+                raise ValueError("Unrecognized method %s" % method)
+        except:
+            raise
+        finally:
+            if log_file:
+                logger.removeHandler(log_file)
+                logger.propagate, logger.level = prev_propagate, prev_level
     
-    def newton(self, x0, maxiter, bounds, output_progress, opt_method='tnc',
-               xtol=None, ftol=None, gtol=None, finite_diff_eps=None, subsample_steps=0, rgen=np.random,
-               callback=None):
+    def newton(self, x0, maxiter, bounds, opt_method='tnc',
+               xtol=None, ftol=None, gtol=None, finite_diff_eps=None, subsample_steps=0, rgen=np.random):
         #options = {'ftol':ftol,'xtol':xtol,'gtol':gtol}
         options = {}
         for tolname,tolval in (('xtol',xtol), ('ftol',ftol), ('gtol',gtol)):
@@ -88,6 +100,9 @@ class SfsLikelihoodSurface(object):
             jac = False
             options['eps'] = finite_diff_eps
 
+        def print_subsample_step(p, uniq, total):
+            logger.info("Fitting on dataset with %d total SNPs, %d unique SFS entries, making up %f percent of the full data" % (total, uniq, 100.0*p))
+            
         subsample_results = []
         for substep in reversed(list(range(1,subsample_steps+1))):
             p = (2.0)**(-substep)
@@ -98,12 +113,10 @@ class SfsLikelihoodSurface(object):
             validation_counts = rgen.binomial(subsample_counts, .5)
             subsample_counts = subsample_counts - validation_counts
 
+            print_subsample_step(p, np.sum(subsample_counts != 0), np.sum(subsample_counts))
+            
             if np.sum(validation_counts) == 0 or np.sum(subsample_counts) == 0:
-                if output_progress:
-                    print(("Not enough data for subsample with p=%f, continuing" % p))
                 continue
-            elif output_progress:
-                print(("Fitting to subsample with p=%f, with %d unique entries and %d total SNPs" % (p, np.sum(subsample_counts != 0), np.sum(subsample_counts))))
             
             sub_mutrate = self.mut_rate
             if sub_mutrate:
@@ -115,20 +128,17 @@ class SfsLikelihoodSurface(object):
                                                             truncate_probs=self.truncate_probs, batch_size=self.batch_size)
                                        for counts in (subsample_counts, validation_counts)]
 
-            res = _minimize(f=sub_lik.kl_divergence, start_params=x0, jac=jac, method=opt_method, maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence", f_validation=lambda x: validation_lik.kl_divergence(x, differentiable=False), callback=callback)
+            res = _minimize(f=sub_lik.kl_divergence, start_params=x0, jac=jac, method=opt_method, maxiter=maxiter, bounds=bounds, options=options, f_name="KL-Divergence", f_validation=lambda x: validation_lik.kl_divergence(x, differentiable=False))
 
             x0 = res.x
             res.update({'p':p,
                         'uniq_snps': len(sub_lik.sfs._total_freqs),
                         'total_snps': np.sum(sub_lik.sfs._total_freqs)})
             subsample_results += [res]
-            if output_progress:
-                print("Finished fitting subsample p=%f after %d iterations" % (p, res.nit))
+
+        print_subsample_step(1.0, self.sfs.n_nonzero_entries, self.sfs.n_snps())
             
-        if output_progress:
-            print("Fitting on full data, with %d unique entries and %d total SNPs" % (self.sfs.n_nonzero_entries, self.sfs.n_snps()))
-            
-        ret = _minimize(f=self.kl_divergence, start_params=x0, jac=jac, method=opt_method, maxiter=maxiter, bounds=bounds, options=options, output_progress=output_progress, f_name="KL-Divergence", callback=callback)
+        ret = _minimize(f=self.kl_divergence, start_params=x0, jac=jac, method=opt_method, maxiter=maxiter, bounds=bounds, options=options, f_name="KL-Divergence")
 
         if subsample_steps:
             subsample_results.append(scipy.optimize.OptimizeResult(dict(list(ret.items()))))
@@ -138,8 +148,7 @@ class SfsLikelihoodSurface(object):
             ret.subsample_results = subsample_results            
         return ret
             
-    def adam(self, x0, maxiter, bounds, output_progress,
-             n_chunks, **kwargs):
+    def adam(self, x0, maxiter, bounds, n_chunks, **kwargs):
         if len(self.sfs_batches) != 1:
             ## TODO: make this work, by making LikelihoodSurface for each minibatch, with the correct batch_size
             raise NotImplementedError("adam not yet implemented for finite SFS batch_size -- set batch_size=float('inf') in constructor")
@@ -149,7 +158,7 @@ class SfsLikelihoodSurface(object):
         
         sgd_fun = _get_stochastic_optimizer("adam")
         
-        return _sgd_composite_lik(sgd_fun, start_params, f, self.sfs, mut_rate=self.mut_rate, maxiter=maxiter, bounds=bounds, output_progress=output_progress, n_chunks=n_chunks, **kwargs)
+        return _sgd_composite_lik(sgd_fun, start_params, f, self.sfs, mut_rate=self.mut_rate, maxiter=maxiter, bounds=bounds, n_chunks=n_chunks, **kwargs)
 
     ## TODO: make this the main confidence region, deprecate the other one
     class _ConfidenceRegion(object):
@@ -301,140 +310,26 @@ def _mut_factor(sfs, demo, mut_rate, vector):
         ret = np.sum(ret)
     return ret
 
-
-# def _composite_mle_search(data, demo_func, start_params,
-#                          mut_rate = None,
-#                          jac = True, hess = False, hessp = False,
-#                          method = 'tnc', maxiter = None, bounds = None, tol = None, options = {},
-#                          output_progress = False,                        
-#                          sfs_kwargs = {}, truncate_probs = 1e-100,
-#                          **kwargs):
-# """
-# Find the maximum of composite_log_likelihood().
-
-# This is essentially a wrapper around scipy.optimize.minimize.
-# See http://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
-# or help(scipy.optimize.minimize) for more details on these parameters:
-# (method, bounds, tol, options, **kwargs)
-
-# Parameters
-# ----------
-# data : SegSites or Sfs
-# demo_func : function
-#     function that returns a Demography
-#     if jac=True, demo_func should work with autograd (see tutorial)
-# start_params : list
-#     The starting point for the parameter search.
-#     len(start_params) should equal the number of arguments of demo_func
-# mut_rate : None or float, optional
-#     The mutation rate. If None (the default), uses a multinomial
-#     distribution; if a float, uses a Poisson random field. See
-#     composite_log_likelihood for additional details.
-#     Note the Poisson model is not implemented for missing data.
-# jac : bool, optional
-#     If True, use autograd to compute the gradient (jacobian)
-# hess, hessp : bool, optional
-#     If True, use autograd for the hessian or hessian-vector-product.
-#     At most one of hess or hessp should be True. If True, 'method' must
-#     be one of 'newton-cg','trust-ncg','dogleg', or a custom minimizer
-# method : str or callable, optional
-#     The solver for to use (see help(scipy.optimize.minimize))
-# maxiter : int, optional
-#     The maximum number of iterations to use.
-#     Defaults to 100 for regular gradient descent, and 10 for stochastic gradient descent.
-# bounds : list of (lower,upper) or float, optional
-#     lower and upper bounds for each parameter. Use None to indicate
-#     parameter is unbounded in a direction. Use a float to indicate
-#     the parameter should be fixed to a specific value.
-#     if using lower,upper bounds, 'method' must be one of 'l-bfgs-b','tnc','slsqp'.
-# tol : float, optional
-#     Tolerance for termination. For detailed control, use solver-specific options.
-# options : dict, optional
-#     A dictionary of solver-specific options.
-# output_progress : int, optional
-#     print output at every i-th call to the function
-
-# Returns
-# -------
-# res : scipy.optimize.OptimizeResult
-
-#      Important attributes are: x the solution array, success a Boolean
-#      flag indicating if the optimizer exited successfully and message 
-#      which describes the cause of the termination.
-
-# Other Parameters
-# ----------------
-# sfs_kwargs : dict, optional
-#     additional keyword arguments to pass to composite_log_likelihood
-# truncate_probs : float, optional
-#     Replace log(sfs_probs) with log(max(sfs_probs, truncate_probs)),
-#     where sfs_probs are the normalized theoretical SFS entries.
-#     Setting truncate_probs to a small positive number (e.g. 1e-100)
-#     will avoid taking log(0) due to precision or underflow error.
-# **kwargs : optional
-#     additional arguments for scipy.optimize.minimize
-
-# See Also
-# --------
-# composite_log_likelihood : the objective that is optimized here
-# """
-#     start_params = np.array(start_params)
-
-#     f = lambda X,params,mut_rate: _composite_log_likelihood(X, demo_func(*params), mut_rate, truncate_probs = truncate_probs, **sfs_kwargs)    
-#     try:
-#         sgd_fun = _get_stochastic_optimizer(method)
-#     except ValueError:
-#         if maxiter is None:
-#             maxiter = 100
-           
-#         f = mypartial(f, data, mut_rate=mut_rate)
-
-#         if jac: jac = grad(f)
-#         else: jac=None
-
-#         if hessp: hessp = hessian_vector_product(f)
-#         else: hessp = None
-        
-#         if hess: hess = hessian(f)
-#         else: hess = None
-            
-        
-#         return _maximize(f=f, start_params=start_params, jac=jac, hess=hess, hessp=hessp, method=method, maxiter=maxiter, bounds=bounds, tol=tol, options=options, output_progress=output_progress, **kwargs)
-#     else:
-#         ## TODO: change maxiter to be number of steps, not number of passes, & set default to be the same as deterministic
-#         if maxiter is None:
-#             maxiter=10
-
-#         if not jac or hess or hessp:
-#             raise ValueError("For stochastic gradient descent methods, must have jac=True, hess=False, hessp=False")
-#         kwargs = dict(kwargs)
-#         kwargs.update(options)
-#         return _sgd_composite_lik(sgd_fun, start_params, f, data, mut_rate=mut_rate, maxiter=maxiter, bounds=bounds, tol=tol, output_progress=output_progress, **kwargs)
-
-
 ### stuff for stochastic gradient descent
-def _sgd_composite_lik(sgd_method, x0, lik_fun, data, output_progress, n_chunks=None, random_generator=np.random, mut_rate=None, **sgd_kwargs):
+def _sgd_composite_lik(sgd_method, x0, lik_fun, data, n_chunks=None, random_generator=np.random, mut_rate=None, **sgd_kwargs):
     if n_chunks is None:
         raise ValueError("n_chunks must be specified")
     
-    liks = _sgd_liks(lik_fun, data, n_chunks, random_generator, mut_rate, output_progress)
+    liks = _sgd_liks(lik_fun, data, n_chunks, random_generator, mut_rate)
     meta_lik = lambda x,minibatch: liks[minibatch](x)
     meta_lik.n_minibatches = len(liks)
 
-    ret = sgd_method(meta_lik, x0, random_generator=random_generator, output_progress=output_progress, **sgd_kwargs)
+    ret = sgd_method(meta_lik, x0, random_generator=random_generator, **sgd_kwargs)
     return ret
 
-def _sgd_liks(lik_fun, data, n_chunks, rnd, mut_rate, output_progress):
+def _sgd_liks(lik_fun, data, n_chunks, rnd, mut_rate):
     try:
         sfs = data.sfs
     except AttributeError:
         sfs = data
     
     chunks = _subsfs_list(sfs, n_chunks, rnd)
-    if output_progress:
-        print("n_chunks", n_chunks)
-        print("avg snps per chunk", np.mean([chnk.n_snps() for chnk in chunks]))
-        print("avg UNIQUE snps per chunk", np.mean([chnk.n_nonzero_entries for chnk in chunks]))
+    logger.info("Constructed %d minibatches for Stochastic Gradient Descent, with an average of %f total SNPs per minibatch, of which %f are unique" % (n_chunks, np.mean([chnk.n_snps() for chnk in chunks]), np.mean([chnk.n_nonzero_entries for chnk in chunks])))
     
     if mut_rate is not None:
         mut_rate = np.sum(mut_rate * np.ones(len(sfs.loci))) / float(n_chunks)

@@ -10,10 +10,10 @@ from autograd import primitive
 from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory#, _TrivialHistory
 from .parse_ms import _convert_ms_cmd
 from .compute_sfs import expected_total_branch_len
+from .util import logger
 from functools import partial
 
 import os, itertools
-from operator import itemgetter
 
 try: # check whether python knows about 'basestring'
    str
@@ -66,13 +66,18 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
            if time_scale=='standard', coalescence rate is 1/N
            if float, coalescence rate is 2/(N*time_scale)
    """
+   if sampled_t is None:
+      sampled_t = (0.0,) * len(sampled_n)
+
+   logger.debug("make_demography:", "sampled_pops=%s, sampled_n=%s, sampled_t=%s, default_N=%s, time_scale=%s, events=%s " % tuple(map(str, [tuple(sampled_pops), tuple(sampled_n), tuple(sampled_t), default_N, time_scale, events])))
+      
    if time_scale == 'ms':
       time_scale = 1.0
    elif time_scale == 'standard':
       time_scale = 2.0
    elif isinstance(time_scale, str):
       raise DemographyError("time_scale must be float, 'ms', or 'standard'")
-
+  
    old_default_N = default_N
    default_N = default_N * time_scale
    old_events, events = events, []
@@ -89,10 +94,7 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
    _G.graph['events_as_edges'] = []
    # the nodes currently at the root of the graph, as we build it up from the leafs
    _G.graph['roots'] = {} 
-   
-   if sampled_t is None:
-      sampled_t = (0.0,) * len(sampled_n)
-
+     
    ## create sampling events
    sampling_events = [('-eSample', t, i, n) for i,n,t in zip(sampled_pops, sampled_n, sampled_t)]
    events = sampling_events + list(events)

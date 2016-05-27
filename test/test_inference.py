@@ -23,7 +23,7 @@ def test_archaic_sample():
                       num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
     
     x0 = np.array([random.uniform(0,join_time)])
-    res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta).find_optimum(x0, bounds=[(0,join_time)], subsample_steps=2, output_progress=True, opt_method='L-BFGS-B')
+    res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta).find_optimum(x0, bounds=[(0,join_time)], subsample_steps=2, opt_method='L-BFGS-B')
     
     print(res.jac)
     assert abs(res.x - true_sample_t) < .1
