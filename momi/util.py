@@ -226,7 +226,7 @@ def _minimize(f, start_params, maxiter, bounds,
         while f.hist.recent:
             f.hist.recent.pop()
 
-        logger.info("iter = %d ; x = %s ; %s =  %f" % (hist.itr, str(list(x)), f_name, fx))
+        logger.info("iter = {i} ; x = {x} ; {f} =  {fx}".format(i=hist.itr, x=list(x), f=f_name, fx=fx))
         
         hist.itr += 1
         if f_validation is not None:

@@ -32,7 +32,7 @@ class SfsLikelihoodSurface(object):
 
     def log_likelihood(self, x, differentiable=True):       
         if self.demo_func:
-            logger.debug("Computing log-likelihood at x = ", x)            
+            logger.debug("Computing log-likelihood at x = {0}".format(x))            
             demo = self.demo_func(*x)
         else:
             demo = x
@@ -45,7 +45,7 @@ class SfsLikelihoodSurface(object):
         if self.mut_rate:
             ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False)
 
-        logger.debug("log-likelihood = ", ret)
+        logger.debug("log-likelihood = {0}".format(ret))
         return ret
 
     def kl_divergence(self, x, differentiable=True):
@@ -101,7 +101,7 @@ class SfsLikelihoodSurface(object):
             options['eps'] = finite_diff_eps
 
         def print_subsample_step(p, uniq, total):
-            logger.info("Fitting on dataset with %d total SNPs, %d unique SFS entries, making up %f percent of the full data" % (total, uniq, 100.0*p))
+            logger.info("Fitting on dataset with {tot} total SNPs, {uniq} unique SFS entries, making up {p} percent of the full data".format(tot=total, uniq=uniq, p=100.0*p))
             
         subsample_results = []
         for substep in reversed(list(range(1,subsample_steps+1))):
