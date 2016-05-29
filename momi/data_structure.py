@@ -1,7 +1,7 @@
 
 from .util import memoize_instance
 import autograd.numpy as np
-import scipy, scipy.misc
+import scipy, scipy.misc, scipy.sparse
 from scipy.misc import comb
 from .math_functions import _apply_error_matrices
 from collections import Counter
@@ -239,7 +239,7 @@ def site_freq_spectrum(sampled_pops, loci):
         loci_counters[loc][uniq] += count
 
     configs = ConfigArray(sampled_pops, conf_arr, None, None)
-    return Sfs(loci_counters, configs, config2uniq)
+    return Sfs(loci_counters, configs)
     
 class Sfs(object):
     """
@@ -250,26 +250,39 @@ class Sfs(object):
     Sfs.loci : list of dicts, with Sfs.loci[locus][config] == Sfs.freq(config, locus=locus)
     Sfs.total : dict, with Sfs.total[config] == Sfs.freq(config, locus=None)
     """    
-    def __init__(self, loci, configs, config2uniq):
-        self.loci = [Counter(loc) for loc in loci]
-        self.total = sum(self.loci, Counter())
+    def __init__(self, loci, configs):
         self.configs = configs
-        self.config2uniq = config2uniq
         
-    def freq(self, configuration, locus=None):
-        """
-        Notes
-        -----
-        If locus==None, returns the total frequency across all loci
-        """
-        assert np.array(configuration).shape == (len(self.sampled_pops), 2)
-        #configuration = self.configs.get_index(configuration)
-        configuration = self.config2uniq[_config2hashable(configuration)]
-        if locus is None:
-            return self.total[configuration]
-        else:
-            return self.loci[locus][configuration]
+        #self.loci = [Counter(loc) for loc in loci]
+        #self.total = sum(self.loci, Counter())        
 
+        self.loc_idxs, self.loc_counts = [], []
+        for loc in loci:
+            loc = Counter(loc)
+            if len(loc) == 0:
+                self.loc_idxs.append(np.array([], dtype=int))
+                self.loc_counts.append(np.array([], dtype=float))
+            else:
+                idxs,cnts = zip(*loc.items())
+                self.loc_idxs.append(np.array(idxs, dtype=int))
+                self.loc_counts.append(np.array(cnts, dtype=float))
+
+        self._total_freqs = np.array(np.squeeze(np.asarray(self.freqs_matrix.tocsr().sum(axis=1))),
+                                     ndmin=1)
+
+        #self.config2uniq = config2uniq
+
+    @property
+    def freqs_matrix(self):
+        """
+        Returns the frequencies as a sparse matrix; 
+        freqs_matrix[i, j] is the frequency of Sfs.configs[i] at locus j
+        """
+        ret = scipy.sparse.lil_matrix((self.n_loci, len(self.configs)))
+        for loc,(idxs, cnts) in enumerate(zip(self.loc_idxs, self.loc_counts)):
+            ret[loc,idxs] += cnts
+        return ret.T.tocsr()
+        
     @property
     def sampled_n(self):
         return self.configs.sampled_n
@@ -281,19 +294,19 @@ class Sfs(object):
         return self.configs.sampled_pops        
     @property
     def n_loci(self):
-        return len(self.loci)
+        return len(self.loc_idxs)
     @property
     def n_nonzero_entries(self):
-        return len(self.total)
+        return len(self.configs)
     @memoize_instance
     def n_snps(self, vector=False, locus=None):
         if vector:
             assert locus is None
-            return np.array([self.n_snps(locus=loc) for loc in range(self.n_loci)])
+            return np.array([self.n_snps(locus=loc) for loc in range(self.n_loci)])        
         if locus is None:
-            return sum(self.total.values())
+            return np.sum(self._total_freqs)
         else:
-            return sum(self.loci[locus].values())        
+            return sum(self.loc_counts[locus])
     def __eq__(self, other):
         loci_dicts = self._get_dict(vector=True)
         try: return loci_dicts == other._get_dict(vector=True)
@@ -305,8 +318,8 @@ class Sfs(object):
             return [self._get_dict(locus=loc) for loc in range(self.n_loci)]
         elif locus is None:
             return dict(zip(map(_config2hashable, self.configs), self._total_freqs))
-        idxs, counts = self._idxs_counts(locus)
-        return dict(zip((_config2hashable(self.configs[i]) for i in idxs), counts))
+        #idxs, counts = self._idxs_counts(locus)
+        return dict(zip((_config2hashable(self.configs[i]) for i in self.loc_idxs[locus]), self.loc_counts[locus]))
 
     def to_dict(self, vector=False):
         if not vector:
@@ -314,7 +327,6 @@ class Sfs(object):
         else:
             return [{_hashed2config(k):v for k,v in d.items()}
                     for d in self._get_dict(vector=True)]
-        
     
     @property
     @memoize_instance
@@ -343,9 +355,11 @@ class Sfs(object):
         Returns a copy of the SFS, but with folded entries.
         """
         loci = []
-        for l in self.loci:
+        #for l in self.loci:
+        for li, lc in zip(self.loc_idxs, self.loc_counts):
             loci += [Counter()]
-            for k,v in list(l.items()):
+            #for k,v in list(l.items()):
+            for k,v in zip(li, lc):
                 k = np.array(self.configs[k])
                 if tuple(k[:,0]) < tuple(k[:,1]):
                     k = k[:,::-1]
@@ -373,31 +387,35 @@ class Sfs(object):
         """
         if sampled_n is None:
             sampled_n = self.sampled_n        
-        return Sfs(self.loci, ConfigArray(self.sampled_pops, self.configs.value, sampled_n=sampled_n, ascertainment_pop=self.ascertainment_pop),
-                   dict(self.config2uniq))
+        return Sfs([dict(zip(li,lc)) for li,lc in zip(self.loc_idxs, self.loc_counts)],
+                   ConfigArray(self.sampled_pops, self.configs.value, sampled_n=sampled_n, ascertainment_pop=self.ascertainment_pop))
 
     def _integrate_sfs(self, weights, vector=False, locus=None):
         if vector:
             assert locus is None
             return np.array([self._integrate_sfs(weights,locus=loc) for loc in range(self.n_loci)])
-        idxs, counts = self._idxs_counts(locus)
+        if locus is None:
+            idxs, counts = slice(None), self._total_freqs
+        else:
+            idxs, counts = self.loc_idxs[locus], self.loc_counts[locus]
+        #idxs, counts = self._idxs_counts(locus)
         return np.sum(weights[idxs] * counts)
 
-    @property
-    def _total_freqs(self):
-        return self._idxs_counts(None)[1]
+    # @property
+    # def _total_freqs(self):
+    #     return self._idxs_counts(None)[1]
     
-    @memoize_instance
-    def _idxs_counts(self, locus):
-        if locus is None:
-            ## NOTE: use range(len(self.configs)) instead of range(len(self.total));
-            ##       in case there is a config with freq 0 and hence not in the Counter() total
-            return (slice(None), np.array([self.total[i] for i in range(len(self.configs))]))
+    # @memoize_instance
+    # def _idxs_counts(self, locus):
+    #     if locus is None:
+    #         ## NOTE: use range(len(self.configs)) instead of range(len(self.total));
+    #         ##       in case there is a config with freq 0 and hence not in the Counter() total
+    #         return (slice(None), np.array([self.total[i] for i in range(len(self.configs))]))
 
-        #idxs, counts = zip(*self.loci[locus].items())
-        idxs = np.array(list(self.loci[locus].keys()), dtype=int)
-        counts = np.array([self.loci[locus][k] for k in idxs], dtype=float)
-        return idxs, counts    
+    #     #idxs, counts = zip(*self.loci[locus].items())
+    #     idxs = np.array(list(self.loci[locus].keys()), dtype=int)
+    #     counts = np.array([self.loci[locus][k] for k in idxs], dtype=float)
+    #     return idxs, counts    
 
 def seg_site_configs(sampled_pops, config_sequences, ascertainment_pop=None):
     """
@@ -431,7 +449,7 @@ class SegSites(object):
     def __init__(self, configs, idx_list, config2uniq):
         self.configs = configs
         self.idx_list = idx_list
-        self.sfs = Sfs(self.idx_list, self.configs, config2uniq)
+        self.sfs = Sfs(self.idx_list, self.configs)
         
     def get_config(self, locus, site):
         return self.configs[self.idx_list[locus][site]]
@@ -448,7 +466,10 @@ class SegSites(object):
     def sampled_n(self): return self.sfs.sampled_n
     @property
     def n_loci(self): return self.sfs.n_loci
-    def n_snps(self, locus=None): return self.sfs.n_snps(locus=locus)
+    def n_snps(self, locus=None):
+        ret = self.sfs.n_snps(locus=locus)
+        assert int(ret) == ret
+        return int(ret)
    
     def __eq__(self, other):
         configs, idx_list, ascertainment_pop = self.configs, self.idx_list, self.ascertainment_pop
@@ -546,7 +567,7 @@ def _sfs_subset(sfs, counts):
 
     counts = counts[counts != 0]
 
-    return Sfs([{i:c for i,c in enumerate(counts)}], sub_configs, dict(sfs.config2uniq))
+    return Sfs([{i:c for i,c in enumerate(counts)}], sub_configs)
    
 class _ConfigArray_Subset(ConfigArray):
     ## Efficient access to subset of configs

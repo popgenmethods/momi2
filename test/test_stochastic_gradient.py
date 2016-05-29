@@ -49,7 +49,7 @@ def test_subsfs(fold, use_mut):
     locus = random.choice(list(range(n_loci)))
     #subsfs = momi.likelihood._SubSfs(sfs.configs, sfs._counts_ij[locus,:])
     counts = np.zeros(sfs.n_nonzero_entries)
-    loc_idxs,loc_counts = sfs._idxs_counts(locus)
+    loc_idxs,loc_counts = sfs.loc_idxs[locus], sfs.loc_counts[locus]
     counts[loc_idxs] = loc_counts
     subsfs = momi.data_structure._sfs_subset(sfs, counts)
 

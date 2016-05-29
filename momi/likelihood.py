@@ -165,7 +165,8 @@ class SfsLikelihoodSurface(object):
         pass
 
 def _build_sfs_batches(sfs, batch_size):
-    _,counts = sfs._idxs_counts(locus=None)
+    #_,counts = sfs._idxs_counts(locus=None)
+    counts = sfs._total_freqs
     sfs_len = len(counts)
     
     if sfs_len <= batch_size:
@@ -185,6 +186,8 @@ def _build_sfs_batches(sfs, batch_size):
     ## thus avoiding redundant computation
     ## "similar" == configs have same num missing alleles
     ## "very similar" == configs are folded copies of each other
+
+    logger.debug("Sorting configs into batches")
     
     a = sfs.configs.value[:,:,0] # ancestral counts
     d = sfs.configs.value[:,:,1] # derived counts
@@ -208,6 +211,7 @@ def _build_sfs_batches(sfs, batch_size):
         curr[idx] = counts[idx]
         subcounts_list.append(curr)
 
+    logger.debug("Finished sorting into batches. Creating the batches")
     return [_sfs_subset(sfs, c) for c in subcounts_list]
 
 ## a decorator that rearranges gradient computations to be more memory efficient
@@ -332,7 +336,7 @@ def _sgd_liks(lik_fun, data, n_chunks, rnd, mut_rate):
     logger.info("Constructed %d minibatches for Stochastic Gradient Descent, with an average of %f total SNPs per minibatch, of which %f are unique" % (n_chunks, np.mean([chnk.n_snps() for chnk in chunks]), np.mean([chnk.n_nonzero_entries for chnk in chunks])))
     
     if mut_rate is not None:
-        mut_rate = np.sum(mut_rate * np.ones(len(sfs.loci))) / float(n_chunks)
+        mut_rate = np.sum(mut_rate * np.ones(sfs.n_loci)) / float(n_chunks)
 
     # def lik_fun(sfs_chunk, params):
     #     return composite_log_likelihood(sfs_chunk, demo_func(*params), mut_rate=mut_rate, **kwargs)
@@ -591,7 +595,8 @@ def _long_score_cov(params, seg_sites, demo_func, **kwargs):
     params = np.array(params)
    
     configs = seg_sites.sfs.configs
-    _,snp_counts = seg_sites.sfs._idxs_counts(None)
+    #_,snp_counts = seg_sites.sfs._idxs_counts(None)
+    snp_counts = seg_sites.sfs._total_freqs
     weights = snp_counts / float(np.sum(snp_counts))
     
     def snp_log_probs(x):

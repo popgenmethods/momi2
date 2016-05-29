@@ -17,10 +17,10 @@ def test_batches():
     sfs = momi.simulate_ms(scrm_path, demo,
                            num_loci=1000, mut_rate=.1).sfs
 
-    sfs_len = len(sfs.total)
+    sfs_len = sfs.n_nonzero_entries
     
     print("total entries", sfs_len)
-    print("total snps", sum(sfs.total.values()))
+    print("total snps", sfs.n_snps())
 
     assert sfs_len > 30
 
@@ -36,10 +36,10 @@ def test_batches_grad():
     sfs = momi.simulate_ms(scrm_path, demo,
                            num_loci=2000, mut_rate=mu).sfs
 
-    sfs_len = len(sfs.total)
+    sfs_len = sfs.n_nonzero_entries
     
     print("total entries", sfs_len)
-    print("total snps", sum(sfs.total.values()))
+    print("total snps", sfs.n_snps())
 
     assert sfs_len > 30
 
@@ -54,10 +54,10 @@ def test_no_hessian():
     sfs = momi.simulate_ms(scrm_path, demo,
                            num_loci=1000, mut_rate=.1).sfs
 
-    sfs_len = len(sfs.total)
+    sfs_len = sfs.n_nonzero_entries
     
     print("total entries", sfs_len)
-    print("total snps", sum(sfs.total.values()))
+    print("total snps", sfs.n_snps())
 
     assert sfs_len > 30
 

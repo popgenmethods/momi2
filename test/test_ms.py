@@ -43,10 +43,11 @@ def check_sfs_counts(demo, theta=10., rho=10.0, num_loci=1000, folded=False):
     sfs_vals,branch_len = expected_sfs(demo, sfs_list.configs, folded=folded), expected_total_branch_len(demo)
     theoretical = sfs_vals * theta
 
-    observed = np.zeros((len(sfs_list.configs), len(sfs_list.loci)))
-    for j in range(sfs_list.n_loci):
-        for i,config in enumerate(sfs_list.configs):
-            observed[i,j] = sfs_list.freq(config,locus=j)
+    # observed = np.zeros((len(sfs_list.configs), len(sfs_list.loci)))
+    # for j in range(sfs_list.n_loci):
+    #     for i,config in enumerate(sfs_list.configs):
+    #         observed[i,j] = sfs_list.freq(config,locus=j)
+    observed = np.array(sfs_list.freqs_matrix.todense())
 
     labels = list(sfs_list.configs)
 
