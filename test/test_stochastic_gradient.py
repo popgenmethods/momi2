@@ -51,7 +51,7 @@ def test_subsfs(fold, use_mut):
     counts = np.zeros(sfs.n_nonzero_entries)
     loc_idxs,loc_counts = sfs.loc_idxs[locus], sfs.loc_counts[locus]
     counts[loc_idxs] = loc_counts
-    subsfs = momi.data_structure._sfs_subset(sfs, counts)
+    subsfs = momi.data_structure._sub_sfs(sfs.configs, counts)
 
     if not use_mut:
         mut_rate = None

@@ -559,14 +559,15 @@ def read_seg_sites(sequences_file):
             
     return seg_site_configs(sampled_pops, (get_configs(loc) for i,loc in loci), ascertainment_pop=ascertainment_pop)
 
-def _sfs_subset(sfs, counts):
-    assert len(counts.shape) == 1 and len(counts) == len(sfs.configs.value)
-
-    subidxs = np.arange(len(counts))[counts != 0]
-    sub_configs = _ConfigArray_Subset(sfs.configs, subidxs)
-
-    counts = counts[counts != 0]
-
+def _sub_sfs(configs, counts, subidxs=None):
+    assert len(counts.shape) == 1 
+    if subidxs is None:
+        assert len(counts) == len(configs.value)
+        ## make array copies to prevent views keeping references to larger objects
+        subidxs = np.array(np.arange(len(counts))[counts != 0])
+        counts = np.array(counts[counts != 0])
+    assert len(subidxs) == len(counts)
+    sub_configs = _ConfigArray_Subset(configs, subidxs)
     return Sfs([{i:c for i,c in enumerate(counts)}], sub_configs)
    
 class _ConfigArray_Subset(ConfigArray):

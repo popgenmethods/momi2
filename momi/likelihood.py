@@ -4,7 +4,7 @@ import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .math_functions import einsum2, inv_psd
 from .demography import DemographyError, Demography
-from .data_structure import _sfs_subset
+from .data_structure import _sub_sfs
 import scipy, scipy.stats
 import autograd
 from autograd import grad, hessian_vector_product, hessian
@@ -122,7 +122,7 @@ class SfsLikelihoodSurface(object):
             if sub_mutrate:
                 sub_mutrate = np.sum(sub_mutrate * p * np.ones(self.sfs.n_loci))
             
-            sub_lik, validation_lik = [SfsLikelihoodSurface(_sfs_subset(self.sfs, counts),
+            sub_lik, validation_lik = [SfsLikelihoodSurface(_sub_sfs(self.sfs.configs, counts),
                                                             demo_func=self.demo_func, mut_rate=sub_mutrate,
                                                             folded=self.folded, error_matrices=self.error_matrices,
                                                             truncate_probs=self.truncate_probs, batch_size=self.batch_size)
@@ -187,7 +187,7 @@ def _build_sfs_batches(sfs, batch_size):
     ## "similar" == configs have same num missing alleles
     ## "very similar" == configs are folded copies of each other
 
-    logger.debug("Sorting configs into batches")
+    #logger.debug("Sorting configs into batches")
     
     a = sfs.configs.value[:,:,0] # ancestral counts
     d = sfs.configs.value[:,:,1] # derived counts
@@ -200,19 +200,20 @@ def _build_sfs_batches(sfs, batch_size):
     folded = list(map(min, list(zip(a,d))))
 
     keys = list(zip(n,folded))
-    sorted_idxs = sorted(list(range(sfs_len)), key=lambda i:keys[i])
+    sorted_idxs = sorted(range(sfs_len), key=lambda i:keys[i])
     sorted_idxs = np.array(sorted_idxs, dtype=int)
 
     idx_list = [sorted_idxs[s] for s in slices]
+    return [_sub_sfs(sfs.configs, counts[idx], subidxs=idx) for idx in idx_list]
     
-    subcounts_list = []
-    for idx in idx_list:
-        curr = np.zeros(len(counts))
-        curr[idx] = counts[idx]
-        subcounts_list.append(curr)
+    # subcounts_list = []
+    # for idx in idx_list:
+    #     curr = np.zeros(len(counts))
+    #     curr[idx] = counts[idx]
+    #     subcounts_list.append(curr)
 
-    logger.debug("Finished sorting into batches. Creating the batches")
-    return [_sfs_subset(sfs, c) for c in subcounts_list]
+    # logger.debug("Finished sorting into batches. Creating the batches")
+    # return [_sfs_subset(sfs, c) for c in subcounts_list]
 
 ## a decorator that rearranges gradient computations to be more memory efficient
 ## it turns the subroutine into a primitive so that its computations are not stored on the tape
@@ -349,12 +350,13 @@ def _subsfs_list(sfs, n_chunks, rnd):
     total_counts = sfs._total_freqs
 
     # row = SFS entry, column=chunk
+    ## TODO: improve memory usage here!!!
     random_counts = np.array([rnd.multinomial(cnt_i, [1./float(n_chunks)]*n_chunks)
                               for cnt_i in total_counts], dtype=int)
     assert random_counts.shape == (len(total_counts), n_chunks)
     assert np.sum(random_counts) == np.sum(total_counts)
     
-    return [_sfs_subset(sfs, column) for column in np.transpose(random_counts)]
+    return [_sub_sfs(sfs.configs, column) for column in np.transpose(random_counts)]
 
 
 ### stuff for confidence intervals
