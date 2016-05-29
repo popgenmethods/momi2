@@ -35,7 +35,7 @@ def full_config_array(sampled_pops, sampled_n, ascertainment_pop=None):
         x = np.array(x, dtype=int)
         if not (np.all(x[ascertainment_pop] == 0) or np.all(x[ascertainment_pop] == sampled_n[ascertainment_pop])):
             config_list.append(x)
-    return config_array(sampled_pops, config_list, sampled_n,
+    return config_array(sampled_pops, np.array(config_list, dtype=int), sampled_n,
                         ascertainment_pop=ascertainment_pop)    
 
 class ConfigArray(object):
@@ -101,36 +101,62 @@ class ConfigArray(object):
         return ConfigArray(self.sampled_pops, self.value, sampled_n=sampled_n, ascertainment_pop=self.ascertainment_pop)
 
     def _vecs_and_idxs(self, folded):
-        vecs,idxs = self._build_vecs_and_idxs(folded)
-        ## copy idxs to make it safe
-        return vecs, dict(idxs)
+        #augmented_configs, augmented_idxs = self._build_augmented_configs_idxs(folded)
+        augmented_configs = self._augmented_configs(folded)
+        augmented_idxs = self._augmented_idxs(folded)
+        
+        # construct the vecs
+        vecs = [np.zeros((len(augmented_configs), n+1)) for n in self.sampled_n]
+        
+        for i in range(len(vecs)):
+            n = self.sampled_n[i]
+            derived = np.einsum("i,j->ji", np.ones(len(augmented_configs)), np.arange(n+1))
+            curr = comb(derived, augmented_configs[:,i,1]) * comb(n-derived, augmented_configs[:,i,0]) / comb(n, np.sum(augmented_configs[:,i,:], axis=1))
+            assert not np.any(np.isnan(curr))
+            vecs[i] = np.transpose(curr)
+        
+        ## copy augmented_idxs to make it safe
+        return vecs, dict(augmented_idxs)
 
-    def _config_str_iter(self):
-        for c in self.value:
-            yield _config2hashable(c)
+    # def _config_str_iter(self):
+    #     for c in self.value:
+    #         yield _config2hashable(c)
+
+    def _augmented_configs(self, folded):
+        return self._build_augmented_configs_idxs(folded)[0]
+    def _augmented_idxs(self, folded):
+        return self._build_augmented_configs_idxs(folded)[1]        
     
     @memoize_instance
-    def _build_vecs_and_idxs(self, folded):
-        # get row indices for each config
-        n_rows = 0
-        n_rows += 1 # initial row is a "zero" config
+    def _build_augmented_configs_idxs(self, folded):
+        augmented_configs = []
+        augmented_config_2_idx = {} # maps config -> row in vecs
+        def augmented_idx(config):
+            hashed = _config2hashable(config)
+            try: return augmented_config_2_idx[hashed]
+            except KeyError:
+                idx = len(augmented_configs)
+                assert idx == len(augmented_config_2_idx)
+                
+                augmented_config_2_idx[hashed] = idx
+                augmented_configs.append(config)
+                return idx
+                
+        # initial row is a "zero" config
+        null_idx = augmented_idx(np.array([(-1,1)]*len(self.sampled_pops), dtype=int))
 
-        denom_idx = n_rows # next row is for the normalization constant
-        n_rows += 1
+        # next row is normalization constant
+        denom_idx = augmented_idx(np.zeros((len(self.sampled_pops), 2)))       
         
-        config_2_row = {} # maps config -> row in vecs
-        for config in set(self._config_str_iter()):
-            config_2_row[config] = n_rows
-            n_rows += 1
-        idx_2_row = np.array([config_2_row[c] for c in self._config_str_iter()],
-                             dtype = int)
-
+        # get row indices for each config        
+        idx_2_row = np.array(list(map(augmented_idx, self)))
+        
         ## remove monomorphic configs
         ## (if there is missing data or error matrices,
         ##  expected_sfs_tensor_prod will return nonzero SFS
         ##  for monomorphic configs)
         monomorphic = np.any(np.sum(self.value, axis=1) == 0, axis=1)
-        idx_2_row[monomorphic] = 0
+        idx_2_row[monomorphic] = null_idx
         
         # get row indices for each denominator
         sample_sizes_array = np.sum(self.value, axis=2)
@@ -138,7 +164,6 @@ class ConfigArray(object):
             raise Exception("There is a config that is larger than the specified sample size!")
         
         sample_sizes = [tuple(s) for s in sample_sizes_array]
-        #ssize_2_row = {}
         ssize_2_corrections = [{}, {}] # corrections for monomorphic sites (all ancestral & all derived)
         for s in set(sample_sizes):
             ## add rows for monomorphic correction terms
@@ -147,12 +172,8 @@ class ConfigArray(object):
                 mono_config = np.array([mono_config, [0]*len(mono_config)], dtype=int, ndmin=2)
                 if mono_allele == 1:
                     mono_config = mono_config[::-1,:]
-                #mono_config = tuple(map(tuple, np.transpose(mono_config)))
-                mono_config = _config2hashable(np.transpose(mono_config))
-                if mono_config not in config_2_row:
-                    config_2_row[mono_config] = n_rows
-                    n_rows += 1
-                ssize_2_corrections[mono_allele][s] = config_2_row[mono_config]
+                mono_config = np.transpose(mono_config)
+                ssize_2_corrections[mono_allele][s] = augmented_idx(mono_config)
         corrections_2_denom = [np.array([corr_row[s] for s in sample_sizes], dtype=int)
                                for corr_row in ssize_2_corrections]
         
@@ -160,39 +181,16 @@ class ConfigArray(object):
         if folded:
             rev_confs = self.value[:,:,::-1]
             is_symm = np.all(self.value == rev_confs, axis=(1,2))
-            rev_confs = list(map(_config2hashable, rev_confs))
             folded_2_row = []
             for rc,symm in zip(rev_confs, is_symm):
                 if symm:
                     # map to 0 if symmetric              
-                    folded_2_row += [0]
+                    folded_2_row += [null_idx]
                 else:
-                    if rc not in config_2_row:
-                        config_2_row[rc] = n_rows
-                        n_rows += 1
-                    folded_2_row += [config_2_row[rc]]
+                    folded_2_row += [augmented_idx(rc)]
             folded_2_row = np.array(folded_2_row, dtype=int)
-            folded_2_row[monomorphic] = 0 ## dont use monomorphic configs
+            folded_2_row[monomorphic] = null_idx ## dont use monomorphic configs
            
-        # construct the vecs
-        vecs = [np.zeros((n_rows, n+1)) for n in self.sampled_n]
-        
-        # construct rows for each config
-        configs, rows = list(zip(*list(config_2_row.items())))
-        rows = np.array(rows, ndmin=1)
-        configs = list(map(_hashed2config, configs))
-        configs = np.array(configs, ndmin=3, dtype=int)
-
-        for i in range(len(vecs)):
-            n = self.sampled_n[i]
-            derived = np.einsum("i,j->ji", np.ones(len(rows)), np.arange(n+1))
-            curr = comb(derived, configs[:,i,1]) * comb(n-derived, configs[:,i,0]) / comb(n, np.sum(configs[:,i,:], axis=1))
-            assert not np.any(np.isnan(curr))
-            vecs[i][rows,:] = np.transpose(curr)
-
-            # the normalization constant
-            vecs[i][denom_idx,:] = np.ones(n+1)
-
         idxs = {'denom_idx': denom_idx, 'idx_2_row': idx_2_row}
         assert len(corrections_2_denom) == 2
         idxs.update({('corrections_2_denom',0): corrections_2_denom[0],
@@ -201,7 +199,8 @@ class ConfigArray(object):
             idxs['folded_2_row'] = folded_2_row
         except UnboundLocalError:
             pass
-        return vecs, idxs
+
+        return np.array(augmented_configs, dtype=int), idxs        
 
 ## TODO: change parameters to list of configs, and a sparse matrix giving counts
 def site_freq_spectrum(sampled_pops, loci):
@@ -539,36 +538,6 @@ def read_seg_sites(sequences_file):
             
     return seg_site_configs(sampled_pops, (get_configs(loc) for i,loc in loci), ascertainment_pop=ascertainment_pop)
 
-
-# def _config(a=None,d=None,n=None):
-#     """
-#     Returns config c, with c[pop][allele] == count of allele in pop
-
-#     Parameters
-#     ----------
-#     a : ancestral allele counts
-#     d : derived allele counts
-#     n : sample size
-
-#     Exactly 2 of a,d,n should be non-None
-#     """
-#     if sum([x is None for x in (a,d,n)]) != 1:
-#         raise ValueError("Exactly 1 of a,d,n should be None")
-#     if a is None:
-#         a = np.array(n) - np.array(d)
-#     elif d is None:
-#         d = np.array(n) - np.array(a)
-#     if np.any(a < 0) or np.any(d < 0):
-#         raise ValueError("Negative allele counts")
-#     return np.array([a,d]).T
-
-# def _configs_from_derived(derived_counts, sampled_n, sampled_pops):
-#     return config_array(sampled_pops, derived_counts, sampled_n)
-#     # input_counts = np.array(derived_counts)    
-#     # derived_counts = np.array(input_counts, ndmin=2)
-#     # ret = [_config(d=d,n=sampled_n) for d in derived_counts]
-#     # return config_array(sampled_pops, ret)
-
 def _sfs_subset(sfs, counts):
     assert len(counts.shape) == 1 and len(counts) == len(sfs.configs.value)
 
@@ -578,11 +547,8 @@ def _sfs_subset(sfs, counts):
     counts = counts[counts != 0]
 
     return Sfs([{i:c for i,c in enumerate(counts)}], sub_configs, dict(sfs.config2uniq))
-
-# def _has_monomorphic(config_array):
-#     return np.any(np.sum(config_array,axis=1) == 0)
-    
-class _ConfigArray_Subset(object):
+   
+class _ConfigArray_Subset(ConfigArray):
     ## Efficient access to subset of configs
     def __init__(self, configs, sub_idxs):
         self.sub_idxs = sub_idxs
@@ -594,27 +560,34 @@ class _ConfigArray_Subset(object):
     @property
     def value(self):
         return self.full_configs.value[self.sub_idxs,:,:]
-
+    def __iter__(self):
+        for i in self.value: yield i
     def __len__(self):
         return len(self.sub_idxs)
     
-    def _vecs_and_idxs(self, folded):
-        vecs,_ = self.full_configs._vecs_and_idxs(folded)
-        old_idxs, idxs = self._build_idxs(folded)
+    # def _vecs_and_idxs(self, folded):
+    #     vecs,_ = self.full_configs._vecs_and_idxs(folded)
+    #     old_idxs, idxs = self._build_idxs(folded)
 
-        vecs = [v[old_idxs,:] for v in vecs]
-        ## copy idxs to make it safe
-        return vecs, dict(idxs)
-        
+    #     vecs = [v[old_idxs,:] for v in vecs]
+    #     ## copy idxs to make it safe
+    #     return vecs, dict(idxs)
+
+
+    def _augmented_configs(self, folded):
+        return self.full_configs._augmented_configs(folded)[self._build_old_new_idxs(folded)[0],:,:]
+    def _augmented_idxs(self, folded):
+        return self._build_old_new_idxs(folded)[1]
+    
     @memoize_instance
-    def _build_idxs(self, folded):
-        _,idxs = self.full_configs._vecs_and_idxs(folded)
+    def _build_old_new_idxs(self, folded):
+        idxs = self.full_configs._augmented_idxs(folded)
 
         denom_idx_key = 'denom_idx'
         denom_idx = idxs[denom_idx_key]
         idxs = {k: v[self.sub_idxs] for k,v in list(idxs.items()) if k != denom_idx_key}
 
-        old_idxs = np.array(list(set(sum(list(map(list, list(idxs.values()))) + [[denom_idx]], []))))
+        old_idxs = np.array(list(set(sum(map(list, idxs.values()), [denom_idx]))))
         old_2_new_idxs = {old_id: new_id for new_id, old_id in enumerate(old_idxs)}
 
         idxs = {k: np.array([old_2_new_idxs[old_id]
