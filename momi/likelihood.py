@@ -89,7 +89,7 @@ class SfsLikelihoodSurface(object):
                 logger.propagate, logger.level = prev_propagate, prev_level
     
     def newton(self, x0, maxiter, bounds, opt_method='gradient_descent',
-               xtol=None, ftol=None, gtol=None, finite_diff_eps=None, subsample_steps=0, rgen=np.random):
+               xtol=None, ftol=None, gtol=None, finite_diff_eps=None, subsample_steps=0, rgen=np.random, callback=None):
         #options = {'ftol':ftol,'xtol':xtol,'gtol':gtol}
         options = {}
         for tolname,tolval in (('xtol',xtol), ('ftol',ftol), ('gtol',gtol)):
@@ -128,7 +128,7 @@ class SfsLikelihoodSurface(object):
                                                             truncate_probs=self.truncate_probs, batch_size=self.batch_size)
                                        for counts in (subsample_counts, validation_counts)]
 
-            res = _minimize(f=sub_lik.kl_divergence, start_params=x0, jac=jac, method=opt_method, maxiter=maxiter, bounds=bounds, options=options, f_name="KL-Divergence", f_validation=lambda x: validation_lik.kl_divergence(x, differentiable=False))
+            res = _minimize(f=sub_lik.kl_divergence, start_params=x0, jac=jac, method=opt_method, maxiter=maxiter, bounds=bounds, options=options, f_name="KL-Divergence", f_validation=lambda x: validation_lik.kl_divergence(x, differentiable=False), callback=callback)
 
             x0 = res.x
             res.update({'p':p,
@@ -138,7 +138,7 @@ class SfsLikelihoodSurface(object):
 
         print_subsample_step(1.0, self.sfs.n_nonzero_entries, self.sfs.n_snps())
             
-        ret = _minimize(f=self.kl_divergence, start_params=x0, jac=jac, method=opt_method, maxiter=maxiter, bounds=bounds, options=options, f_name="KL-Divergence")
+        ret = _minimize(f=self.kl_divergence, start_params=x0, jac=jac, method=opt_method, maxiter=maxiter, bounds=bounds, options=options, f_name="KL-Divergence", callback=callback)
 
         if subsample_steps:
             subsample_results.append(scipy.optimize.OptimizeResult(dict(list(ret.items()))))

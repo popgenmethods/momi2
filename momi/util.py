@@ -199,7 +199,7 @@ def wrap_minimizer(minimizer):
 @wrap_minimizer
 def _minimize(f, start_params, maxiter, bounds,
               jac = True, method = 'gradient_descent', tol = None, options = {},
-              f_name="objective", f_validation=None):
+              f_name="objective", f_validation=None, callback=None):
     options = dict(options)
     if maxiter is not None:
         options['maxiter'] = maxiter
@@ -215,13 +215,17 @@ def _minimize(f, start_params, maxiter, bounds,
     hist.validations = []
     hist.result = None
 
+    user_callback = callback   
     def callback(x):
         for y,fy,gy in reversed(f.hist.recent):
             if np.allclose(y,x):
                 fx,gx = fy,gy
                 break
         assert np.allclose(y,x)
-       
+
+        if user_callback is not None:
+            user_callback(x,fx)
+        
         hist.f_vals += [fx]
         
         while f.hist.recent:
