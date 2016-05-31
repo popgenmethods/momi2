@@ -2,6 +2,7 @@
 from future.utils import raise_with_traceback
 import functools
 import autograd.numpy as np
+import numdifftools
 from functools import partial, update_wrapper, wraps
 from autograd.core import primitive
 from autograd import hessian, grad, hessian_vector_product, jacobian
@@ -197,7 +198,7 @@ def wrap_minimizer(minimizer):
 
 @wrap_minimizer
 def _minimize(f, start_params, maxiter, bounds,
-              jac = True, method = 'tnc', tol = None, options = {},
+              jac = True, method = 'gradient_descent', tol = None, options = {},
               f_name="objective", f_validation=None):
     options = dict(options)
     if maxiter is not None:
@@ -242,7 +243,11 @@ def _minimize(f, start_params, maxiter, bounds,
                 raise Exception()
 
     try:
-        ret = scipy.optimize.minimize(f, start_params, jac=jac, method=method, bounds=bounds, tol=tol, options=options, callback=callback)
+        if method=='gradient_descent':
+            #assert jac is True
+            ret = gradient_descent(start_params, f, bounds=bounds, callback=callback, **options)
+        else:
+            ret = scipy.optimize.minimize(f, start_params, jac=jac, method=method, bounds=bounds, tol=tol, options=options, callback=callback)
         #assert ret.nfev == f.hist.nfev-1 or not jac
     except:
         if hist.result:
@@ -250,6 +255,66 @@ def _minimize(f, start_params, maxiter, bounds,
         else:
             raise
     return ret
+
+def gradient_descent(x0, f_and_g, bounds=None, init_step_size=100.0, step_growth=2.0**(.1), maxiter=1000,eps=None, callback=None):
+    if eps is not None:
+        fun = f_and_g
+        gr = numdifftools.Gradient(fun, step=eps)
+        f_and_g = lambda x: (fun(x),gr(x))
+    
+    #assert False
+    stepsize = init_step_size
+    x=np.array(x0,dtype=float)
+    f,g = f_and_g(x)
+    nfev=1
+    nit=-1
+
+    if bounds is None:
+        bounds = [(None,None)]*len(x0)
+    old_bounds, bounds = bounds, []
+    for lower, upper in old_bounds:
+        if lower is None: lower = -float('inf')
+        if upper is None: upper = float('inf')
+        bounds.append((lower,upper))
+
+    lower, upper = list(map(np.array, zip(*bounds)))
+    
+    while True:
+        nit += 1
+        callback(x)
+        
+        if np.allclose(g, 0):
+            success=True
+            msg="Converged jac~=0"
+            break
+        if nit > maxiter:
+            success=False
+            msg="Maximum number of iterations reached"
+            break
+
+        while True:
+            next_x = x - g * stepsize
+            next_x = np.maximum(np.minimum(next_x, upper), lower)
+            next_f, next_g = f_and_g(next_x)
+            nfev += 1
+            if next_f <= f + 0.5 * np.dot(g, next_x - x):
+                break
+            else:
+                stepsize = 0.5 * stepsize
+
+        prev_x = x
+        x,f,g = next_x, next_f, next_g
+            
+        if np.allclose(x, prev_x):
+            success=True
+            msg="Converged |x_k - x_{k-1}|~=0"
+            break
+
+        stepsize = stepsize * step_growth
+
+    return scipy.optimize.OptimizeResult({'success':success, 'message':msg,
+                                          'nfev':nfev, 'nit':nit,
+                                          'x':x, 'fun':f, 'jac':g})
 
 def wrap_objective(fun,name,jac):
     hist = lambda : None
