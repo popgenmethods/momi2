@@ -260,14 +260,14 @@ def _minimize(f, start_params, maxiter, bounds,
             raise
     return ret
 
-def gradient_descent(x0, f_and_g, bounds=None, init_step_size=100.0, step_growth=2.0**(.1), maxiter=1000,eps=None, callback=None):
+def gradient_descent(x0, f_and_g, bounds=None, maxiter=1000, eps=None, callback=None):
     if eps is not None:
         fun = f_and_g
         gr = numdifftools.Gradient(fun, step=eps)
         f_and_g = lambda x: (fun(x),gr(x))
     
     #assert False
-    stepsize = init_step_size
+    stepsize = 1.0
     x=np.array(x0,dtype=float)
     f,g = f_and_g(x)
     nfev=1
@@ -296,6 +296,19 @@ def gradient_descent(x0, f_and_g, bounds=None, init_step_size=100.0, step_growth
             msg="Maximum number of iterations reached"
             break
 
+        if nit==0:
+            ## on first step, do a "forward" line search to get the largest possible initial stepsize
+            while True:
+                next_x = x - g * stepsize
+                next_x = np.maximum(np.minimum(next_x, upper), lower)
+                next_f, next_g = f_and_g(next_x)
+                nfev += 1
+                if next_f >= f + 0.5 * np.dot(g, next_x - x):
+                    break
+                else:
+                    stepsize = 2.0 * stepsize
+
+        ## backtracking line search
         while True:
             next_x = x - g * stepsize
             next_x = np.maximum(np.minimum(next_x, upper), lower)
@@ -314,7 +327,7 @@ def gradient_descent(x0, f_and_g, bounds=None, init_step_size=100.0, step_growth
             msg="Converged |x_k - x_{k-1}|~=0"
             break
 
-        stepsize = stepsize * step_growth
+        stepsize = stepsize * 2.0
 
     return scipy.optimize.OptimizeResult({'success':success, 'message':msg,
                                           'nfev':nfev, 'nit':nit,
