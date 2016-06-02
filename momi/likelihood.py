@@ -88,7 +88,7 @@ class SfsLikelihoodSurface(object):
                 logger.removeHandler(log_file)
                 logger.propagate, logger.level = prev_propagate, prev_level
     
-    def newton(self, x0, maxiter, bounds, opt_method='gradient_descent',
+    def newton(self, x0, maxiter, bounds, opt_method='tnc',
                xtol=None, ftol=None, gtol=None, finite_diff_eps=None, subsample_steps=0, rgen=np.random, callback=None):
         #options = {'ftol':ftol,'xtol':xtol,'gtol':gtol}
         options = {}

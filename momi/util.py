@@ -198,7 +198,7 @@ def wrap_minimizer(minimizer):
 
 @wrap_minimizer
 def _minimize(f, start_params, maxiter, bounds,
-              jac = True, method = 'gradient_descent', tol = None, options = {},
+              jac = True, method = 'tnc', tol = None, options = {},
               f_name="objective", f_validation=None, callback=None):
     options = dict(options)
     if maxiter is not None:
@@ -265,13 +265,6 @@ def gradient_descent(x0, f_and_g, bounds=None, maxiter=1000, eps=None, callback=
         fun = f_and_g
         gr = numdifftools.Gradient(fun, step=eps)
         f_and_g = lambda x: (fun(x),gr(x))
-    
-    #assert False
-    stepsize = 1.0
-    x=np.array(x0,dtype=float)
-    f,g = f_and_g(x)
-    nfev=1
-    nit=-1
 
     if bounds is None:
         bounds = [(None,None)]*len(x0)
@@ -280,58 +273,81 @@ def gradient_descent(x0, f_and_g, bounds=None, maxiter=1000, eps=None, callback=
         if lower is None: lower = -float('inf')
         if upper is None: upper = float('inf')
         bounds.append((lower,upper))
-
     lower, upper = list(map(np.array, zip(*bounds)))
-    
-    while True:
-        nit += 1
-        callback(x)
-        
-        if np.allclose(g, 0):
-            success=True
-            msg="Converged jac~=0"
-            break
-        if nit > maxiter:
-            success=False
-            msg="Maximum number of iterations reached"
-            break
+    def truncate(x): return np.maximum(np.minimum(x, upper), lower)
 
-        if nit==0:
-            ## on first step, do a "forward" line search to get the largest possible initial stepsize
-            while True:
-                next_x = x - g * stepsize
-                next_x = np.maximum(np.minimum(next_x, upper), lower)
-                next_f, next_g = f_and_g(next_x)
-                nfev += 1
-                if next_f >= f + 0.5 * np.dot(g, next_x - x):
-                    break
-                else:
-                    stepsize = 2.0 * stepsize
+    old_f_and_g = f_and_g
+    @wraps(old_f_and_g)
+    def f_and_g(x):
+        f_and_g.nfev+=1
+        return old_f_and_g(x)
+    f_and_g.nfev=0
 
-        ## backtracking line search
+    def backtrack_linesearch(y,stepsize,reverse=False):
+        ## if reverse==True, do a "forward" line search for maximum stepsize satisfying condition
+        fy,gy = f_and_g(y)
         while True:
-            next_x = x - g * stepsize
-            next_x = np.maximum(np.minimum(next_x, upper), lower)
-            next_f, next_g = f_and_g(next_x)
-            nfev += 1
-            if next_f <= f + 0.5 * np.dot(g, next_x - x):
-                break
+            x = truncate(y - gy*stepsize)
+            fx,gx = f_and_g(x)
+            condition = (fx <= fy + 0.5 * np.dot(gy, x-y))
+            if reverse: condition = not condition
+            if condition: break
             else:
-                stepsize = 0.5 * stepsize
+                if reverse: stepsize = 2.0*stepsize
+                else: stepsize = 0.5*stepsize
+        return (x,fx,gx),(y,fy,gy),stepsize
+    
+    x=np.array(x0,dtype=float)
+    y=np.array(x)
 
-        prev_x = x
-        x,f,g = next_x, next_f, next_g
-            
-        if np.allclose(x, prev_x):
+    ## get initial stepsize
+    _,(_,fy,gy),stepsize = backtrack_linesearch(y,1.0,reverse=True)
+    x,fx,gx = y,fy,gy
+    # initial callback
+    callback(x)
+    
+    nesterov_it=0
+    for nit in range(1,maxiter+1):
+        prev_x,prev_fx,prev_gx = x,fx,gx
+        prev_y,prev_fy,prev_gy = y,fy,gy
+
+        ## update x with backtracking linesearch
+        (x,fx,gx),(y,fy,gy),stepsize = backtrack_linesearch(y, stepsize)
+        assert np.all(y == prev_y) # y shouldn't change here
+        callback(x)
+
+        ## check convergence
+        if np.allclose(y,x):
             success=True
-            msg="Converged |x_k - x_{k-1}|~=0"
+            message="jac(x[k])=~0"
+            break        
+        if np.allclose(x,prev_x):
+            success=True
+            message="|x[k]-x[k-1]|=~0"
             break
+        # if np.isclose(prev_fx,fx):
+        #     success=True
+        #     message="|f(x[k])-f(x[k-1])|=~0"
+        #     break
 
+        ## check if restart nesterov
+        if np.dot(gy, x - prev_x) > 0:
+            nesterov_it=0
+            prev_x = x
+
+        ## add nesterov momentum
+        y = truncate(x + (nesterov_it)/float(nesterov_it+2)*(x-prev_x))
+        nesterov_it+=1
+
+        ## allow stepsize to grow
         stepsize = stepsize * 2.0
-
-    return scipy.optimize.OptimizeResult({'success':success, 'message':msg,
-                                          'nfev':nfev, 'nit':nit,
-                                          'x':x, 'fun':f, 'jac':g})
+    try: success,message
+    except NameError:
+        success=False
+        message="Maximum number of iterations reached"
+    return scipy.optimize.OptimizeResult({'success':success, 'message':message,
+                                          'nfev':f_and_g.nfev, 'nit':nit,
+                                          'x':x, 'fun':fx, 'jac':gy})
 
 def wrap_objective(fun,name,jac):
     hist = lambda : None
