@@ -5,7 +5,7 @@ from momi import expected_sfs
 import momi.likelihood
 from demo_utils import simple_admixture_demo
 import autograd.numpy as np
-import itertools, random
+import itertools, random, sys
 from collections import Counter
 
 from test_ms import ms_path, scrm_path
@@ -105,16 +105,13 @@ def test_subliks(fold):
 
     n_chunks = 10
 
-    lik = lambda X,params,minibatch_mut_rate, **kwargs: momi.likelihood._composite_log_likelihood(X, demo_func(*params), mut_rate=minibatch_mut_rate, folded=fold, **kwargs)
+    surface = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None, folded=fold)
+    subsurfaces = surface._get_stochastic_pieces(n_chunks, np.random)
+
+    val0 = [s.log_lik(x0) for s in subsurfaces]
+    val1 = surface.log_lik(x0)
     
-    lik_funs = momi.likelihood._sgd_liks(lik, sfs, n_chunks, rnd, None)
-
-       
-    val0 = [f(x0) for f in lik_funs]
-    val1 = lik(sfs,x0, minibatch_mut_rate=None)
-    val2 = np.sum(lik(sfs,x0,minibatch_mut_rate=None, vector=True))
-
-    assert np.isclose(np.sum(val0),val1) and np.isclose(val1,val2)
+    assert np.isclose(np.sum(val0),val1)
 
 @pytest.mark.parametrize("folded",
                          (random.choice((True,False)),))
@@ -131,8 +128,10 @@ def test_stochastic_inference(folded):
                            num_loci=num_runs, mut_rate=mu).sfs
     if folded:
         sfs = sfs.fold()
-    
-    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_optimum(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="adam", n_chunks=10, maxiter=10)
+
+    #outfile=sys.stdout
+    outfile=None
+    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="stoch_avg_grad", pieces=10, maxiter=1000, log_file=outfile)
     print(optimize_res)
     
     inferred_x = optimize_res.x

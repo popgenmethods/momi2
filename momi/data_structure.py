@@ -278,10 +278,15 @@ class Sfs(object):
         Returns the frequencies as a sparse matrix; 
         freqs_matrix[i, j] is the frequency of Sfs.configs[i] at locus j
         """
-        ret = scipy.sparse.lil_matrix((self.n_loci, len(self.configs)))
-        for loc,(idxs, cnts) in enumerate(zip(self.loc_idxs, self.loc_counts)):
-            ret[loc,idxs] += cnts
-        return ret.T.tocsr()
+        data = []
+        indices = []
+        indptr = []
+        for idxs,cnts in zip(self.loc_idxs, self.loc_counts):
+            indptr += [len(data)]
+            data += list(cnts)
+            indices += list(idxs)
+        indptr += [len(data)]
+        return scipy.sparse.csc_matrix((data,indices,indptr), shape=(len(self.configs),self.n_loci)).tocsr()
         
     @property
     def sampled_n(self):

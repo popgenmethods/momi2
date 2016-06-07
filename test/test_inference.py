@@ -1,5 +1,5 @@
 import pytest
-import os, random
+import os, random, sys
 import autograd.numpy as np
 from autograd import grad
 
@@ -11,24 +11,29 @@ def test_archaic_sample():
     theta=.1
     join_time = 1.0
     num_runs = 10000
-    true_sample_t=random.uniform(0,join_time)
+    
+    logit = lambda p: np.log(p / (1.-p))
+    expit = lambda x: 1. / (1. + np.exp(-x))
+        
+    true_sample_t = logit(random.uniform(0,join_time) / join_time)
     def get_demo(sample_t):
         return make_demography([('-ej',join_time,'a','b')],
                           sampled_pops=['a','b'],
                           sampled_n=[2,2],
-                          sampled_t=[0,sample_t])
+                          sampled_t=[0,expit(sample_t)*join_time])
     true_demo = get_demo(true_sample_t)
 
     sfs = simulate_ms(scrm_path, true_demo,
                       num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
     
-    x0 = np.array([random.uniform(0,join_time)])
-    res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta).find_optimum(x0, bounds=[(0,join_time)], subsample_steps=2, opt_method='L-BFGS-B')
+    x0 = np.array([logit(random.uniform(0,join_time) / join_time)])
+    res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta).find_mle(x0, method='trust-ncg', hessp=True)
+    #res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta).find_mle(x0, bounds=[(0,join_time)], method='nesterov', maxiter=100)
     
     print(res.jac)
-    assert abs(res.x - true_sample_t) < .1
-    for i,subres in enumerate(res.subsample_results):
-        assert abs(subres.x - true_sample_t) < .15, "subsample %d did not fit truth well" % i
+    assert abs(expit(res.x) - expit(true_sample_t)) < .1
+    #for i,subres in enumerate(res.subsample_results):
+    #    assert abs(subres.x - true_sample_t) < .15, "subsample %d did not fit truth well" % i
 
     #assert False
 
@@ -83,7 +88,8 @@ def check_jointime_inference(folded=False, add_n=0, finite_diff_eps=0, missing_p
     
     print((t0,t1))
     
-    prim_log_lik = momi.likelihood._log_lik_diff
+    #prim_log_lik = momi.likelihood._log_lik_diff
+    prim_log_lik = momi.likelihood._raw_log_lik
     prim_log_lik.reset_grad_count()
     assert not prim_log_lik.num_grad_calls()
 
@@ -91,14 +97,20 @@ def check_jointime_inference(folded=False, add_n=0, finite_diff_eps=0, missing_p
         theta = None
     
     x0 = np.array([random.uniform(0,t1)])
-    bound_eps = finite_diff_eps + 1e-12
-    res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded).find_optimum(x0, bounds=[(bound_eps,t1-bound_eps),], finite_diff_eps=finite_diff_eps)
     
-    #res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_optimum(x0, bounds=[(0,t1),])
+    bound_eps = 1e-12
+    if finite_diff_eps:
+        bound_eps += finite_diff_eps
+        jac = False
+    else: jac = True
+
+    res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
+    
+    #res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_mle(x0, bounds=[(0,t1),])
 
     # make sure autograd is calling the rearranged gradient function
     assert bool(prim_log_lik.num_grad_calls()) != bool(finite_diff_eps)
-    
+        
     print(res.jac)
     assert abs(res.x - t0) / t0 < .05
 
@@ -117,8 +129,9 @@ def test_underflow_robustness(folded):
     if folded:
         sfs = sfs.fold()
     
-    #optimize_res = composite_mle_search(sfs, get_demo, np.array([np.log(0.1),np.log(100.0)]), mu, hessp=True, method='newton-cg', sfs_kwargs={'folded':folded})
-    optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_optimum(np.array([np.log(0.1),np.log(100.0)]))
+    #outfile = sys.stdout
+    outfile=None
+    optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_mle(np.array([np.log(0.1),np.log(100.0)]), method="nesterov", log_file=outfile)
     print(optimize_res)
     
     inferred_x = optimize_res.x
@@ -129,15 +142,3 @@ def test_underflow_robustness(folded):
     print("# Relative Error:","\n", error)
 
     assert max(abs(error)) < .1
-
-def test_validation():
-    x1 = np.zeros(2)
-    x2 = np.array([10,10])
-
-    f1 = lambda x: np.sum((x-x1)**2)**(.25)
-    f2 = lambda x: np.sum((x-x2)**2)**(.25)    
-
-    x0 = x2
-    res = momi.util._minimize(f1, x0, maxiter=100, bounds=None, f_validation=f2)
-    print(res)
-    assert res.message == 'Validation function stopped improving'

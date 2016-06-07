@@ -16,16 +16,14 @@ def check_cov(method, params, demo_func, num_runs, theta, bounds=None, **kwargs)
                             num_loci=num_runs, mut_rate=theta,
                             additional_ms_params="-r %f 1000" % theta)
     
-    cmle_search_res = momi.SfsLikelihoodSurface(seg_sites, demo_func).find_optimum(params, maxiter=1000, bounds=bounds, **kwargs)
+    cmle_search_res = momi.SfsLikelihoodSurface(seg_sites, demo_func).find_mle(params, maxiter=1000, bounds=bounds, **kwargs)
     est_params = cmle_search_res.x
 
     cr = momi.ConfidenceRegion(est_params, demo_func, seg_sites, regime=method, **kwargs)
     cov = cr.godambe(inverse=True)
-    #cov = godambe_scaled_inv(method, est_params, seg_sites, demo_func)
 
     cr.test(params,sims=100)
     cr.test([params,est_params],sims=100)
-    #log_lik_ratio_p(method, 1000, est_params, params, [True] * len(params), seg_sites, demo_func)
 
 def check_jointime_cov(method, num_runs, theta):
     t0 = random.uniform(.25,2.5)
