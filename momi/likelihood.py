@@ -270,6 +270,8 @@ def _mut_factor(sfs, demo, mut_rate, vector):
 def _entropy_mut_term(mut_rate, counts_i):
     if mut_rate:
         mu = mut_rate * np.ones(len(counts_i))
+        mu = mu[counts_i > 0]
+        counts_i = counts_i[counts_i > 0]
         return np.sum(-counts_i + counts_i * np.log(np.sum(counts_i) * mu / float(np.sum(mu))))
     return 0.0
     

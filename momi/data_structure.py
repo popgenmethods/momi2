@@ -149,7 +149,7 @@ class ConfigArray(object):
         denom_idx = augmented_idx(np.zeros((len(self.sampled_pops), 2)))       
         
         # get row indices for each config        
-        idx_2_row = np.array(list(map(augmented_idx, self)))
+        idx_2_row = np.array(list(map(augmented_idx, self)), dtype=int)
         
         ## remove monomorphic configs
         ## (if there is missing data or error matrices,
@@ -618,7 +618,7 @@ class _ConfigArray_Subset(ConfigArray):
         old_2_new_idxs = {old_id: new_id for new_id, old_id in enumerate(old_idxs)}
 
         idxs = {k: np.array([old_2_new_idxs[old_id]
-                             for old_id in v])
+                             for old_id in v], dtype=int)
                 for k,v in list(idxs.items())}
         idxs[denom_idx_key] = old_2_new_idxs[denom_idx]
         return old_idxs, idxs

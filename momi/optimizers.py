@@ -83,6 +83,8 @@ def nesterov(fun, x0, fun_and_jac, maxiter=1000, bounds=None, callback=None):
         while True:
             x = truncate(y - gy*stepsize)
             fx = fun(x)
+            if any([not np.isfinite(fz) for fz in (fx,fy)]):
+                raise ValueError("Non-finite value of objective function")
             condition = (fx <= fy + 0.5 * np.dot(gy, x-y))
             if reverse: condition = not condition
             if condition: break
@@ -167,6 +169,8 @@ def stoch_avg_grad(fun, x0, fun_and_jac, pieces, maxiter=1000, bounds=None, call
         while True:
             x = truncate(y - gy*stepsize)
             fx = fun(x,i)
+            if any([not np.isfinite(fz) for fz in (fx,fy)]):
+                raise ValueError("Non-finite value of objective function")            
             condition = (fx <= fy + 0.5 * np.dot(gy, x-y))
             if reverse: condition = not condition
             if condition: break
