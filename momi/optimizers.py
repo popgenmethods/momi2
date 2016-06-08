@@ -137,6 +137,63 @@ def nesterov(fun, x0, fun_and_jac, maxiter=1000, bounds=None, callback=None):
                                           'x':x, 'fun':fx, 'jac':gy})
 
 
+def svrg(fun, x0, fun_and_jac, pieces, stepsize, maxiter=1000, iter_per_epoch=None, bounds=None, callback=None, rgen=np.random):
+    if iter_per_epoch is None:
+        iter_per_epoch = pieces
+
+    if callback is None:
+        callback = lambda *a,**kw:None
+        
+    if bounds is None:
+        bounds = [(None,None) for _ in x0]
+    lower,upper = zip(*bounds)
+    lower = [-float('inf') if l is None else l
+             for l in lower]
+    upper = [float('inf') if u is None else u
+             for u in upper]
+
+    def truncate(x):
+        return np.maximum(np.minimum(x, upper), lower)
+
+    ## regular updates
+    finished = False
+    x = x0
+    nit = -1
+    while not finished:
+        w = x
+        fhat, ghat = fun_and_jac(w, None)
+        for i in rgen.randint(pieces, size=iter_per_epoch):
+            nit += 1
+            if nit >= maxiter:
+                finished = True
+                break
+
+            prev_f, prev_g = fun_and_jac(w, i)
+            new_f, new_g = fun_and_jac(x,i)
+
+            f = pieces*(new_f - prev_f) + fhat
+            g = pieces*(new_g - prev_g) + ghat
+
+            prev_x = x
+            x = truncate(x - stepsize*g)
+            callback(x, f, nit)
+            
+            if np.allclose(prev_x,x):
+                finished=True
+                success=True
+                message="|x[k]-x[k-1]|~=0"
+                break
+
+    try: success,message
+    except NameError:
+        success=False
+        message="Maximum number of iterations reached"
+    return scipy.optimize.OptimizeResult({'success':success, 'message':message,
+                                          'nit':nit,
+                                          'x':x, 'fun':f, 'jac':g})
+    
+    
+    
 def stoch_avg_grad(fun, x0, fun_and_jac, pieces, maxiter=1000, bounds=None, callback=None, rgen=np.random):
     if callback is None:
         callback = lambda *a,**kw:None

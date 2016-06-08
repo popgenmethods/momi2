@@ -1,6 +1,6 @@
 
 from .util import count_calls, logger, force_primitive
-from .optimizers import _find_minimum, nesterov, stoch_avg_grad
+from .optimizers import _find_minimum, nesterov, stoch_avg_grad, svrg
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .demography import DemographyError, Demography
@@ -131,20 +131,25 @@ class SfsLikelihoodSurface(object):
             log_file = logging.StreamHandler(log_file)
             logger.addHandler(log_file)
 
+        custom_opts = {"nesterov": nesterov}
+        stochastic_opts = {"stoch_avg_grad": stoch_avg_grad,
+                           "svrg": svrg,
+                           }
+        
         try:           
-            if method.lower() in ["nesterov","stoch_avg_grad"]:
+            if method.lower() in custom_opts or method.lower() in stochastic_opts:
                 if jac is False: raise ValueError("Method %s requires gradient" % method)
                 if hess or hessp: raise ValueError("Method %s doesn't use hessian" % method)
                 
                 method = method.lower()
-                if method == "stoch_avg_grad":
+                if method in stochastic_opts:
                     return self._find_mle_stochastic(x0, pieces=pieces, bounds=bounds,
-                                                     maxiter=maxiter, rgen=rgen, method=method,
+                                                     maxiter=maxiter, rgen=rgen, method=stochastic_opts[method],
                                                      **kwargs)
-                elif method == "nesterov":
+                elif method in custom_opts:
                     kwargs = dict(kwargs)
                     if maxiter is not None: kwargs['maxiter'] = maxiter
-                    return _find_minimum(self.kl_div, x0, nesterov, bounds=bounds, callback=_out_progress, opt_kwargs=kwargs, gradmakers={'fun_and_jac':autograd.value_and_grad})
+                    return _find_minimum(self.kl_div, x0, custom_opts[method], bounds=bounds, callback=_out_progress, opt_kwargs=kwargs, gradmakers={'fun_and_jac':autograd.value_and_grad})
                 else: assert False
             else:
                 return self._find_mle_scipy(x0, bounds, jac, hess, hessp, maxiter, method=method, **kwargs)
@@ -163,19 +168,20 @@ class SfsLikelihoodSurface(object):
         surface_pieces = self._get_stochastic_pieces(pieces, rgen)
         
         def fun(x,i):
-            ret = -surface_pieces[i].log_lik(x) + surface_pieces[i].sfs.n_snps() * self.sfs._entropy + _entropy_mut_term(surface_pieces[i].mut_rate, surface_pieces[i].sfs.n_snps(vector=True))
-            return ret / float(self.sfs.n_snps())
+            if i is None:
+                return self.kl_div(x)
+            else:
+                ret = -surface_pieces[i].log_lik(x) + surface_pieces[i].sfs.n_snps() * self.sfs._entropy + _entropy_mut_term(surface_pieces[i].mut_rate, surface_pieces[i].sfs.n_snps(vector=True))
+                return ret / float(self.sfs.n_snps())
 
         opt_kwargs = dict(kwargs)
         opt_kwargs.update({'pieces': pieces, 'rgen': rgen})
         if maxiter is not None:
             opt_kwargs['maxiter'] = maxiter
         
-        if method=="stoch_avg_grad":
-            return _find_minimum(fun, x0, stoch_avg_grad,
-                                 bounds=bounds, callback=_out_progress, opt_kwargs=opt_kwargs,
-                                 gradmakers={'fun_and_jac':autograd.value_and_grad})
-        else: assert False
+        return _find_minimum(fun, x0, method,
+                             bounds=bounds, callback=_out_progress, opt_kwargs=opt_kwargs,
+                             gradmakers={'fun_and_jac':autograd.value_and_grad})
 
     def _get_stochastic_pieces(self, pieces, rgen):
         sfs_pieces = _subsfs_list(self.sfs, pieces, rgen)
