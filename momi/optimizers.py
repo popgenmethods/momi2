@@ -159,9 +159,22 @@ def svrg(fun, x0, fun_and_jac, pieces, stepsize, maxiter=1000, iter_per_epoch=No
     finished = False
     x = x0
     nit = -1
+    w,ghat = None,None
     while not finished:
+        prev_w, prev_ghat = w,ghat
+        
         w = x
         fhat, ghat = fun_and_jac(w, None)
+
+        if prev_w is None:
+            H = np.eye(len(x))
+        else:
+            s = w-prev_w
+            y = ghat-prev_ghat
+            rho = np.dot(s,y)
+            Hy = np.dot(H,y)
+            H = H - np.outer(Hy, Hy) / np.dot(y, Hy) + np.outer(s,s) / np.dot(y,s)
+        
         for i in rgen.randint(pieces, size=iter_per_epoch):
             nit += 1
             if nit >= maxiter:
@@ -175,7 +188,7 @@ def svrg(fun, x0, fun_and_jac, pieces, stepsize, maxiter=1000, iter_per_epoch=No
             g = pieces*(new_g - prev_g) + ghat
 
             prev_x = x
-            x = truncate(x - stepsize*g)
+            x = truncate(x - stepsize*np.dot(H,g))
             callback(x, f, nit)
             
             if np.allclose(prev_x,x):

@@ -129,9 +129,9 @@ def test_stochastic_inference(folded):
     if folded:
         sfs = sfs.fold()
 
-    #outfile=sys.stdout
-    outfile=None
-    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", stepsize=.1, pieces=10, maxiter=1000, log_file=outfile)
+    outfile=sys.stdout
+    #outfile=None
+    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", stepsize=.5, pieces=10, maxiter=1000, log_file=outfile)
     print(optimize_res)
     
     inferred_x = optimize_res.x
