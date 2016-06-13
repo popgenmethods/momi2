@@ -137,10 +137,9 @@ def nesterov(fun, x0, fun_and_jac, maxiter=1000, bounds=None, callback=None):
                                           'x':x, 'fun':fx, 'jac':gy})
 
 
-def svrg(fun, x0, fun_and_jac, pieces, stepsize, maxiter=1000, iter_per_epoch=None, bounds=None, callback=None, rgen=np.random):
-    if iter_per_epoch is None:
-        iter_per_epoch = pieces
-
+def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None, callback=None, rgen=np.random, hess_momentum = .2):
+    x0 = np.array(x0)
+   
     if callback is None:
         callback = lambda *a,**kw:None
         
@@ -154,146 +153,155 @@ def svrg(fun, x0, fun_and_jac, pieces, stepsize, maxiter=1000, iter_per_epoch=No
 
     def truncate(x):
         return np.maximum(np.minimum(x, upper), lower)
-
-    ## regular updates
-    finished = False
-    x = x0
-    nit = -1
-    w,ghat = None,None
-    while not finished:
-        prev_w, prev_ghat = w,ghat
-        
-        w = x
-        fhat, ghat = fun_and_jac(w, None)
-
-        if prev_w is None:
-            H = np.eye(len(x))
-        else:
-            s = w-prev_w
-            y = ghat-prev_ghat
-            rho = np.dot(s,y)
-            Hy = np.dot(H,y)
-            H = H - np.outer(Hy, Hy) / np.dot(y, Hy) + np.outer(s,s) / np.dot(y,s)
-        
-        for i in rgen.randint(pieces, size=iter_per_epoch):
-            nit += 1
-            if nit >= maxiter:
-                finished = True
-                break
-
-            prev_f, prev_g = fun_and_jac(w, i)
-            new_f, new_g = fun_and_jac(x,i)
-
-            f = pieces*(new_f - prev_f) + fhat
-            g = pieces*(new_g - prev_g) + ghat
-
-            prev_x = x
-            x = truncate(x - stepsize*np.dot(H,g))
-            callback(x, f, nit)
-            
-            if np.allclose(prev_x,x):
-                finished=True
-                success=True
-                message="|x[k]-x[k-1]|~=0"
-                break
-
-    try: success,message
-    except NameError:
-        success=False
-        message="Maximum number of iterations reached"
-    return scipy.optimize.OptimizeResult({'success':success, 'message':message,
-                                          'nit':nit,
-                                          'x':x, 'fun':f, 'jac':g})
-    
-    
-    
-def stoch_avg_grad(fun, x0, fun_and_jac, pieces, maxiter=1000, bounds=None, callback=None, rgen=np.random):
-    if callback is None:
-        callback = lambda *a,**kw:None
-        
-    if bounds is None:
-        bounds = [(None,None) for _ in x0]
-    lower,upper = zip(*bounds)
-    lower = [-float('inf') if l is None else l
-             for l in lower]
-    upper = [float('inf') if u is None else u
-             for u in upper]
-
-    curr_funs = np.zeros(pieces)
-    sumfun = 0.0
-    
-    curr_grads = np.zeros((pieces, len(x0)))
-    sumgrad = np.zeros(len(x0))
-    
-    def truncate(x, truncate_grads=False):
-        ret = np.maximum(np.minimum(x, upper), lower)
-        isntclose = np.logical_not(np.isclose(ret, x))
-        if truncate_grads and np.any(isntclose):
-            curr_grads[:,isntclose] = 0.0
-            sumgrad[isntclose] = 0.0
-        return ret
-
-    def backtrack_linesearch(y, i, stepsize, reverse=False):
-        ## if reverse==True, do a "forward" line search for maximum stepsize satisfying condition
-        fy,gy = fun_and_jac(y,i)
+    def min_qp(z, g, B):
+        ret = z - np.linalg.solve(B,g)
+        if np.allclose(ret, truncate(ret)): return ret
+        def obj(x):
+            return np.dot(x-z,g) + .5 * np.dot(x-z, np.dot(B, x-z))
+        def jac(x):
+            return g + np.dot(B,x-z)
+        ret = scipy.optimize.minimize(obj, z, method='tnc', jac=jac, bounds=bounds).x
+        assert np.allclose(ret, truncate(ret))
+        return truncate(ret)
+   
+    def backtrack_linesearch(stepsize, f, y, gy, B, reverse=False):
+        ## if reverse==True, do a "forward" line search for maximum stepsize satisfying condition        
+        assert stepsize <= 1.0
+        fy = f(y)
+        direction = min_qp(y, gy, B) - y
         while True:
-            x = truncate(y - gy*stepsize)
-            fx = fun(x,i)
+            x = y + stepsize*direction
+            if not np.allclose(x, truncate(x)):
+                assert reverse
+                break
+            fx = f(x)
             if any([not np.isfinite(fz) for fz in (fx,fy)]):
-                raise ValueError("Non-finite value of objective function")            
+                raise ValueError("Non-finite value of objective function")
+            gydxy = np.dot(gy, x-y)
+            assert  gydxy < 0.0 or np.isclose(gydxy, 0.0)
             condition = (fx <= fy + 0.5 * np.dot(gy, x-y))
             if reverse: condition = not condition
             if condition: break
             else:
                 if reverse: stepsize = 2.0*stepsize
                 else: stepsize = 0.5*stepsize
-        return (fy,gy), stepsize
+        return stepsize
+    
+    def update_Hess(B, new_x, prev_x, new_g, prev_g):
+        prev_B = B
+        
+        s = new_x-prev_x
+        y = new_g-prev_g
+        rho =1.0/ np.dot(s,y)
 
-    x = np.array(x0, dtype=float)
-    ## get the initial stepsize
-    _,stepsize = backtrack_linesearch(x, 0, 1.0, reverse=True)
+        Bs = np.dot(B,s)
+        sBs = np.dot(s, Bs)
+        sy = np.dot(s,y)
+        if sy >= .2 * sBs:
+            theta = 1.
+        else:
+            theta = .8 * sBs / (sBs - sy)
 
-    ## the initial pass
-    for nit in range(pieces):
-        (f,g),stepsize = backtrack_linesearch(x, nit, stepsize)
-        curr_funs[nit] = f
-        sumfun += f
-        curr_grads[nit,:] = g
-        sumgrad += g
-       
-        x = truncate(x - stepsize / float(nit+1) * sumgrad, truncate_grads=True)
-        callback(x, sumfun*float(pieces)/(nit+1.0), nit)        
-        stepsize *= 2.0**(1.0/pieces)
+        r = theta*y + (1.-theta)*Bs
 
-    ## regular updates
+        B = B - np.outer(Bs,Bs)/sBs + np.outer(r,r) / np.dot(s,r)
+
+        ## TODO: use a better damped BFGS update?        
+        B = hess_momentum*B + (1.-hess_momentum)*prev_B
+        
+        return B, np.linalg.norm(B, ord=2)
+
+    B = np.eye(len(x0))
+    _,g0 = fun_and_jac(x0, 0)
+    inv_lipschitz_est = backtrack_linesearch(1.0, lambda x: fun(x,0),
+                                             x0, g0, B, reverse=True)
+    prev_inv_lipschitz_est = inv_lipschitz_est
+
+    ## rescale B
+    Bnorm = 1.0 / inv_lipschitz_est    
+    B = B * Bnorm
+    #inv_lipschitz_est = 1.0 / Bnorm
+
     finished = False
+    x = x0
+    nit = 0
+    
     while not finished:
-        #for i in rgen.permutation(pieces):
-        for i in rgen.randint(pieces, size=pieces):
-            nit += 1
-            if nit >= maxiter:
-                finished = True
-                break
+        prev_inv_lipschitz_est = inv_lipschitz_est
+        inv_lipschitz_est = 1.0 / Bnorm
+        
+        w = x
+        x_arr = np.ones((pieces,len(w))) * w
 
-            (f,g),stepsize = backtrack_linesearch(x, i, stepsize)
+        if nit > 0:
+            fbar, gbar = fun_and_jac(w, None)
+        else:
+            ## don't do the SVRG step on the first epoch; just do SAGA-like updates
+            fbar, gbar = fun_and_jac(w, 0)
+            fbar *= pieces
+            gbar *= pieces
+        
+        for k in range(iter_per_epoch):
+            if nit >= iter_per_epoch:
+                i = rgen.randint(pieces)
+                prev_x = x_arr[i,:]                
+            else:
+                ## first epoch (no initial SVRG update)
+                i = k
+                if i == 0: prev_x = w # first iter; no previous x yet
+                else: prev_x = x_arr[rgen.randint(i),:] # pick random previous x
+            
+            prev_f, prev_g = fun_and_jac(prev_x,i)
+            new_f,new_g = fun_and_jac(x,i)
 
-            sumfun -= curr_funs[i]
-            curr_funs[i] = f
-            sumfun += f
+            g = pieces*(new_g - prev_g) + gbar
+            
+            assert inv_lipschitz_est <= 1./Bnorm            
+            if not np.allclose(x , prev_x):
+                B,Bnorm = update_Hess(B, x, prev_x, g, gbar)
+            ## Lipschitz constant of gradient >= Bnorm
+            inv_lipschitz_est = np.min((1./Bnorm, inv_lipschitz_est))
 
-            sumgrad -= curr_grads[i,:]
-            curr_grads[i,:] = g
-            sumgrad += g
+            ## when quadratic surface with curvature B is a perfect fit, the ideal
+            ## stepsize will be 1.0 = Bnorm/Lipschitz_constant
+            stepsize = Bnorm*inv_lipschitz_est
+            ## adjust stepsize to ensure Armijo condition
+            f=lambda z: pieces*fun(z,i) + np.dot(z, -pieces*prev_g + gbar)            
+            stepsize = backtrack_linesearch(stepsize, f, x, g, B)
+            ## 1/stepsize gives estimate of the Lipschitz constant after conditioning with B
+            ## so Bnorm/stepsize is estimate of the Lipschitz constant without conditioning
+            inv_lipschitz_est = stepsize/Bnorm
+            ## one final adjustment to stepsize = Bnorm/Lipschitz:
+            ## (use a more conservative estimate of Lipschitz)
+            stepsize = Bnorm*np.min((prev_inv_lipschitz_est,inv_lipschitz_est))
 
-            prev_x = x
-            x = truncate(x - stepsize / float(pieces) * sumgrad, truncate_grads=True)
-            callback(x, sumfun, nit)
-            stepsize *= 2.0**(1.0/pieces)
+            assert stepsize <= 1.0
+            next_x = x + stepsize*(min_qp(x,g,B)-x)
 
-            if np.allclose(prev_x,x):
+            if nit >= iter_per_epoch:
+                fbar = fbar + new_f - prev_f
+                gbar = gbar + new_g - prev_g
+            else:
+                fbar = (nit*fbar + pieces*new_f) / float(nit+1)
+                gbar = (nit*gbar + pieces*new_g) / float(nit+1)
+            x_arr[i,:] = x
+
+            callback(x, fbar, nit)
+            logger.debug("stepsize: %f" % stepsize)
+            
+            if np.allclose(next_x,x):
                 finished=True
                 success=True
                 message="|x[k]-x[k-1]|~=0"
+                break
+
+            x = next_x
+            
+            ## don't update nit until the end of the loop!
+            ## (above code uses nit to determine epoch, among other things)
+            nit += 1
+            if nit >= maxiter:
+                finished = True
                 break
 
     try: success,message
@@ -302,7 +310,113 @@ def stoch_avg_grad(fun, x0, fun_and_jac, pieces, maxiter=1000, bounds=None, call
         message="Maximum number of iterations reached"
     return scipy.optimize.OptimizeResult({'success':success, 'message':message,
                                           'nit':nit,
-                                          'x':x, 'fun':sumfun, 'jac':sumgrad})        
+                                          'x':x, 'fun':fbar, 'jac':gbar})
+    
+    
+custom_opts = {"nesterov": nesterov}
+stochastic_opts = {"svrg": svrg}
+
+
+
+# def stoch_avg_grad(fun, x0, fun_and_jac, pieces, maxiter=1000, bounds=None, callback=None, rgen=np.random):
+#     if callback is None:
+#         callback = lambda *a,**kw:None
+        
+#     if bounds is None:
+#         bounds = [(None,None) for _ in x0]
+#     lower,upper = zip(*bounds)
+#     lower = [-float('inf') if l is None else l
+#              for l in lower]
+#     upper = [float('inf') if u is None else u
+#              for u in upper]
+
+#     curr_funs = np.zeros(pieces)
+#     sumfun = 0.0
+    
+#     curr_grads = np.zeros((pieces, len(x0)))
+#     sumgrad = np.zeros(len(x0))
+    
+#     def truncate(x, truncate_grads=False):
+#         ret = np.maximum(np.minimum(x, upper), lower)
+#         isntclose = np.logical_not(np.isclose(ret, x))
+#         if truncate_grads and np.any(isntclose):
+#             curr_grads[:,isntclose] = 0.0
+#             sumgrad[isntclose] = 0.0
+#         return ret
+
+#     def backtrack_linesearch(y, i, stepsize, reverse=False):
+#         ## if reverse==True, do a "forward" line search for maximum stepsize satisfying condition
+#         fy,gy = fun_and_jac(y,i)
+#         while True:
+#             x = truncate(y - gy*stepsize)
+#             fx = fun(x,i)
+#             if any([not np.isfinite(fz) for fz in (fx,fy)]):
+#                 raise ValueError("Non-finite value of objective function")            
+#             condition = (fx <= fy + 0.5 * np.dot(gy, x-y))
+#             if reverse: condition = not condition
+#             if condition: break
+#             else:
+#                 if reverse: stepsize = 2.0*stepsize
+#                 else: stepsize = 0.5*stepsize
+#         return (fy,gy), stepsize
+
+#     x = np.array(x0, dtype=float)
+#     ## get the initial stepsize
+#     _,stepsize = backtrack_linesearch(x, 0, 1.0, reverse=True)
+
+#     ## the initial pass
+#     for nit in range(pieces):
+#         (f,g),stepsize = backtrack_linesearch(x, nit, stepsize)
+#         curr_funs[nit] = f
+#         sumfun += f
+#         curr_grads[nit,:] = g
+#         sumgrad += g
+       
+#         x = truncate(x - stepsize / float(nit+1) * sumgrad, truncate_grads=True)
+#         callback(x, sumfun*float(pieces)/(nit+1.0), nit)        
+#         stepsize *= 2.0**(1.0/pieces)
+
+#     ## regular updates
+#     finished = False
+#     while not finished:
+#         #for i in rgen.permutation(pieces):
+#         for i in rgen.randint(pieces, size=pieces):
+#             nit += 1
+#             if nit >= maxiter:
+#                 finished = True
+#                 break
+
+#             (f,g),stepsize = backtrack_linesearch(x, i, stepsize)
+
+#             sumfun -= curr_funs[i]
+#             curr_funs[i] = f
+#             sumfun += f
+
+#             ##step = sumgrad + pieces*(g - curr_grads[i,:]) # SAGA update
+            
+#             sumgrad -= curr_grads[i,:]
+#             curr_grads[i,:] = g
+#             sumgrad += g
+
+#             prev_x = x
+#             x = truncate(x - stepsize / float(pieces) * sumgrad, truncate_grads=True)
+#             #x = truncate(x - stepsize * step, truncate_grads=True)
+#             callback(x, sumfun, nit)
+#             stepsize *= 2.0**(1.0/pieces)
+
+#             if np.allclose(prev_x,x):
+#                 finished=True
+#                 success=True
+#                 message="|x[k]-x[k-1]|~=0"
+#                 break
+
+#     try: success,message
+#     except NameError:
+#         success=False
+#         message="Maximum number of iterations reached"
+#     return scipy.optimize.OptimizeResult({'success':success, 'message':message,
+#                                           'nit':nit,
+#                                           'x':x, 'fun':sumfun, 'jac':sumgrad})        
 
 # def adam(fun_and_jac_list, start_params, maxiter, bounds,
 #          tol=None,

@@ -1,6 +1,6 @@
 
 from .util import count_calls, logger, force_primitive
-from .optimizers import _find_minimum, nesterov, stoch_avg_grad, svrg
+from .optimizers import _find_minimum, custom_opts, stochastic_opts
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .demography import DemographyError, Demography
@@ -181,10 +181,11 @@ class SfsLikelihoodSurface(object):
                                                                                                               avg_uniq))
         
         if method == "svrg":
-            if 'iter_per_epoch' not in opt_kwargs:
-                iters_per_epoch = int(np.ceil(float(len(self.sfs.configs)) / avg_uniq))
-                opt_kwargs['iter_per_epoch'] = iters_per_epoch
-                logger.info("Running SVRG with %d iters per epoch" % iters_per_epoch)
+            iter_per_epoch = opt_kwargs.get('iter_per_epoch',None)
+            if iter_per_epoch is None:
+                iter_per_epoch = int(np.ceil(2* float(len(self.sfs.configs)) / avg_uniq))
+                opt_kwargs['iter_per_epoch'] = iter_per_epoch
+            logger.info("Running SVRG with %d iters per epoch" % iter_per_epoch)
         
         return _find_minimum(fun, x0, optimizer=stochastic_opts[method],
                              bounds=bounds, callback=_out_progress, opt_kwargs=opt_kwargs,
@@ -245,12 +246,7 @@ class SfsLikelihoodSurface(object):
         return _find_minimum(fun, x0, scipy.optimize.minimize,
                              bounds=bounds, callback=callback,
                              opt_kwargs=opt_kwargs, gradmakers=gradmakers, replacefun=replacefun)           
-
-custom_opts = {"nesterov": nesterov}
-stochastic_opts = {"stoch_avg_grad": stoch_avg_grad,
-                   "svrg": svrg}
-
-    
+   
 def _out_progress(x,fx,i):
     logger.info("iter = {i} ; time = {t} ; x = {x} ; KLDivergence =  {fx}".format(t=time.time(), i=i, x=list(x), fx=fx))    
     
