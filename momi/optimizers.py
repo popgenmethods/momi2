@@ -138,6 +138,7 @@ def nesterov(fun, x0, fun_and_jac, maxiter=1000, bounds=None, callback=None):
 
 
 def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None, callback=None, rgen=np.random, hess_momentum = .2):
+    assert iter_per_epoch <= pieces
     x0 = np.array(x0)
    
     if callback is None:

@@ -183,7 +183,7 @@ class SfsLikelihoodSurface(object):
         if method == "svrg":
             iter_per_epoch = opt_kwargs.get('iter_per_epoch',None)
             if iter_per_epoch is None:
-                iter_per_epoch = int(np.ceil(2* float(len(self.sfs.configs)) / avg_uniq))
+                iter_per_epoch = np.min((int(np.ceil(2* float(len(self.sfs.configs)) / avg_uniq)), pieces))
                 opt_kwargs['iter_per_epoch'] = iter_per_epoch
             logger.info("Running SVRG with %d iters per epoch" % iter_per_epoch)
         
