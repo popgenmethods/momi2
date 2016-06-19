@@ -138,7 +138,7 @@ def nesterov(fun, x0, fun_and_jac, maxiter=1000, bounds=None, callback=None):
                                           'x':x, 'fun':fx, 'jac':gy})
 
 
-def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None, callback=None, rgen=np.random, delta = .001, gamma = .0001, stepsize=.5):
+def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None, callback=None, rgen=np.random, delta = .001, gamma = .0001, stepsize=.5, bfgs=True):
     maxstepsize=stepsize
     assert iter_per_epoch <= pieces
     x0 = np.array(x0)
@@ -157,6 +157,8 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
     def truncate(x):
         return np.maximum(np.minimum(x, upper), lower)
     def min_qp(z, g, B):
+        if not bfgs: return z - g
+        
         ret = z - np.linalg.solve(B,g) - gamma*g
         if np.allclose(ret, truncate(ret)): return ret
         H = scipy.linalg.pinvh(B)
@@ -175,7 +177,8 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
         direction = min_qp(y, gy, B) - y
         while True:
             x = y + stepsize*direction
-            assert np.allclose(x, truncate(x))
+            if bfgs: assert np.allclose(x, truncate(x))
+            else: x = truncate(x)
             fx = f(x)
             if any([not np.isfinite(fz) for fz in (fx,fy)]):
                 raise ValueError("Non-finite value of objective function")
@@ -186,7 +189,9 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
             else: stepsize = 0.5*stepsize
         return x, stepsize
     
-    def update_Hess(B, new_x, prev_x, new_g, prev_g):       
+    def update_Hess(B, new_x, prev_x, new_g, prev_g):
+        if not bfgs: return None
+        
         s = new_x-prev_x
         y = new_g-prev_g
         sy = np.dot(s,y)
