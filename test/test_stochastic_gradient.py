@@ -184,9 +184,8 @@ def test_stochastic_inference(folded):
    
 #     outfile=sys.stdout
 #     #outfile=None
-#     optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, iter_per_epoch=10, maxiter=500, log_file=outfile)
-#     #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, iter_per_epoch=10, maxiter=500, bfgs=False, stepsize=.5, log_file=outfile)    
-#     #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", maxiter=1000, log_file=outfile)
+#     optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, nesterov=.5, iter_per_epoch=10, maxiter=500, log_file=outfile)    
+#     #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, lbfgs=-1, stepsize=.1, average_x=False, iter_per_epoch=10, maxiter=500, log_file=outfile)
 
 #     true_x = true_params
 #     inferred_x = optimize_res.x
