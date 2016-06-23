@@ -189,7 +189,7 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
             if not np.allclose(x, truncate(x)):
                 assert reverse
                 return truncate(x), fact*stepsize
-
+            x = truncate(x)
             fx = f(x)
             if any([not np.isfinite(fz) for fz in (fx,fy)]):
                 raise ValueError("Non-finite value of objective function")
@@ -199,7 +199,7 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
             else:
                 if reverse: fact = 2.0*fact
                 else: fact = 0.5*fact
-        return truncate(x), fact*stepsize
+        return x, fact*stepsize
 
     sy_list = []
     def update_Hess(B, new_x, prev_x, new_g, prev_g):       
