@@ -73,7 +73,12 @@ def set0(x, indices):
     y[indices] = 0
     return y
 set0.defgrad(lambda ans,x,indices: lambda g: set0(g,indices))
-    
+
+def closeleq(x,y):
+    return np.logical_or(np.isclose(x,y), x <= y)
+def closegeq(x,y):
+    return np.logical_or(np.isclose(x,y), x >= y)
+
 
 @primitive
 def make_constant(x):

@@ -130,10 +130,7 @@ def test_stochastic_inference(folded):
         sfs = sfs.fold()
 
     outfile=sys.stdout
-    #outfile=None
-    #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="stoch_avg_grad", pieces=10, maxiter=100, log_file=outfile)
-    #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", pieces=10, iter_per_epoch=5, maxiter=1000, log_file=outfile)
-    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", pieces=10, maxiter=1000, log_file=outfile)
+    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", average_x=True, pieces=10, maxiter=1000, log_file=outfile)
     print(optimize_res)
     
     inferred_x = optimize_res.x
@@ -148,6 +145,12 @@ def test_stochastic_inference(folded):
 
 
 # def test_complex_stochastic_inference():
+#     seed = np.random.randint(2**32-1)
+#     #seed = 1635460515
+#     #seed = 3377820123
+#     print("SEED",seed)
+#     np.random.seed(seed)
+    
 #     true_N_chb_bottom, true_N_chb_top, true_pulse_t, true_pulse_p, true_ej_chb, true_ej_yri = 10.,.1,.25,.03,.5,1.5
 #     def demo_func(log_N_chb_bottom, log_N_chb_top, log_pulse_t, log_pulse_p, log_ej_chb, log_ej_yri):   
 #         pulse_t = 2**(log_pulse_t) * true_pulse_t
@@ -171,7 +174,8 @@ def test_stochastic_inference(folded):
 #     true_demo = demo_func(*true_params)    
 
 #     sfs = momi.simulate_ms(ms_path, true_demo,
-#                            1000, mut_rate=10.0).sfs
+#                            1000, mut_rate=10.0,
+#                            seeds=[np.random.randint(2**32-1) for _ in range(3)]).sfs
     
 
 #     # define (lower,upper) bounds on the parameter space
@@ -184,8 +188,10 @@ def test_stochastic_inference(folded):
    
 #     outfile=sys.stdout
 #     #outfile=None
-#     optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, nesterov=.5, iter_per_epoch=10, maxiter=500, log_file=outfile)    
-#     #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, lbfgs=-1, stepsize=.1, average_x=False, iter_per_epoch=10, maxiter=500, log_file=outfile)
+#     #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="tnc", maxiter=500, log_file=outfile)
+#     #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", maxiter=500, log_file=outfile)    
+#     optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, iter_per_epoch=10, maxiter=500, log_file=outfile)
+#     #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, nesterov=.5, average_x=True, iter_per_epoch=10, maxiter=500, log_file=outfile)
 
 #     true_x = true_params
 #     inferred_x = optimize_res.x
