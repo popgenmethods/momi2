@@ -173,7 +173,7 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
             def jac(u):
                 return g + np.dot(B,u-z)
             opt = scipy.optimize.minimize(obj, z, method='tnc', jac=jac, bounds=bounds)
-            assert closeleq(opt.fun, 0.0) and np.allclose(opt.x, truncate(opt.x))
+            assert closeleq(opt.fun, 0.0) and np.allclose(opt.x, truncate(opt.x)), (opt.fun, opt.x, truncate(opt.x), B)
             assert closeleq(np.dot(opt.x-z, g), 0.0)
             if make_step: return truncate(opt.x)
             else: return opt.x-z
