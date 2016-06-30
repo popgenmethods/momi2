@@ -26,8 +26,11 @@ def test_archaic_sample():
     sfs = simulate_ms(scrm_path, true_demo,
                       num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
     
+
+    log_prior = lambda t: -t/float(true_sample_t)
+    
     x0 = np.array([logit(random.uniform(0,join_time) / join_time)])
-    res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta).find_mle(x0, method='trust-ncg', hessp=True)
+    res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta, log_prior=log_prior).find_mle(x0, method='trust-ncg', hessp=True)
     #res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta).find_mle(x0, bounds=[(0,join_time)], method='nesterov', maxiter=100)
     
     print(res.jac)
@@ -46,9 +49,10 @@ def test_nodiff():
     return check_jointime_inference(finite_diff_eps=1e-8)
 
 def test_missing_data():
-    return check_jointime_inference(missing_p=.5, folded=True, num_runs=100, theta=10.)
+    return check_jointime_inference(missing_p=.5, folded=True, num_runs=100, theta=10., use_prior=True)
 
 def check_jointime_inference(folded=False, add_n=0, finite_diff_eps=0, missing_p=0,
+                             use_prior=False,
                              use_theta=False, theta=.1, num_runs = 10000):
     t0=random.uniform(.25,2.5)
     t1= t0 + random.uniform(.5,5.0)
@@ -104,7 +108,10 @@ def check_jointime_inference(folded=False, add_n=0, finite_diff_eps=0, missing_p
         jac = False
     else: jac = True
 
-    res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
+    if use_prior:
+        log_prior = lambda t: -t/float(t0)
+    else: log_prior = None
+    res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded, log_prior=log_prior).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
     
     #res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_mle(x0, bounds=[(0,t1),])
 

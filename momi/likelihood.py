@@ -12,7 +12,7 @@ from collections import Counter
 import random, functools, logging, time
 
 class SfsLikelihoodSurface(object):
-    def __init__(self, data, demo_func=None, mut_rate=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200):
+    def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200):
         self.data = data
         
         try: self.sfs = self.data.sfs
@@ -29,6 +29,9 @@ class SfsLikelihoodSurface(object):
         self.batch_size = batch_size
         self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
         #self.sfs_batches = [self.sfs]
+
+        if log_prior is None: log_prior = lambda x: 0.0
+        self.log_prior = log_prior
 
     def log_lik(self, x):
         """
@@ -48,6 +51,7 @@ class SfsLikelihoodSurface(object):
         if self.mut_rate:
             ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False)
 
+        ret = ret + self.log_prior(x)
         logger.debug("log-likelihood = {0}".format(ret))
         return ret
 
@@ -200,6 +204,7 @@ class SfsLikelihoodSurface(object):
             mut_rate = np.sum(mut_rate) / float(pieces)
             
         return [SfsLikelihoodSurface(sfs, demo_func=self.demo_func, mut_rate=mut_rate,
+                                     log_prior = self.log_prior,
                                      folded = self.folded, error_matrices = self.error_matrices,
                                      truncate_probs = self.truncate_probs,
                                      batch_size = self.batch_size)
