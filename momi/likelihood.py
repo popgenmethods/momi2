@@ -30,7 +30,6 @@ class SfsLikelihoodSurface(object):
         self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
         #self.sfs_batches = [self.sfs]
 
-        if log_prior is None: log_prior = lambda x: 0.0
         self.log_prior = log_prior
 
     def log_lik(self, x):
@@ -51,7 +50,8 @@ class SfsLikelihoodSurface(object):
         if self.mut_rate:
             ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False)
 
-        ret = ret + self.log_prior(x)
+        if self.log_prior:
+            ret = ret + self.log_prior(x)
         logger.debug("log-likelihood = {0}".format(ret))
         return ret
 
@@ -63,7 +63,8 @@ class SfsLikelihoodSurface(object):
         ret = -log_lik + self.sfs.n_snps() * self.sfs._entropy + _entropy_mut_term(self.mut_rate, self.sfs.n_snps(vector=True))
 
         ret = ret / float(self.sfs.n_snps())
-        assert ret >= 0, "kl-div: %s, log_lik: %s, total_count: %s" % (str(ret), str(log_lik), str(self.sfs.n_snps()))
+        if not self.log_prior:
+            assert ret >= 0, "kl-div: %s, log_lik: %s, total_count: %s" % (str(ret), str(log_lik), str(self.sfs.n_snps()))
 
         return ret
     
@@ -170,7 +171,9 @@ class SfsLikelihoodSurface(object):
             if i is None:
                 return self.kl_div(x)
             else:
-                ret = -surface_pieces[i].log_lik(x) + surface_pieces[i].sfs.n_snps() * self.sfs._entropy + _entropy_mut_term(surface_pieces[i].mut_rate, surface_pieces[i].sfs.n_snps(vector=True))
+                if self.log_prior: lp = self.log_prior(x)
+                else: lp = 0.0
+                ret = -surface_pieces[i].log_lik(x) + surface_pieces[i].sfs.n_snps() * (self.sfs._entropy - lp) + _entropy_mut_term(surface_pieces[i].mut_rate, surface_pieces[i].sfs.n_snps(vector=True))
                 return ret / float(self.sfs.n_snps())
 
         opt_kwargs = dict(kwargs)
@@ -204,7 +207,6 @@ class SfsLikelihoodSurface(object):
             mut_rate = np.sum(mut_rate) / float(pieces)
             
         return [SfsLikelihoodSurface(sfs, demo_func=self.demo_func, mut_rate=mut_rate,
-                                     log_prior = self.log_prior,
                                      folded = self.folded, error_matrices = self.error_matrices,
                                      truncate_probs = self.truncate_probs,
                                      batch_size = self.batch_size)
