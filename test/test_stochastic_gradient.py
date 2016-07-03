@@ -131,7 +131,7 @@ def test_stochastic_inference(folded):
 
     log_prior = lambda x: np.sum(-x/true_x)
     outfile=sys.stdout
-    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", average_x=True, pieces=10, maxiter=1000, log_file=outfile)
+    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", pieces=10, maxiter=1000, log_file=outfile)
     print(optimize_res)
     
     inferred_x = optimize_res.x
@@ -145,61 +145,64 @@ def test_stochastic_inference(folded):
     #assert False
 
 
-# def test_complex_stochastic_inference():
-#     seed = np.random.randint(2**32-1)
-#     #seed = 1635460515
-#     #seed = 3377820123
-#     print("SEED",seed)
-#     np.random.seed(seed)
-    
-#     true_N_chb_bottom, true_N_chb_top, true_pulse_t, true_pulse_p, true_ej_chb, true_ej_yri = 10.,.1,.25,.03,.5,1.5
-#     def demo_func(log_N_chb_bottom, log_N_chb_top, log_pulse_t, log_pulse_p, log_ej_chb, log_ej_yri):   
-#         pulse_t = 2**(log_pulse_t) * true_pulse_t
-#         ej_chb = pulse_t + 2**(log_ej_chb) * (true_ej_chb - true_pulse_t)
-#         ej_yri = ej_chb + 2**(log_ej_yri) * (true_ej_yri - true_ej_chb)
-
-#         N_chb_top = 2**(log_N_chb_top) * true_N_chb_top
-#         N_chb_bottom = 2**(log_N_chb_bottom) * true_N_chb_bottom
-
-#         G_chb = -np.log(N_chb_top / N_chb_bottom) / ej_chb
-
-#         events = [('-en', 0., 'chb', N_chb_bottom),
-#                   ('-eg', 0, 'chb' , G_chb),
-#                   ('-ep', pulse_t, 'chb', 'nea', .25*(4.0*true_pulse_p)**((2**(log_pulse_p))**.5)),
-#                   ('-ej', ej_chb, 'chb', 'yri'),
-#                   ('-ej', ej_yri, 'yri', 'nea'),
-#                   ]
-#         return momi.make_demography(events, ('yri','chb'), (14,10))    
-
-#     true_params = np.zeros(6)
-#     true_demo = demo_func(*true_params)    
-
-#     sfs = momi.simulate_ms(ms_path, true_demo,
-#                            1000, mut_rate=10.0,
-#                            seeds=[np.random.randint(2**32-1) for _ in range(3)]).sfs
-    
-
-#     # define (lower,upper) bounds on the parameter space
-#     lower_bounds = true_params + np.log(.01)/np.log(2)
-#     upper_bounds = true_params + np.log(100.)/np.log(2)
-#     bounds = list(zip(lower_bounds, upper_bounds))
-    
-#     # pick a random start value for the parameter search
-#     start_params = np.array([np.random.uniform(l,h) for (l,h) in bounds])
-   
-#     outfile=sys.stdout
-#     #outfile=None
-#     #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="tnc", maxiter=500, log_file=outfile)
-#     #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", maxiter=500, log_file=outfile)    
-#     optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, iter_per_epoch=10, maxiter=500, log_file=outfile)
-#     #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, nesterov=.5, average_x=True, iter_per_epoch=10, maxiter=500, log_file=outfile)
-
-#     true_x = true_params
-#     inferred_x = optimize_res.x
-#     error = inferred_x-true_x
-#     print("# Truth:\n", true_x)
-#     print("# Inferred:\n", inferred_x)
-#     print("# Ratio Inferred/Truth:","\n", 2.**error)    
-#     print("# Max Log2 Ratio: %f" % max(abs(error)))
-    
-#     #assert max(abs(np.log(error))) < .1
+## def test_complex_stochastic_inference():
+##     seed = np.random.randint(2**32-1)
+##     #seed = 270543553
+##     #seed = 2300087928
+##     print("SEED",seed)
+##     np.random.seed(seed)
+##   
+##     true_N_chb_bottom, true_N_chb_top, true_pulse_t, true_pulse_p, true_ej_chb, true_ej_yri = 10.,.1,.25,.03,.5,1.5
+##     def demo_func(log_N_chb_bottom, log_N_chb_top, log_pulse_t, log_pulse_p, log_ej_chb, log_ej_yri):   
+##         pulse_t = 2**(log_pulse_t) * true_pulse_t
+##         ej_chb = pulse_t + 2**(log_ej_chb) * (true_ej_chb - true_pulse_t)
+##         ej_yri = ej_chb + 2**(log_ej_yri) * (true_ej_yri - true_ej_chb)
+## 
+##         N_chb_top = 2**(log_N_chb_top) * true_N_chb_top
+##         N_chb_bottom = 2**(log_N_chb_bottom) * true_N_chb_bottom
+## 
+##         G_chb = -np.log(N_chb_top / N_chb_bottom) / ej_chb
+## 
+##         events = [('-en', 0., 'chb', N_chb_bottom),
+##                   ('-eg', 0, 'chb' , G_chb),
+##                   ('-ep', pulse_t, 'chb', 'nea', .25*(4.0*true_pulse_p)**((2**(log_pulse_p))**.5)),
+##                   ('-ej', ej_chb, 'chb', 'yri'),
+##                   ('-ej', ej_yri, 'yri', 'nea'),
+##                   ]
+##         return momi.make_demography(events, ('yri','chb'), (14,10))    
+## 
+##     true_params = np.zeros(6)
+##     true_demo = demo_func(*true_params)    
+## 
+##     sfs = momi.simulate_ms(ms_path, true_demo,
+##                            1000, mut_rate=10.0,
+##                            seeds=[np.random.randint(2**32-1) for _ in range(3)]).sfs
+##   
+## 
+##     # define (lower,upper) bounds on the parameter space
+##     lower_bounds = true_params + np.log(.01)/np.log(2)
+##     upper_bounds = true_params + np.log(100.)/np.log(2)
+##     bounds = list(zip(lower_bounds, upper_bounds))
+##   
+##     # pick a random start value for the parameter search
+##     start_params = np.array([np.random.uniform(l,h) for (l,h) in bounds])
+##  
+##     outfile=sys.stdout
+##     #outfile=None
+##     try:
+##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="tnc", maxiter=500, log_file=outfile)
+##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", maxiter=500, log_file=outfile)    
+##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, stepsize=1./16., iter_per_epoch=10, lbfgs=10, maxiter=1000, log_file=outfile)
+##     except:
+##         print("SEED",seed)
+##         raise
+## 
+##     true_x = true_params
+##     inferred_x = optimize_res.x
+##     error = inferred_x-true_x
+##     print("# Truth:\n", true_x)
+##     print("# Inferred:\n", inferred_x)
+##     print("# Ratio Inferred/Truth:","\n", 2.**error)    
+##     print("# Max Log2 Ratio: %f" % max(abs(error)))
+##     print("SEED",seed)
+##     #assert max(abs(np.log(error))) < .1

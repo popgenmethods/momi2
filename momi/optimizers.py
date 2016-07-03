@@ -138,13 +138,9 @@ def nesterov(fun, x0, fun_and_jac, maxiter=1000, bounds=None, callback=None):
                                           'x':x, 'fun':fx, 'jac':gy})
 
 
-def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None, callback=None, rgen=np.random, stepsize=1.0, adaptive_step=True, lbfgs=10, nesterov=-1, average_x=False, only_stop_on_epoch=True):
-   
-    maxstepsize = stepsize
-    
-    if lbfgs < 0: lbfgs = 0
-    if nesterov < 0: nesterov=0
-    
+def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None, callback=None, rgen=np.random, stepsize=1./16., rescale_stepsize=.5, lbfgs=10, only_stop_on_epoch=True):
+    logger.info("Doing SVRG with initial stepsize %f and %d L-BFGS components")
+    if rescale_stepsize < 0: rescale_stepsize = False
     assert iter_per_epoch <= pieces
     
     x0 = np.array(x0)
@@ -162,56 +158,18 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
    
     def truncate(x):
         return np.maximum(np.minimum(x, upper), lower)
-    def projected_step(z, g, B, make_step=False):
-        step = -np.linalg.solve(B,g)
-        if np.allclose(z+step, truncate(z+step)):
-            if make_step: return truncate(z+step)
-            else: return step
-        else:
-            def obj(u):
-                return np.dot(u-z,g) + .5 * np.dot(u-z, np.dot(B, u-z))
-            def jac(u):
-                return g + np.dot(B,u-z)
-            opt = scipy.optimize.minimize(obj, z, method='tnc', jac=jac, bounds=bounds)
-            assert closeleq(opt.fun, 0.0) and np.allclose(opt.x, truncate(opt.x)), (opt.fun, opt.x, truncate(opt.x), B)
-            assert closeleq(np.dot(opt.x-z, g), 0.0)
-            if make_step: return truncate(opt.x)
-            else: return opt.x-z
-   
-    def backtrack_linesearch(stepsize, f, y, gy, B, reverse=False):
-        assert stepsize <= 1.0
-        fy = f(y)
-        step = projected_step(y, gy*stepsize, B)
-        fact=1.0
-        while True:
-            #logger.info(fact*stepsize)
-            x = y + fact*step
-            if not np.allclose(x, truncate(x)):
-                assert reverse
-                return truncate(x), fact*stepsize
-            x = truncate(x)
-            fx = f(x)
-            if any([not np.isfinite(fz) for fz in (fx,fy)]):
-                raise ValueError("Non-finite value of objective function")
-            condition = (fx <= fy + 0.5 * fact * np.dot(gy, step))
-            if reverse: condition = not condition
-            if condition: break
-            else:
-                if reverse: fact = 2.0*fact
-                else: fact = 0.5*fact
-        return x, fact*stepsize
 
     sy_list = []
     def update_Hess(B, new_x, prev_x, new_g, prev_g):       
         s = new_x-prev_x
         y = new_g-prev_g
-        sy = np.dot(s,y)
 
+        sy_list.append((s,y))
         if len(sy_list) >= lbfgs:
             del sy_list[0]
-        sy_list.append((s,y))
         
         def get_r(s,y,B):
+            sy = np.dot(s,y)
             Bs = np.dot(B,s)
             sBs = np.dot(s, Bs)
             if sy >= .2 * sBs:
@@ -220,8 +178,10 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
                 theta = .8 * sBs / (sBs - sy)
             r = theta*y + (1.-theta)*Bs
             return r, Bs, sBs
+
         r,_,_ = get_r(s,y,B)
         B = np.dot(r,r) / np.dot(s,r) * I
+
         for (s,y) in sy_list:
             r,Bs,sBs = get_r(s,y,B)
             B = B - np.outer(Bs,Bs)/sBs + np.outer(r,r) / np.dot(s,r)        
@@ -230,38 +190,41 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
     I = np.eye(len(x0))
        
     finished = False
-    x_avg = x0
+    x = x0
     nit = 0
     for epoch in itertools.count():
         if finished: break
         if epoch > 0:
             prev_w = w
             prev_gbar = gbar
+            prev_fbar = fbar
             
-        if nesterov and epoch > 0:
-            nesterov_step = nesterov*(x_avg - prev_x_avg)
-            w_unconstrained = x_avg+nesterov_step            
-            w = projected_step(x_avg, np.dot(B, -nesterov_step), B, make_step=True)
-            assert np.allclose(w, w_unconstrained) or not np.allclose(w_unconstrained, truncate(w_unconstrained))
-        else:
-            w = x_avg
-        
-        x = w
-        prev_x_avg = x_avg
-
-        if adaptive_step: stepsize = maxstepsize
-
+        w = x
         fbar, gbar = fun_and_jac(w, None)
-        f_avg = fbar
        
-        if epoch > 0:
-            if lbfgs: B = update_Hess(B, w, prev_w, gbar, prev_gbar)
-        elif adaptive_step:
-            f0,g0 = fun_and_jac(w, 0)
-            B = I / backtrack_linesearch(1.0, lambda z: pieces*fun(z,0) + np.dot(z, -pieces*g0 + gbar), w, gbar, I, reverse=True)[1]
+        if lbfgs >= 0:
+            if epoch > 0 and not np.allclose(w, prev_w):
+                B = update_Hess(B, w, prev_w, gbar, prev_gbar)
+            else:
+                u = truncate(w - gbar)
+                f_u, g_u = fun_and_jac(u,0)
+                f_w, g_w = fun_and_jac(w,0)
+                g = pieces*(g_u - g_w) + gbar
+                B = update_Hess(I, u, w, g, gbar)
+            H = scipy.linalg.pinvh(B)
         else:
-            B = I
-          
+            H = I
+        
+        if epoch > 0 and rescale_stepsize and fbar > prev_fbar:
+            stepsize *= rescale_stepsize 
+            logger.info("Detected divergence, decreasing stepsize to %f" % stepsize)
+            x = truncate(x_avg)
+            f_autoregressive = f_avg
+        else:
+            f_autoregressive = fbar
+        
+        start = x
+        x_avg, f_avg = 0,0
         for k in range(iter_per_epoch):
             i = rgen.randint(pieces)
             
@@ -271,26 +234,18 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
             f = pieces*(f_x - f_w) + fbar            
             g = pieces*(g_x - g_w) + gbar
                        
-            ## choose stepsize to ensure Armijo condition
-            if adaptive_step:
-                curr_fun=lambda z: pieces*fun(z,i) + np.dot(z, -pieces*g_w + gbar)
-                xnext, stepsize = backtrack_linesearch(stepsize, curr_fun, x, g, B)
-            else:
-                xnext = projected_step(x, g*stepsize, B, make_step=True)
+            xnext = truncate(x - stepsize*np.dot(H,g))
                 
             ## print a running (autoregressive) average of f
-            f_avg = f * .1 + f_avg * .9
-            callback(x, f_avg, nit)
-            #logger.debug("stepsize: %g" % stepsize)
+            f_autoregressive = f * .1 + f_autoregressive * .9
+            callback(x, f_autoregressive, nit)
             #logger.info("stepsize: %g" % stepsize)
 
             xprev = x
             x = xnext
 
-            if average_x:
-                x_avg = (x_avg*k + x)/float(k+1)
-            else:
-                x_avg = x
+            x_avg = (x_avg*k + x)/float(k+1)
+            f_avg = (f_avg*k + f)/float(k+1)
             
             nit += 1
             if nit >= maxiter:
