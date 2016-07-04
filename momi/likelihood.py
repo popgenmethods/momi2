@@ -173,7 +173,7 @@ class SfsLikelihoodSurface(object):
             else:
                 if self.log_prior: lp = self.log_prior(x)
                 else: lp = 0.0
-                ret = -surface_pieces[i].log_lik(x) + surface_pieces[i].sfs.n_snps() * (self.sfs._entropy - lp) + _entropy_mut_term(surface_pieces[i].mut_rate, surface_pieces[i].sfs.n_snps(vector=True))
+                ret = -surface_pieces[i].log_lik(x) + surface_pieces[i].sfs.n_snps() * (self.sfs._entropy - lp/float(self.sfs.n_snps())) + _entropy_mut_term(surface_pieces[i].mut_rate, surface_pieces[i].sfs.n_snps(vector=True))
                 return ret / float(self.sfs.n_snps())
 
         opt_kwargs = dict(kwargs)

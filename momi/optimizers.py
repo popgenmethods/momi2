@@ -139,7 +139,7 @@ def nesterov(fun, x0, fun_and_jac, maxiter=1000, bounds=None, callback=None):
 
 
 def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None, callback=None, rgen=np.random, stepsize=1./16., rescale_stepsize=.5, lbfgs=10, only_stop_on_epoch=True):
-    logger.info("Doing SVRG with initial stepsize %f and %d L-BFGS components")
+    logger.info("Doing SVRG with initial stepsize %f and %d L-BFGS components" % (stepsize, lbfgs))
     if rescale_stepsize < 0: rescale_stepsize = False
     assert iter_per_epoch <= pieces
     
@@ -210,7 +210,8 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
                 f_u, g_u = fun_and_jac(u,0)
                 f_w, g_w = fun_and_jac(w,0)
                 g = pieces*(g_u - g_w) + gbar
-                B = update_Hess(I, u, w, g, gbar)
+                s, y = (u-w), (g-gbar)
+                B = np.abs(np.dot(y,y) / np.dot(s,y)) * I
             H = scipy.linalg.pinvh(B)
         else:
             H = I
