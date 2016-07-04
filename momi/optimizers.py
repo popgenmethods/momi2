@@ -159,6 +159,17 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
     def truncate(x):
         return np.maximum(np.minimum(x, upper), lower)
 
+    def get_r(s,y,B):
+        sy = np.dot(s,y)
+        Bs = np.dot(B,s)
+        sBs = np.dot(s, Bs)
+        if sy >= .2 * sBs:
+            theta = 1.
+        else:
+            theta = .8 * sBs / (sBs - sy)
+        r = theta*y + (1.-theta)*Bs
+        return r, Bs, sBs
+
     sy_list = []
     def update_Hess(B, new_x, prev_x, new_g, prev_g):       
         s = new_x-prev_x
@@ -168,17 +179,6 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
         if len(sy_list) >= lbfgs:
             del sy_list[0]
         
-        def get_r(s,y,B):
-            sy = np.dot(s,y)
-            Bs = np.dot(B,s)
-            sBs = np.dot(s, Bs)
-            if sy >= .2 * sBs:
-                theta = 1.
-            else:
-                theta = .8 * sBs / (sBs - sy)
-            r = theta*y + (1.-theta)*Bs
-            return r, Bs, sBs
-
         r,_,_ = get_r(s,y,B)
         B = np.dot(r,r) / np.dot(s,r) * I
 
@@ -211,7 +211,8 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
                 f_w, g_w = fun_and_jac(w,0)
                 g = pieces*(g_u - g_w) + gbar
                 s, y = (u-w), (g-gbar)
-                B = np.abs(np.dot(y,y) / np.dot(s,y)) * I
+                r,_,_ = get_r(s,y,I)
+                B = np.dot(r,r) / np.dot(s,r) * I
             H = scipy.linalg.pinvh(B)
         else:
             H = I
