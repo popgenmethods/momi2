@@ -23,7 +23,7 @@ report bugs/issues [here](https://github.com/jackkamm/momi/issues)
 
 Prerequisites:
 * gcc
-* Scientific distribution of Python 2.7, e.g. [Anaconda](http://continuum.io/downloads), [Enthought Canopy](https://www.enthought.com/products/canopy/)
+* Scientific distribution of Python 3 (recommended) or 2.7, e.g. [Anaconda](http://continuum.io/downloads), [Enthought Canopy](https://www.enthought.com/products/canopy/)
   * Alternatively, custom installation of pip, cython, the SciPy stack
 
 To install, in the top-level directory of momi (where "setup.py" lives), type
@@ -31,9 +31,24 @@ To install, in the top-level directory of momi (where "setup.py" lives), type
 pip install .
 ```
 
+If you have a previous version of momi installed with pip, you should type
+```
+pip uninstall momi
+```
+first.
+
 ## Getting started
 
-See the [tutorial](examples/tutorial.ipynb).
+See the [tutorial](examples/tutorial.ipynb) notebook.
+You can type
+```
+ipython notebook
+```
+or
+```
+jupyter notebook
+```
+to open the notebook browser.
 
 ## Authors
 

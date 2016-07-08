@@ -13,6 +13,30 @@ import random, functools, logging, time
 
 class SfsLikelihoodSurface(object):
     def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200):
+        """
+        Object for computing composite likelihoods, and searching for the maximum composite likelihood.
+
+        Parameters
+        ==========
+        data: momi.SegSites or momi.Sfs object
+        demo_func: function or None
+            function that creates momi.Demography object from a vector of input parameters
+            if None, this is the identity function (so the "input parameter" is the Demography object itself)
+        mut_rate: float or list or None
+            The per-locus mutation rate.
+            If an array, the length should be the total number of loci.
+            If None, use a multinomial model instead of Poisson model (so the numger of segregating sites is fixed)
+        folded, error_matrices:
+            see help(momi.expected_sfs)
+        log_prior:
+            function that adds a log-prior to the log-likelihood
+        truncate_probs:
+            if truncate_probs=eps, then eps is added to the SFS entries before computing the log-likelihood
+            this can be helpful for dealing with very small probabilities, within computer accuracy of 0.
+        batch_size:
+            controls the memory usage. the SFS will be computed in batches of batch_size.
+            Decrease batch_size to decrease memory usage (but add running time overhead)
+        """
         self.data = data
         
         try: self.sfs = self.data.sfs
@@ -22,6 +46,8 @@ class SfsLikelihoodSurface(object):
 
         self.mut_rate = mut_rate
         self.folded = folded
+        if self.folded:
+            self.sfs = self.sfs.fold() # required for entropy term to be correct
         self.error_matrices = error_matrices
 
         self.truncate_probs = truncate_probs
@@ -83,7 +109,7 @@ class SfsLikelihoodSurface(object):
                  Can be any method from scipy.optimize.minimize()
                  (e.g. "tnc","L-BFGS-B",etc.), or another optimization
                  method implemented by momi (currently, "nesterov" or
-                 "stoch_avg_grad").
+                 "svrg").
 
                  If a method of scipy.optimize.minimize(), then this function
                  acts as a wrapper around scipy.optimize.minimize().
@@ -91,15 +117,9 @@ class SfsLikelihoodSurface(object):
                  If "nesterov", uses the deterministic method
                     momi.optimizers.nesterov().
 
-                 If "stoch_avg_grad", use the stochastic gradient method
-                    momi.optimizers.stoch_avg_grad()
-                 with each locus being a separate minibatch (i.e.,
-                 at each step the algorithm evaluates the likelihood/gradient
-                 at one locus). 
-                 
-                 For stochastic methods, it is recommended to use
-                 SfsLikelihoodSurface.shuffled() to shuffle the SNPs into
-                 random "loci" (minibatches) before doing the stochastic descent.
+                 If "svrg", use the stochastic gradient method
+                    momi.optimizers.svrg()
+                 (very experimental still).
 
         jac : bool
               If True, compute gradient automatically, and pass into the optimization method.

@@ -129,7 +129,7 @@ def expected_total_branch_len(demography, error_matrices=None, ascertainment_pop
     config = config_array(demography.sampled_pops, config, ascertainment_pop = ascertainment_pop)
 
     _, ret = _expected_sfs(demography, config, False, error_matrices)
-    return ret
+    return np.squeeze(ret)
     # vecs = [np.ones(n+1) for n in demography.sampled_n]
     # # if error_matrices is not None:
     # #     vecs = _apply_error_matrices(vecs, error_matrices) # has no effect

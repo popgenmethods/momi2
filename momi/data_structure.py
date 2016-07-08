@@ -246,9 +246,6 @@ class Sfs(object):
     Represents an observed SFS across several loci.
 
     Important methods/attributes:
-    Sfs.freq(config, locus) : the frequency of config at the locus (or in total, if locus=None)
-    Sfs.loci : list of dicts, with Sfs.loci[locus][config] == Sfs.freq(config, locus=locus)
-    Sfs.total : dict, with Sfs.total[config] == Sfs.freq(config, locus=None)
     """    
     def __init__(self, loci, configs):
         self.configs = configs
@@ -273,6 +270,7 @@ class Sfs(object):
         #self.config2uniq = config2uniq
 
     @property
+    @memoize_instance
     def freqs_matrix(self):
         """
         Returns the frequencies as a sparse matrix; 
@@ -448,20 +446,28 @@ def seg_site_configs(sampled_pops, config_sequences, ascertainment_pop=None):
         idx_list[loc].append(uniq_idx)
 
     configs = ConfigArray(sampled_pops, config_array, None, ascertainment_pop)
-    return SegSites(configs, idx_list, config2uniq)
-    
+    return SegSites(configs, idx_list)
+
+class SegSitesLocus(object):
+    def __init__(self, configs, idxs):
+        self.configs = configs
+        self.idxs = idxs
+    def __len__(self):
+        return len(self.idxs)
+    def __getitem__(self,site):
+        return self.configs[self.idxs[site]]
+
 class SegSites(object):
-    def __init__(self, configs, idx_list, config2uniq):
+    def __init__(self, configs, idx_list):
         self.configs = configs
         self.idx_list = idx_list
         self.sfs = Sfs(self.idx_list, self.configs)
+        self.loci = [SegSitesLocus(self.configs, idxs) for idxs in idx_list]
         
-    def get_config(self, locus, site):
-        return self.configs[self.idx_list[locus][site]]
-
-    def __getitem__(self, loc):
-        if loc >= self.n_loci: raise IndexError("Locus out of bounds")
-        return (self.get_config(loc, site) for site in range(self.n_snps(locus=loc)))
+    def __getitem__(self,loc):
+        return self.loci[loc]
+    def __len__(self):
+        return len(self.loci)
         
     @property
     def ascertainment_pop(self): return self.sfs.ascertainment_pop
