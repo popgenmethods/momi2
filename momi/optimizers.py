@@ -138,7 +138,7 @@ def nesterov(fun, x0, fun_and_jac, maxiter=1000, bounds=None, callback=None):
                                           'x':x, 'fun':fx, 'jac':gy})
 
 
-def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None, callback=None, rgen=np.random, stepsize=1./16., rescale_stepsize=.5, lbfgs=10, only_stop_on_epoch=True):
+def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None, callback=None, rgen=np.random, stepsize=10., rescale_stepsize=1./np.sqrt(10), lbfgs=10, only_stop_on_epoch=True):
     logger.info("Doing SVRG with initial stepsize %f and %d L-BFGS components" % (stepsize, lbfgs))
     if rescale_stepsize < 0: rescale_stepsize = False
     assert iter_per_epoch <= pieces
@@ -202,10 +202,20 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
         w = x
         fbar, gbar = fun_and_jac(w, None)
        
+        if epoch > 0 and rescale_stepsize and fbar > prev_fbar:
+            stepsize *= rescale_stepsize 
+            logger.info("Detected divergence, decreasing stepsize to %f" % stepsize)
+            w = prev_w
+            gbar = prev_gbar
+            fbar = prev_fbar
+
+        x = w
+        f_autoregressive = fbar
+        
         if lbfgs >= 0:
             if epoch > 0 and not np.allclose(w, prev_w):
                 B = update_Hess(B, w, prev_w, gbar, prev_gbar)
-            else:
+            elif epoch == 0:
                 u = truncate(w - gbar)
                 f_u, g_u = fun_and_jac(u,0)
                 f_w, g_w = fun_and_jac(w,0)
@@ -217,16 +227,6 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
         else:
             H = I
         
-        if epoch > 0 and rescale_stepsize and fbar > prev_fbar:
-            stepsize *= rescale_stepsize 
-            logger.info("Detected divergence, decreasing stepsize to %f" % stepsize)
-            x = truncate(x_avg)
-            f_autoregressive = f_avg
-        else:
-            f_autoregressive = fbar
-        
-        start = x
-        x_avg, f_avg = 0,0
         for k in range(iter_per_epoch):
             i = rgen.randint(pieces)
             
@@ -246,9 +246,6 @@ def svrg(fun, x0, fun_and_jac, pieces, iter_per_epoch, maxiter=1000, bounds=None
             xprev = x
             x = xnext
 
-            x_avg = (x_avg*k + x)/float(k+1)
-            f_avg = (f_avg*k + f)/float(k+1)
-            
             nit += 1
             if nit >= maxiter:
                 finished = True
