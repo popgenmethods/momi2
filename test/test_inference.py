@@ -31,7 +31,6 @@ def test_archaic_sample():
     
     x0 = np.array([logit(random.uniform(0,join_time) / join_time)])
     res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta, log_prior=log_prior).find_mle(x0, method='trust-ncg', hessp=True)
-    #res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta).find_mle(x0, bounds=[(0,join_time)], method='nesterov', maxiter=100)
     
     print(res.jac)
     assert abs(expit(res.x) - expit(true_sample_t)) < .1

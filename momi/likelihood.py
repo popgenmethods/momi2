@@ -94,7 +94,7 @@ class SfsLikelihoodSurface(object):
 
         return ret
     
-    def find_mle(self, x0, log_file=None, method="tnc", jac=True, hess=False, hessp=False, bounds=None, maxiter=None, pieces=None, rgen=np.random, **kwargs):
+    def find_mle(self, x0, log_file=None, method="tnc", jac=True, hess=False, hessp=False, bounds=None, pieces=None, rgen=np.random, **kwargs):
         """
         Search for the maximum of the likelihood surface
         (i.e., the minimum of the KL-divergence).
@@ -135,12 +135,6 @@ class SfsLikelihoodSurface(object):
               If an element of the list is a number (instead of a pair),
               then the optimizer will fix the parameter at that value,
               and optimize over the other parameters.
-        maxiter : int or None
-              The maximum number of iterations for the optimization.
-              If None, use the optimizer-specific default.
-
-              scipy.optimize.minimize methods can alternatively specify this
-              thru **kwargs, specifically the "options" keyword-argument.
         pieces : int or None
               For stochastic gradient descent methods. The number of pieces or
               "minibatches" to divide the data into.
@@ -164,15 +158,13 @@ class SfsLikelihoodSurface(object):
                 method = method.lower()
                 if method in stochastic_opts:
                     return self._find_mle_stochastic(x0, pieces=pieces, bounds=bounds,
-                                                     maxiter=maxiter, rgen=rgen, method=method,
+                                                     rgen=rgen, method=method,
                                                      **kwargs)
                 elif method in custom_opts:
-                    kwargs = dict(kwargs)
-                    if maxiter is not None: kwargs['maxiter'] = maxiter
                     return _find_minimum(self.kl_div, x0, custom_opts[method], bounds=bounds, callback=_out_progress, opt_kwargs=kwargs, gradmakers={'fun_and_jac':autograd.value_and_grad})
                 else: assert False
             else:
-                return self._find_mle_scipy(x0, bounds, jac, hess, hessp, maxiter, method=method, **kwargs)
+                return self._find_mle_scipy(x0, bounds, jac, hess, hessp, method=method, **kwargs)
         except:
             raise
         finally:
@@ -180,7 +172,7 @@ class SfsLikelihoodSurface(object):
                 logger.removeHandler(log_file)
                 logger.propagate, logger.level = prev_propagate, prev_level
 
-    def _find_mle_stochastic(self, x0, pieces, bounds, maxiter, rgen, method, **kwargs):
+    def _find_mle_stochastic(self, x0, pieces, bounds, rgen, method, **kwargs):
         try: assert pieces > 0 and pieces == int(pieces)
         except (TypeError,AssertionError):
             raise ValueError("Stochastic Gradient Descent methods require pieces to be a positive integer")
@@ -198,8 +190,6 @@ class SfsLikelihoodSurface(object):
 
         opt_kwargs = dict(kwargs)
         opt_kwargs.update({'pieces': pieces, 'rgen': rgen})
-        if maxiter is not None:
-            opt_kwargs['maxiter'] = maxiter
 
         logger.info("Dataset has %d total SNPs, of which %d are unique" % (self.sfs.n_snps(), len(self.sfs.configs)))
         avg_uniq = np.mean([len(s.sfs.configs) for s in surface_pieces])
@@ -233,7 +223,7 @@ class SfsLikelihoodSurface(object):
                 for sfs in sfs_pieces]        
         
                 
-    def _find_mle_scipy(self, x0, bounds, jac, hess, hessp, maxiter, options={}, **kwargs):       
+    def _find_mle_scipy(self, x0, bounds, jac, hess, hessp, options={}, **kwargs):       
         hist = lambda:None
         hist.itr = 0
         hist.recent_vals = []
@@ -255,10 +245,6 @@ class SfsLikelihoodSurface(object):
             hist.itr += 1
             hist.recent_vals = [(x,fx)]
 
-        if maxiter is not None:
-            options = dict(options)            
-            assert 'maxiter' not in options
-            options['maxiter'] = maxiter
         opt_kwargs = dict(kwargs)
         opt_kwargs['options'] = options
 
