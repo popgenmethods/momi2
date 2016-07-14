@@ -10,8 +10,6 @@ import itertools
 from collections import Counter
 import sys, warnings, collections, logging, gc
 
-logger = logging.getLogger(".".join(__name__.split(".")[:-1]))
-
 def count_calls(fun):
     call_counter=[0]
     @wraps(fun)

@@ -2,7 +2,7 @@ import pytest
 import os, random, sys
 import autograd.numpy as np
 from autograd import grad
-
+import logging
 from momi import make_demography, simulate_ms, SfsLikelihoodSurface
 import momi
 from test_ms import ms_path, scrm_path
@@ -137,7 +137,8 @@ def test_underflow_robustness(folded):
     
     #outfile = sys.stdout
     outfile=None
-    optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_mle(np.array([np.log(0.1),np.log(100.0)]), method="nesterov", log_file=outfile)
+    #logging.basicConfig(level=logging.INFO)
+    optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_mle(np.array([np.log(0.1),np.log(100.0)]), method="nesterov", out=outfile)
     print(optimize_res)
     
     inferred_x = optimize_res.x

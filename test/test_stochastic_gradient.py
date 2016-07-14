@@ -7,7 +7,7 @@ from demo_utils import simple_admixture_demo
 import autograd.numpy as np
 import itertools, random, sys
 from collections import Counter
-
+import logging
 from test_ms import ms_path, scrm_path
 
 ### test subsampling of SNPs
@@ -131,7 +131,9 @@ def test_stochastic_inference(folded):
 
     log_prior = lambda x: np.sum(-x/true_x)
     outfile=sys.stdout
-    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", pieces=10, stepsize=.1, max_epochs=100, log_file=outfile)
+    #outfile=None
+    #logging.basicConfig(level=logging.INFO)
+    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", pieces=10, stepsize=.1, max_epochs=100, out=outfile)
     print(optimize_res)
     
     inferred_x = optimize_res.x
@@ -193,9 +195,9 @@ def test_stochastic_inference(folded):
 ##     outfile=sys.stdout
 ##     #outfile=None
 ##     try:
-##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="tnc", maxiter=500, log_file=outfile)
-##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", log_file=outfile) 
-##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, stepsize=.1, iter_per_epoch=10, max_epochs=100, log_file=outfile)
+##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="tnc", maxiter=500, out=outfile)
+##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", out=outfile) 
+##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, stepsize=.1, iter_per_epoch=10, max_epochs=100, out=outfile)
 ##     except:
 ##         print("SEED",seed)
 ##         raise

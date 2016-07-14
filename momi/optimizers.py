@@ -2,7 +2,7 @@ import autograd
 import autograd.numpy as np
 import numdifftools
 from functools import wraps, partial
-from .util import logger, count_calls, closeleq, closegeq
+from .util import count_calls, closeleq, closegeq
 import scipy, scipy.optimize
 import itertools
 

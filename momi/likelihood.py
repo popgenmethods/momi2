@@ -1,5 +1,5 @@
 
-from .util import count_calls, logger, force_primitive
+from .util import count_calls, force_primitive
 from .optimizers import _find_minimum, custom_opts, stochastic_opts
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
@@ -10,6 +10,8 @@ import autograd, numdifftools
 from autograd import grad, hessian_vector_product, hessian
 from collections import Counter
 import random, functools, logging, time
+
+logger = logging.getLogger(__name__)
 
 class SfsLikelihoodSurface(object):
     def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200):
@@ -94,7 +96,7 @@ class SfsLikelihoodSurface(object):
 
         return ret
     
-    def find_mle(self, x0, log_file=None, method="tnc", jac=True, hess=False, hessp=False, bounds=None, pieces=None, rgen=np.random, **kwargs):
+    def find_mle(self, x0, method="tnc", jac=True, hess=False, hessp=False, bounds=None, pieces=None, rgen=np.random, out=None, **kwargs):
         """
         Search for the maximum of the likelihood surface
         (i.e., the minimum of the KL-divergence).
@@ -103,7 +105,7 @@ class SfsLikelihoodSurface(object):
         ==========
         x0 : numpy.ndarray
              initial guess
-        log_file : file stream
+        out : file stream
                    write intermediate progress to file or stream (e.g. sys.stdout)
         method : str
                  Can be any method from scipy.optimize.minimize()
@@ -143,36 +145,35 @@ class SfsLikelihoodSurface(object):
 
         **kwargs : additional arguments to pass to the optimizers
         """
-        if log_file is not None:
-            prev_level, prev_propagate = logger.level, logger.propagate
-            logger.propagate = False
-            logger.setLevel(min([logger.getEffectiveLevel(), logging.INFO]))
-            log_file = logging.StreamHandler(log_file)
-            logger.addHandler(log_file)
-       
-        try:           
-            if method.lower() in custom_opts or method.lower() in stochastic_opts:
-                if jac is False: raise ValueError("Method %s requires gradient" % method)
-                if hess or hessp: raise ValueError("Method %s doesn't use hessian" % method)
-                
-                method = method.lower()
-                if method in stochastic_opts:
-                    return self._find_mle_stochastic(x0, pieces=pieces, bounds=bounds,
-                                                     rgen=rgen, method=method,
-                                                     **kwargs)
-                elif method in custom_opts:
-                    return _find_minimum(self.kl_div, x0, custom_opts[method], bounds=bounds, callback=_out_progress, opt_kwargs=kwargs, gradmakers={'fun_and_jac':autograd.value_and_grad})
-                else: assert False
+        def printout(items):
+            outstr = "\t".join(map(str, items))
+            if out is None:
+                logging.getLogger(__name__ + ".callback").info(outstr)
             else:
-                return self._find_mle_scipy(x0, bounds, jac, hess, hessp, method=method, **kwargs)
-        except:
-            raise
-        finally:
-            if log_file:
-                logger.removeHandler(log_file)
-                logger.propagate, logger.level = prev_propagate, prev_level
+                out.write(outstr + "\n")
+                out.flush()
+        printout(["Seconds","KLDivergence"] + ["X%d" % i for i in range(len(x0))])
+        starttime = time.time()
+        def print_progress(x,fx,i):
+            items = [time.time()-starttime, fx] + list(x)
+            printout(items)
+        
+        if method.lower() in custom_opts or method.lower() in stochastic_opts:
+            if jac is False: raise ValueError("Method %s requires gradient" % method)
+            if hess or hessp: raise ValueError("Method %s doesn't use hessian" % method)
 
-    def _find_mle_stochastic(self, x0, pieces, bounds, rgen, method, **kwargs):
+            method = method.lower()
+            if method in stochastic_opts:
+                return self._find_mle_stochastic(x0, pieces=pieces, bounds=bounds,
+                                                    rgen=rgen, method=method, callback=print_progress,
+                                                    **kwargs)
+            elif method in custom_opts:
+                return _find_minimum(self.kl_div, x0, custom_opts[method], bounds=bounds, callback=print_progress, opt_kwargs=kwargs, gradmakers={'fun_and_jac':autograd.value_and_grad})
+            else: assert False
+        else:
+            return self._find_mle_scipy(x0, bounds, jac, hess, hessp, print_progress=print_progress, method=method, **kwargs)
+
+    def _find_mle_stochastic(self, x0, pieces, bounds, rgen, method, callback, **kwargs):
         try: assert pieces > 0 and pieces == int(pieces)
         except (TypeError,AssertionError):
             raise ValueError("Stochastic Gradient Descent methods require pieces to be a positive integer")
@@ -205,7 +206,7 @@ class SfsLikelihoodSurface(object):
             logger.info("Running SVRG with %d iters per epoch" % iter_per_epoch)
         
         return _find_minimum(fun, x0, optimizer=stochastic_opts[method],
-                             bounds=bounds, callback=_out_progress, opt_kwargs=opt_kwargs,
+                             bounds=bounds, callback=callback, opt_kwargs=opt_kwargs,
                              gradmakers={'fun_and_jac':autograd.value_and_grad})
 
     def _get_stochastic_pieces(self, pieces, rgen):
@@ -223,7 +224,7 @@ class SfsLikelihoodSurface(object):
                 for sfs in sfs_pieces]        
         
                 
-    def _find_mle_scipy(self, x0, bounds, jac, hess, hessp, options={}, **kwargs):       
+    def _find_mle_scipy(self, x0, bounds, jac, hess, hessp, print_progress, options={}, **kwargs):       
         hist = lambda:None
         hist.itr = 0
         hist.recent_vals = []
@@ -233,6 +234,8 @@ class SfsLikelihoodSurface(object):
             hist.recent_vals += [(x,ret)]
             return ret
 
+        starttime = time.time()
+        
         user_callback = kwargs.pop("callback", lambda x: None)
         def callback(x):
             user_callback(x)
@@ -241,7 +244,7 @@ class SfsLikelihoodSurface(object):
             assert np.allclose(y,x)
             try: fx=fx.value
             except AttributeError: pass
-            _out_progress(x,fx,hist.itr)
+            print_progress(x,fx,hist.itr)
             hist.itr += 1
             hist.recent_vals = [(x,fx)]
 
@@ -260,9 +263,6 @@ class SfsLikelihoodSurface(object):
                              bounds=bounds, callback=callback,
                              opt_kwargs=opt_kwargs, gradmakers=gradmakers, replacefun=replacefun)           
    
-def _out_progress(x,fx,i):
-    logger.info("iter = {i} ; time = {t} ; x = {x} ; KLDivergence =  {fx}".format(t=time.time(), i=i, x=list(x), fx=fx))    
-    
 def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, **kwargs):
     try:
         sfs = data.sfs

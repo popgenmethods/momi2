@@ -10,7 +10,6 @@ from autograd import primitive
 from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory#, _TrivialHistory
 from .parse_ms import _convert_ms_cmd
 from .compute_sfs import expected_total_branch_len
-from .util import logger
 from functools import partial
 
 import os, itertools
@@ -19,6 +18,9 @@ try: # check whether python knows about 'basestring'
    str
 except NameError: # no, it doesn't (it's Python3); use 'str' instead
    str=str
+
+import logging
+logger = logging.getLogger(__name__)
 
 def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N=1.0, time_scale='ms'):
    """
