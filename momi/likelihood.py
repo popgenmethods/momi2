@@ -1,6 +1,6 @@
 
 from .util import count_calls, force_primitive
-from .optimizers import _find_minimum, custom_opts, stochastic_opts
+from .optimizers import _find_minimum, stochastic_opts
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .demography import DemographyError, Demography
@@ -65,11 +65,11 @@ class SfsLikelihoodSurface(object):
         Returns the composite log-likelihood of the data at the point x.
         """
         if self.demo_func:
-            logger.debug("Computing log-likelihood at x = {0}".format(x))            
+            logger.debug("Computing log-likelihood at x = {0}".format(x))
             demo = self.demo_func(*x)
         else:
             demo = x
-           
+
         G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
         ret = 0.0
         for batch in self.sfs_batches:
@@ -86,7 +86,7 @@ class SfsLikelihoodSurface(object):
     def kl_div(self, x):
         """
         Returns KL-Divergence(Empirical || Theoretical(x)).
-        """        
+        """
         log_lik = self.log_lik(x)
         ret = -log_lik + self.sfs.n_snps() * self.sfs._entropy + _entropy_mut_term(self.mut_rate, self.sfs.n_snps(vector=True))
 
@@ -95,12 +95,12 @@ class SfsLikelihoodSurface(object):
             assert ret >= 0, "kl-div: %s, log_lik: %s, total_count: %s" % (str(ret), str(log_lik), str(self.sfs.n_snps()))
 
         return ret
-    
-    def find_mle(self, x0, method="tnc", jac=True, hess=False, hessp=False, bounds=None, pieces=None, rgen=np.random, out=None, **kwargs):
+
+    def find_mle(self, x0, method="tnc", jac=True, hess=False, hessp=False, bounds=None, out=None, **kwargs):
         """
         Search for the maximum of the likelihood surface
         (i.e., the minimum of the KL-divergence).
-       
+
         Parameters
         ==========
         x0 : numpy.ndarray
@@ -109,20 +109,7 @@ class SfsLikelihoodSurface(object):
                    write intermediate progress to file or stream (e.g. sys.stdout)
         method : str
                  Can be any method from scipy.optimize.minimize()
-                 (e.g. "tnc","L-BFGS-B",etc.), or another optimization
-                 method implemented by momi (currently, "nesterov" or
-                 "svrg").
-
-                 If a method of scipy.optimize.minimize(), then this function
-                 acts as a wrapper around scipy.optimize.minimize().
-
-                 If "nesterov", uses the deterministic method
-                    momi.optimizers.nesterov().
-
-                 If "svrg", use the stochastic gradient method
-                    momi.optimizers.svrg()
-                 (very experimental still).
-
+                 (e.g. "tnc","L-BFGS-B",etc.)
         jac : bool
               If True, compute gradient automatically, and pass into the optimization method.
               If False, don't pass in gradient to the optimization method.
@@ -133,98 +120,20 @@ class SfsLikelihoodSurface(object):
               As in scipy.optimize.minimize.
               If None, then do unbounded optimization.
               If one of (lower,higher) is None, then unbounded in that direction.
-              
+
               If an element of the list is a number (instead of a pair),
               then the optimizer will fix the parameter at that value,
               and optimize over the other parameters.
-        pieces : int or None
-              For stochastic gradient descent methods. The number of pieces or
-              "minibatches" to divide the data into.
-        rgen : numpy.random.RandomState object
-              Random number generator for stochastic gradient descent methods.
+        **kwargs : additional arguments to pass to scipy.optimize.minimize()
 
-        **kwargs : additional arguments to pass to the optimizers
+        Notes
+        =====
+        This is just a wrapper around scipy.optimize.minimize, and takes the same arguments, with the following exceptions:
+        1) no "fun" param (this is set to be self.kl_div)
+        2) jac, hess, hessp are bools. If True, their respective derivatives are defined using autograd and passed into scipy.optimize.minimize; otherwise, "None" is passed in for the derivatives (in which case scipy may use a numerical derivative if needed)
+        3) intermediate progress is printed to the stream "out" (or if out=None, to logging.logger("momi.likelihood.callback").INFO; see the python package "logging")
         """
-        def printout(items):
-            outstr = "\t".join(map(str, items))
-            if out is None:
-                logging.getLogger(__name__ + ".callback").info(outstr)
-            else:
-                out.write(outstr + "\n")
-                out.flush()
-        printout(["Seconds","KLDivergence"] + ["X%d" % i for i in range(len(x0))])
-        starttime = time.time()
-        def print_progress(x,fx,i):
-            items = [time.time()-starttime, fx] + list(x)
-            printout(items)
-        
-        if method.lower() in custom_opts or method.lower() in stochastic_opts:
-            if jac is False: raise ValueError("Method %s requires gradient" % method)
-            if hess or hessp: raise ValueError("Method %s doesn't use hessian" % method)
-
-            method = method.lower()
-            if method in stochastic_opts:
-                return self._find_mle_stochastic(x0, pieces=pieces, bounds=bounds,
-                                                    rgen=rgen, method=method, callback=print_progress,
-                                                    **kwargs)
-            elif method in custom_opts:
-                return _find_minimum(self.kl_div, x0, custom_opts[method], bounds=bounds, callback=print_progress, opt_kwargs=kwargs, gradmakers={'fun_and_jac':autograd.value_and_grad})
-            else: assert False
-        else:
-            return self._find_mle_scipy(x0, bounds, jac, hess, hessp, print_progress=print_progress, method=method, **kwargs)
-
-    def _find_mle_stochastic(self, x0, pieces, bounds, rgen, method, callback, **kwargs):
-        try: assert pieces > 0 and pieces == int(pieces)
-        except (TypeError,AssertionError):
-            raise ValueError("Stochastic Gradient Descent methods require pieces to be a positive integer")
-        
-        surface_pieces = self._get_stochastic_pieces(pieces, rgen)
-        
-        def fun(x,i):
-            if i is None:
-                return self.kl_div(x)
-            else:
-                if self.log_prior: lp = self.log_prior(x)
-                else: lp = 0.0
-                ret = -surface_pieces[i].log_lik(x) + surface_pieces[i].sfs.n_snps() * (self.sfs._entropy - lp/float(self.sfs.n_snps())) + _entropy_mut_term(surface_pieces[i].mut_rate, surface_pieces[i].sfs.n_snps(vector=True))
-                return ret / float(self.sfs.n_snps())
-
-        opt_kwargs = dict(kwargs)
-        opt_kwargs.update({'pieces': pieces, 'rgen': rgen})
-
-        logger.info("Dataset has %d total SNPs, of which %d are unique" % (self.sfs.n_snps(), len(self.sfs.configs)))
-        avg_uniq = np.mean([len(s.sfs.configs) for s in surface_pieces])
-        logger.info("Broke dataset up into %d pieces, with an average of %f total SNPs and %f unique SNPs" % (pieces,
-                                                                                                              self.sfs.n_snps() / float(pieces),
-                                                                                                              avg_uniq))
-        
-        if method == "svrg":
-            iter_per_epoch = opt_kwargs.get('iter_per_epoch',None)
-            if iter_per_epoch is None:
-                iter_per_epoch = np.min((int(np.ceil(len(self.sfs.configs) / avg_uniq)), pieces))
-                opt_kwargs['iter_per_epoch'] = iter_per_epoch
-            logger.info("Running SVRG with %d iters per epoch" % iter_per_epoch)
-        
-        return _find_minimum(fun, x0, optimizer=stochastic_opts[method],
-                             bounds=bounds, callback=callback, opt_kwargs=opt_kwargs,
-                             gradmakers={'fun_and_jac':autograd.value_and_grad})
-
-    def _get_stochastic_pieces(self, pieces, rgen):
-        sfs_pieces = _subsfs_list(self.sfs, pieces, rgen)
-        if self.mut_rate is None:
-            mut_rate = None
-        else:
-            mut_rate = self.mut_rate * np.ones(self.sfs.n_loci)
-            mut_rate = np.sum(mut_rate) / float(pieces)
-            
-        return [SfsLikelihoodSurface(sfs, demo_func=self.demo_func, mut_rate=mut_rate,
-                                     folded = self.folded, error_matrices = self.error_matrices,
-                                     truncate_probs = self.truncate_probs,
-                                     batch_size = self.batch_size)
-                for sfs in sfs_pieces]        
-        
-                
-    def _find_mle_scipy(self, x0, bounds, jac, hess, hessp, print_progress, options={}, **kwargs):       
+        print_progress = _PrintProgress(out, len(x0)).print_progress
         hist = lambda:None
         hist.itr = 0
         hist.recent_vals = []
@@ -235,7 +144,7 @@ class SfsLikelihoodSurface(object):
             return ret
 
         starttime = time.time()
-        
+
         user_callback = kwargs.pop("callback", lambda x: None)
         def callback(x):
             user_callback(x)
@@ -249,20 +158,103 @@ class SfsLikelihoodSurface(object):
             hist.recent_vals = [(x,fx)]
 
         opt_kwargs = dict(kwargs)
-        opt_kwargs['options'] = options
+        opt_kwargs["method"] = method
 
         opt_kwargs['jac'] = jac
         if jac: replacefun = autograd.value_and_grad
         else: replacefun = None
-        
-        gradmakers = {}        
+
+        gradmakers = {}
         if hess: gradmakers['hess'] = autograd.hessian
         if hessp: gradmakers['hessp'] = autograd.hessian_vector_product
-                  
+
         return _find_minimum(fun, x0, scipy.optimize.minimize,
                              bounds=bounds, callback=callback,
-                             opt_kwargs=opt_kwargs, gradmakers=gradmakers, replacefun=replacefun)           
-   
+                             opt_kwargs=opt_kwargs, gradmakers=gradmakers, replacefun=replacefun)
+
+    def _get_stochastic_pieces(self, pieces, rgen):
+        sfs_pieces = _subsfs_list(self.sfs, pieces, rgen)
+        if self.mut_rate is None:
+            mut_rate = None
+        else:
+            mut_rate = self.mut_rate * np.ones(self.sfs.n_loci)
+            mut_rate = np.sum(mut_rate) / float(pieces)
+
+        return [SfsLikelihoodSurface(sfs, demo_func=self.demo_func, mut_rate=mut_rate,
+                                     folded = self.folded, error_matrices = self.error_matrices,
+                                     truncate_probs = self.truncate_probs,
+                                     batch_size = self.batch_size)
+                for sfs in sfs_pieces]
+
+    def stochastic_surfaces(self, n_minibatches, rgen=np.random):
+        """
+        Partitions the data into n_minibatches random subsets ("minibatches") of roughly equal size. It returns a StochasticSfsLikelihoodSurface object, which can be used for stochastic gradient descent.
+
+        Useful methods of StochasticSfsLikelihoodSurface are:
+        1) StochasticSfsLikelihoodSurface.find_mle(...): search for the MLE using stochastic gradient descent or SVRG
+        2) StochasticSfsLikelihoodSurface.get_minibatch(i): the Sfs corresponding to the i-th minibatch
+        3) StochasticSfsLikelihoodSurface.n_minibatches: the number of minibatches
+        """
+        return StochasticSfsLikelihoodSurface(self, n_minibatches, rgen)
+
+class StochasticSfsLikelihoodSurface(object):
+    def __init__(self, full_surface, pieces, rgen):
+        try: assert pieces > 0 and pieces == int(pieces)
+        except (TypeError,AssertionError):
+            raise ValueError("pieces should be a positive integer")
+
+        self.pieces = full_surface._get_stochastic_pieces(pieces, rgen)
+        self.rgen = rgen
+        self.full_surface = full_surface
+
+    def get_minibatch(self, i): return self.pieces[i].sfs
+    @property
+    def n_minibatches(self): return len(self.pieces)
+
+    def find_mle(self, x0, method="svrg", bounds=None, rgen=None, out=None, **kwargs):
+        if not rgen:
+            rgen = self.rgen
+        callback = _PrintProgress(out, len(x0)).print_progress
+
+        full_surface = self.full_surface
+        def fun(x,i):
+            if i is None:
+                return full_surface.kl_div(x)
+            else:
+                if full_surface.log_prior: lp = full_surface.log_prior(x)
+                else: lp = 0.0
+                ret = -self.pieces[i].log_lik(x) + self.pieces[i].sfs.n_snps() * (full_surface.sfs._entropy - lp/float(full_surface.sfs.n_snps())) + _entropy_mut_term(self.pieces[i].mut_rate, self.pieces[i].sfs.n_snps(vector=True))
+                return ret / float(full_surface.sfs.n_snps())
+
+        opt_kwargs = dict(kwargs)
+        opt_kwargs.update({'pieces': self.n_minibatches, 'rgen': rgen})
+
+        return _find_minimum(fun, x0, optimizer=stochastic_opts[method],
+                             bounds=bounds, callback=callback, opt_kwargs=opt_kwargs,
+                             gradmakers={'fun_and_jac':autograd.value_and_grad})
+
+class _PrintProgress(object):
+    def __init__(self, out, x_len):
+        self.out = out
+        self.starttime = time.time()
+        self.print_header(x_len)
+
+    def printout(self, items):
+        outstr = "\t".join(map(str, items))
+        if self.out is None:
+            #logging.getLogger(__name__ + ".callback").info(outstr)
+            pass
+        else:
+            self.out.write(outstr + "\n")
+            self.out.flush()
+
+    def print_header(self, x_len):
+        self.printout(["Seconds","KLDivergence"] + ["X%d" % i for i in range(x_len)])
+
+    def print_progress(self, x,fx,i):
+        items = [time.time()-self.starttime, fx] + list(x)
+        self.printout(items)
+
 def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, **kwargs):
     try:
         sfs = data.sfs

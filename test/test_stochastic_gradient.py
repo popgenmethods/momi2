@@ -133,7 +133,7 @@ def test_stochastic_inference(folded):
     outfile=sys.stdout
     #outfile=None
     #logging.basicConfig(level=logging.INFO)
-    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", pieces=10, stepsize=.1, max_epochs=100, out=outfile)
+    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", stepsize=.1, max_epochs=100, iter_per_epoch=10, out=outfile)
     print(optimize_res)
     
     inferred_x = optimize_res.x
@@ -196,8 +196,8 @@ def test_stochastic_inference(folded):
 ##     #outfile=None
 ##     try:
 ##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="tnc", maxiter=500, out=outfile)
-##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", out=outfile) 
-##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="svrg", pieces=100, stepsize=.1, iter_per_epoch=10, max_epochs=100, out=outfile)
+##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", out=outfile) 
+##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100).find_mle(start_params, bounds=bounds, method="svrg", stepsize=.1, iter_per_epoch=10, max_epochs=100, out=outfile)
 ##     except:
 ##         print("SEED",seed)
 ##         raise
