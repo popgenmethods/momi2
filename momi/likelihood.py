@@ -75,7 +75,7 @@ class SfsLikelihoodSurface(object):
         for batch in self.sfs_batches:
             ret = ret + _raw_log_lik(diff_vals, diff_keys, G, batch, self.truncate_probs, self.folded, self.error_matrices)
 
-        if self.mut_rate:
+        if self.mut_rate is not None:
             ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False)
 
         if self.log_prior:
@@ -287,7 +287,7 @@ def _mut_factor(sfs, demo, mut_rate, vector):
     return ret  
 
 def _entropy_mut_term(mut_rate, counts_i):
-    if mut_rate:
+    if mut_rate is not None:
         mu = mut_rate * np.ones(len(counts_i))
         mu = mu[counts_i > 0]
         counts_i = counts_i[counts_i > 0]
