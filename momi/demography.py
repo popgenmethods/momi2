@@ -180,6 +180,7 @@ class Demography(object):
        ## use this with _get_differentiable_part()
        ## to re-organize certain computations during automatic differentiation
        ret = nx.DiGraph()
+       ret.add_nodes_from(self._G.nodes(data=False))
        ret.add_edges_from(self._G.edges(data=False))
 
        for v,d in self._G.nodes(data=True):
