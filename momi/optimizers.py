@@ -182,10 +182,11 @@ def svrg(fun, x0, fun_and_jac, pieces, stepsize, iter_per_epoch, max_epochs=100,
                     xnext = scipy.optimize.minimize(model_fun, x, jac=model_grad, bounds=bounds).x
                 xnext = truncate(xnext)
             x = xnext
+            nit += 1
 
     history = {k: np.array(v) for k,v in history.items()}
     res = scipy.optimize.OptimizeResult({'success':success, 'message':message,
-                                         'nit':nit, 'history': history,
+                                         'nit':nit, 'nepoch': epoch,'history': history,
                                          'x':x, 'fun':fbar, 'jac':gbar})
     if quasinewton:
         res['hess_inv'] = H

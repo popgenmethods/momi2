@@ -75,7 +75,7 @@ def test_subsfs2(fold):
     if fold:
         sfs = sfs.fold()
 
-    subsfs_list = momi.likelihood._subsfs_list(sfs, 10, np.random)
+    subsfs_list, _ = momi.likelihood._subsfs_list(sfs, 10, np.random, 0)
     total = [([tuple(map(tuple,sfs.configs[i])) for i in subsfs.configs.sub_idxs],
               subsfs._total_freqs)
              for subsfs in subsfs_list]
@@ -106,7 +106,7 @@ def test_subliks(fold):
     n_chunks = 10
 
     surface = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None, folded=fold)
-    subsurfaces = surface._get_stochastic_pieces(n_chunks, np.random)
+    subsurfaces,_ = surface._get_stochastic_pieces(n_chunks, np.random, 0)
 
     val0 = [s.log_lik(x0) for s in subsurfaces]
     val1 = surface.log_lik(x0)
@@ -148,12 +148,12 @@ def test_stochastic_inference(folded):
 
 
 ## def test_complex_stochastic_inference():
-##     seed = np.random.randint(2**32-1)
+##     #seed = np.random.randint(2**32-1)
 ##     #seed = 270543553
 ##     #seed = 2300087928
 ##     #seed = 3443948355
 ##     #seed = 2092909111
-##     #seed = 2470901291
+##     seed = 2470901291
 ##     print("SEED",seed)
 ##     np.random.seed(seed)
 ##   
@@ -192,12 +192,13 @@ def test_stochastic_inference(folded):
 ##     # pick a random start value for the parameter search
 ##     start_params = np.array([np.random.uniform(l,h) for (l,h) in bounds])
 ##  
+##     logging.basicConfig(level=logging.INFO, format="# %(name)s:%(levelname)s: %(msg)s")
 ##     outfile=sys.stdout
 ##     #outfile=None
 ##     try:
 ##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="tnc", maxiter=500, out=outfile)
 ##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", out=outfile) 
-##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100).find_mle(start_params, bounds=bounds, method="svrg", stepsize=.1, iter_per_epoch=10, max_epochs=100, out=outfile)
+##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="svrg", stepsize=.1, iter_per_epoch=10, max_epochs=100, out=outfile)
 ##     except:
 ##         print("SEED",seed)
 ##         raise
@@ -210,5 +211,8 @@ def test_stochastic_inference(folded):
 ##     print("# Inferred:\n", inferred_x)
 ##     print("# Ratio Inferred/Truth:","\n", 2.**error)    
 ##     print("# Max Log2 Ratio: %f" % max(abs(error)))
+##     try:
+##         print ("# Epochs: ", optimize_res.nepoch)
+##     except: pass
 ##     print("SEED",seed)
 ##     #assert max(abs(np.log(error))) < .1
