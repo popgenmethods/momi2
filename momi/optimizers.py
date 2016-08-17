@@ -62,6 +62,38 @@ def _find_minimum_helper(f, start_params, optimizer,
         f = replacefun(f)
     return optimizer(f, start_params, **opt_kwargs)
 
+stochastic_opts = {}
+def is_stoch_opt(fun):
+    stochastic_opts[fun.__name__] = fun
+    return fun
+
+@is_stoch_opt
+def sgd(fun, x0, fun_and_jac, pieces, stepsize, num_iters, bounds=None, callback=None, rgen=np.random):
+    x0 = np.array(x0)
+
+    if callback is None:
+        callback = lambda *a,**kw:None
+
+    if bounds is None:
+        bounds = [(None,None) for _ in x0]
+    lower,upper = zip(*bounds)
+    lower = [-float('inf') if l is None else l
+             for l in lower]
+    upper = [float('inf') if u is None else u
+             for u in upper]
+
+    def truncate(x):
+        return np.maximum(np.minimum(x, upper), lower)
+
+    x = x0
+    for nit in range(num_iters):
+        i = rgen.randint(pieces)
+        f_x, g_x = fun_and_jac(x,i)
+        x = truncate(x - stepsize*g_x)
+
+    return scipy.optimize.OptimizeResult({'x':x, 'fun':f_x, 'jac':g_x})
+
+@is_stoch_opt
 def svrg(fun, x0, fun_and_jac, pieces, stepsize, iter_per_epoch, max_epochs=100, bounds=None, callback=None, rgen=np.random, quasinewton=True, init_epoch_svrg=False, xtol=1e-6):
     x0 = np.array(x0)
 
@@ -138,11 +170,11 @@ def svrg(fun, x0, fun_and_jac, pieces, stepsize, iter_per_epoch, max_epochs=100,
                 else:
                     f_w, g_w = fun_and_jac(w,0)
                     if epoch == 0:
-                        u = truncate(w - pieces*g_w)
+                        u = truncate(w - g_w)
                     else:
                         u = prev_w
                     f_u, g_u = fun_and_jac(u,0)
-                    s, y = (u-w), pieces*(g_u-g_w)
+                    s, y = (u-w), (g_u-g_w)
                     H = np.abs( np.dot(s,y) / np.dot(y,y) ) * I
 
             H_eigvals, H_eigvecs = scipy.linalg.eigh(H)
@@ -167,10 +199,10 @@ def svrg(fun, x0, fun_and_jac, pieces, stepsize, iter_per_epoch, max_epochs=100,
 
             if gbar is not None:
                 f_w, g_w = fun_and_jac(w,i)
-                g = pieces*(g_x - g_w) + gbar
+                g = (g_x - g_w) + gbar
             else:
                 assert epoch == 0 and init_epoch_svrg is False
-                g = pieces* g_x
+                g = g_x
 
             if not quasinewton:
                 xnext = truncate(x - stepsize*g)
@@ -194,4 +226,3 @@ def svrg(fun, x0, fun_and_jac, pieces, stepsize, iter_per_epoch, max_epochs=100,
     return res
 
 
-stochastic_opts = {"svrg": svrg}

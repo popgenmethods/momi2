@@ -134,6 +134,7 @@ def test_stochastic_inference(folded):
     #outfile=None
     #logging.basicConfig(level=logging.INFO)
     optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", stepsize=.1, max_epochs=100, iter_per_epoch=10, out=outfile)
+    #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="sgd", stepsize=.1, num_iters=1000, out=outfile)
     print(optimize_res)
     
     inferred_x = optimize_res.x

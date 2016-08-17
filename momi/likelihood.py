@@ -220,7 +220,12 @@ class StochasticSfsLikelihoodSurface(object):
     def find_mle(self, x0, method="svrg", bounds=None, rgen=None, out=None, **kwargs):
         if not rgen:
             rgen = self.rgen
-        callback = _PrintProgress(out, len(x0)).print_progress
+        if method == "svrg":
+            callback = _PrintProgress(out, len(x0)).print_progress
+        elif method == "sgd":
+            callback = None
+        else:
+            raise ValueError("Unrecognized method %s" % method)
 
         full_surface = self.full_surface
         def fun(x,i):
@@ -230,7 +235,7 @@ class StochasticSfsLikelihoodSurface(object):
                 if full_surface.log_prior: lp = full_surface.log_prior(x)
                 else: lp = 0.0
                 ret = -self.pieces[i].log_lik(x) + self.pieces[i].sfs.n_snps() * (full_surface.sfs._entropy - lp/float(full_surface.sfs.n_snps())) + _entropy_mut_term(self.pieces[i].mut_rate, self.pieces[i].sfs.n_snps(vector=True))
-                return ret / float(full_surface.sfs.n_snps())
+                return ret / float(full_surface.sfs.n_snps()) * self.n_minibatches
 
         opt_kwargs = dict(kwargs)
         opt_kwargs.update({'pieces': self.n_minibatches, 'rgen': rgen})
