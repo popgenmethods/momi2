@@ -3,8 +3,8 @@ from future.utils import raise_with_traceback
 import autograd.numpy as np
 import numdifftools
 from functools import partial, wraps
-from autograd.core import primitive
-from autograd import hessian, grad, hessian_vector_product, jacobian
+from autograd.core import primitive, Node
+from autograd import hessian, grad, hessian_vector_product, jacobian, value_and_grad
 import autograd
 import itertools
 from collections import Counter
@@ -22,7 +22,7 @@ def count_calls(fun):
     new_fun.reset_count = reset_count
 
     return new_fun
-        
+
 def check_symmetric(X):
     Xt = np.transpose(X)
     assert np.allclose(X, Xt)
@@ -94,12 +94,12 @@ def memoize(obj):
 
 class memoize_instance(object):
     """cache the return value of a method
-    
+
     This class is meant to be used as a decorator of methods. The return value
     from a given method invocation will be cached on the instance whose method
     was invoked. All arguments passed to a method decorated with memoize must
     be hashable.
-    
+
     If a memoized method is invoked directly on its class the result will not
     be cached. Instead the method will be invoked like a static method:
     class Obj(object):
@@ -108,7 +108,7 @@ class memoize_instance(object):
             return self + arg
     Obj.add_to(1) # not enough arguments
     Obj.add_to(1, 2) # returns 3, result is not cached
-    
+
     recipe from http://code.activestate.com/recipes/577452-a-memoize-decorator-for-instance-methods/
     """
     def __init__(self, func):
@@ -138,20 +138,40 @@ def force_primitive(subroutine):
     (Note, this does not improve memory usage of second order derivatives, and
     may actually increase it!)
     """
-    ## TODO: make faster, by storing results of the forward-pass whenever wrapped_subroutine is called    
-    @autograd.primitive
-    @wraps(subroutine)    
+    @wraps(subroutine)
     def wrapped_subroutine(x_tuple, *args, **kwargs):
-        return subroutine(x_tuple, *args, **kwargs)
-    
-    @count_calls # decorator used by unit tests making sure the new gradient is being called
-    def subroutine_grad(ans, x_tuple, *args, **kwargs):
-        return lambda g: tuple(g*y for y in autograd.grad(subroutine)(x_tuple, *args, **kwargs))
-    
-    wrapped_subroutine.defgrad(subroutine_grad)
+        if not isinstance(x_tuple, Node):
+            return subroutine(x_tuple, *args, **kwargs)
+        return inner_fun(x_tuple, [], *args, **kwargs)
+
+    @autograd.primitive
+    def inner_fun(x_tuple, gx_container, *args, **kwargs):
+        fx, gx = value_and_grad(subroutine)(x_tuple, *args, **kwargs)
+        gx_container.append(gx)
+        return fx
+
+    # decorator used by unit tests making sure the new gradient is being called
+    @count_calls
+    def inner_grad(ans, x_tuple, gx_container, *args, **kwargs):
+        gx, = gx_container
+        gradfun = lambda g: inner_grad_helper(x_tuple, g, gx, *args, **kwargs)
+        return gradfun
+
+    @primitive
+    def inner_grad_helper(x_tuple, g, gx, *args, **kwargs):
+        return tuple(g*y for y in gx)
+
+    def inner_hess(ans, x_tuple, g, gx, *args, **kwargs):
+        raise HessianDisabledError("Autograd hessians disabled to allow for computational improvements to memory usage. To disable these memory savings and allow Hessian usage, set allow_hessian=True")
+
+    inner_fun.defgrad(inner_grad)
+    inner_grad_helper.defgrad(inner_hess)
 
     ## for unit tests associated with @count_calls
-    wrapped_subroutine.num_grad_calls = subroutine_grad.num_calls
-    wrapped_subroutine.reset_grad_count = subroutine_grad.reset_count
-   
+    wrapped_subroutine.num_grad_calls = inner_grad.num_calls
+    wrapped_subroutine.reset_grad_count = inner_grad.reset_count
+
     return wrapped_subroutine
+
+class HessianDisabledError(NotImplementedError):
+    pass

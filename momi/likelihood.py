@@ -40,10 +40,10 @@ class SfsLikelihoodSurface(object):
             Decrease batch_size to decrease memory usage (but add running time overhead)
         """
         self.data = data
-        
+
         try: self.sfs = self.data.sfs
         except AttributeError: self.sfs = self.data
-        
+
         self.demo_func = demo_func
 
         self.mut_rate = mut_rate
@@ -60,9 +60,12 @@ class SfsLikelihoodSurface(object):
 
         self.log_prior = log_prior
 
-    def log_lik(self, x):
+    def log_lik(self, x, allow_hessian=False):
         """
         Returns the composite log-likelihood of the data at the point x.
+
+        If allow_hessian=True, disables computational improvements to memory
+        usage that break the autograd hessian.
         """
         if self.demo_func:
             logger.debug("Computing log-likelihood at x = {0}".format(x))
@@ -70,10 +73,13 @@ class SfsLikelihoodSurface(object):
         else:
             demo = x
 
-        G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
-        ret = 0.0
-        for batch in self.sfs_batches:
-            ret = ret + _raw_log_lik(diff_vals, diff_keys, G, batch, self.truncate_probs, self.folded, self.error_matrices)
+        if not allow_hessian:
+            G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
+            ret = 0.0
+            for batch in self.sfs_batches:
+                ret = ret + _raw_log_lik(diff_vals, diff_keys, G, batch, self.truncate_probs, self.folded, self.error_matrices)
+        else:
+            ret = _composite_log_likelihood(self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
 
         if self.mut_rate is not None:
             ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False)
@@ -83,11 +89,14 @@ class SfsLikelihoodSurface(object):
         logger.debug("log-likelihood = {0}".format(ret))
         return ret
 
-    def kl_div(self, x):
+    def kl_div(self, x, allow_hessian=False):
         """
         Returns KL-Divergence(Empirical || Theoretical(x)).
+
+        If allow_hessian=True, disables computational improvements to memory
+        usage that break the autograd hessian.
         """
-        log_lik = self.log_lik(x)
+        log_lik = self.log_lik(x, allow_hessian=allow_hessian)
         ret = -log_lik + self.sfs.n_snps() * self.sfs._entropy + _entropy_mut_term(self.mut_rate, self.sfs.n_snps(vector=True))
 
         ret = ret / float(self.sfs.n_snps())
@@ -137,12 +146,6 @@ class SfsLikelihoodSurface(object):
         hist = lambda:None
         hist.itr = 0
         hist.recent_vals = []
-        @functools.wraps(self.kl_div)
-        def fun(x):
-            ret = self.kl_div(x)
-            hist.recent_vals += [(x,ret)]
-            return ret
-
         starttime = time.time()
 
         user_callback = kwargs.pop("callback", lambda x: None)
@@ -165,8 +168,15 @@ class SfsLikelihoodSurface(object):
         else: replacefun = None
 
         gradmakers = {}
+        allow_hessian = hess or hessp
         if hess: gradmakers['hess'] = autograd.hessian
         if hessp: gradmakers['hessp'] = autograd.hessian_vector_product
+
+        @functools.wraps(self.kl_div)
+        def fun(x):
+            ret = self.kl_div(x, allow_hessian=allow_hessian)
+            hist.recent_vals += [(x,ret)]
+            return ret
 
         return _find_minimum(fun, x0, scipy.optimize.minimize,
                              bounds=bounds, callback=callback,
@@ -291,11 +301,11 @@ def _mut_factor(sfs, demo, mut_rate, vector):
         raise NotImplementedError("Poisson model not implemented for missing data.")
     E_total = expected_total_branch_len(demo)
     lambd = mut_rate * E_total
-    
+
     ret = -lambd + sfs.n_snps(vector=True) * np.log(lambd)
     if not vector:
         ret = np.sum(ret)
-    return ret  
+    return ret
 
 def _entropy_mut_term(mut_rate, counts_i):
     if mut_rate is not None:
@@ -304,7 +314,7 @@ def _entropy_mut_term(mut_rate, counts_i):
         counts_i = counts_i[counts_i > 0]
         return np.sum(-counts_i + counts_i * np.log(np.sum(counts_i) * mu / float(np.sum(mu))))
     return 0.0
-    
+
 
 @force_primitive
 def _raw_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_matrices):
@@ -317,13 +327,13 @@ def _raw_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_ma
 def _build_sfs_batches(sfs, batch_size):
     counts = sfs._total_freqs
     sfs_len = len(counts)
-    
+
     if sfs_len <= batch_size:
         return [sfs]
 
     batch_size = int(batch_size)
     slices = []
-    prev_idx, next_idx = 0, batch_size    
+    prev_idx, next_idx = 0, batch_size
     while prev_idx < sfs_len:
         slices.append(slice(prev_idx, next_idx))
         prev_idx = next_idx
@@ -335,7 +345,7 @@ def _build_sfs_batches(sfs, batch_size):
     ## thus avoiding redundant computation
     ## "similar" == configs have same num missing alleles
     ## "very similar" == configs are folded copies of each other
-    
+
     a = sfs.configs.value[:,:,0] # ancestral counts
     d = sfs.configs.value[:,:,1] # derived counts
     n = a+d # totals
@@ -343,7 +353,7 @@ def _build_sfs_batches(sfs, batch_size):
     n = list(map(tuple, n))
     a = list(map(tuple, a))
     d = list(map(tuple, d))
-    
+
     folded = list(map(min, list(zip(a,d))))
 
     keys = list(zip(n,folded))

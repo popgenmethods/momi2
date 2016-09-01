@@ -28,7 +28,7 @@ def full_config_array(sampled_pops, sampled_n, ascertainment_pop=None):
     if ascertainment_pop is None:
         ascertainment_pop = [True]*len(sampled_pops)
     ascertainment_pop = np.array(ascertainment_pop)
-    
+
     ranges = [list(range(n+1)) for n in sampled_n]
     config_list = []
     for x in itertools.product(*ranges):
@@ -36,7 +36,7 @@ def full_config_array(sampled_pops, sampled_n, ascertainment_pop=None):
         if not (np.all(x[ascertainment_pop] == 0) or np.all(x[ascertainment_pop] == sampled_n[ascertainment_pop])):
             config_list.append(x)
     return config_array(sampled_pops, np.array(config_list, dtype=int), sampled_n,
-                        ascertainment_pop=ascertainment_pop)    
+                        ascertainment_pop=ascertainment_pop)
 
 class ConfigArray(object):
     """
@@ -50,7 +50,7 @@ class ConfigArray(object):
     """
     def __init__(self, sampled_pops, conf_arr, sampled_n, ascertainment_pop):
         """Use config_array() instead of calling this constructor directly"""
-        ##If sampled_n=None, ConfigArray.sampled_n will be the max number of observed individuals/alleles per population.       
+        ##If sampled_n=None, ConfigArray.sampled_n will be the max number of observed individuals/alleles per population.
         self.sampled_pops = tuple(sampled_pops)
         self.value = conf_arr
 
@@ -62,7 +62,7 @@ class ConfigArray(object):
             raise ValueError("At least one of the populations must be used for ascertainment of polymorphic sites")
 
         max_n = np.max(np.sum(self.value, axis=2), axis=0)
-        
+
         if sampled_n is None: sampled_n = max_n
         sampled_n = np.array(sampled_n)
         if np.any(sampled_n < max_n): raise ValueError("config greater than sampled_n")
@@ -76,14 +76,14 @@ class ConfigArray(object):
         #self.has_monomorphic = _has_monomorphic(self.value)
         if np.any(np.sum(self.value[:,self.ascertainment_pop,:], axis=1) == 0):
             raise ValueError("Monomorphic sites not allowed. In addition, all sites must be polymorphic when restricted to the ascertainment populations")
-        
+
     def __getitem__(self, *args): return self.value.__getitem__(*args)
     def __len__(self): return len(self.value)
     def __eq__(self, other):
         conf_arr = self.value
         try: return np.all(conf_arr == other.value)
         except AttributeError: return False
-    
+
     ## TODO: remove this method (and self.sampled_n attribute)
     def _copy(self, sampled_n=None):
         """
@@ -104,17 +104,17 @@ class ConfigArray(object):
         #augmented_configs, augmented_idxs = self._build_augmented_configs_idxs(folded)
         augmented_configs = self._augmented_configs(folded)
         augmented_idxs = self._augmented_idxs(folded)
-        
+
         # construct the vecs
         vecs = [np.zeros((len(augmented_configs), n+1)) for n in self.sampled_n]
-        
+
         for i in range(len(vecs)):
             n = self.sampled_n[i]
             derived = np.einsum("i,j->ji", np.ones(len(augmented_configs)), np.arange(n+1))
             curr = comb(derived, augmented_configs[:,i,1]) * comb(n-derived, augmented_configs[:,i,0]) / comb(n, np.sum(augmented_configs[:,i,:], axis=1))
             assert not np.any(np.isnan(curr))
             vecs[i] = np.transpose(curr)
-        
+
         ## copy augmented_idxs to make it safe
         return vecs, dict(augmented_idxs)
 
@@ -125,8 +125,8 @@ class ConfigArray(object):
     def _augmented_configs(self, folded):
         return self._build_augmented_configs_idxs(folded)[0]
     def _augmented_idxs(self, folded):
-        return self._build_augmented_configs_idxs(folded)[1]        
-    
+        return self._build_augmented_configs_idxs(folded)[1]
+
     @memoize_instance
     def _build_augmented_configs_idxs(self, folded):
         augmented_configs = []
@@ -137,32 +137,32 @@ class ConfigArray(object):
             except KeyError:
                 idx = len(augmented_configs)
                 assert idx == len(augmented_config_2_idx)
-                
+
                 augmented_config_2_idx[hashed] = idx
                 augmented_configs.append(config)
                 return idx
-                
+
         # initial row is a "zero" config
         null_idx = augmented_idx(np.array([(-1,1)]*len(self.sampled_pops), dtype=int))
 
         # next row is normalization constant
-        denom_idx = augmented_idx(np.zeros((len(self.sampled_pops), 2)))       
-        
-        # get row indices for each config        
+        denom_idx = augmented_idx(np.zeros((len(self.sampled_pops), 2)))
+
+        # get row indices for each config
         idx_2_row = np.array(list(map(augmented_idx, self)), dtype=int)
-        
+
         ## remove monomorphic configs
         ## (if there is missing data or error matrices,
         ##  expected_sfs_tensor_prod will return nonzero SFS
         ##  for monomorphic configs)
         monomorphic = np.any(np.sum(self.value, axis=1) == 0, axis=1)
         idx_2_row[monomorphic] = null_idx
-        
+
         # get row indices for each denominator
         sample_sizes_array = np.sum(self.value, axis=2)
         if np.any(sample_sizes_array > self.sampled_n):
             raise Exception("There is a config that is larger than the specified sample size!")
-        
+
         sample_sizes = [tuple(s) for s in sample_sizes_array]
         ssize_2_corrections = [{}, {}] # corrections for monomorphic sites (all ancestral & all derived)
         for s in set(sample_sizes):
@@ -176,7 +176,7 @@ class ConfigArray(object):
                 ssize_2_corrections[mono_allele][s] = augmented_idx(mono_config)
         corrections_2_denom = [np.array([corr_row[s] for s in sample_sizes], dtype=int)
                                for corr_row in ssize_2_corrections]
-        
+
         # get row indices for folded configs
         if folded:
             rev_confs = self.value[:,:,::-1]
@@ -184,13 +184,13 @@ class ConfigArray(object):
             folded_2_row = []
             for rc,symm in zip(rev_confs, is_symm):
                 if symm:
-                    # map to 0 if symmetric              
+                    # map to 0 if symmetric
                     folded_2_row += [null_idx]
                 else:
                     folded_2_row += [augmented_idx(rc)]
             folded_2_row = np.array(folded_2_row, dtype=int)
             folded_2_row[monomorphic] = null_idx ## dont use monomorphic configs
-           
+
         idxs = {'denom_idx': denom_idx, 'idx_2_row': idx_2_row}
         assert len(corrections_2_denom) == 2
         idxs.update({('corrections_2_denom',0): corrections_2_denom[0],
@@ -200,7 +200,7 @@ class ConfigArray(object):
         except UnboundLocalError:
             pass
 
-        return np.array(augmented_configs, dtype=int), idxs        
+        return np.array(augmented_configs, dtype=int), idxs
 
 ## TODO: change parameters to list of configs, and a sparse matrix giving counts
 def site_freq_spectrum(sampled_pops, loci):
@@ -230,7 +230,7 @@ def site_freq_spectrum(sampled_pops, loci):
                 index2loc.append(loc)
                 index2count.append(count)
                 yield config
-                
+
     conf_arr, config2uniq, index2uniq = _build_data(chained_sequences(),
                                                     len(sampled_pops))
 
@@ -240,18 +240,18 @@ def site_freq_spectrum(sampled_pops, loci):
 
     configs = ConfigArray(sampled_pops, conf_arr, None, None)
     return Sfs(loci_counters, configs)
-    
+
 class Sfs(object):
     """
     Represents an observed SFS across several loci.
 
     Important methods/attributes:
-    """    
+    """
     def __init__(self, loci, configs):
         self.configs = configs
-        
+
         #self.loci = [Counter(loc) for loc in loci]
-        #self.total = sum(self.loci, Counter())        
+        #self.total = sum(self.loci, Counter())
 
         self.loc_idxs, self.loc_counts = [], []
         for loc in loci:
@@ -273,7 +273,7 @@ class Sfs(object):
     @memoize_instance
     def freqs_matrix(self):
         """
-        Returns the frequencies as a sparse matrix; 
+        Returns the frequencies as a sparse matrix;
         freqs_matrix[i, j] is the frequency of Sfs.configs[i] at locus j
         """
         data = []
@@ -285,7 +285,7 @@ class Sfs(object):
             indices += list(idxs)
         indptr += [len(data)]
         return scipy.sparse.csc_matrix((data,indices,indptr), shape=(len(self.configs),self.n_loci)).tocsr()
-        
+
     @property
     def sampled_n(self):
         return self.configs.sampled_n
@@ -294,7 +294,7 @@ class Sfs(object):
         return self.configs.ascertainment_pop
     @property
     def sampled_pops(self):
-        return self.configs.sampled_pops        
+        return self.configs.sampled_pops
     @property
     def n_loci(self):
         return len(self.loc_idxs)
@@ -305,7 +305,7 @@ class Sfs(object):
     def n_snps(self, vector=False, locus=None):
         if vector:
             assert locus is None
-            return np.array([self.n_snps(locus=loc) for loc in range(self.n_loci)])        
+            return np.array([self.n_snps(locus=loc) for loc in range(self.n_loci)])
         if locus is None:
             return np.sum(self._total_freqs)
         else:
@@ -314,7 +314,7 @@ class Sfs(object):
         loci_dicts = self._get_dict(vector=True)
         try: return loci_dicts == other._get_dict(vector=True)
         except AttributeError: return False
-        
+
     def _get_dict(self, vector=False, locus=None):
         if vector:
             assert locus is None
@@ -330,7 +330,7 @@ class Sfs(object):
         else:
             return [{_hashed2config(k):v for k,v in d.items()}
                     for d in self._get_dict(vector=True)]
-    
+
     @property
     @memoize_instance
     def _entropy(self):
@@ -340,7 +340,7 @@ class Sfs(object):
         #return np.sum(p * np.log(p))
         ret = np.sum(p * np.log(p))
 
-        ## correct for missing data        
+        ## correct for missing data
         sampled_n = np.sum(self.configs.value, axis=2)
         sampled_n_counts = Counter()
         assert len(counts) == len(sampled_n)
@@ -352,7 +352,7 @@ class Sfs(object):
         ret = ret + np.sum(sampled_n_counts / n_snps * np.log(n_snps / sampled_n_counts))
         return ret
 
-        
+
     def fold(self):
         """
         Returns a copy of the SFS, but with folded entries.
@@ -377,19 +377,19 @@ class Sfs(object):
                     yield k,v
             ret.items = ret_items
             return ret
-        
+
         loci = [convert_loc(loc) for loc in loci]
         ret = site_freq_spectrum(self.sampled_pops, loci)
         if np.any(ret.sampled_n != self.sampled_n):
             ret = ret._copy(sampled_n = self.sampled_n)
         return ret
-           
+
     def _copy(self, sampled_n=None):
         """
         See also: ConfigArray._copy()
         """
         if sampled_n is None:
-            sampled_n = self.sampled_n        
+            sampled_n = self.sampled_n
         return Sfs([dict(zip(li,lc)) for li,lc in zip(self.loc_idxs, self.loc_counts)],
                    ConfigArray(self.sampled_pops, self.configs.value, sampled_n=sampled_n, ascertainment_pop=self.ascertainment_pop))
 
@@ -407,7 +407,7 @@ class Sfs(object):
     # @property
     # def _total_freqs(self):
     #     return self._idxs_counts(None)[1]
-    
+
     # @memoize_instance
     # def _idxs_counts(self, locus):
     #     if locus is None:
@@ -418,7 +418,7 @@ class Sfs(object):
     #     #idxs, counts = zip(*self.loci[locus].items())
     #     idxs = np.array(list(self.loci[locus].keys()), dtype=int)
     #     counts = np.array([self.loci[locus][k] for k in idxs], dtype=float)
-    #     return idxs, counts    
+    #     return idxs, counts
 
 def seg_site_configs(sampled_pops, config_sequences, ascertainment_pop=None):
     """
@@ -463,12 +463,12 @@ class SegSites(object):
         self.idx_list = idx_list
         self.sfs = Sfs(self.idx_list, self.configs)
         self.loci = [SegSitesLocus(self.configs, idxs) for idxs in idx_list]
-        
+
     def __getitem__(self,loc):
         return self.loci[loc]
     def __len__(self):
         return len(self.loci)
-        
+
     @property
     def ascertainment_pop(self): return self.sfs.ascertainment_pop
     @property
@@ -481,7 +481,7 @@ class SegSites(object):
         ret = self.sfs.n_snps(locus=locus)
         assert int(ret) == ret
         return int(ret)
-   
+
     def __eq__(self, other):
         configs, idx_list, ascertainment_pop = self.configs, self.idx_list, self.ascertainment_pop
         try:
@@ -515,14 +515,14 @@ def _build_data(config_iter, npops):
             config2uniq[config_str] = uniq_idx
             config_list.append(config_str)
         index2uniq.append(uniq_idx)
-               
+
     config_array = np.zeros((len(config_list), npops, 2), dtype=int)
     for i,config_str in enumerate(config_list):
         config_array[i,:,:] = _hashed2config(config_str)
     config_array.setflags(write=False)
-    
+
     return (config_array, config2uniq, index2uniq)
-        
+
 def write_seg_sites(sequences_file, seg_sites):
     sampled_pops = seg_sites.sampled_pops
 
@@ -531,7 +531,7 @@ def write_seg_sites(sequences_file, seg_sites):
     if not np.all(seg_sites.ascertainment_pop):
         sequences_file.write("# Population used for ascertainment?\n")
         sequences_file.write("\t".join(map(str, seg_sites.ascertainment_pop)) + "\n")
-    
+
     for locus_configs in seg_sites:
         sequences_file.write("\n//\n\n")
         for config in locus_configs:
@@ -550,7 +550,7 @@ def read_seg_sites(sequences_file):
     get_loc.curr = -1
 
     loci = itertools.groupby(lines, get_loc)
-    
+
     _,header = next(loci)
     sampled_pops = tuple(next(header).split())
 
@@ -558,7 +558,7 @@ def read_seg_sites(sequences_file):
         if any(a.startswith(s.lower()) for a in ("true","yes")): return True
         elif any(a.startswith(s.lower()) for a in ("false","no")): return False
         raise ValueError("Can't convert %s to boolean" % s)
-    
+
     try: ascertainment_pop = list(map(str2bool, next(header).split()))
     except (ValueError,StopIteration): ascertainment_pop = None
 
@@ -567,11 +567,11 @@ def read_seg_sites(sequences_file):
         for line in locus:
             #yield tuple(tuple(map(int,x.split(","))) for x in line.split())
             yield _hashed2config(line)
-            
+
     return seg_site_configs(sampled_pops, (get_configs(loc) for i,loc in loci), ascertainment_pop=ascertainment_pop)
 
 def _sub_sfs(configs, counts, subidxs=None):
-    assert len(counts.shape) == 1 
+    assert len(counts.shape) == 1
     if subidxs is None:
         assert len(counts) == len(configs.value)
         ## make array copies to prevent views keeping references to larger objects
@@ -580,7 +580,7 @@ def _sub_sfs(configs, counts, subidxs=None):
     assert len(subidxs) == len(counts)
     sub_configs = _ConfigArray_Subset(configs, subidxs)
     return Sfs([{i:c for i,c in enumerate(counts)}], sub_configs)
-   
+
 class _ConfigArray_Subset(ConfigArray):
     ## Efficient access to subset of configs
     def __init__(self, configs, sub_idxs):
@@ -589,7 +589,7 @@ class _ConfigArray_Subset(ConfigArray):
         for a in ("sampled_n", "sampled_pops", "has_missing_data", "ascertainment_pop"):
             setattr(self, a, getattr(self.full_configs, a))
         #self.has_monomorphic = _has_monomorphic(self.value)
-            
+
     @property
     def value(self):
         return self.full_configs.value[self.sub_idxs,:,:]
@@ -597,7 +597,7 @@ class _ConfigArray_Subset(ConfigArray):
         for i in self.value: yield i
     def __len__(self):
         return len(self.sub_idxs)
-    
+
     # def _vecs_and_idxs(self, folded):
     #     vecs,_ = self.full_configs._vecs_and_idxs(folded)
     #     old_idxs, idxs = self._build_idxs(folded)
@@ -611,7 +611,7 @@ class _ConfigArray_Subset(ConfigArray):
         return self.full_configs._augmented_configs(folded)[self._build_old_new_idxs(folded)[0],:,:]
     def _augmented_idxs(self, folded):
         return self._build_old_new_idxs(folded)[1]
-    
+
     @memoize_instance
     def _build_old_new_idxs(self, folded):
         idxs = self.full_configs._augmented_idxs(folded)
