@@ -1,10 +1,10 @@
 
-from .util import count_calls, force_primitive
+from .util import count_calls, rearrange_tuple_gradients, AutogradProcess, parsum
 from .optimizers import _find_minimum, stochastic_opts
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .demography import DemographyError, Demography
-from .data_structure import _sub_sfs
+from .data_structure import _sub_sfs, site_freq_spectrum, ConfigArray, Sfs
 import scipy
 import autograd, numdifftools
 from autograd import grad, hessian_vector_product, hessian
@@ -14,7 +14,7 @@ import random, functools, logging, time
 logger = logging.getLogger(__name__)
 
 class SfsLikelihoodSurface(object):
-    def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200):
+    def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200, processes=0):
         """
         Object for computing composite likelihoods, and searching for the maximum composite likelihood.
 
@@ -37,7 +37,8 @@ class SfsLikelihoodSurface(object):
             this can be helpful for dealing with very small probabilities, within computer accuracy of 0.
         batch_size:
             controls the memory usage. the SFS will be computed in batches of batch_size.
-            Decrease batch_size to decrease memory usage (but add running time overhead)
+            Decrease batch_size to decrease memory usage (but add running time overhead).
+            set batch_size=-1 to compute all SNPs in a single batch. This is required if you wish to compute hessians or higher-order derivatives with autograd.
         """
         self.data = data
 
@@ -54,17 +55,27 @@ class SfsLikelihoodSurface(object):
 
         self.truncate_probs = truncate_probs
 
-        self.batch_size = batch_size
-        self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
-        #self.sfs_batches = [self.sfs]
-
         self.log_prior = log_prior
+        self.batch_size = batch_size
 
-    def log_lik(self, x, allow_hessian=False):
+        if processes > 0:
+            process_batches = _build_sfs_batches(self.sfs, int(np.ceil(len(self.sfs.configs) / float(processes))))
+            self.processes = [AutogradProcess(_make_likelihood_fun, subsfs.sampled_pops, subsfs.configs.value, subsfs.sampled_n, subsfs._total_freqs, demo_func=self.demo_func, mut_rate=None, log_prior=self.log_prior, folded=self.folded, truncate_probs = self.truncate_probs, batch_size=batch_size, processes=0) for subsfs in process_batches]
+        else:
+            self.processes = None
+            if batch_size <= 0:
+                self.sfs_batches = None
+            else:
+                self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
+
+    def __del__(self):
+        if self.processes:
+            for proc in self.processes: proc.join()
+
+    def log_lik(self, x):
         """
         Returns the composite log-likelihood of the data at the point x.
 
-        If allow_hessian=True, disables computational improvements to memory
         usage that break the autograd hessian.
         """
         if self.demo_func:
@@ -73,13 +84,16 @@ class SfsLikelihoodSurface(object):
         else:
             demo = x
 
-        if not allow_hessian:
-            G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
-            ret = 0.0
-            for batch in self.sfs_batches:
-                ret = ret + _raw_log_lik(diff_vals, diff_keys, G, batch, self.truncate_probs, self.folded, self.error_matrices)
+        if self.processes:
+            ret = parsum(x, self.processes)
         else:
-            ret = _composite_log_likelihood(self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
+            if self.sfs_batches:
+                G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
+                ret = 0.0
+                for batch in self.sfs_batches:
+                    ret = ret + _raw_log_lik(diff_vals, diff_keys, G, batch, self.truncate_probs, self.folded, self.error_matrices)
+            else:
+                ret = _composite_log_likelihood(self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
 
         if self.mut_rate is not None:
             ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False)
@@ -89,14 +103,11 @@ class SfsLikelihoodSurface(object):
         logger.debug("log-likelihood = {0}".format(ret))
         return ret
 
-    def kl_div(self, x, allow_hessian=False):
+    def kl_div(self, x):
         """
         Returns KL-Divergence(Empirical || Theoretical(x)).
-
-        If allow_hessian=True, disables computational improvements to memory
-        usage that break the autograd hessian.
         """
-        log_lik = self.log_lik(x, allow_hessian=allow_hessian)
+        log_lik = self.log_lik(x)
         ret = -log_lik + self.sfs.n_snps() * self.sfs._entropy + _entropy_mut_term(self.mut_rate, self.sfs.n_snps(vector=True))
 
         ret = ret / float(self.sfs.n_snps())
@@ -168,13 +179,12 @@ class SfsLikelihoodSurface(object):
         else: replacefun = None
 
         gradmakers = {}
-        allow_hessian = hess or hessp
         if hess: gradmakers['hess'] = autograd.hessian
         if hessp: gradmakers['hessp'] = autograd.hessian_vector_product
 
         @functools.wraps(self.kl_div)
         def fun(x):
-            ret = self.kl_div(x, allow_hessian=allow_hessian)
+            ret = self.kl_div(x)
             hist.recent_vals += [(x,ret)]
             return ret
 
@@ -254,6 +264,12 @@ class StochasticSfsLikelihoodSurface(object):
                              bounds=bounds, callback=callback, opt_kwargs=opt_kwargs,
                              gradmakers={'fun_and_jac':autograd.value_and_grad})
 
+def _make_likelihood_fun(sampled_pops, conf_arr, sampled_n, counts_arr, *args, **kwargs):
+    configs = ConfigArray(sampled_pops, conf_arr, sampled_n, None)
+    sfs = Sfs([dict(zip(range(len(counts_arr)), counts_arr))], configs)
+    surface = SfsLikelihoodSurface(sfs, *args, **kwargs)
+    return surface.log_lik
+
 class _PrintProgress(object):
     def __init__(self, out, x_len):
         self.out = out
@@ -316,7 +332,7 @@ def _entropy_mut_term(mut_rate, counts_i):
     return 0.0
 
 
-@force_primitive
+@rearrange_tuple_gradients()
 def _raw_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_matrices):
     ## computes log likelihood from the "raw" arrays and graph objects comprising the Demography,
     ## allowing us to compute gradients directly w.r.t. these values,

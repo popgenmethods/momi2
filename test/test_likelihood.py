@@ -73,6 +73,6 @@ def test_batches_hess():
         pass
     else:
         assert False
-    hess1 = hessian_vector_product(SfsLikelihoodSurface(sfs, batch_size=5, demo_func=demo_func, mut_rate=mu).log_lik)(x0, v, allow_hessian=True)
+    hess1 = hessian_vector_product(SfsLikelihoodSurface(sfs, batch_size=-1, demo_func=demo_func, mut_rate=mu).log_lik)(x0, v)
     hess2 = hessian_vector_product(lambda x: momi.likelihood._composite_log_likelihood(sfs, demo_func(*x), mut_rate=mu))(x0, v)
     assert np.allclose(hess1, hess2)

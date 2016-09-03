@@ -4,11 +4,12 @@ import autograd.numpy as np
 import numdifftools
 from functools import partial, wraps
 from autograd.core import primitive, Node
-from autograd import hessian, grad, hessian_vector_product, jacobian, value_and_grad
+from autograd import hessian, grad, hessian_vector_product, jacobian, value_and_grad, vector_jacobian_product
 import autograd
 import itertools
 from collections import Counter
 import sys, warnings, collections, logging, gc
+import multiprocessing as mp
 
 def count_calls(fun):
     call_counter=[0]
@@ -130,48 +131,158 @@ class memoize_instance(object):
             res = cache[key] = self.func(*args, **kw)
         return res
 
-def force_primitive(subroutine):
+
+class rearrange_gradients(object):
     """
-    Wraps subroutine(x_tuple,...) to be autograd.primitive.
-    This improves memory usage, when computing first order derivatives
-    of functions that call subroutine().
-    (Note, this does not improve memory usage of second order derivatives, and
-    may actually increase it!)
+    rearrange_gradients()(fun) returns a function that uses a
+    wrapped version of fun, except it is primitive, so that we
+    don't store its gradient computations in memory.
+
+    fun is assumed to return a scalar, and the signature of fun
+    is assumed to be
+           fun(x, *args, **kwargs)
+    where x is a numpy.array, and derivative is ONLY taken with
+    respect to x (not wrt any other args).
+
+    to avoid doing the forward-pass twice, we precompute
+    gradient and cache it on the forward-pass, thus saving
+    us from having to do it again on the backward pass.
+
+    second-order gradients remain well-defined, but use an
+    extra forward-pass.
     """
-    @wraps(subroutine)
-    def wrapped_subroutine(x_tuple, *args, **kwargs):
-        if not isinstance(x_tuple, Node):
-            return subroutine(x_tuple, *args, **kwargs)
-        return inner_fun(x_tuple, [], *args, **kwargs)
+    def __init__(self, get_value_and_grad=value_and_grad):
+        self.get_value_and_grad = get_value_and_grad
+    def __call__(self, fun):
+        # Notation:
+        # f(x) = fun(x, *args, **kwargs)
+        # F is the mapping, F: f(x) -> final_result
+        # G = scalar function of dF/dx
+        # use y,z as dummy variables for x when needed
 
-    @autograd.primitive
-    def inner_fun(x_tuple, gx_container, *args, **kwargs):
-        fx, gx = value_and_grad(subroutine)(x_tuple, *args, **kwargs)
-        gx_container.append(gx)
-        return fx
+        get_dF_dx = count_calls(self.get_dF_dx)
+        get_dG_dx = count_calls(self.get_dG_dx)
 
-    # decorator used by unit tests making sure the new gradient is being called
-    @count_calls
-    def inner_grad(ans, x_tuple, gx_container, *args, **kwargs):
-        gx, = gx_container
-        gradfun = lambda g: inner_grad_helper(x_tuple, g, gx, *args, **kwargs)
-        return gradfun
+        @wraps(fun)
+        def fun_wrapped(x, *args, **kwargs):
+            for a in list(args) + list(kwargs.values()):
+                if isinstance(a, Node):
+                    raise NotImplementedError
 
-    @primitive
-    def inner_grad_helper(x_tuple, g, gx, *args, **kwargs):
-        return tuple(g*y for y in gx)
+            if isinstance(x, Node):
+                # use y as a dummy variable for x
+                f = lambda y: fun(y, *args, **kwargs)
+                # a primitive version of f, to avoid storing its gradient in memory
+                @primitive
+                def f_primitive(y, df_dy_container):
+                    # use value_and_grad to precompute df_dy
+                    fy, df_dy = self.get_value_and_grad(fun)(y, *args, **kwargs)
+                    # store df_dy for the backward pass
+                    df_dy_container.append(df_dy)
+                    return fy
+                def make_dF_dy_chainrule(fy, y, df_dy_container):
+                    df_dy, = df_dy_container
+                    # needs to be primitive, so we can properly obtain the gradient of df_dy
+                    @primitive
+                    # use z as dummy variable for y
+                    def dF_dz_primitive(z, dF_df):
+                        return get_dF_dx(dF_df, df_dy)
+                    make_dG_dz_chainrule = lambda dF_dz, z, dF_df: lambda dGdz_d2F: get_dG_dx(f, z, dF_df, dGdz_d2F)
+                    dF_dz_primitive.defgrad(make_dG_dz_chainrule)
 
-    def inner_hess(ans, x_tuple, g, gx, *args, **kwargs):
-        raise HessianDisabledError("Autograd hessians disabled to allow for computational improvements to memory usage. To disable these memory savings and allow Hessian usage, set allow_hessian=True")
+                    dF_dy_chainrule = lambda dF_df: dF_dz_primitive(y, dF_df)
+                    return dF_dy_chainrule
+                f_primitive.defgrad(make_dF_dy_chainrule)
+                return f_primitive(x, [])
+            else:
+                return fun(x, *args, **kwargs)
+        ## for unit tests associated with @count_calls
+        def reset_grad_count():
+            get_dF_dx.reset_count()
+            get_dG_dx.reset_count()
+        fun_wrapped.reset_grad_count = reset_grad_count
+        fun_wrapped.num_grad_calls = get_dF_dx.num_calls
+        fun_wrapped.num_hess_calls = get_dG_dx.num_calls
+        return fun_wrapped
 
-    inner_fun.defgrad(inner_grad)
-    inner_grad_helper.defgrad(inner_hess)
+    def get_dF_dx(self, dF_df, df_dx):
+        return dF_df * df_dx
 
-    ## for unit tests associated with @count_calls
-    wrapped_subroutine.num_grad_calls = inner_grad.num_calls
-    wrapped_subroutine.reset_grad_count = inner_grad.reset_count
+    def get_dG_dx(self, f, x, dF_df, dGdx_d2F):
+        dF_dx_fun = vec_jac_prod_fun(f, dF_df)
+        return vec_jac_prod_fun(dF_dx_fun, dGdx_d2F)(x)
 
-    return wrapped_subroutine
+class rearrange_tuple_gradients(rearrange_gradients):
+    """
+    similar to rearrange_gradients, except fun is assumed to have
+    signature
+    fun(x_tuple, *args, **kwargs)
+    where x_tuple is a tuple of numpy arrays.
+
+    also, second-order gradients are disabled.
+    """
+    def get_dF_dx(self, dF_df, df_dx_tuple):
+        return tuple(dF_df*df_dx for df_dx in df_dx_tuple)
+
+    def get_dG_dx(self, *args, **kwargs):
+        raise HessianDisabledError("Autograd hessians disabled to allow for computational improvements to memory usage. To disable these memory savings and allow Hessian usage, use SfsLikelihoodSurface(..., batch_size=-1).")
 
 class HessianDisabledError(NotImplementedError):
     pass
+
+## use parsum() to compute parallel sums of arbitrary order gradients
+
+def _parsum_val_and_grad(x, autograd_process_list):
+    for agproc in autograd_process_list:
+        agproc.put(x, [value_and_grad])
+    return tuple(map(sum, zip(*[agproc.get() for agproc in autograd_process_list])))
+
+@rearrange_gradients(get_value_and_grad = lambda fun: _parsum_val_and_grad)
+def parsum(x, autograd_process_list):
+    return _parsum(x, autograd_process_list, [])
+
+@primitive
+def _parsum(x, autograd_process_list, g_list=[]):
+    for agproc in autograd_process_list:
+        agproc.put(x, g_list)
+    return sum([agproc.get() for agproc in autograd_process_list])
+
+_parsum.defgrad(lambda ans, x, queue_list, g_list: lambda g: _parsum(x, queue_list, [g] + list(g_list)))
+
+class AutogradProcess(object):
+    def __init__(self, funmaker, *args, **kwargs):
+        self.inqueue = mp.SimpleQueue()
+        self.outqueue = mp.SimpleQueue()
+        self.proc = mp.Process(target=vec_jac_prod_worker, args=tuple([self.inqueue, self.outqueue, funmaker] + list(args)), kwargs=kwargs)
+        self.proc.start()
+
+    def put(self, x, g_list):
+        self.inqueue.put([x] + list(g_list))
+
+    def get(self):
+        return self.outqueue.get()
+
+    def join(self):
+        self.inqueue.put(None)
+        self.proc.join()
+
+    def __del__(self):
+        self.join()
+
+def vec_jac_prod_worker(in_queue, out_queue, basefun_maker, *args, **kwargs):
+    basefun = basefun_maker(*args, **kwargs)
+    while True:
+        nxt_item = in_queue.get()
+        if nxt_item is None:
+            break
+        x, g_list = nxt_item[0], nxt_item[1:]
+        if list(g_list) == [value_and_grad]:
+            out_queue.put(value_and_grad(basefun)(x))
+        else:
+            fun = basefun
+            for g in g_list[::-1]:
+                fun = vec_jac_prod_fun(fun, g)
+            out_queue.put(fun(x))
+
+def vec_jac_prod_fun(fun, vec):
+    return lambda x: vector_jacobian_product(fun)(x,vec)
