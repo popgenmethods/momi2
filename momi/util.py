@@ -151,8 +151,6 @@ class rearrange_gradients(object):
     second-order gradients remain well-defined, but use an
     extra forward-pass.
     """
-    def __init__(self, get_value_and_grad=value_and_grad):
-        self.get_value_and_grad = get_value_and_grad
     def __call__(self, fun):
         # Notation:
         # f(x) = fun(x, *args, **kwargs)
@@ -171,7 +169,7 @@ class rearrange_gradients(object):
 
             if isinstance(x, Node):
                 # use y as a dummy variable for x
-                f = lambda y: fun(y, *args, **kwargs)
+                #f = lambda y: fun(y, *args, **kwargs)
                 # a primitive version of f, to avoid storing its gradient in memory
                 @primitive
                 def f_primitive(y, df_dy_container):
@@ -187,7 +185,7 @@ class rearrange_gradients(object):
                     # use z as dummy variable for y
                     def dF_dz_primitive(z, dF_df):
                         return get_dF_dx(dF_df, df_dy)
-                    make_dG_dz_chainrule = lambda dF_dz, z, dF_df: lambda dGdz_d2F: get_dG_dx(f, z, dF_df, dGdz_d2F)
+                    make_dG_dz_chainrule = lambda dF_dz, z, dF_df: lambda dGdz_d2F: get_dG_dx(fun, dF_df, dGdz_d2F)(z, *args, **kwargs)
                     dF_dz_primitive.defgrad(make_dG_dz_chainrule)
 
                     dF_dy_chainrule = lambda dF_df: dF_dz_primitive(y, dF_df)
@@ -203,14 +201,18 @@ class rearrange_gradients(object):
         fun_wrapped.reset_grad_count = reset_grad_count
         fun_wrapped.num_grad_calls = get_dF_dx.num_calls
         fun_wrapped.num_hess_calls = get_dG_dx.num_calls
+        fun_wrapped.wrapped_fun = fun
         return fun_wrapped
+
+    def get_value_and_grad(self, fun):
+        return value_and_grad(fun)
 
     def get_dF_dx(self, dF_df, df_dx):
         return dF_df * df_dx
 
-    def get_dG_dx(self, f, x, dF_df, dGdx_d2F):
+    def get_dG_dx(self, f, dF_df, dGdx_d2F):
         dF_dx_fun = vec_jac_prod_fun(f, dF_df)
-        return vec_jac_prod_fun(dF_dx_fun, dGdx_d2F)(x)
+        return vec_jac_prod_fun(dF_dx_fun, dGdx_d2F)
 
 class rearrange_tuple_gradients(rearrange_gradients):
     """
@@ -237,7 +239,15 @@ def _parsum_val_and_grad(x, autograd_process_list):
         agproc.put(x, [value_and_grad])
     return tuple(map(sum, zip(*[agproc.get() for agproc in autograd_process_list])))
 
-@rearrange_gradients(get_value_and_grad = lambda fun: _parsum_val_and_grad)
+class rearrange_gradients_parsum(rearrange_gradients):
+    def get_value_and_grad(self, fun):
+        assert fun == parsum.wrapped_fun
+        return _parsum_val_and_grad
+    def get_dG_dx(self, fun, dF_df, dGdx_d2F):
+        assert fun == parsum.wrapped_fun
+        return lambda x, autograd_process_list: _parsum(x, autograd_process_list, [dGdx_d2F, dF_df])
+
+@rearrange_gradients_parsum()
 def parsum(x, autograd_process_list):
     return _parsum(x, autograd_process_list, [])
 
