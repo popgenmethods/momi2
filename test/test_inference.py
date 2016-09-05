@@ -45,12 +45,12 @@ def test_jointime_inference(folded, add_n):
     check_jointime_inference(folded=folded, add_n=add_n)
 
 def test_nodiff():
-    return check_jointime_inference(finite_diff_eps=1e-8)
+    return check_jointime_inference(finite_diff_eps=1e-8, use_prior=True)
 
 def test_missing_data():
-    return check_jointime_inference(missing_p=.5, folded=True, num_runs=100, theta=10., use_prior=True)
+    return check_jointime_inference(missing_p=.75, theta=1., num_runs=1000, use_theta=True, sampled_n=(4,4,4))
 
-def check_jointime_inference(folded=False, add_n=0, finite_diff_eps=0, missing_p=0,
+def check_jointime_inference(sampled_n=(5,5,5), folded=False, add_n=0, finite_diff_eps=0, missing_p=0,
                              use_prior=False,
                              use_theta=False, theta=.1, num_runs = 10000):
     t0=random.uniform(.25,2.5)
@@ -58,7 +58,7 @@ def check_jointime_inference(folded=False, add_n=0, finite_diff_eps=0, missing_p
 
     def get_demo(join_time):
         return make_demography([('-ej', join_time, 1, 2), ('-ej', t1, 2, 3)],
-                          (1,2,3), (5,5,5))
+                               (1,2,3), sampled_n)
 
     true_demo = get_demo(t0)
     #true_demo = make_demography(true_demo.events,
@@ -67,23 +67,10 @@ def check_jointime_inference(folded=False, add_n=0, finite_diff_eps=0, missing_p
     true_demo = true_demo.copy(sampled_n = np.array(true_demo.sampled_n) - add_n)
     data = simulate_ms(ms_path, true_demo.rescaled(),
                        num_loci=num_runs, mut_rate=theta)
-    if missing_p:
-        subsampled_data = []
-        for loc in range(data.n_loci):
-            curr = np.array(list(data[loc]), dtype=int)
-            if len(curr) == 0:
-                subsampled_data.append(list(curr))
-                continue
-            curr = np.random.binomial(curr, 1.0-missing_p)
-            curr_polymorphic = np.all(np.sum(curr, axis=1) != 0, axis=1)
-            curr = curr[curr_polymorphic,:,:]
-            subsampled_data.append(curr)
-        assert any([not np.array_equal(subsampled_data[loc],
-                                       np.array(list(data[loc]), dtype=int))
-                    for loc in range(data.n_loci)])
-        data = momi.seg_site_configs(data.sampled_pops, subsampled_data)
-
     sfs = data.sfs
+    if missing_p:
+        sfs = momi.data_structure._randomly_drop_alleles(sfs, missing_p)
+
     assert sfs.n_snps() > 0
     sfs = sfs._copy(sampled_n=np.array(true_demo.sampled_n)+add_n)
     if folded:
@@ -110,7 +97,7 @@ def check_jointime_inference(folded=False, add_n=0, finite_diff_eps=0, missing_p
     if use_prior:
         log_prior = lambda t: -t/float(t0)
     else: log_prior = None
-    res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded, log_prior=log_prior).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
+    res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded, log_prior=log_prior, p_missing=missing_p).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
     
     #res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_mle(x0, bounds=[(0,t1),])
 

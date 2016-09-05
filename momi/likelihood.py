@@ -14,7 +14,7 @@ import random, functools, logging, time
 logger = logging.getLogger(__name__)
 
 class SfsLikelihoodSurface(object):
-    def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200, processes=0):
+    def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200, processes=0, p_missing=None):
         """
         Object for computing composite likelihoods, and searching for the maximum composite likelihood.
 
@@ -67,6 +67,9 @@ class SfsLikelihoodSurface(object):
                 self.sfs_batches = None
             else:
                 self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
+        if p_missing is None:
+            p_missing = self.sfs.p_missing
+        self.p_missing = p_missing
 
     def __del__(self):
         if self.processes:
@@ -96,7 +99,7 @@ class SfsLikelihoodSurface(object):
                 ret = _composite_log_likelihood(self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
 
         if self.mut_rate is not None:
-            ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False)
+            ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False, p_missing=self.p_missing)
 
         if self.log_prior:
             ret = ret + self.log_prior(x)
@@ -292,7 +295,7 @@ class _PrintProgress(object):
         items = [time.time()-self.starttime, fx] + list(x)
         self.printout(items)
 
-def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, **kwargs):
+def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, p_missing=None, **kwargs):
     try:
         sfs = data.sfs
     except AttributeError:
@@ -304,18 +307,18 @@ def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, v
 
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
-        log_lik = log_lik + _mut_factor(sfs, demo, mut_rate, vector)
+        log_lik = log_lik + _mut_factor(sfs, demo, mut_rate, vector, p_missing=p_missing)
 
     if not vector:
         log_lik = np.squeeze(log_lik)
     return log_lik
 
-def _mut_factor(sfs, demo, mut_rate, vector):
+def _mut_factor(sfs, demo, mut_rate, vector, p_missing=None):
     mut_rate = mut_rate * np.ones(sfs.n_loci)
 
-    if sfs.configs.has_missing_data:
-        raise NotImplementedError("Poisson model not implemented for missing data.")
-    E_total = expected_total_branch_len(demo)
+    if p_missing is None:
+        p_missing = sfs.p_missing
+    E_total = expected_total_branch_len(demo, p_missing=p_missing)
     lambd = mut_rate * E_total
 
     ret = -lambd + sfs.n_snps(vector=True) * np.log(lambd)

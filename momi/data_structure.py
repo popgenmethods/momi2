@@ -287,6 +287,15 @@ class Sfs(object):
         return scipy.sparse.csc_matrix((data,indices,indptr), shape=(len(self.configs),self.n_loci)).tocsr()
 
     @property
+    @memoize_instance
+    def p_missing(self):
+        ret =  1.0 - np.einsum("ijk,i->j", self.configs.value, self._total_freqs / float(self.n_snps())) / self.sampled_n
+        if not self.configs.has_missing_data:
+            assert np.allclose(ret, 0.0)
+            return 0.0*ret
+        return ret
+
+    @property
     def sampled_n(self):
         return self.configs.sampled_n
     @property
@@ -419,6 +428,24 @@ class Sfs(object):
     #     idxs = np.array(list(self.loci[locus].keys()), dtype=int)
     #     counts = np.array([self.loci[locus][k] for k in idxs], dtype=float)
     #     return idxs, counts
+
+def _randomly_drop_alleles(sfs, p_missing, ascertainment_pop=None):
+    p_missing = p_missing * np.ones(len(sfs.sampled_n))
+    if ascertainment_pop is None:
+        ascertainment_pop = np.array([True] * len(sfs.sampled_n))
+
+    p_sampled = 1.0-np.transpose([p_missing, p_missing])
+    ret = [[] for _ in range(sfs.n_loci)]
+
+    counts = sfs.freqs_matrix.tocoo()
+    for config,loc,freq in zip(counts.row, counts.col, counts.data):
+        config = sfs.configs[config]
+        for newconfig in np.random.binomial(config, p_sampled, size=(freq, len(sfs.sampled_n), 2)):
+            if np.any(newconfig[ascertainment_pop,:].sum(axis=0) == 0):
+                ## monomorphic
+                continue
+            ret[loc].append(newconfig)
+    return seg_site_configs(sfs.sampled_pops, ret, ascertainment_pop=ascertainment_pop).sfs
 
 def seg_site_configs(sampled_pops, config_sequences, ascertainment_pop=None):
     """
