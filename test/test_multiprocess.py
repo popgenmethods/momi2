@@ -4,6 +4,25 @@ import autograd as ag
 from demo_utils import simple_five_pop_demo
 from test_ms import ms_path, scrm_path
 
+class MyException(Exception):
+    pass
+
+def make_myfun():
+    def fun(x):
+        raise MyException
+    return fun
+
+def test_exception():
+    n = 5
+    proclist = [momi.util.AutogradProcess(make_myfun) for i in range(n)]
+
+    try:
+        momi.util.parsum([1,2,3], proclist)
+    except MyException as e:
+        pass
+    else:
+        assert False
+
 def powfun(i):
     return lambda x: np.sum(x**i)
 

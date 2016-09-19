@@ -255,7 +255,13 @@ def parsum(x, autograd_process_list):
 def _parsum(x, autograd_process_list, g_list=[]):
     for agproc in autograd_process_list:
         agproc.put(x, g_list)
-    return sum([agproc.get() for agproc in autograd_process_list])
+    ret = [agproc.get() for agproc in autograd_process_list]
+    for e in ret:
+        if isinstance(e,Exception):
+            for agproc in autograd_process_list:
+                agproc.join()
+            raise e
+    return sum(ret)
 
 _parsum.defgrad(lambda ans, x, queue_list, g_list: lambda g: _parsum(x, queue_list, [g] + list(g_list)))
 
@@ -283,16 +289,19 @@ def vec_jac_prod_worker(in_queue, out_queue, basefun_maker, *args, **kwargs):
     basefun = basefun_maker(*args, **kwargs)
     while True:
         nxt_item = in_queue.get()
-        if nxt_item is None:
-            break
-        x, g_list = nxt_item[0], nxt_item[1:]
-        if list(g_list) == [value_and_grad]:
-            out_queue.put(value_and_grad(basefun)(x))
-        else:
-            fun = basefun
-            for g in g_list[::-1]:
-                fun = vec_jac_prod_fun(fun, g)
-            out_queue.put(fun(x))
+        try:
+            if nxt_item is None:
+                break
+            x, g_list = nxt_item[0], nxt_item[1:]
+            if list(g_list) == [value_and_grad]:
+                out_queue.put(value_and_grad(basefun)(x))
+            else:
+                fun = basefun
+                for g in g_list[::-1]:
+                    fun = vec_jac_prod_fun(fun, g)
+                out_queue.put(fun(x))
+        except Exception as e:
+            out_queue.put(e)
 
 def vec_jac_prod_fun(fun, vec):
     return lambda x: vector_jacobian_product(fun)(x,vec)
