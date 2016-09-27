@@ -69,8 +69,8 @@ def test_multiprocess_likelihood():
 
     lik1 = momi.likelihood._composite_log_likelihood(sfs, demo, mut_rate=mu)
 
-    surface = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, batch_size=5, processes=2, mut_rate=mu)
-    lik2 = surface.log_lik(x0)
+    with momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, batch_size=5, processes=2, mut_rate=mu) as surface:
+        lik2 = surface.log_lik(x0)
     assert np.allclose(lik1, lik2)
 
 def test_multiprocess_grad():
@@ -88,8 +88,8 @@ def test_multiprocess_grad():
     momi.util.parsum.reset_grad_count()
     assert not momi.util.parsum.num_grad_calls()
 
-    surface = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, batch_size=5, processes=2, mut_rate=mu)
-    lik2 = ag.grad(surface.log_lik)(x0)
+    with momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, batch_size=5, processes=2, mut_rate=mu) as surface:
+        lik2 = ag.grad(surface.log_lik)(x0)
 
     assert np.allclose(lik1, lik2)
     assert momi.util.parsum.num_grad_calls()
@@ -111,9 +111,9 @@ def test_multiprocess_hess():
     momi.util.parsum.reset_grad_count()
     assert not momi.util.parsum.num_hess_calls()
 
-    surface = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, batch_size=-1, processes=2, mut_rate=mu)
-    lik2 = lambda x: surface.log_lik(x)
-    lik2 = ag.hessian_vector_product(lik2)(x0, y)
+    with momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, batch_size=-1, processes=2, mut_rate=mu) as surface:
+        lik2 = lambda x: surface.log_lik(x)
+        lik2 = ag.hessian_vector_product(lik2)(x0, y)
 
     assert np.allclose(lik1, lik2)
     assert momi.util.parsum.num_grad_calls()

@@ -39,6 +39,19 @@ class SfsLikelihoodSurface(object):
             controls the memory usage. the SFS will be computed in batches of batch_size.
             Decrease batch_size to decrease memory usage (but add running time overhead).
             set batch_size=-1 to compute all SNPs in a single batch. This is required if you wish to compute hessians or higher-order derivatives with autograd.
+        processes:
+            the number of cores to use.
+            if <= 0 (the default), do not use any parallelization.
+            if processes > 0, it is recommended to create the SfsLikelihoodSurface()
+            using the with...as... construct:
+
+                with SfsLikelihoodSurface(data, demo_func, processes=10) as surface:
+                     mle = surface.find_mle(x0)
+                print("MLE is ", mle.x)
+
+            as this will automatically take care of closing connections to the parallel subprocesses.
+            (Alternatively, you can manually call surface.close(), but care must be taken
+            to make sure surface.close() is called in the event of an Error).
         """
         self.data = data
 
@@ -71,9 +84,19 @@ class SfsLikelihoodSurface(object):
             p_missing = self.sfs.p_missing
         self.p_missing = p_missing
 
-    def __del__(self):
+    def close(self):
         if self.processes:
             for proc in self.processes: proc.join()
+            self.processes = None
+
+    def __del__(self):
+        self.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
     def log_lik(self, x):
         """
