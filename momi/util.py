@@ -175,6 +175,8 @@ class rearrange_gradients(object):
                 def f_primitive(y, df_dy_container):
                     # use value_and_grad to precompute df_dy
                     fy, df_dy = self.get_value_and_grad(fun)(y, *args, **kwargs)
+                    ## TODO: remove this after autograd issue #103 resolved (https://github.com/HIPS/autograd/issues/103)
+                    gc.collect()
                     # store df_dy for the backward pass
                     df_dy_container.append(df_dy)
                     return fy
