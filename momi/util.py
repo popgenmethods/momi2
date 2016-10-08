@@ -176,7 +176,7 @@ class rearrange_gradients(object):
                     # use value_and_grad to precompute df_dy
                     fy, df_dy = self.get_value_and_grad(fun)(y, *args, **kwargs)
                     ## TODO: remove this after autograd issue #103 resolved (https://github.com/HIPS/autograd/issues/103)
-                    gc.collect()
+                    #gc.collect()
                     # store df_dy for the backward pass
                     df_dy_container.append(df_dy)
                     return fy
@@ -284,8 +284,9 @@ class AutogradProcess(object):
         self.inqueue.put(None)
         self.proc.join()
 
-    def __del__(self):
-        self.join()
+    ## TODO: AutogradProcessManager class to automatically call join()
+    #def __del__(self):
+    #    self.join()
 
 def vec_jac_prod_worker(in_queue, out_queue, basefun_maker, *args, **kwargs):
     basefun = basefun_maker(*args, **kwargs)
