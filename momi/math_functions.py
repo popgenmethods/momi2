@@ -6,35 +6,13 @@ from .util import memoize, check_psd
 from .convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes, roll_trailing_axes, unroll_trailing_axes
 from einsum2 import einsum2, einsum1
 
-
-#def einsum2(*args):
-#    '''
-#    like numpy.einsum, using format
-#    einsum(op0, sublist0, op1, sublist1, ..., sublistout).
-#    however, sublist can have arbitrary labels (not just integers)
-#
-#    format einsum(subscripts, *operands) NOT supported
-#    '''
-#    assert len(args) % 2 == 1
-#
-#    args, enum_args = list(args), list(enumerate(args))
-#    # convert the index arguments to have integer type
-#    idx_argnum,idx_lists = list(zip(*(enum_args[1::2] + [enum_args[-1]])))
-#    idx_lists = list(map(list, idx_lists))
-#    idx_to_int = {idx: i for i,idx in enumerate(set(sum(idx_lists, [])))}
-#
-#    for argnum,idxs in zip(idx_argnum,idx_lists):
-#        args[argnum] = [idx_to_int[i] for i in idxs]
-#
-#    return np.einsum(*args)
-
 convolve_trailing_axes = primitive(convolve_trailing_axes)
 transposed_convolve_trailing_axes = primitive(transposed_convolve_trailing_axes)
 
-convolve_trailing_axes.defgrad(lambda ans,A,B: lambda g: transposed_convolve_trailing_axes(g,B,A.shape))
-convolve_trailing_axes.defgrad(lambda ans,A,B: lambda g: transposed_convolve_trailing_axes(np.transpose(g,(0,2,1,3)),A,B.shape), argnum=1)
-transposed_convolve_trailing_axes.defgrad(lambda ans,C,B,Ashape: lambda g: convolve_trailing_axes(g,B))
-transposed_convolve_trailing_axes.defgrad(lambda ans,C,B,Ashape: lambda g: transposed_convolve_trailing_axes(np.transpose(C,(0,2,1,3)),g,B.shape), argnum=1)
+convolve_trailing_axes.defgrad(lambda ans,A,B,threads=1: lambda g: transposed_convolve_trailing_axes(g,B,A.shape,threads))
+convolve_trailing_axes.defgrad(lambda ans,A,B,threads=1: lambda g: transposed_convolve_trailing_axes(np.transpose(g,(0,2,1,3)),A,B.shape,threads), argnum=1)
+transposed_convolve_trailing_axes.defgrad(lambda ans,C,B,Ashape,threads=1: lambda g: convolve_trailing_axes(g,B,threads))
+transposed_convolve_trailing_axes.defgrad(lambda ans,C,B,Ashape,threads=1: lambda g: transposed_convolve_trailing_axes(np.transpose(C,(0,2,1,3)),g,B.shape,threads), argnum=1)
 
 def convolve_axes(arr0, arr1, labs, axes, out_axis):
     old_labs = [list(l) for l in labs]
@@ -49,8 +27,8 @@ def convolve_axes(arr0, arr1, labs, axes, out_axis):
 sum_trailing_antidiagonals = primitive(sum_trailing_antidiagonals)
 add_trailing_axis = primitive(add_trailing_axis)
 
-sum_trailing_antidiagonals.defgrad(lambda ans, A: lambda g: add_trailing_axis(g, A.shape[2]))
-add_trailing_axis.defgrad(lambda ans, A, trailing_dim: lambda g: sum_trailing_antidiagonals(g))
+sum_trailing_antidiagonals.defgrad(lambda ans, A, threads=1: lambda g: add_trailing_axis(g, A.shape[2], threads))
+add_trailing_axis.defgrad(lambda ans, A, trailing_dim, threads=1: lambda g: sum_trailing_antidiagonals(g, threads))
 
 def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
     old_labels = list(labels)
@@ -64,8 +42,8 @@ def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
 roll_trailing_axes = primitive(roll_trailing_axes)
 unroll_trailing_axes = primitive(unroll_trailing_axes)
 
-roll_trailing_axes.defgrad(lambda ans, A: lambda g: unroll_trailing_axes(g))
-unroll_trailing_axes.defgrad(lambda ans, A: lambda g: roll_trailing_axes(g))
+roll_trailing_axes.defgrad(lambda ans, A, threads=1: lambda g: unroll_trailing_axes(g, threads))
+unroll_trailing_axes.defgrad(lambda ans, A, threads=1: lambda g: roll_trailing_axes(g, threads))
 
 def roll_axes(arr, labels, axis0, axis1):
     tmp_labels = [l for l in labels if l not in (axis0, axis1)]
