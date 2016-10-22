@@ -22,9 +22,10 @@ report bugs/issues [here](https://github.com/jackkamm/momi/issues)
 ## Installation and Dependencies
 
 Prerequisites:
+
 * [einsum2](https://github.com/jackkamm/einsum2)
 * [autograd](https://github.com/HIPS/autograd)
-  * autograd will automatically be installed by pip if you don't have it, but it's recommended to install the latest version from github, as it fixes a [memory issue](https://github.com/HIPS/autograd/issues/103) and this patch is not yet in the PyPi version.
+  * autograd will automatically be installed by pip if you don't have it, but it's recommended to install the latest version from github, as it fixes a [memory issue](https://github.com/HIPS/autograd/issues/103) and this patch is not yet in PyPi.
 * C compiler that is OpenMP compatible
 * Scientific distribution of Python 3 (recommended) or 2.7, e.g. [Anaconda](http://continuum.io/downloads), [Enthought Canopy](https://www.enthought.com/products/canopy/)
   * Alternatively, custom installation of pip, cython, the SciPy stack
@@ -36,21 +37,21 @@ pip install .
 in the top-level directory of momi (where "setup.py" lives).
 
 If you have problem installing or running, it's probably because of your C compiler.
-The default C compiler in OSX does not support OpenMP.
-I've also occasionally run into issues using Anaconda Python on Linux
-because of the old gcc-4 used to compile Anaconda Python.
+The default C compiler in OSX does not support OpenMP and thus will break.
+I've also sometimes run into issues with Anaconda Python on Linux
+because of the old gcc-4 used to compile it (however I can no longer reproduce this error).
 
 In case you are having issues with the C compiler, it is recommended
 to install and run momi in a virtual environment, using a C
 compiler from Anaconda. This will both support OpenMP and be fully compatible
 with the Python used in Anaconda. To do this:
+
 1. Create a new virtual environment named `momi2_env` with `conda create -n momi2_env python=3.5 anaconda` (alternatively, you can use `python=2.7 anaconda`).
 2. Switch to the environment with `source activate momi2_env`
-3. Install the Anaconda distribution of `gcc` with `conda install gcc`.
-   Note this will clobber your system `gcc`, which is why we are doing this in a virtual environment.
-3. Install extra dependencies such as `einsum2` and `autograd`.
-4. Install momi2 with `CC=gcc pip install .`. The `CC=gcc` is required on OSX, otherwise
-the installation will try to use the default `clang` compiler that does not support OpenMP.
+3. Install the Anaconda distribution of `gcc` with `conda install gcc`. Note this will clobber your system `gcc`, which is why we are doing this in a virtual environment.
+4. Install extra dependencies such as `einsum2` and `autograd`.
+5. Install momi2 with `CC=gcc pip install .` (the `CC=gcc` is required on OSX, otherwise
+the installation will try to use the default `clang` compiler that does not support OpenMP).
 
 ## Getting started
 
