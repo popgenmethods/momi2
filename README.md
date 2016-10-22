@@ -46,6 +46,8 @@ compiler from Anaconda. This will both support OpenMP and be fully compatible
 with the Python used in Anaconda. To do this:
 1. Create a new virtual environment named `momi2_env` with `conda create -n momi2_env python=3.5 anaconda` (alternatively, you can use `python=2.7 anaconda`).
 2. Switch to the environment with `source activate momi2_env`
+3. Install the Anaconda distribution of `gcc` with `conda install gcc`.
+   Note this will clobber your system `gcc`, which is why we are doing this in a virtual environment.
 3. Install extra dependencies such as `einsum2` and `autograd`.
 4. Install momi2 with `CC=gcc pip install .`. The `CC=gcc` is required on OSX, otherwise
 the installation will try to use the default `clang` compiler that does not support OpenMP.
