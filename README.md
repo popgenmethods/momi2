@@ -22,6 +22,7 @@ report bugs/issues [here](https://github.com/jackkamm/momi/issues)
 ## Installation and Dependencies
 
 Prerequisites:
+* [einsum2](https://github.com/jackkamm/einsum2)
 * gcc
 * Scientific distribution of Python 3 (recommended) or 2.7, e.g. [Anaconda](http://continuum.io/downloads), [Enthought Canopy](https://www.enthought.com/products/canopy/)
   * Alternatively, custom installation of pip, cython, the SciPy stack

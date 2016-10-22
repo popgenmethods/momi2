@@ -1,6 +1,6 @@
 
 from .util import memoize, check_probs_matrix
-from .math_functions import einsum2
+from einsum2 import einsum2
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
 import autograd.numpy as np

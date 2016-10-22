@@ -9,6 +9,7 @@ from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse,
 from .moran_model import moran_action
 from autograd.core import primitive
 from autograd import hessian
+from einsum2 import einsum2
 
 def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, folded=False, error_matrices=None):
     """

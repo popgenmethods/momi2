@@ -4,27 +4,29 @@ from autograd.core import primitive
 import scipy
 from .util import memoize, check_psd
 from .convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes, roll_trailing_axes, unroll_trailing_axes
+from einsum2 import einsum2, einsum1
 
-def einsum2(*args):
-    '''
-    like numpy.einsum, using format
-    einsum(op0, sublist0, op1, sublist1, ..., sublistout).
-    however, sublist can have arbitrary labels (not just integers)
 
-    format einsum(subscripts, *operands) NOT supported
-    '''
-    assert len(args) % 2 == 1
-
-    args, enum_args = list(args), list(enumerate(args))
-    # convert the index arguments to have integer type
-    idx_argnum,idx_lists = list(zip(*(enum_args[1::2] + [enum_args[-1]])))
-    idx_lists = list(map(list, idx_lists))
-    idx_to_int = {idx: i for i,idx in enumerate(set(sum(idx_lists, [])))}
-
-    for argnum,idxs in zip(idx_argnum,idx_lists):
-        args[argnum] = [idx_to_int[i] for i in idxs]
-
-    return np.einsum(*args)
+#def einsum2(*args):
+#    '''
+#    like numpy.einsum, using format
+#    einsum(op0, sublist0, op1, sublist1, ..., sublistout).
+#    however, sublist can have arbitrary labels (not just integers)
+#
+#    format einsum(subscripts, *operands) NOT supported
+#    '''
+#    assert len(args) % 2 == 1
+#
+#    args, enum_args = list(args), list(enumerate(args))
+#    # convert the index arguments to have integer type
+#    idx_argnum,idx_lists = list(zip(*(enum_args[1::2] + [enum_args[-1]])))
+#    idx_lists = list(map(list, idx_lists))
+#    idx_to_int = {idx: i for i,idx in enumerate(set(sum(idx_lists, [])))}
+#
+#    for argnum,idxs in zip(idx_argnum,idx_lists):
+#        args[argnum] = [idx_to_int[i] for i in idxs]
+#
+#    return np.einsum(*args)
 
 convolve_trailing_axes = primitive(convolve_trailing_axes)
 transposed_convolve_trailing_axes = primitive(transposed_convolve_trailing_axes)
@@ -38,7 +40,7 @@ def convolve_axes(arr0, arr1, labs, axes, out_axis):
     old_labs = [list(l) for l in labs]
     labs = [[l_i for l_i in l if l_i != a] + [a] for l,a in zip(labs,axes)]
 
-    arr0,arr1 = [einsum2(a,ol,l) for a,ol,l in zip((arr0,arr1), old_labs, labs)]
+    arr0,arr1 = [einsum1(a,ol,l) for a,ol,l in zip((arr0,arr1), old_labs, labs)]
     reshaped_arrs = [np.reshape(a, (a.shape[0],-1,a.shape[-1]), order='C') for a in (arr0,arr1)]
     ret = convolve_trailing_axes(*reshaped_arrs)
     return np.reshape(ret, tuple([ret.shape[0]] + list(arr0.shape[1:-1]) + list(arr1.shape[1:-1]) + [-1]),
@@ -53,7 +55,7 @@ add_trailing_axis.defgrad(lambda ans, A, trailing_dim: lambda g: sum_trailing_an
 def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
     old_labels = list(labels)
     labels = [l for l in labels if l not in (axis0,axis1)]
-    arr = einsum2(arr, old_labels, labels + [axis0, axis1])
+    arr = einsum1(arr, old_labels, labels + [axis0, axis1])
 
     reshaped_arr = np.reshape(arr, (-1,arr.shape[-2],arr.shape[-1]), order='C')
     ret = sum_trailing_antidiagonals(reshaped_arr)
@@ -69,11 +71,11 @@ def roll_axes(arr, labels, axis0, axis1):
     tmp_labels = [l for l in labels if l not in (axis0, axis1)]
     tmp_labels += [axis0, axis1]
 
-    arr = einsum2(arr, labels, tmp_labels)
+    arr = einsum1(arr, labels, tmp_labels)
     reshaped_arr = np.reshape(arr, (-1, arr.shape[-2], arr.shape[-1]), order='C')
     ret = roll_trailing_axes(reshaped_arr)
     ret = np.reshape(ret, tuple(list(arr.shape[:-1]) + [-1]), order='C')
-    return einsum2(ret, tmp_labels, labels)
+    return einsum1(ret, tmp_labels, labels)
     
 '''
 Returns

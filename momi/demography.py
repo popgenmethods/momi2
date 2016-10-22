@@ -1,7 +1,8 @@
 
 import networkx as nx
 from .util import memoize_instance, memoize
-from .math_functions import einsum2, sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse
+from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse
+from einsum2 import einsum2
 import scipy, scipy.misc
 import autograd.numpy as np
 import autograd
