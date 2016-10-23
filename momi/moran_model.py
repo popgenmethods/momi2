@@ -1,6 +1,6 @@
 
 from .util import memoize, check_probs_matrix
-from einsum2 import einsum2
+from .math_functions import par_einsum
 import scipy.sparse
 from scipy.sparse.linalg import expm_multiply
 import autograd.numpy as np
@@ -20,7 +20,7 @@ def moran_action(t,v, axis=0):
 
     vlen,output_dim = len(v.shape), list(range(len(v.shape)))
     output_dim[axis] = vlen
-    ret = einsum2(v, list(range(vlen)), PDPinv, [vlen,axis], output_dim)
+    ret = par_einsum(v, list(range(vlen)), PDPinv, [vlen,axis], output_dim)
     assert ret.shape == v.shape
     return ret
 

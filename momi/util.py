@@ -8,8 +8,13 @@ from autograd import hessian, grad, hessian_vector_product, jacobian, value_and_
 import autograd
 import itertools
 from collections import Counter
-import sys, warnings, collections, logging, gc
-import multiprocessing as mp
+import sys, warnings, collections, logging, gc, multiprocessing
+
+_THREADS_KWARGS = {"threads": multiprocessing.cpu_count()}
+def set_nthreads(threads):
+    _THREADS_KWARGS["threads"] = threads
+def get_nthreads():
+    return _THREADS_KWARGS["threads"]
 
 def count_calls(fun):
     call_counter=[0]
@@ -233,78 +238,6 @@ class rearrange_tuple_gradients(rearrange_gradients):
 
 class HessianDisabledError(NotImplementedError):
     pass
-
-## use parsum() to compute parallel sums of arbitrary order gradients
-
-def _parsum_val_and_grad(x, autograd_process_list):
-    for agproc in autograd_process_list:
-        agproc.put(x, [value_and_grad])
-    return tuple(map(sum, zip(*[agproc.get() for agproc in autograd_process_list])))
-
-class rearrange_gradients_parsum(rearrange_gradients):
-    def get_value_and_grad(self, fun):
-        assert fun == parsum.wrapped_fun
-        return _parsum_val_and_grad
-    def get_dG_dx(self, fun, dF_df, dGdx_d2F):
-        assert fun == parsum.wrapped_fun
-        return lambda x, autograd_process_list: _parsum(x, autograd_process_list, [dGdx_d2F, dF_df])
-
-@rearrange_gradients_parsum()
-def parsum(x, autograd_process_list):
-    return _parsum(x, autograd_process_list, [])
-
-@primitive
-def _parsum(x, autograd_process_list, g_list=[]):
-    for agproc in autograd_process_list:
-        agproc.put(x, g_list)
-    ret = [agproc.get() for agproc in autograd_process_list]
-    for e in ret:
-        if isinstance(e,Exception):
-            for agproc in autograd_process_list:
-                agproc.join()
-            raise e
-    return sum(ret)
-
-_parsum.defgrad(lambda ans, x, queue_list, g_list: lambda g: _parsum(x, queue_list, [g] + list(g_list)))
-
-class AutogradProcess(object):
-    def __init__(self, funmaker, *args, **kwargs):
-        self.inqueue = mp.SimpleQueue()
-        self.outqueue = mp.SimpleQueue()
-        self.proc = mp.Process(target=vec_jac_prod_worker, args=tuple([self.inqueue, self.outqueue, funmaker] + list(args)), kwargs=kwargs)
-        self.proc.start()
-
-    def put(self, x, g_list):
-        self.inqueue.put([x] + list(g_list))
-
-    def get(self):
-        return self.outqueue.get()
-
-    def join(self):
-        self.inqueue.put(None)
-        self.proc.join()
-
-    ## TODO: AutogradProcessManager class to automatically call join()
-    #def __del__(self):
-    #    self.join()
-
-def vec_jac_prod_worker(in_queue, out_queue, basefun_maker, *args, **kwargs):
-    basefun = basefun_maker(*args, **kwargs)
-    while True:
-        nxt_item = in_queue.get()
-        try:
-            if nxt_item is None:
-                break
-            x, g_list = nxt_item[0], nxt_item[1:]
-            if list(g_list) == [value_and_grad]:
-                out_queue.put(value_and_grad(basefun)(x))
-            else:
-                fun = basefun
-                for g in g_list[::-1]:
-                    fun = vec_jac_prod_fun(fun, g)
-                out_queue.put(fun(x))
-        except Exception as e:
-            out_queue.put(e)
 
 def vec_jac_prod_fun(fun, vec):
     return lambda x: vector_jacobian_product(fun)(x,vec)

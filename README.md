@@ -66,6 +66,11 @@ jupyter notebook
 ```
 to open the notebook browser.
 
+## A note on parallelization
+
+By default, momi will try to use all the available CPUs.
+To change this behavior, you can use `momi.set_nthreads(n_cpus)`.
+
 ## Authors
 
 [John Kamm](mailto:jkamm@stat.berkeley.edu), Jonathan Terhorst, Yun S. Song

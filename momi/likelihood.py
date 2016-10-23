@@ -1,5 +1,5 @@
 
-from .util import count_calls, rearrange_tuple_gradients, AutogradProcess, parsum
+from .util import count_calls, rearrange_tuple_gradients
 from .optimizers import _find_minimum, stochastic_opts
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
@@ -14,7 +14,7 @@ import random, functools, logging, time
 logger = logging.getLogger(__name__)
 
 class SfsLikelihoodSurface(object):
-    def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=200, processes=0, p_missing=None):
+    def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=1000, p_missing=None):
         """
         Object for computing composite likelihoods, and searching for the maximum composite likelihood.
 
@@ -71,38 +71,18 @@ class SfsLikelihoodSurface(object):
         self.log_prior = log_prior
         self.batch_size = batch_size
 
-        if processes > 0:
-            process_batches = _build_sfs_batches(self.sfs, int(np.ceil(len(self.sfs.configs) / float(processes))))
-            self.processes = [AutogradProcess(_make_likelihood_fun, subsfs.sampled_pops, subsfs.configs.value, subsfs.sampled_n, subsfs._total_freqs, demo_func=self.demo_func, mut_rate=None, log_prior=self.log_prior, folded=self.folded, truncate_probs = self.truncate_probs, batch_size=batch_size, processes=0) for subsfs in process_batches]
+        if batch_size <= 0:
+            self.sfs_batches = None
         else:
-            self.processes = None
-            if batch_size <= 0:
-                self.sfs_batches = None
-            else:
-                self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
+            self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
+
         if p_missing is None:
             p_missing = self.sfs.p_missing
         self.p_missing = p_missing
 
-    def close(self):
-        if self.processes:
-            for proc in self.processes: proc.join()
-            self.processes = None
-
-    def __del__(self):
-        self.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-
     def log_lik(self, x):
         """
         Returns the composite log-likelihood of the data at the point x.
-
-        usage that break the autograd hessian.
         """
         if self.demo_func:
             logger.debug("Computing log-likelihood at x = {0}".format(x))
@@ -110,16 +90,13 @@ class SfsLikelihoodSurface(object):
         else:
             demo = x
 
-        if self.processes:
-            ret = parsum(x, self.processes)
+        if self.sfs_batches:
+            G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
+            ret = 0.0
+            for batch in self.sfs_batches:
+                ret = ret + _raw_log_lik(diff_vals, diff_keys, G, batch, self.truncate_probs, self.folded, self.error_matrices)
         else:
-            if self.sfs_batches:
-                G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
-                ret = 0.0
-                for batch in self.sfs_batches:
-                    ret = ret + _raw_log_lik(diff_vals, diff_keys, G, batch, self.truncate_probs, self.folded, self.error_matrices)
-            else:
-                ret = _composite_log_likelihood(self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
+            ret = _composite_log_likelihood(self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
 
         if self.mut_rate is not None:
             ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False, p_missing=self.p_missing)

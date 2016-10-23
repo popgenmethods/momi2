@@ -2,9 +2,12 @@
 import autograd.numpy as np
 from autograd.core import primitive
 import scipy
-from .util import memoize, check_psd
+from .util import memoize, check_psd, _THREADS_KWARGS
 from .convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes, roll_trailing_axes, unroll_trailing_axes
 from einsum2 import einsum2, einsum1
+
+def par_einsum(*args):
+    return einsum2(*args, **_THREADS_KWARGS)
 
 convolve_trailing_axes = primitive(convolve_trailing_axes)
 transposed_convolve_trailing_axes = primitive(transposed_convolve_trailing_axes)
@@ -20,7 +23,7 @@ def convolve_axes(arr0, arr1, labs, axes, out_axis):
 
     arr0,arr1 = [einsum1(a,ol,l) for a,ol,l in zip((arr0,arr1), old_labs, labs)]
     reshaped_arrs = [np.reshape(a, (a.shape[0],-1,a.shape[-1]), order='C') for a in (arr0,arr1)]
-    ret = convolve_trailing_axes(*reshaped_arrs)
+    ret = convolve_trailing_axes(*reshaped_arrs, **_THREADS_KWARGS)
     return np.reshape(ret, tuple([ret.shape[0]] + list(arr0.shape[1:-1]) + list(arr1.shape[1:-1]) + [-1]),
                       order='C'), [labs[0][0]] + labs[0][1:-1] + labs[1][1:-1] + [out_axis]
 
@@ -36,7 +39,7 @@ def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
     arr = einsum1(arr, old_labels, labels + [axis0, axis1])
 
     reshaped_arr = np.reshape(arr, (-1,arr.shape[-2],arr.shape[-1]), order='C')
-    ret = sum_trailing_antidiagonals(reshaped_arr)
+    ret = sum_trailing_antidiagonals(reshaped_arr, **_THREADS_KWARGS)
     return np.reshape(ret, tuple(list(arr.shape[:-2]) + [-1]), order='C'), labels + [out_axis]
 
 roll_trailing_axes = primitive(roll_trailing_axes)
@@ -51,7 +54,7 @@ def roll_axes(arr, labels, axis0, axis1):
 
     arr = einsum1(arr, labels, tmp_labels)
     reshaped_arr = np.reshape(arr, (-1, arr.shape[-2], arr.shape[-1]), order='C')
-    ret = roll_trailing_axes(reshaped_arr)
+    ret = roll_trailing_axes(reshaped_arr, **_THREADS_KWARGS)
     ret = np.reshape(ret, tuple(list(arr.shape[:-1]) + [-1]), order='C')
     return einsum1(ret, tmp_labels, labels)
     

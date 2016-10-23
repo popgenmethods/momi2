@@ -4,12 +4,11 @@ import autograd.numpy as np
 import scipy
 from .util import memoize_instance, memoize, make_constant, set0
 from .data_structure import config_array
-from .math_functions import einsum2, sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs, _apply_error_matrices
+from .math_functions import sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs, _apply_error_matrices, par_einsum
 #from .data_structure import Configs
 from .moran_model import moran_action
 from autograd.core import primitive
 from autograd import hessian
-from einsum2 import einsum2
 
 def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, folded=False, error_matrices=None):
     """
@@ -264,7 +263,7 @@ def _partial_likelihood(leaf_states, demo, event):
         idx[0], idx[newpop_idx] = slice(None), slice(None)
 
         sub_lik, trunc_sfs = lik[idx], demo._truncated_sfs(newpop)
-        sfs = sfs + einsum2(sub_lik, ['',newpop],
+        sfs = sfs + par_einsum(sub_lik, ['',newpop],
                             trunc_sfs, [newpop],
                             [''])
 
@@ -324,7 +323,7 @@ def _leaf_likelihood(leaf_states, demo, event):
 #     lik,sfs = _partial_likelihood_top(leaf_states, demo, child_event, [child_pop])
 
 #     admixture_prob, admixture_idxs = demo._admixture_prob(child_pop)
-#     lik = einsum2(lik, _lik_axes(demo, child_event),
+#     lik = par_einsum(lik, _lik_axes(demo, child_event),
 #                   admixture_prob, admixture_idxs,
 #                   _lik_axes(demo, event))
 
@@ -348,7 +347,7 @@ def _pulse_likelihood(leaf_states, demo, event):
 
         tmp_axes = child_axes[recipient]
         child_axes[recipient] = [x for x in tmp_axes if x != recipient] + list(parent_pops)
-        child_liks[recipient] = einsum2(child_liks[recipient], tmp_axes,
+        child_liks[recipient] = par_einsum(child_liks[recipient], tmp_axes,
                                         admixture_prob, admixture_idxs,
                                         child_axes[recipient])
 
@@ -370,7 +369,7 @@ def _pulse_likelihood(leaf_states, demo, event):
 
         pulse_prob, pulse_idxs = demo._pulse_prob(event)
 
-        lik = einsum2(lik, axes,
+        lik = par_einsum(lik, axes,
                       pulse_prob, pulse_idxs,
                       _lik_axes(demo, event))
         return lik,sfs
@@ -396,14 +395,14 @@ def _merge_lik_axes(lik, child_axes, new_axes, child_pops, newpop, n_lins):
     
     c1,c2 = child_pops
     for c in c1,c2:
-        lik = einsum2(lik, child_axes,
+        lik = par_einsum(lik, child_axes,
                       binom_coeffs(n_lins[c]), [c],
                       child_axes)
     lik,axes = sum_antidiagonals(lik, child_axes, c1, c2, newpop)
 
     assert set(axes) == set(new_axes)
     newidx = axes.index(newpop)
-    lik = einsum2(lik, axes,
+    lik = par_einsum(lik, axes,
                   1.0/binom_coeffs(lik.shape[newidx]-1), [newpop],
                   new_axes)
 
@@ -413,7 +412,7 @@ def _merge_lik_axes(lik, child_axes, new_axes, child_pops, newpop, n_lins):
     N,n = lik.shape[newidx]-1, n_lins[newpop]
     assert N >= n
     if N > n:
-        lik = einsum2(lik, new_axes[:newidx] + [c1] + axes[(newidx+1):],
+        lik = par_einsum(lik, new_axes[:newidx] + [c1] + axes[(newidx+1):],
                       hypergeom_quasi_inverse(N,n),
                       [c1,newpop], axes)
     assert lik.shape[newidx] == n+1
@@ -431,7 +430,7 @@ def _convolve_children_liks(child_pops, child_liks, child_axes, newpop, axes):
     child_liks = list(child_liks)
     for i,(lik,child_axis,child_pop) in enumerate(zip(child_liks, child_axes, child_pops)):
         idx = child_axis.index(child_pop)
-        lik = einsum2(lik, child_axis,
+        lik = par_einsum(lik, child_axis,
                       binom_coeffs(lik.shape[idx]-1), [child_pop],
                       child_axis)
         child_liks[i] = lik
@@ -440,7 +439,7 @@ def _convolve_children_liks(child_pops, child_liks, child_axes, newpop, axes):
                                   child_axes, child_pops, newpop)
 
     idx = old_axes.index(newpop)
-    lik = einsum2(lik, old_axes,
+    lik = par_einsum(lik, old_axes,
                   1.0/binom_coeffs(lik.shape[idx]-1), [newpop],
                   axes)
     return lik   

@@ -1,8 +1,7 @@
 
 import networkx as nx
 from .util import memoize_instance, memoize
-from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse
-from einsum2 import einsum2
+from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse, par_einsum
 import scipy, scipy.misc
 import autograd.numpy as np
 import autograd
@@ -382,16 +381,16 @@ class Demography(object):
         pulse_idxs = admixture_idxs + [non_recipient]
         assert pulse_idxs == self._pulse_prob_idxs(event)
         
-        pulse_prob = einsum2(admixture_prob, admixture_idxs,
+        pulse_prob = par_einsum(admixture_prob, admixture_idxs,
                              binom_coeffs(self._n_at_node(non_recipient)), [non_recipient],
                              pulse_idxs)
-        pulse_prob = einsum2(pulse_prob, pulse_idxs,
+        pulse_prob = par_einsum(pulse_prob, pulse_idxs,
                              binom_coeffs(self._n_at_node(recipient)), [donor],
                              pulse_idxs)
         pulse_prob = roll_axes(pulse_prob, pulse_idxs, non_recipient, donor)
 
         donor_idx = pulse_idxs.index(donor)
-        pulse_prob = einsum2(pulse_prob, pulse_idxs,
+        pulse_prob = par_einsum(pulse_prob, pulse_idxs,
                              1.0 / binom_coeffs(pulse_prob.shape[donor_idx]-1), [donor],
                              pulse_idxs)
 
@@ -401,7 +400,7 @@ class Demography(object):
         if N > n:
             assert -1 not in pulse_idxs        
             tmp_idxs = [-1 if x == donor else x for x in pulse_idxs]
-            pulse_prob = einsum2(pulse_prob, tmp_idxs,
+            pulse_prob = par_einsum(pulse_prob, tmp_idxs,
                                  hypergeom_quasi_inverse(N, n),
                                  [-1,donor], pulse_idxs)
         assert pulse_prob.shape[donor_idx] == n + 1
@@ -433,7 +432,7 @@ class Demography(object):
         n_from_1 = np.arange(n_node+1)
         n_from_2 = n_node - n_from_1
         binom_coeffs = (prob1**n_from_1) * (prob2**n_from_2) * scipy.misc.comb(n_node, n_from_1)
-        ret = einsum2(_der_in_admixture_node(n_node), list(range(4)),
+        ret = par_einsum(_der_in_admixture_node(n_node), list(range(4)),
                       binom_coeffs, [0],
                       [1,2,3])
         assert ret.shape == tuple([n_node+1] * 3)
