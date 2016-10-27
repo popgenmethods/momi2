@@ -133,8 +133,10 @@ def test_stochastic_inference(folded):
     outfile=sys.stdout
     #outfile=None
     #logging.basicConfig(level=logging.INFO)
-    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", stepsize=.1, max_epochs=100, iter_per_epoch=10, out=outfile)
+    #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", stepsize=.1, max_epochs=100, iter_per_epoch=10, out=outfile)
     #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="sgd", stepsize=.1, num_iters=1000, out=outfile)
+    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="adam", svrg_epoch=10, num_iters=1000, out=outfile)
+    #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="sgd", stepsize=1, num_iters=1000, out=outfile)
     print(optimize_res)
     
     inferred_x = optimize_res.x
@@ -149,12 +151,13 @@ def test_stochastic_inference(folded):
 
 
 ## def test_complex_stochastic_inference():
-##     #seed = np.random.randint(2**32-1)
+##     seed = np.random.randint(2**32-1)
 ##     #seed = 270543553
 ##     #seed = 2300087928
 ##     #seed = 3443948355
 ##     #seed = 2092909111
-##     seed = 2470901291
+##     #seed = 2470901291
+##     #seed = 2173658782
 ##     print("SEED",seed)
 ##     np.random.seed(seed)
 ##   
@@ -199,7 +202,8 @@ def test_stochastic_inference(folded):
 ##     try:
 ##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="tnc", maxiter=500, out=outfile)
 ##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", out=outfile) 
-##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="svrg", stepsize=.1, iter_per_epoch=10, max_epochs=100, out=outfile)
+##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="svrg", stepsize=.1, iter_per_epoch=10, max_epochs=100, out=outfile)
+##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="adam", svrg_epoch=10, num_iters=1000, out=outfile)
 ##     except:
 ##         print("SEED",seed)
 ##         raise

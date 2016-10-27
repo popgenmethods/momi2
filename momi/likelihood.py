@@ -240,15 +240,10 @@ class StochasticSfsLikelihoodSurface(object):
     @property
     def n_minibatches(self): return len(self.pieces)
 
-    def find_mle(self, x0, method="svrg", bounds=None, rgen=None, out=None, **kwargs):
+    def find_mle(self, x0, method="adam", bounds=None, rgen=None, out=None, **kwargs):
         if not rgen:
             rgen = self.rgen
-        if method == "svrg":
-            callback = _PrintProgress(out, len(x0)).print_progress
-        elif method == "sgd":
-            callback = None
-        else:
-            raise ValueError("Unrecognized method %s" % method)
+        callback = _PrintProgress(out, len(x0)).print_progress
 
         full_surface = self.full_surface
         def fun(x,i):
