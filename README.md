@@ -68,7 +68,14 @@ to open the notebook browser.
 
 ## A note on parallelization
 
-By default, momi will try to use all the available CPUs.
+momi uses `numpy` for numerical linear algebra operations.
+If `numpy` is linked against a parallel BLAS implementation,
+then it will perform operations like matrix multiplication in parallel,
+utilizing all the cores in your machine.
+
+In addition, momi uses several mathematical operations that are not in
+BLAS, but are still highly parallel. For such operations, momi will by default
+use a parallel for loop, utilizing all the available CPUs on your machine.
 To change this behavior, you can use `momi.set_nthreads(n_cpus)`.
 
 ## Authors
