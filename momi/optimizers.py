@@ -116,6 +116,7 @@ def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999,
     x = x0
     m = np.zeros(len(x))
     v = np.zeros(len(x))
+    prev_close = False
     success = False
     for nit in range(num_iters):
         i = rgen.randint(pieces)
@@ -136,11 +137,19 @@ def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999,
 
         prev_x = x
         x = truncate(x - stepsize*mhat/(np.sqrt(vhat) + eps))
+
         if nit % iter_per_output == 0:
             callback(x, f_x, nit)
-        if xtol >= 0 and np.allclose(x, prev_x, xtol, xtol):
+
+        ## require x to not change for 2 steps in a row before stopping
+        if xtol < 0 or not np.allclose(x, prev_x, xtol, xtol):
+            prev_close = False
+        elif prev_close:
             success = True
             break
+        else:
+            prev_close = True
+
     if success:
         message = "|x[k]-x[k-1]|~=0"
     else:
