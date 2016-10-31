@@ -10,11 +10,12 @@ import itertools
 from collections import Counter
 import sys, warnings, collections, logging, gc, multiprocessing, os
 
-default_threads = os.getenv("MOMI_THREADS")
-if not default_threads:
-    default_threads = multiprocessing.cpu_count()
+try:
+    _default_threads = int(os.getenv("MOMI_THREADS"))
+except TypeError:
+    _default_threads = multiprocessing.cpu_count()
 
-_THREADS_KWARGS = {"threads": multiprocessing.cpu_count()}
+_THREADS_KWARGS = {"threads": _default_threads}
 def set_nthreads(threads):
     _THREADS_KWARGS["threads"] = threads
 def get_nthreads():
