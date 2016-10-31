@@ -8,7 +8,11 @@ from autograd import hessian, grad, hessian_vector_product, jacobian, value_and_
 import autograd
 import itertools
 from collections import Counter
-import sys, warnings, collections, logging, gc, multiprocessing
+import sys, warnings, collections, logging, gc, multiprocessing, os
+
+default_threads = os.getenv("MOMI_THREADS")
+if not default_threads:
+    default_threads = multiprocessing.cpu_count()
 
 _THREADS_KWARGS = {"threads": multiprocessing.cpu_count()}
 def set_nthreads(threads):

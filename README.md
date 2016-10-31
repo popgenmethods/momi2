@@ -76,7 +76,8 @@ utilizing all the cores in your machine.
 In addition, momi uses several mathematical operations that are not in
 BLAS, but are still highly parallel. For such operations, momi will by default
 use a parallel for loop, utilizing all the available CPUs on your machine.
-To change this behavior, you can use `momi.set_nthreads(n_cpus)`.
+To change this behavior, you can use `momi.set_nthreads(n_cpus)`,
+or set the environment variable `$MOMI_THREADS`.
 
 ## Authors
 
