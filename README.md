@@ -42,9 +42,9 @@ I've also sometimes run into issues with Anaconda Python on Linux
 because of the old gcc-4 used to compile it (however I can no longer reproduce this error).
 
 In case you are having issues with the C compiler, it is recommended
-to install and run momi in a virtual environment, using a C
-compiler from Anaconda. This will both support OpenMP and be fully compatible
-with the Python used in Anaconda. To do this:
+to install and run momi in a virtual environment with a compatible
+C compiler. For example, if you use Anaconda Python, you can do the
+following:
 
 1. Create a new virtual environment named `momi2_env` with `conda create -n momi2_env python=3.5 anaconda` (alternatively, you can use `python=2.7 anaconda`).
 2. Switch to the environment with `source activate momi2_env`
@@ -68,16 +68,18 @@ to open the notebook browser.
 
 ## A note on parallelization
 
-momi uses `numpy` for numerical linear algebra operations.
-If `numpy` is linked against a parallel BLAS implementation,
-then it will perform operations like matrix multiplication in parallel,
-utilizing all the cores in your machine.
+momi will automatically use all available CPUs to perform
+computations in parallel.
+You can control the number of threads by setting the
+environment variable `OMP_NUM_THREADS`.
 
-In addition, momi uses several mathematical operations that are not in
-BLAS, but are still highly parallel. For such operations, momi will by default
-use a parallel for loop, utilizing all the available CPUs on your machine.
-To change this behavior, you can use `momi.set_nthreads(n_cpus)`,
-or set the environment variable `$MOMI_THREADS`.
+To take full advantage of parallelization, it is
+recommended to make sure `numpy` is linked against
+a parallel BLAS implementation such as MKL
+or OpenBlas.
+This is automatically taken care of in most
+packaged, precompiled versions of numpy, such as
+Anaconda Python.
 
 ## Authors
 

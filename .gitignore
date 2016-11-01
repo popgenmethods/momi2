@@ -5,6 +5,7 @@ convolution.html
 convolution.c
 .ipynb_checkpoints/
 .cache/
+*.tramp_history
 
 momi.egg-info
 build/

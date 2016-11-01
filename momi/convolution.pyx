@@ -6,8 +6,7 @@ from cython.parallel import prange
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def sum_trailing_antidiagonals(np.ndarray[np.double_t, ndim=3] A,
-                               int threads=1):
+def sum_trailing_antidiagonals(np.ndarray[np.double_t, ndim=3] A):
     '''
     Sums the antidiagonals of the last two axes of A
     '''
@@ -16,7 +15,7 @@ def sum_trailing_antidiagonals(np.ndarray[np.double_t, ndim=3] A,
 
     cdef np.ndarray[np.double_t, ndim=2] B = np.zeros((I, J + K - 1))
 
-    for i in prange(I, schedule='guided', nogil=True, num_threads=threads):
+    for i in prange(I, schedule='guided', nogil=True):
         for j in range(J):
             for k in range(K):
                     B[i,j+k] += A[i,j,k]
@@ -25,7 +24,7 @@ def sum_trailing_antidiagonals(np.ndarray[np.double_t, ndim=3] A,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def add_trailing_axis(np.ndarray[np.double_t, ndim=2] B, int trailing_dim, int threads=1):
+def add_trailing_axis(np.ndarray[np.double_t, ndim=2] B, int trailing_dim):
     '''
     Takes the last dimension of B, and expands it into two dimensions,
     so that the entries of the expanded matrix are constant along the antidiagonals
@@ -46,7 +45,7 @@ def add_trailing_axis(np.ndarray[np.double_t, ndim=2] B, int trailing_dim, int t
     cdef int ijk,jk,IJK,JK
     JK = J*K
     IJK = I*JK
-    for ijk in prange(IJK, schedule='guided', nogil=True, num_threads=threads):
+    for ijk in prange(IJK, schedule='guided', nogil=True):
         i = ijk // JK
         jk = ijk % JK
         j = jk // K
@@ -58,8 +57,7 @@ def add_trailing_axis(np.ndarray[np.double_t, ndim=2] B, int trailing_dim, int t
 @cython.wraparound(False)
 @cython.cdivision(True)
 def convolve_trailing_axes(np.ndarray[np.double_t, ndim=3] A,
-                           np.ndarray[np.double_t, ndim=3] B,
-                           int threads=1):
+                           np.ndarray[np.double_t, ndim=3] B):
     # first dimension is for data points (shared by A and B)
     assert A.shape[0] == B.shape[0]
 
@@ -75,7 +73,7 @@ def convolve_trailing_axes(np.ndarray[np.double_t, ndim=3] A,
     cdef int ijk, IJK, jk, JK
     JK = J*K
     IJK = I*JK
-    for ijk in prange(IJK, schedule='guided', nogil=True, num_threads=threads):
+    for ijk in prange(IJK, schedule='guided', nogil=True):
         i = ijk // JK
         jk = ijk % JK
         j = jk // K
@@ -90,7 +88,7 @@ def convolve_trailing_axes(np.ndarray[np.double_t, ndim=3] A,
 @cython.cdivision(True)
 def transposed_convolve_trailing_axes(np.ndarray[np.double_t, ndim=4] C,
                                       np.ndarray[np.double_t, ndim=3] B,
-                                      tuple Ashape, int threads=1):
+                                      tuple Ashape):
     '''
     If convolve_trailing_axes is viewed as multiplying A and B by a certain tensor,
     this is equal to multiplying C and B by that tensor, but with the tensor transposed along
@@ -109,7 +107,7 @@ def transposed_convolve_trailing_axes(np.ndarray[np.double_t, ndim=4] C,
     cdef int ijl, IJL, jl, JL
     JL = J*L
     IJL = I*JL
-    for ijl in prange(IJL, schedule='guided', nogil=True, num_threads=threads):
+    for ijl in prange(IJL, schedule='guided', nogil=True):
         i = ijl // JL
         jl = ijl % JL
         j = jl // L
@@ -123,8 +121,7 @@ def transposed_convolve_trailing_axes(np.ndarray[np.double_t, ndim=4] C,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def roll_trailing_axes(np.ndarray[np.double_t, ndim=3] A,
-                       int threads=1):
+def roll_trailing_axes(np.ndarray[np.double_t, ndim=3] A):
     '''
     Returns array B[i,j,j+k] = A[i,j,k]
     '''
@@ -136,7 +133,7 @@ def roll_trailing_axes(np.ndarray[np.double_t, ndim=3] A,
     cdef int ijk,IJK,jk,JK
     JK = J*K
     IJK = I*JK
-    for ijk in prange(IJK, schedule='guided', nogil=True, num_threads=threads):
+    for ijk in prange(IJK, schedule='guided', nogil=True):
         i = ijk // JK
         jk = ijk % JK
         j = jk // K
@@ -147,8 +144,7 @@ def roll_trailing_axes(np.ndarray[np.double_t, ndim=3] A,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def unroll_trailing_axes(np.ndarray[np.double_t, ndim=3] B,
-                         int threads=1):
+def unroll_trailing_axes(np.ndarray[np.double_t, ndim=3] B):
     '''
     Inverse of roll trailing axes
     '''
@@ -161,7 +157,7 @@ def unroll_trailing_axes(np.ndarray[np.double_t, ndim=3] B,
     cdef int ijk,IJK,jk,JK
     JK = J*K
     IJK = I*JK
-    for ijk in prange(IJK, schedule='guided', nogil=True, num_threads=threads):
+    for ijk in prange(IJK, schedule='guided', nogil=True):
         i = ijk // JK
         jk = ijk % JK
         j = jk // K

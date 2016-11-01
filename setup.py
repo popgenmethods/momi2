@@ -13,6 +13,8 @@ import numpy
 
 extensions = [Extension("momi.convolution",
                         sources=["momi/convolution.pyx"],
+                        extra_compile_args=['-fopenmp'],
+                        extra_link_args=['-fopenmp'],
                         include_dirs=[numpy.get_include()])]
 
 setup(name='momi',
@@ -23,6 +25,6 @@ setup(name='momi',
       packages=['momi'],
       install_requires=['autograd>=1.0.4','numpy>=1.9.0','networkx','scipy','pandas','numdifftools', 'einsum2'],
       keywords=['population genetics','statistics','site frequency spectrum','coalescent'],
-      url='https://github.com/jackkamm/momi_private',
+      url='https://github.com/jackkamm/momi2',
       ext_modules=cythonize(extensions),
       )

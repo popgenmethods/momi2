@@ -2,20 +2,20 @@
 import autograd.numpy as np
 from autograd.core import primitive
 import scipy
-from .util import memoize, check_psd, _THREADS_KWARGS
+from .util import memoize, check_psd
 from .convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes, roll_trailing_axes, unroll_trailing_axes
 from einsum2 import einsum2, einsum1
 
 def par_einsum(*args):
-    return einsum2(*args, **_THREADS_KWARGS)
+    return einsum2(*args)
 
 convolve_trailing_axes = primitive(convolve_trailing_axes)
 transposed_convolve_trailing_axes = primitive(transposed_convolve_trailing_axes)
 
-convolve_trailing_axes.defgrad(lambda ans,A,B,threads=1: lambda g: transposed_convolve_trailing_axes(g,B,A.shape,threads))
-convolve_trailing_axes.defgrad(lambda ans,A,B,threads=1: lambda g: transposed_convolve_trailing_axes(np.transpose(g,(0,2,1,3)),A,B.shape,threads), argnum=1)
-transposed_convolve_trailing_axes.defgrad(lambda ans,C,B,Ashape,threads=1: lambda g: convolve_trailing_axes(g,B,threads))
-transposed_convolve_trailing_axes.defgrad(lambda ans,C,B,Ashape,threads=1: lambda g: transposed_convolve_trailing_axes(np.transpose(C,(0,2,1,3)),g,B.shape,threads), argnum=1)
+convolve_trailing_axes.defgrad(lambda ans,A,B: lambda g: transposed_convolve_trailing_axes(g,B,A.shape))
+convolve_trailing_axes.defgrad(lambda ans,A,B: lambda g: transposed_convolve_trailing_axes(np.transpose(g,(0,2,1,3)),A,B.shape), argnum=1)
+transposed_convolve_trailing_axes.defgrad(lambda ans,C,B,Ashape: lambda g: convolve_trailing_axes(g,B))
+transposed_convolve_trailing_axes.defgrad(lambda ans,C,B,Ashape: lambda g: transposed_convolve_trailing_axes(np.transpose(C,(0,2,1,3)),g,B.shape), argnum=1)
 
 def convolve_axes(arr0, arr1, labs, axes, out_axis):
     old_labs = [list(l) for l in labs]
@@ -23,15 +23,15 @@ def convolve_axes(arr0, arr1, labs, axes, out_axis):
 
     arr0,arr1 = [einsum1(a,ol,l) for a,ol,l in zip((arr0,arr1), old_labs, labs)]
     reshaped_arrs = [np.reshape(a, (a.shape[0],-1,a.shape[-1]), order='C') for a in (arr0,arr1)]
-    ret = convolve_trailing_axes(*reshaped_arrs, **_THREADS_KWARGS)
+    ret = convolve_trailing_axes(*reshaped_arrs)
     return np.reshape(ret, tuple([ret.shape[0]] + list(arr0.shape[1:-1]) + list(arr1.shape[1:-1]) + [-1]),
                       order='C'), [labs[0][0]] + labs[0][1:-1] + labs[1][1:-1] + [out_axis]
 
 sum_trailing_antidiagonals = primitive(sum_trailing_antidiagonals)
 add_trailing_axis = primitive(add_trailing_axis)
 
-sum_trailing_antidiagonals.defgrad(lambda ans, A, threads=1: lambda g: add_trailing_axis(g, A.shape[2], threads))
-add_trailing_axis.defgrad(lambda ans, A, trailing_dim, threads=1: lambda g: sum_trailing_antidiagonals(g, threads))
+sum_trailing_antidiagonals.defgrad(lambda ans, A: lambda g: add_trailing_axis(g, A.shape[2]))
+add_trailing_axis.defgrad(lambda ans, A, trailing_dim: lambda g: sum_trailing_antidiagonals(g))
 
 def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
     old_labels = list(labels)
@@ -39,14 +39,14 @@ def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
     arr = einsum1(arr, old_labels, labels + [axis0, axis1])
 
     reshaped_arr = np.reshape(arr, (-1,arr.shape[-2],arr.shape[-1]), order='C')
-    ret = sum_trailing_antidiagonals(reshaped_arr, **_THREADS_KWARGS)
+    ret = sum_trailing_antidiagonals(reshaped_arr)
     return np.reshape(ret, tuple(list(arr.shape[:-2]) + [-1]), order='C'), labels + [out_axis]
 
 roll_trailing_axes = primitive(roll_trailing_axes)
 unroll_trailing_axes = primitive(unroll_trailing_axes)
 
-roll_trailing_axes.defgrad(lambda ans, A, threads=1: lambda g: unroll_trailing_axes(g, threads))
-unroll_trailing_axes.defgrad(lambda ans, A, threads=1: lambda g: roll_trailing_axes(g, threads))
+roll_trailing_axes.defgrad(lambda ans, A: lambda g: unroll_trailing_axes(g))
+unroll_trailing_axes.defgrad(lambda ans, A: lambda g: roll_trailing_axes(g))
 
 def roll_axes(arr, labels, axis0, axis1):
     tmp_labels = [l for l in labels if l not in (axis0, axis1)]
@@ -54,7 +54,7 @@ def roll_axes(arr, labels, axis0, axis1):
 
     arr = einsum1(arr, labels, tmp_labels)
     reshaped_arr = np.reshape(arr, (-1, arr.shape[-2], arr.shape[-1]), order='C')
-    ret = roll_trailing_axes(reshaped_arr, **_THREADS_KWARGS)
+    ret = roll_trailing_axes(reshaped_arr)
     ret = np.reshape(ret, tuple(list(arr.shape[:-1]) + [-1]), order='C')
     return einsum1(ret, tmp_labels, labels)
     
