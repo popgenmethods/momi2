@@ -1,0 +1,18 @@
+import autograd.numpy as np
+import momi
+import einsum2
+import os
+
+print("OMP_NUM_THREADS = ", os.getenv("OMP_NUM_THREADS"))
+
+print("Timing numpy.dot")
+foo = np.random.normal(size=(1000,1000))
+%timeit np.dot(foo, foo)
+
+print("Timing einsum2")
+foo = np.random.normal(size=(100,100,100))
+%timeit einsum2.einsum2("ijk,ikl->ijl", foo, foo)
+
+print("Timing momi.convolution")
+foo = np.random.normal(size=(40,40,40))
+%timeit momi.convolution.convolve_trailing_axes(foo, foo)

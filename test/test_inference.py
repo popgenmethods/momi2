@@ -122,10 +122,8 @@ def test_underflow_robustness(folded):
     if folded:
         sfs = sfs.fold()
     
-    #outfile = sys.stdout
-    outfile=None
     #logging.basicConfig(level=logging.INFO)
-    optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_mle(np.array([np.log(0.1),np.log(100.0)]), out=outfile)
+    optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_mle(np.array([np.log(0.1),np.log(100.0)]))
     print(optimize_res)
     
     inferred_x = optimize_res.x

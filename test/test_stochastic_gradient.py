@@ -130,13 +130,10 @@ def test_stochastic_inference(folded):
         sfs = sfs.fold()
 
     log_prior = lambda x: np.sum(-x/true_x)
-    outfile=sys.stdout
-    #outfile=None
-    #logging.basicConfig(level=logging.INFO)
-    #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="svrg", stepsize=.1, max_epochs=100, iter_per_epoch=10, out=outfile)
-    #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="sgd", stepsize=.1, num_iters=1000, out=outfile)
-    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="adam", svrg_epoch=10, num_iters=1000, out=outfile)
-    #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="sgd", stepsize=1, num_iters=1000, out=outfile)
+    def callback(x):
+        if x.iteration % 10 == 0:
+            print(x.iteration, x.fun, x)
+    optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=mu, folded=folded, log_prior=log_prior).stochastic_surfaces(n_minibatches=10).find_mle(np.array([.1,.9]), bounds=[(1e-100,None),(1e-100,None)], method="adam", svrg_epoch=10, num_iters=1000, callback=callback)
     print(optimize_res)
     
     inferred_x = optimize_res.x
@@ -196,14 +193,14 @@ def test_stochastic_inference(folded):
 ##     # pick a random start value for the parameter search
 ##     start_params = np.array([np.random.uniform(l,h) for (l,h) in bounds])
 ##  
-##     logging.basicConfig(level=logging.INFO, format="# %(name)s:%(levelname)s: %(msg)s")
-##     outfile=sys.stdout
-##     #outfile=None
+##     def callback(x):
+##         if x.iteration % 10 == 0:
+##             print(x.iteration, x.fun, x)
 ##     try:
-##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="tnc", maxiter=500, out=outfile)
-##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", out=outfile) 
-##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="svrg", stepsize=.1, iter_per_epoch=10, max_epochs=100, out=outfile)
-##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="adam", svrg_epoch=10, num_iters=1000, out=outfile)
+##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="tnc", maxiter=500, callback=callback)
+##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", callback=callback) 
+##         #optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="svrg", stepsize=.1, iter_per_epoch=10, max_epochs=100, callback=callback)
+##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="adam", svrg_epoch=10, num_iters=1000, callback=callback)
 ##     except:
 ##         print("SEED",seed)
 ##         raise

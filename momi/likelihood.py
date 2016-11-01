@@ -1,6 +1,6 @@
 
 from .util import count_calls, rearrange_tuple_gradients
-from .optimizers import _find_minimum, stochastic_opts
+from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len
 from .demography import DemographyError, Demography
@@ -85,7 +85,7 @@ class SfsLikelihoodSurface(object):
         Returns the composite log-likelihood of the data at the point x.
         """
         if self.demo_func:
-            logger.debug("Computing log-likelihood at x = {0}".format(x))
+            logger.debug("Computing log-likelihood at x = {0}".format(str(x).replace('\n','')))
             demo = self.demo_func(*x)
         else:
             demo = x
@@ -119,7 +119,7 @@ class SfsLikelihoodSurface(object):
 
         return ret
 
-    def find_mle(self, x0, method="tnc", jac=True, hess=False, hessp=False, bounds=None, out=None, **kwargs):
+    def find_mle(self, x0, method="tnc", jac=True, hess=False, hessp=False, bounds=None, callback=None, **kwargs):
         """
         Search for the maximum of the likelihood surface
         (i.e., the minimum of the KL-divergence).
@@ -128,8 +128,6 @@ class SfsLikelihoodSurface(object):
         ==========
         x0 : numpy.ndarray
              initial guess
-        out : file stream
-                   write intermediate progress to file or stream (e.g. sys.stdout)
         method : str
                  Can be any method from scipy.optimize.minimize()
                  (e.g. "tnc","L-BFGS-B",etc.)
@@ -147,6 +145,12 @@ class SfsLikelihoodSurface(object):
               If an element of the list is a number (instead of a pair),
               then the optimizer will fix the parameter at that value,
               and optimize over the other parameters.
+        callback: callable, optional
+              Called after each iteration as callback(x), like in
+              scipy.optimize.minimize. However, x is given 2 additional
+              attributes, x.iteration and x.fun, that allow the callback
+              function to access the current iteration number and the current
+              objective function value.
         **kwargs : additional arguments to pass to scipy.optimize.minimize()
 
         Notes
@@ -154,17 +158,14 @@ class SfsLikelihoodSurface(object):
         This is just a wrapper around scipy.optimize.minimize, and takes the same arguments, with the following exceptions:
         1) no "fun" param (this is set to be self.kl_div)
         2) jac, hess, hessp are bools. If True, their respective derivatives are defined using autograd and passed into scipy.optimize.minimize; otherwise, "None" is passed in for the derivatives (in which case scipy may use a numerical derivative if needed)
-        3) intermediate progress is printed to the stream "out" (or if out=None, to logging.logger("momi.likelihood.callback").INFO; see the python package "logging")
         """
-        print_progress = _PrintProgress(out, len(x0)).print_progress
+        print_progress = LoggingCallback(user_callback=callback).callback
         hist = lambda:None
         hist.itr = 0
         hist.recent_vals = []
         starttime = time.time()
 
-        user_callback = kwargs.pop("callback", lambda x: None)
         def callback(x):
-            user_callback(x)
             for y,fx in reversed(hist.recent_vals):
                 if np.allclose(y,x): break
             assert np.allclose(y,x)
@@ -240,10 +241,10 @@ class StochasticSfsLikelihoodSurface(object):
     @property
     def n_minibatches(self): return len(self.pieces)
 
-    def find_mle(self, x0, method="adam", bounds=None, rgen=None, out=None, **kwargs):
+    def find_mle(self, x0, method="adam", bounds=None, rgen=None, callback=None, **kwargs):
         if not rgen:
             rgen = self.rgen
-        callback = _PrintProgress(out, len(x0)).print_progress
+        callback = LoggingCallback(user_callback=callback).callback
 
         full_surface = self.full_surface
         def fun(x,i):
@@ -267,28 +268,6 @@ def _make_likelihood_fun(sampled_pops, conf_arr, sampled_n, counts_arr, *args, *
     sfs = Sfs([dict(zip(range(len(counts_arr)), counts_arr))], configs)
     surface = SfsLikelihoodSurface(sfs, *args, **kwargs)
     return surface.log_lik
-
-class _PrintProgress(object):
-    def __init__(self, out, x_len):
-        self.out = out
-        self.starttime = time.time()
-        self.print_header(x_len)
-
-    def printout(self, items):
-        outstr = "\t".join(map(str, items))
-        if self.out is None:
-            #logging.getLogger(__name__ + ".callback").info(outstr)
-            pass
-        else:
-            self.out.write(outstr + "\n")
-            self.out.flush()
-
-    def print_header(self, x_len):
-        self.printout(["Seconds","KLDivergence"] + ["X%d" % i for i in range(x_len)])
-
-    def print_progress(self, x,fx,i):
-        items = [time.time()-self.starttime, fx] + list(x)
-        self.printout(items)
 
 def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, p_missing=None, **kwargs):
     try:

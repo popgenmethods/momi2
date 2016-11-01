@@ -5,6 +5,27 @@ from functools import wraps, partial
 from .util import count_calls, closeleq, closegeq
 import scipy, scipy.optimize
 import itertools
+import logging
+
+logger = logging.getLogger(__name__)
+
+callback_logger = logging.getLogger(__package__).getChild("progress")
+class LoggingCallback(object):
+    def __init__(self, user_callback=None):
+        self.user_callback = user_callback
+
+    def callback(self, x, fx, i):
+        msg = "Optimization step {{'it': {i}, 'fun': {fx}, 'x': {x}}}".format(i=i, x=list(x), fx=fx)
+        logger.info(msg)
+        if self.user_callback:
+            x = np.array(x)
+            x = x.view(LoggingCallbackArray)
+            x.iteration = i
+            x.fun = fx
+            self.user_callback(x)
+
+## special array subclass for LoggingCallback
+class LoggingCallbackArray(np.ndarray): pass
 
 def _find_minimum(f, start_params, optimizer, bounds=None,
                   callback=None,
@@ -18,10 +39,10 @@ def _find_minimum(f, start_params, optimizer, bounds=None,
                     fixed_params += [(i,b[0])]
             except (TypeError,IndexError) as e:
                 fixed_params += [(i,b)]
-                    
+
         if any(start_params[i] != b for i,b in fixed_params):
             raise ValueError("start_params does not agree with fixed parameters in bounds")
-        
+
         if fixed_params:
             fixed_idxs, fixed_offset = list(map(np.array, list(zip(*fixed_params))))
 
@@ -37,7 +58,7 @@ def _find_minimum(f, start_params, optimizer, bounds=None,
                 return wraps(fun)(new_fun)
             f = restricted(f)
             callback = restricted(callback)
-            
+
             start_params = np.array([s for (fxd,s) in zip(fixed_idxs,start_params) if not fxd])
             bounds = [b for (fxd,b) in zip(fixed_idxs, bounds) if not fxd]
 
@@ -96,7 +117,7 @@ def sgd(fun, x0, fun_and_jac, pieces, stepsize, num_iters, bounds=None, callback
     return scipy.optimize.OptimizeResult({'x':x, 'fun':f_x, 'jac':g_x})
 
 @is_stoch_opt
-def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999, eps=10**-8, svrg_epoch=-1, bounds=None, callback=None, iter_per_output=10, rgen=np.random, xtol=1e-6):
+def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999, eps=10**-8, svrg_epoch=-1, bounds=None, callback=None, rgen=np.random, xtol=1e-6):
     x0 = np.array(x0)
 
     if callback is None:
@@ -129,17 +150,18 @@ def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999,
             f_w, g_w = fun_and_jac(w, i)
             f_x = f_x - f_w + fbar
             g_x = g_x - g_w + gbar
+            logger.info("SVRG pivot {0}".format({"w": w, "f_w": f_w, "g_w": list(g_w)}))
+        callback(x, f_x, nit)
 
         m = (1 - b1) * g_x      + b1 * m  # First  moment estimate.
         v = (1 - b2) * (g_x**2) + b2 * v  # Second moment estimate.
+
         mhat = m / (1 - b1**(nit + 1))    # Bias correction.
         vhat = v / (1 - b2**(nit + 1))
 
         prev_x = x
         x = truncate(x - stepsize*mhat/(np.sqrt(vhat) + eps))
-
-        if nit % iter_per_output == 0:
-            callback(x, f_x, nit)
+        logger.info("Adam moment estimates {0}".format({"x": list(x), "m": list(m), "v":list(v)}))
 
         ## require x to not change for 2 steps in a row before stopping
         if xtol < 0 or not np.allclose(x, prev_x, xtol, xtol):
@@ -289,5 +311,3 @@ def svrg(fun, x0, fun_and_jac, pieces, stepsize, iter_per_epoch, max_epochs=100,
         res['hess_inv'] = H
 
     return res
-
-

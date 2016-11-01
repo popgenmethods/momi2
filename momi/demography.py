@@ -1,4 +1,3 @@
-
 import networkx as nx
 from .util import memoize_instance, memoize
 from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse, par_einsum
@@ -22,6 +21,12 @@ except NameError: # no, it doesn't (it's Python3); use 'str' instead
 import logging
 logger = logging.getLogger(__name__)
 
+def getval(x):
+   try:
+      return x.value
+   except AttributeError:
+      return x
+
 def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N=1.0, time_scale='ms'):
    """
      Create a demography object. Use this instead of the Demography() constructor directly.
@@ -32,7 +37,7 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
           The demographic history as a list of events.
           Events are represented as tuples. There are 4 kinds of events:
                ('-en',t,i,N) : size change
-                    At time t, scaled size of pop. i is set to N, 
+                    At time t, scaled size of pop. i is set to N,
                     and its growth rate is set to 0.
                ('-eg',t,i,g) : exponential growth
                     At time t, exponential growth rate of pop. i is
@@ -71,15 +76,20 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
    if sampled_t is None:
       sampled_t = (0.0,) * len(sampled_n)
 
-   logger.debug("make_demography: sampled_pops={0}, sampled_n={1} , sampled_t={2}, default_N={3}, time_scale={4}, events={5}".format(tuple(sampled_pops), tuple(sampled_n), tuple(sampled_t), default_N, time_scale, events))
-      
+   logger.debug("Making demography {0}".format({'events' : [tuple(getval(x) for x in ev) for ev in events],
+                                                'sampled_t' : [getval(x) for x in sampled_t],
+                                                'sampled_pops' : sampled_pops,
+                                                'sampled_n' : sampled_n,
+                                                'default_N' : default_N,
+                                                'time_scale' : time_scale}))
+
    if time_scale == 'ms':
       time_scale = 1.0
    elif time_scale == 'standard':
       time_scale = 2.0
    elif isinstance(time_scale, str):
       raise DemographyError("time_scale must be float, 'ms', or 'standard'")
-  
+
    old_default_N = default_N
    default_N = default_N * time_scale
    old_events, events = events, []
@@ -95,8 +105,8 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
    _G.graph['default_N'] = default_N
    _G.graph['events_as_edges'] = []
    # the nodes currently at the root of the graph, as we build it up from the leafs
-   _G.graph['roots'] = {} 
-     
+   _G.graph['roots'] = {}
+
    ## create sampling events
    sampling_events = [('-eSample', t, i, n) for i,n,t in zip(sampled_pops, sampled_n, sampled_t)]
    events = sampling_events + list(events)
@@ -162,7 +172,7 @@ class Demography(object):
         ## methods decorated by @differentiable_method will first look if result is in diff_cache before computing it
         assert len(diff_cache_keys) == len(diff_cache_vals)
         self._diff_cache = dict(list(zip(diff_cache_keys, diff_cache_vals)))
-        
+
     def _get_differentiable_part(self):
        ## use this with _get_graph_structure()
        ## to re-organize certain computations during automatic differentiation
@@ -172,7 +182,7 @@ class Demography(object):
        keys,vals = list(zip(*list(self._diff_cache.items())))
        ## convert vals to autograd.TupleNode (as opposed to a tuple of autograd.Node)
        vals = autograd.container_types.make_tuple(*vals)
-       
+
        return keys, vals
 
     def _get_graph_structure(self):
@@ -186,12 +196,12 @@ class Demography(object):
        for v,d in self._G.nodes(data=True):
           if 'lineages' in d:
              ret.node[v]['lineages'] = d['lineages']
-       
+
        ret.graph['events_as_edges'] = tuple(self._G.graph['events_as_edges'])
        ret.graph['sampled_pops'] = self.sampled_pops
 
        return ret
-    
+
     def copy(self, sampled_n=None):
        """
        Notes
@@ -200,11 +210,11 @@ class Demography(object):
        Demography.sampled_n == ConfigArray.sampled_n.
        If this is not the case, you can use copy() to create a copy with the correct
        sampled_n.
-       """       
+       """
        if sampled_n is None:
           sampled_n = self.sampled_n
        return make_demography(self.events, self.sampled_pops, sampled_n, self.sampled_t, self.default_N)
-    
+
     @property
     def events(self):
         """
@@ -307,7 +317,7 @@ class Demography(object):
 
     def _child_pops(self, event):
         '''
-        Returns dict of 
+        Returns dict of
         {child_pop : child_event},
         which gives populations arising from this event forward in time,
         and the corresponding child events in the junction tree.
@@ -315,7 +325,7 @@ class Demography(object):
         return self._event_tree.node[event]['child_pops']
 
     def _pulse_nodes(self, event):
-        parent_pops = self._parent_pops(event)    
+        parent_pops = self._parent_pops(event)
         child_pops_events = self._child_pops(event)
         assert len(child_pops_events) == 2
         child_pops, child_events = list(zip(*list(child_pops_events.items())))
@@ -330,12 +340,12 @@ class Demography(object):
 
         return recipient, non_recipient, donor, non_donor
 
-     
+
     """
     ALL methods returning floats BELOW HERE
     They should be decorated by @differentiable_method to ensure cacheing of differentiable objects!!!!
     """
-     
+
     @property
     @differentiable_method
     def sampled_t(self):
@@ -363,12 +373,12 @@ class Demography(object):
 
     def _pulse_prob(self, event):
        return self._pulse_prob_helper(event), self._pulse_prob_idxs(event)
-    
+
     def _pulse_prob_idxs(self, event):
         recipient, non_recipient, donor, non_donor = self._pulse_nodes(event)
         admixture_idxs = self._admixture_prob_idxs(recipient)
         return admixture_idxs + [non_recipient]
-     
+
     @differentiable_method
     def _pulse_prob_helper(self, event):
         ## returns 4-tensor
@@ -380,7 +390,7 @@ class Demography(object):
 
         pulse_idxs = admixture_idxs + [non_recipient]
         assert pulse_idxs == self._pulse_prob_idxs(event)
-        
+
         pulse_prob = par_einsum(admixture_prob, admixture_idxs,
                              binom_coeffs(self._n_at_node(non_recipient)), [non_recipient],
                              pulse_idxs)
@@ -398,7 +408,7 @@ class Demography(object):
         N,n = pulse_prob.shape[donor_idx]-1, self._n_at_node(donor)
         assert N >= n
         if N > n:
-            assert -1 not in pulse_idxs        
+            assert -1 not in pulse_idxs
             tmp_idxs = [-1 if x == donor else x for x in pulse_idxs]
             pulse_prob = par_einsum(pulse_prob, tmp_idxs,
                                  hypergeom_quasi_inverse(N, n),
@@ -414,8 +424,8 @@ class Demography(object):
         edge1,edge2 = sorted(self._G.in_edges([admixture_node], data=True), key=lambda x: str(x[:2]))
         parent1,parent2 = [e[0] for e in (edge1,edge2)]
         return [admixture_node, parent1, parent2]
-     
-    @differentiable_method 
+
+    @differentiable_method
     def _admixture_prob_helper(self, admixture_node):
         '''
         Array with dim [n_admixture_node+1, n_parent1_node+1, n_parent2_node+1],
@@ -450,10 +460,10 @@ def _der_in_admixture_node(n_node):
     der_in_parent = np.tile(np.arange(n_node+1), (n_node+1,n_node+1,1))
     n_from_parent = np.transpose(der_in_parent, [2,0,1])
     der_from_parent = np.transpose(der_in_parent, [0,2,1])
-    
+
     anc_in_parent = n_node - der_in_parent
     anc_from_parent = n_from_parent - der_from_parent
-    
+
     x = scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent)
 
     ret,labels = convolve_axes(x, x[::-1,...], [[c for c in 'ijk'], [c for c in 'ilm']], ['j','l'], 'n')
@@ -463,10 +473,10 @@ def _der_in_admixture_node(n_node):
 def _build_event_tree(G):
     # def node_time(v):
     #     return G.node[v]['sizes'][0]['t']
-    
+
     eventEdgeList = []
     currEvents = {k : (k,) for k,v in list(G.out_degree().items()) if v == 0}
-    eventDict = {e : {'subpops' : (v,), 'parent_pops' : (v,), 'child_pops' : {}} for v,e in list(currEvents.items())}    
+    eventDict = {e : {'subpops' : (v,), 'parent_pops' : (v,), 'child_pops' : {}} for v,e in list(currEvents.items())}
     for e in G.graph['events_as_edges']:
         # get the population edges forming the event
         parent_pops, child_pops = list(map(set, list(zip(*e))))
@@ -482,8 +492,8 @@ def _build_event_tree(G):
         # except TypeError:
         #     ## autograd sometimes raise TypeError for this assertion
         #     pass
-        
-        eventDict[e] = {'parent_pops' : tuple(parent_pops), 'subpops' : tuple(sub_pops), 'child_pops' : {c : currEvents[c] for c in child_pops}}        
+
+        eventDict[e] = {'parent_pops' : tuple(parent_pops), 'subpops' : tuple(sub_pops), 'child_pops' : {c : currEvents[c] for c in child_pops}}
         currEvents.update({p : e for p in sub_pops})
         for p in child_pops:
             del currEvents[p]
@@ -498,18 +508,18 @@ def _build_event_tree(G):
 
     return ret
 
-### methods for constructing demography from string 
+### methods for constructing demography from string
 
 def _es(G, t, i, p):
     raise DemographyError("Flag -es not implemented, use -ep instead. See help(demography).")
 
 def _ej(G,t,i,j):
     if i not in G.graph['roots']:
-       G.graph['roots'][i] = None       
+       G.graph['roots'][i] = None
        # don't need to do anything else
        return
     _check_ej_ep_pops(G, '-ej', t, i, j)
-    
+
     i0,j0 = (G.graph['roots'][k] for k in (i,j))
     j1 = (j, j0[1]+1)
     assert j1 not in G.nodes()
@@ -526,29 +536,29 @@ def _ej_helper(G, t, i0, j0, j1):
     prev = G.node[j0]['sizes'][-1]
     G.add_node(j1, sizes=[{'t':t,'N':prev['N_top'], 'growth_rate':prev['growth_rate']}])
 
-    new_edges = ((j1,i0), (j1,j0))       
+    new_edges = ((j1,i0), (j1,j0))
     G.graph['events_as_edges'].append(new_edges)
     G.add_edges_from(new_edges)
-        
+
 def _en(G, t,i,N):
-    _check_en_eg_pops(G, '-en', t,i,N)    
+    _check_en_eg_pops(G, '-en', t,i,N)
     G.node[G.graph['roots'][i]]['sizes'].append({'t':t,'N':N,'growth_rate':None})
-   
+
 def _eg(G, t,i,growth_rate):
-    _check_en_eg_pops(G, '-eg', t,i,growth_rate)        
+    _check_en_eg_pops(G, '-eg', t,i,growth_rate)
     G.node[G.graph['roots'][i]]['sizes'].append({'t':t,'growth_rate':growth_rate})
-   
+
 def _ep(G, t, i, j, pij):
     if pij < 0. or pij > 1.:
-        raise DemographyError("Invalid event %s: pulse probability must be between 0,1" % str(('-ep',t,i,j,pij)))
-   
+        raise DemographyError("Invalid event {0}: pulse probability must be between 0,1".format(tuple(getval(v) for v in ('-ep',t,i,j,pij))))
+
     if i not in G.graph['roots']:
        # don't need to do anything
        return
-   
+
     _check_ej_ep_pops(G, '-ep', t, i, j, pij)
 
-                          
+
     children = {k: G.graph['roots'][k] for k in (i,j)}
     for v in list(children.values()):
         _set_sizes(G.node[v], t)
@@ -578,15 +588,15 @@ def _eSample(G, t, i, n):
 
     if i in G.graph['roots']:
         if G.graph['roots'][i] is None:
-            raise DemographyError("Invalid events: pop %s removed by -ej before sample time" % str(i))
-        
+            raise DemographyError("Invalid events: pop {0} removed by -ej before sample time".format(i))
+
         #G.node[(i,0)]['model'] = _TrivialHistory()
         G.node[(i,0)]['sizes'] = [{'t':t,'N':G.graph['default_N'],'growth_rate':None}]
         _set_sizes(G.node[(i,0)], t)
-        
+
         prev = G.graph['roots'][i]
         _set_sizes(G.node[prev], t)
-        
+
         assert prev[0] == i and prev[1] != 0
         newpop = (i, prev[1]+1)
         _ej_helper(G,t,(i,0),prev,newpop)
@@ -598,26 +608,26 @@ def _eSample(G, t, i, n):
 def _check_en_eg_pops(G, *event):
     flag,t,i = event[:3]
     if i in G.graph['roots'] and G.graph['roots'][i] is None:
-        raise DemographyError("Invalid event %s: pop %s was already removed by previous -ej" % (str(tuple(event)), str(i)))
+        raise DemographyError("Invalid event {0}: pop {1} was already removed by previous -ej".format(tuple(getval(e) for e in event), i))
 
     if i not in G.graph['roots']:
         G.graph['roots'][i] = (i,1)
         G.add_node(G.graph['roots'][i],
                    sizes=[{'t':t,'N':G.graph['default_N'],'growth_rate':None}],
-                   )       
-    
+                   )
+
 def _check_ej_ep_pops(G, *event):
     flag,t,i,j = event[:4]
     for k in (i,j):
        if k in G.graph['roots'] and G.graph['roots'][k] is None:
-           raise DemographyError("Invalid event %s: pop %s was already removed by previous -ej" % (str(tuple(event)), str(k)))       
-    
+           raise DemographyError("Invalid event {0}: pop {1} was already removed by previous -ej".format(tuple(getval(e) for e in event), k))
+
     if j not in G.graph['roots']:
         G.graph['roots'][j] = (j,1)
         G.add_node(G.graph['roots'][j],
                    sizes=[{'t':t,'N':G.graph['default_N'],'growth_rate':None}],
                    )
-    
+
 def _set_sizes(node_data, end_time):
     assert 'model' not in node_data
 
@@ -650,7 +660,7 @@ def _set_sizes(node_data, end_time):
         sizes[i]['N_top'] = N
 
         if not all([sizes[i][x] >= 0.0 for x in ('tau','N','N_top')]):
-            raise DemographyError("Negative time or population size.")
+            raise DemographyError("Negative time or population size in {sizes}".format(sizes=[{k:getval(v) for k,v in s.items()} for s in sizes]))
     sizes.pop() # remove the final dummy epoch
 
     assert len(pieces) > 0
