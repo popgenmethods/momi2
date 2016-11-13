@@ -76,12 +76,12 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
    if sampled_t is None:
       sampled_t = (0.0,) * len(sampled_n)
 
-   logger.debug("Making demography {0}".format({'events' : [tuple(getval(x) for x in ev) for ev in events],
+   logger.debug("Making demography, {0}".format({'events' : [tuple(getval(x) for x in ev) for ev in events],
                                                 'sampled_t' : [getval(x) for x in sampled_t],
-                                                'sampled_pops' : sampled_pops,
-                                                'sampled_n' : sampled_n,
-                                                'default_N' : default_N,
-                                                'time_scale' : time_scale}))
+                                                'sampled_pops' : list( sampled_pops ),
+                                                'sampled_n' : list( sampled_n ),
+                                                'default_N' : getval( default_N ),
+                                                'time_scale' : getval( time_scale )}))
 
    if time_scale == 'ms':
       time_scale = 1.0

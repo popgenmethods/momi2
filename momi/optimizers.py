@@ -15,7 +15,7 @@ class LoggingCallback(object):
         self.user_callback = user_callback
 
     def callback(self, x, fx, i):
-        msg = "Optimization step {{'it': {i}, 'fun': {fx}, 'x': {x}}}".format(i=i, x=list(x), fx=fx)
+        msg = "Optimization step, {{'it': {i}, 'fun': {fx}, 'x': {x}}}".format(i=i, x=list(x), fx=fx)
         logger.info(msg)
         if self.user_callback:
             x = np.array(x)
@@ -150,7 +150,7 @@ def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999,
             f_w, g_w = fun_and_jac(w, i)
             f_x = f_x - f_w + fbar
             g_x = g_x - g_w + gbar
-            logger.info("SVRG pivot {0}".format({"w": w, "f_w": f_w, "g_w": list(g_w)}))
+            logger.info("SVRG pivot, {0}".format({"w": list( w ), "f_w": f_w, "g_w": list(g_w)}))
         callback(x, f_x, nit)
 
         m = (1 - b1) * g_x      + b1 * m  # First  moment estimate.
@@ -161,7 +161,7 @@ def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999,
 
         prev_x = x
         x = truncate(x - stepsize*mhat/(np.sqrt(vhat) + eps))
-        logger.info("Adam moment estimates {0}".format({"x": list(x), "m": list(m), "v":list(v)}))
+        logger.info("Adam moment estimates, {0}".format({"x": list(x), "m": list(m), "v":list(v)}))
 
         ## require x to not change for 2 steps in a row before stopping
         if xtol < 0 or not np.allclose(x, prev_x, xtol, xtol):
