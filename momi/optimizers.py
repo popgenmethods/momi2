@@ -31,7 +31,7 @@ def _find_minimum(f, start_params, optimizer, bounds=None,
                   callback=None,
                   opt_kwargs={}, **kwargs):
     fixed_params = []
-    if bounds:
+    if bounds is not None:
         bounds = [(None,None) if b is None else b for b in bounds]
         for i,b in enumerate(bounds):
             try:
@@ -65,7 +65,7 @@ def _find_minimum(f, start_params, optimizer, bounds=None,
     opt_kwargs = dict(opt_kwargs)
     assert all([k not in opt_kwargs for k in ['bounds','callback']])
     if callback: opt_kwargs['callback'] = callback
-    if bounds and not all([l is None and h is None for (l,h) in bounds]):
+    if bounds is not None and not all([l is None and h is None for (l,h) in bounds]):
         opt_kwargs['bounds'] = bounds
 
     ret = _find_minimum_helper(f, start_params, optimizer, opt_kwargs, **kwargs)
