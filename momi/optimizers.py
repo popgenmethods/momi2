@@ -147,10 +147,10 @@ def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999,
             if nit % svrg_epoch == 0:
                 w = x
                 fbar, gbar = fun_and_jac(w, None)
+                logger.info("SVRG pivot, {0}".format({"w": list( w ), "f_w": f_w, "g_w": list(g_w)}))
             f_w, g_w = fun_and_jac(w, i)
             f_x = f_x - f_w + fbar
             g_x = g_x - g_w + gbar
-            logger.info("SVRG pivot, {0}".format({"w": list( w ), "f_w": f_w, "g_w": list(g_w)}))
         callback(x, f_x, nit)
 
         m = (1 - b1) * g_x      + b1 * m  # First  moment estimate.
