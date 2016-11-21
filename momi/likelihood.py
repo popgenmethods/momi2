@@ -210,7 +210,7 @@ class SfsLikelihoodSurface(object):
                                      batch_size = self.batch_size)
                 for sfs in sfs_pieces], is_exact
 
-    def stochastic_surfaces(self, n_minibatches, rgen=np.random, exact=0):
+    def stochastic_surfaces(self, n_minibatches=None, snps_per_minibatch=None, rgen=np.random, exact=0):
         """
         Partitions the data into n_minibatches random subsets ("minibatches") of roughly equal size. It returns a StochasticSfsLikelihoodSurface object, which can be used for stochastic gradient descent.
 
@@ -219,6 +219,10 @@ class SfsLikelihoodSurface(object):
         2) StochasticSfsLikelihoodSurface.get_minibatch(i): the Sfs corresponding to the i-th minibatch
         3) StochasticSfsLikelihoodSurface.n_minibatches: the number of minibatches
         """
+        if (n_minibatches is None) == (snps_per_minibatch is None):
+            raise ValueError("Exactly one of n_minibatches, snps_per_minibatch should be specified")
+        if snps_per_minibatch is not None:
+            n_minibatches = int( np.ceil( self.sfs.n_snps() / float(snps_per_minibatch) ) )
         return StochasticSfsLikelihoodSurface(self, n_minibatches, rgen, exact)
 
 class StochasticSfsLikelihoodSurface(object):
@@ -229,10 +233,11 @@ class StochasticSfsLikelihoodSurface(object):
 
         self.pieces,self.exact_snps = full_surface._get_stochastic_pieces(pieces, rgen, exact)
         self.total_snp_counts = full_surface.sfs._total_freqs
+        logger.info("Created {n_batches} minibatches, with an average of {n_snps} SNPs and {n_sfs} unique SFS entries per batch".format(n_batches=len(self.pieces), n_snps=full_surface.sfs.n_snps() / float(len(self.pieces)), n_sfs=np.mean([len(piece.sfs.configs) for piece in self.pieces])))
         if exact:
             total = np.sum(self.total_snp_counts)
             nexact = np.sum(self.total_snp_counts[self.exact_snps])
-            logging.getLogger(__name__).info("Using exact frequencies for %d most frequent entries, accounting for %f of SNPs (%d out of %d)" % (exact, nexact / float(total), nexact, total))
+            logger.info("Using exact frequencies for %d most frequent entries, accounting for %f of SNPs (%d out of %d)" % (exact, nexact / float(total), nexact, total))
 
         self.rgen = rgen
         self.full_surface = full_surface

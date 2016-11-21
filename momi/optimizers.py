@@ -147,7 +147,7 @@ def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999,
             if nit % svrg_epoch == 0:
                 w = x
                 fbar, gbar = fun_and_jac(w, None)
-                logger.info("SVRG pivot, {0}".format({"w": list( w ), "f_w": f_w, "g_w": list(g_w)}))
+                logger.info("SVRG pivot, {0}".format({"w": list(w), "fbar": fbar, "gbar": list(gbar)}))
             f_w, g_w = fun_and_jac(w, i)
             f_x = f_x - f_w + fbar
             g_x = g_x - g_w + gbar
