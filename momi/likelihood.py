@@ -339,26 +339,8 @@ def _build_sfs_batches(sfs, batch_size):
 
     assert len(slices) == int(np.ceil(sfs_len / float(batch_size)))
 
-    ## sort configs so that "(very) similar" configs end up in the same batch,
-    ## thus avoiding redundant computation
-    ## "similar" == configs have same num missing alleles
-    ## "very similar" == configs are folded copies of each other
-
-    a = sfs.configs.value[:,:,0] # ancestral counts
-    d = sfs.configs.value[:,:,1] # derived counts
-    n = a+d # totals
-
-    n = list(map(tuple, n))
-    a = list(map(tuple, a))
-    d = list(map(tuple, d))
-
-    folded = list(map(min, list(zip(a,d))))
-
-    keys = list(zip(n,folded))
-    sorted_idxs = sorted(range(sfs_len), key=lambda i:keys[i])
-    sorted_idxs = np.array(sorted_idxs, dtype=int)
-
-    idx_list = [sorted_idxs[s] for s in slices]
+    idxs = np.arange(sfs_len, dtype=int)
+    idx_list = [idxs[s] for s in slices]
     return [_sub_sfs(sfs.configs, counts[idx], subidxs=idx) for idx in idx_list]
 
 def _subsfs_list(sfs, n_chunks, rnd, exact):

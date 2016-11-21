@@ -546,9 +546,40 @@ def _build_data(config_iter, npops):
     config_array = np.zeros((len(config_list), npops, 2), dtype=int)
     for i,config_str in enumerate(config_list):
         config_array[i,:,:] = _hashed2config(config_str)
-    config_array.setflags(write=False)
+
+    return _sort_configs(config_array, config2uniq, index2uniq)
+
+def _sort_configs(config_array, config2uniq, index2uniq):
+    ## sort configs so that "(very) similar" configs are next to each other
+    ## and will end up in the same batch,
+    ## thus avoiding redundant computation
+    ## "similar" == configs have same num missing alleles
+    ## "very similar" == configs are folded copies of each other
+    a = config_array[:,:,0] # ancestral counts
+    d = config_array[:,:,1] # derived counts
+    n = a+d # totals
+
+    n = list(map(tuple, n))
+    a = list(map(tuple, a))
+    d = list(map(tuple, d))
+
+    folded = list(map(min, list(zip(a,d))))
+
+    keys = list(zip(n,folded))
+    sorted_idxs = sorted(range(len(n)), key=lambda i:keys[i])
+    sorted_idxs = np.array(sorted_idxs, dtype=int)
+
+    unsorted_idxs = [None]*len(sorted_idxs)
+    for i,j in enumerate(sorted_idxs):
+        unsorted_idxs[j] = i
+
+    config_array = config_array[sorted_idxs,:,:]
+    config2uniq = {k: unsorted_idxs[v] for k,v in config2uniq.items()}
+    index2uniq = [unsorted_idxs[i] for i in index2uniq]
 
     return (config_array, config2uniq, index2uniq)
+
+
 
 def write_seg_sites(sequences_file, seg_sites):
     sampled_pops = seg_sites.sampled_pops
