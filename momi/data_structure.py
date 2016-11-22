@@ -289,10 +289,13 @@ class Sfs(object):
     @property
     @memoize_instance
     def p_missing(self):
-        ret =  1.0 - np.einsum("ijk,i->j", self.configs.value, self._total_freqs / float(self.n_snps())) / self.sampled_n
         if not self.configs.has_missing_data:
-            assert np.allclose(ret, 0.0)
-            return 0.0*ret
+            return 0.0
+        #return  1.0 - np.einsum("ijk,i->j", self.configs.value, self._total_freqs / float(self.n_snps())) / self.sampled_n
+        n_missing = self.sampled_n - np.sum(self.configs.value, axis=2)
+        ret = [Counter(n_missing[:,i]) for i in range(n_missing.shape[1])]
+        n_snps = len(self.configs)
+        ret = [[cnts[i]/float(n_snps) for i in range(n+1)] for cnts,n in zip(ret, self.sampled_n)]
         return ret
 
     @property

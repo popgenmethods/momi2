@@ -119,12 +119,30 @@ def expected_total_branch_len(demography, error_matrices=None, ascertainment_pop
         ascertainment_pop = [True]*len(demography.sampled_n)
     ascertainment_pop = np.array(ascertainment_pop)
 
-    p_missing = p_missing * np.ones(len(demography.sampled_n))
-    if np.any(np.logical_or(p_missing < 0.0, p_missing >= 1.0)):
-        raise ValueError("p_missing (the probability that a sample is missing) must be in [0,1)")
-    vecs = [[np.ones(n+1),
-             p**np.arange(n+1),
-             p**np.arange(n+1)[::-1]]
+    try:
+        len(p_missing)
+    except:
+        p_missing = p_missing * np.ones(len(demography.sampled_n))
+
+    p_missing = list(p_missing)
+    for i,p in enumerate(p_missing):
+        n = demography.sampled_n[i]
+        b = binom_coeffs(n)
+        j = np.arange(n + 1)
+        try:
+            len(p)
+        except:
+            assert p >= 0.0 and p <= 1.0
+            p = b * p**j * (1-p)**(j[::-1])
+
+        assert np.isclose(np.sum(p), 1.0)
+        J = np.outer(j, np.ones(n+1))
+        p = np.dot(scipy.misc.comb(np.transpose(J), J), p) / b
+        assert np.isclose(p[0], 1.0) and np.all(p[:-1] >= p[1:])
+
+        p_missing[i] = p
+
+    vecs = [[np.ones(n+1), p, p[::-1]]
             if asc else np.ones((3, n+1), dtype=float)
             for p,asc,n in zip(p_missing, ascertainment_pop, demography.sampled_n)]
     if error_matrices is not None:
@@ -132,7 +150,7 @@ def expected_total_branch_len(demography, error_matrices=None, ascertainment_pop
 
     ret = expected_sfs_tensor_prod(vecs, demography)
     ## inclusion-exclusion: subtract off fraction where all ancestral missing, allderived missing, add back on all missing
-    return ret[0] - ret[1] - ret[2] + ret[0] * np.prod((p_missing**demography.sampled_n)[ascertainment_pop])
+    return ret[0] - ret[1] - ret[2] + ret[0] * np.prod([p[-1] for p,asc in zip(p_missing, ascertainment_pop) if asc])
 
 def expected_tmrca(demography):
     """

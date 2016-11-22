@@ -98,6 +98,7 @@ def check_jointime_inference(sampled_n=(5,5,5), folded=False, add_n=0, finite_di
         log_prior = lambda t: -t/float(t0)
     else: log_prior = None
     res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded, log_prior=log_prior, p_missing=missing_p).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
+    #res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded, log_prior=log_prior).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
     
     #res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_mle(x0, bounds=[(0,t1),])
 
