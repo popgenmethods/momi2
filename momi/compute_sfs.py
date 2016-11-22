@@ -2,7 +2,7 @@
 import warnings
 import autograd.numpy as np
 import scipy
-from .util import memoize_instance, memoize, make_constant, set0
+from .util import memoize_instance, memoize, make_constant, set0, closegeq
 from .data_structure import config_array
 from .math_functions import sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs, _apply_error_matrices, par_einsum
 #from .data_structure import Configs
@@ -138,7 +138,7 @@ def expected_total_branch_len(demography, error_matrices=None, ascertainment_pop
         assert np.isclose(np.sum(p), 1.0)
         J = np.outer(j, np.ones(n+1))
         p = np.dot(scipy.misc.comb(np.transpose(J), J), p) / b
-        assert np.isclose(p[0], 1.0) and np.all(p[:-1] >= p[1:])
+        assert np.isclose(p[0], 1.0) and np.all(closegeq(p[:-1], p[1:]))
 
         p_missing[i] = p
 
