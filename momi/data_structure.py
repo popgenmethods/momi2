@@ -269,6 +269,12 @@ class Sfs(object):
 
         #self.config2uniq = config2uniq
 
+    def combine_loci(self):
+        """
+        Returns a copy of this SFS, but with all loci combined into a single locus
+        """
+        return _sub_sfs(self.configs, self.freqs_matrix.sum(axis=1))
+
     @property
     @memoize_instance
     def freqs_matrix(self):
