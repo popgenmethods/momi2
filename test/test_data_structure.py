@@ -8,6 +8,19 @@ from demo_utils import simple_five_pop_demo
 import autograd.numpy as np
 from collections import Counter
 
+def test_combine_loci():
+    demo = simple_five_pop_demo(n_lins=(10,10,10,10,10)).rescaled()
+    n_loci = 1000
+    
+    #data = momi.simulate_ms(scrm_path, demo,
+    #                        num_loci=n_loci, mut_rate=.1)
+    raw_ms = momi.simulate_ms(scrm_path, demo, num_loci=n_loci, mut_rate=.1,
+                              raw_output=True)
+    data = momi.parse_ms.seg_sites_from_ms(raw_ms, demo.sampled_pops)
+    assert data.n_loci == n_loci
+
+    data.sfs.combine_loci()
+
 def test_readwrite_segsites_parse_ms_equal():
     demo = simple_five_pop_demo(n_lins=(10,10,10,10,10)).rescaled()
     n_loci = 1000

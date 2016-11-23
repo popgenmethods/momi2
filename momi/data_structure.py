@@ -273,7 +273,7 @@ class Sfs(object):
         """
         Returns a copy of this SFS, but with all loci combined into a single locus
         """
-        return _sub_sfs(self.configs, self.freqs_matrix.sum(axis=1))
+        return _sub_sfs(self.configs, self._total_freqs)
 
     @property
     @memoize_instance
