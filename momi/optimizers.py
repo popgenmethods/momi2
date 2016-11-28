@@ -117,7 +117,7 @@ def sgd(fun, x0, fun_and_jac, pieces, stepsize, num_iters, bounds=None, callback
     return scipy.optimize.OptimizeResult({'x':x, 'fun':f_x, 'jac':g_x})
 
 @is_stoch_opt
-def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999, eps=10**-8, svrg_epoch=-1, bounds=None, callback=None, rgen=np.random, xtol=1e-6):
+def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999, eps=10**-8, svrg_epoch=-1, bounds=None, callback=None, rgen=np.random, xtol=1e-6, w=None, fbar=None, gbar=None):
     x0 = np.array(x0)
 
     if callback is None:
@@ -143,14 +143,15 @@ def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999,
         i = rgen.randint(pieces)
         f_x, g_x = fun_and_jac(x,i)
 
-        if svrg_epoch > 0 and nit // svrg_epoch:
-            if nit % svrg_epoch == 0:
-                w = x
-                fbar, gbar = fun_and_jac(w, None)
-                logger.info("SVRG pivot, {0}".format({"w": list(w), "fbar": fbar, "gbar": list(gbar)}))
+        if svrg_epoch > 0 and nit // svrg_epoch and nit % svrg_epoch == 0:
+            w = x
+            fbar, gbar = fun_and_jac(w, None)
+            logger.info("SVRG pivot, {0}".format({"w": list(w), "fbar": fbar, "gbar": list(gbar)}))
+        if w is not None:
             f_w, g_w = fun_and_jac(w, i)
             f_x = f_x - f_w + fbar
             g_x = g_x - g_w + gbar
+
         callback(x, f_x, nit)
 
         m = (1 - b1) * g_x      + b1 * m  # First  moment estimate.
