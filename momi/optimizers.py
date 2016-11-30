@@ -240,7 +240,8 @@ def svrg(fun, x0, fun_and_jac, pieces, stepsize, iter_per_epoch, max_epochs=100,
         w = x
         if epoch > 0 or init_epoch_svrg is True:
             fbar, gbar = fun_and_jac(w, None)
-            callback(w, fbar, epoch)
+            logger.info("SVRG pivot, {0}".format({"w": list(w), "fbar": fbar, "gbar": list(gbar)}))
+            #callback(w, fbar, epoch)
             for k,v in (('x',w), ('f',fbar), ('jac',gbar)):
                 history[k].append(v)
         elif init_epoch_svrg is False:
@@ -288,9 +289,12 @@ def svrg(fun, x0, fun_and_jac, pieces, stepsize, iter_per_epoch, max_epochs=100,
             if gbar is not None:
                 f_w, g_w = fun_and_jac(w,i)
                 g = (g_x - g_w) + gbar
+                f = (f_x - f_w) + fbar
             else:
                 assert epoch == 0 and init_epoch_svrg is False
                 g = g_x
+                f = f_x
+            callback(x, f, nit)
 
             if not quasinewton:
                 xnext = truncate(x - stepsize*g)
