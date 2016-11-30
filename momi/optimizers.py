@@ -247,7 +247,7 @@ def svrg(fun, x0, fun_and_jac, pieces, stepsize, iter_per_epoch, max_epochs=100,
         elif init_epoch_svrg is False:
             gbar = None
         else:
-            gbar = init_epoch_svrg
+            fbar, gbar = init_epoch_svrg
 
         if quasinewton:
             if prev_gbar is not None:
