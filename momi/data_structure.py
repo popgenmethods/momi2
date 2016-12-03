@@ -422,21 +422,45 @@ class Sfs(object):
         #idxs, counts = self._idxs_counts(locus)
         return np.sum(weights[idxs] * counts)
 
-    # @property
-    # def _total_freqs(self):
-    #     return self._idxs_counts(None)[1]
+    def subsample_inds(self, n):
+        """
+        Return the induced SFS on all subsets of n
+        individuals
+        """
+        total_freqs = self._total_freqs
+        def get_cnt(super_n, sub_n):
+            assert super_n.shape[1:] == sub_n.shape
+            return np.dot(total_freqs,
+                          np.prod(comb(super_n, sub_n),
+                                  axis=tuple(range(1, len(super_n.shape)))))
 
-    # @memoize_instance
-    # def _idxs_counts(self, locus):
-    #     if locus is None:
-    #         ## NOTE: use range(len(self.configs)) instead of range(len(self.total));
-    #         ##       in case there is a config with freq 0 and hence not in the Counter() total
-    #         return (slice(None), np.array([self.total[i] for i in range(len(self.configs))]))
+        config_sampled_n = np.sum( self.configs.value , axis=2)
+        ret = {}
+        for pop_comb in itertools.combinations_with_replacement(self.sampled_pops, n):
+            subsample_n = Counter(pop_comb)
+            subsample_n = np.array([subsample_n[pop] for pop in self.sampled_pops], dtype=int)
+            if np.any(subsample_n > self.sampled_n):
+                continue
 
-    #     #idxs, counts = zip(*self.loci[locus].items())
-    #     idxs = np.array(list(self.loci[locus].keys()), dtype=int)
-    #     counts = np.array([self.loci[locus][k] for k in idxs], dtype=float)
-    #     return idxs, counts
+            curr = {}
+            for sfs_entry in itertools.product(*(range(sub_n+1)
+                                                for sub_n in subsample_n)):
+                sfs_entry = np.array(sfs_entry, dtype=int)
+
+                sfs_entry = np.transpose([subsample_n - sfs_entry, sfs_entry])
+                sfs_entry = tuple(map(tuple, sfs_entry))
+                curr[sfs_entry] = get_cnt(self.configs.value, np.array( sfs_entry, dtype=int ))
+
+            denom = get_cnt(config_sampled_n, subsample_n)
+            for step in (1,-1):
+                mono_entry = np.transpose([subsample_n, [0]*len(subsample_n)])
+                mono_entry = tuple(map(tuple, mono_entry[:,::step]))
+                denom = denom - curr[mono_entry]
+                del curr[mono_entry]
+
+            ret.update({k: v / denom for k,v in curr.items() if v != 0})
+
+        return site_freq_spectrum(self.sampled_pops, [ret])
 
 def _randomly_drop_alleles(sfs, p_missing, ascertainment_pop=None):
     p_missing = p_missing * np.ones(len(sfs.sampled_n))

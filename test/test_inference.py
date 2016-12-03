@@ -50,8 +50,12 @@ def test_nodiff():
 def test_missing_data():
     return check_jointime_inference(missing_p=.75, theta=1., num_runs=1000, use_theta=True, sampled_n=(4,4,4))
 
+def test_subsample_4():
+    check_jointime_inference(subsample_n=3)
+
 def check_jointime_inference(sampled_n=(5,5,5), folded=False, add_n=0, finite_diff_eps=0, missing_p=0,
                              use_prior=False,
+                             subsample_n = False,
                              use_theta=False, theta=.1, num_runs = 10000):
     t0=random.uniform(.25,2.5)
     t1= t0 + random.uniform(.5,5.0)
@@ -75,6 +79,10 @@ def check_jointime_inference(sampled_n=(5,5,5), folded=False, add_n=0, finite_di
     sfs = sfs._copy(sampled_n=np.array(true_demo.sampled_n)+add_n)
     if folded:
         sfs = sfs.fold()
+
+    if subsample_n:
+        sfs = sfs.subsample_inds(subsample_n)
+        sampled_n = sfs.sampled_n
     
     print((t0,t1))
     
