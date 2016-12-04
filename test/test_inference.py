@@ -51,7 +51,7 @@ def test_missing_data():
     return check_jointime_inference(missing_p=.75, theta=1., num_runs=1000, use_theta=True, sampled_n=(4,4,4))
 
 def test_subsample_4():
-    check_jointime_inference(subsample_n=3)
+    check_jointime_inference(sampled_n=(10,4,2), subsample_n=3, missing_p=.25)
 
 def check_jointime_inference(sampled_n=(5,5,5), folded=False, add_n=0, finite_diff_eps=0, missing_p=0,
                              use_prior=False,

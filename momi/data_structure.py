@@ -427,14 +427,18 @@ class Sfs(object):
         Return the induced SFS on all subsets of n
         individuals
         """
-        total_freqs = self._total_freqs
+        config_sampled_n = np.sum( self.configs.value , axis=2)
+        n_subsamples = comb(np.sum(config_sampled_n, axis=1), n)
+        to_keep = n_subsamples > 0
+        n_subsamples = n_subsamples[to_keep]
+        total_freqs = self._total_freqs[to_keep]
+        configs = self.configs.value[to_keep,:,:]
         def get_cnt(super_n, sub_n):
             assert super_n.shape[1:] == sub_n.shape
             return np.dot(total_freqs,
                           np.prod(comb(super_n, sub_n),
-                                  axis=tuple(range(1, len(super_n.shape)))))
+                                  axis=tuple(range(1, len(super_n.shape)))) / n_subsamples)
 
-        config_sampled_n = np.sum( self.configs.value , axis=2)
         ret = {}
         for pop_comb in itertools.combinations_with_replacement(self.sampled_pops, n):
             subsample_n = Counter(pop_comb)
@@ -446,19 +450,17 @@ class Sfs(object):
             for sfs_entry in itertools.product(*(range(sub_n+1)
                                                 for sub_n in subsample_n)):
                 sfs_entry = np.array(sfs_entry, dtype=int)
+                if np.all(sfs_entry == 0) or np.all(sfs_entry == subsample_n):
+                    ## monomorphic
+                    continue
 
                 sfs_entry = np.transpose([subsample_n - sfs_entry, sfs_entry])
                 sfs_entry = tuple(map(tuple, sfs_entry))
-                curr[sfs_entry] = get_cnt(self.configs.value, np.array( sfs_entry, dtype=int ))
+                cnt = get_cnt(configs, np.array( sfs_entry, dtype=int ))
+                if cnt > 0:
+                    curr[sfs_entry] = cnt
 
-            denom = get_cnt(config_sampled_n, subsample_n)
-            for step in (1,-1):
-                mono_entry = np.transpose([subsample_n, [0]*len(subsample_n)])
-                mono_entry = tuple(map(tuple, mono_entry[:,::step]))
-                denom = denom - curr[mono_entry]
-                del curr[mono_entry]
-
-            ret.update({k: v / denom for k,v in curr.items() if v != 0})
+            ret.update(curr)
 
         return site_freq_spectrum(self.sampled_pops, [ret])
 
