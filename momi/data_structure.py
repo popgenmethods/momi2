@@ -427,17 +427,15 @@ class Sfs(object):
         Return the induced SFS on all subsets of n
         individuals
         """
-        config_sampled_n = np.sum( self.configs.value , axis=2)
-        n_subsamples = comb(np.sum(config_sampled_n, axis=1), n)
-        to_keep = n_subsamples > 0
-        n_subsamples = n_subsamples[to_keep]
-        total_freqs = self._total_freqs[to_keep]
-        configs = self.configs.value[to_keep,:,:]
+        config_sampled_n = np.sum( self.configs.value , axis=-1)
+        total_freqs = self._total_freqs
         def get_cnt(super_n, sub_n):
             assert super_n.shape[1:] == sub_n.shape
-            return np.dot(total_freqs,
-                          np.prod(comb(super_n, sub_n),
-                                  axis=tuple(range(1, len(super_n.shape)))) / n_subsamples)
+            denom = np.prod( comb(config_sampled_n, np.sum(sub_n, axis=-1)) , axis=-1)
+            keep = denom > 0
+            return np.dot(total_freqs[keep],
+                          np.prod(comb(super_n[keep,:,:], sub_n),
+                                  axis=(1,2)) / denom[keep])
 
         ret = {}
         for pop_comb in itertools.combinations_with_replacement(self.sampled_pops, n):
@@ -456,7 +454,7 @@ class Sfs(object):
 
                 sfs_entry = np.transpose([subsample_n - sfs_entry, sfs_entry])
                 sfs_entry = tuple(map(tuple, sfs_entry))
-                cnt = get_cnt(configs, np.array( sfs_entry, dtype=int ))
+                cnt = get_cnt(self.configs.value, np.array( sfs_entry, dtype=int ))
                 if cnt > 0:
                     curr[sfs_entry] = cnt
 
