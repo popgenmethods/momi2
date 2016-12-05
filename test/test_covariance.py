@@ -4,7 +4,7 @@ import autograd.numpy as np
 
 from momi import simulate_ms
 import momi
-from test_ms import ms_path
+from test_ms import scrm_path
 
 from demo_utils import simple_three_pop_demo, simple_nea_admixture_demo
 
@@ -12,7 +12,7 @@ import scipy
 
 def check_cov(method, params, demo_func, num_runs, theta, bounds=None, **kwargs):
     true_demo = demo_func(*params)
-    seg_sites = simulate_ms(ms_path, true_demo,
+    seg_sites = simulate_ms(scrm_path, true_demo,
                             num_loci=num_runs, mut_rate=theta,
                             additional_ms_params="-r %f 1000" % theta)
     
@@ -22,8 +22,8 @@ def check_cov(method, params, demo_func, num_runs, theta, bounds=None, **kwargs)
     cr = momi.ConfidenceRegion(est_params, demo_func, seg_sites, regime=method, **kwargs)
     cov = cr.godambe(inverse=True)
 
-    cr.test(params,sims=100)
-    cr.test([params,est_params],sims=100)
+    print( cr.test(params,sims=100) )
+    print( cr.test([params,est_params],sims=100) )
 
 def check_jointime_cov(method, num_runs, theta):
     t0 = random.uniform(.25,2.5)
@@ -45,4 +45,4 @@ def test_admixture_cov_many():
     check_admixture_cov("many", 1000, 1.)
 
 def test_admixture_cov_long():
-    check_admixture_cov("long", 10, 100.)    
+    check_admixture_cov("long", 1, 10000.)    

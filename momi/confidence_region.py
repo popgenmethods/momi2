@@ -250,7 +250,7 @@ def _long_score_cov(params, seg_sites, demo_func, **kwargs):
     
     def snp_log_probs(x):
         ret = np.log(expected_sfs(demo_func(*x), configs, normalized=True, **kwargs))
-        return ret - np.sum(weights * snp_counts) # subtract off mean
+        return ret - np.sum(weights * ret) # subtract off mean
        
     idx_series_list = [np.array(idxs) for idxs in seg_sites.idx_list]
 
