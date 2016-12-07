@@ -413,7 +413,9 @@ class Sfs(object):
     def subsample_inds(self, n):
         """
         Return the induced SFS on all subsets of n
-        individuals
+        individuals.
+
+        See also: momi.SegSites.subsample_inds()
         """
         subconfigs, weights = _get_subsample_counts(self.configs, n)
         freqs = np.array(self.freqs_matrix.T.dot(weights.T).T)
@@ -530,8 +532,18 @@ class SegSitesLocus(object):
 
 class SegSites(object):
     def __init__(self, configs, idx_list, config_mixture_by_idx = None):
+        """
+        This constructor should not be called directly, instead use the function
+        momi.seg_site_configs().
+
+        You can also use the method momi.SegSites.subsample_inds() to produce
+        SegSites objects corresponding to subsamples of individuals.
+        """
         self.configs = configs
         self.idx_list = idx_list
+
+        ## if config_mixture_by_idx is not None, then each idx corresponds to a mixture of configs
+        ## in particular, this is used for constructing datasets over all subsamples of individuals
         self.config_mixture_by_idx = config_mixture_by_idx
         if config_mixture_by_idx is None:
             self.sfs = Sfs(self.idx_list, self.configs)
@@ -572,6 +584,21 @@ class SegSites(object):
             return False
 
     def subsample_inds(self, n):
+        """
+        Returns a new SegSites object, corresponding to a mixture of all SegSites objects
+        that would be obtained by drawing subsamples of n individuals.
+
+        In particular, the log-likelihood of a corresponding SNP in the new SegSites object,
+        is a mixture of the log-likelihood of all subsets of n individuals that could be drawn
+        from the original samples. The mixture weight is equal to the probability of drawing a
+        particular subsample, conditional on the populations we are subsampling from.
+
+        See also Sfs.subsample_inds(), which is produces an equivalent subsampled object for the Sfs.
+
+        Confidence intervals computed by ConfidenceRegion and likelihoods computed by SfsLikelihoodSurface
+        should all work properly. However, they are only implemented for the multivariate case, and not the
+        Poisson case (i.e., don't specify the mutation rate for such likelihoods).
+        """
         subconfigs, weights = _get_subsample_counts(self.configs, n)
         if not np.all( self.configs.ascertainment_pop ):
             raise NotImplementedError("Generating subsamples of individuals not implemented for data with ascertainment populations")
