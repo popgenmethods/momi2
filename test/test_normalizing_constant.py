@@ -23,7 +23,7 @@ def check_num_snps(demo, num_loci, mut_rate, ascertainment_pop=None, p_missing=0
     p_missing = p_missing * np.ones(len(demo.sampled_n))
 
     seg_sites = momi.simulate_ms(ms_path, demo, num_loci=num_loci, mut_rate=mut_rate)
-    sfs_missing = momi.data_structure._randomly_drop_alleles(seg_sites.sfs, p_missing, ascertainment_pop=ascertainment_pop)
+    sfs_missing = momi.data_structure._randomly_drop_alleles(seg_sites, p_missing, ascertainment_pop=ascertainment_pop).sfs
     n_sites = sfs_missing.n_snps(vector=True)
         
     n_sites_mean = np.mean(n_sites)

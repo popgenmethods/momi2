@@ -250,12 +250,9 @@ class Sfs(object):
     def __init__(self, loci, configs):
         self.configs = configs
 
-        #self.loci = [Counter(loc) for loc in loci]
-        #self.total = sum(self.loci, Counter())
-
         self.loc_idxs, self.loc_counts = [], []
+        loci = [Counter(loc) for loc in loci]
         for loc in loci:
-            loc = Counter(loc)
             if len(loc) == 0:
                 self.loc_idxs.append(np.array([], dtype=int))
                 self.loc_counts.append(np.array([], dtype=float))
@@ -264,10 +261,9 @@ class Sfs(object):
                 self.loc_idxs.append(np.array(idxs, dtype=int))
                 self.loc_counts.append(np.array(cnts, dtype=float))
 
-        self._total_freqs = np.array(np.squeeze(np.asarray(self.freqs_matrix.tocsr().sum(axis=1))),
+        self._freqs_matrix = _freq_matrix_from_counters(loci, len(self.configs))
+        self._total_freqs = np.array(np.squeeze(np.asarray(self.freqs_matrix.sum(axis=1))),
                                      ndmin=1)
-
-        #self.config2uniq = config2uniq
 
     def combine_loci(self):
         """
@@ -276,21 +272,12 @@ class Sfs(object):
         return _sub_sfs(self.configs, self._total_freqs)
 
     @property
-    @memoize_instance
     def freqs_matrix(self):
         """
         Returns the frequencies as a sparse matrix;
         freqs_matrix[i, j] is the frequency of Sfs.configs[i] at locus j
         """
-        data = []
-        indices = []
-        indptr = []
-        for idxs,cnts in zip(self.loc_idxs, self.loc_counts):
-            indptr += [len(data)]
-            data += list(cnts)
-            indices += list(idxs)
-        indptr += [len(data)]
-        return scipy.sparse.csc_matrix((data,indices,indptr), shape=(len(self.configs),self.n_loci)).tocsr()
+        return self._freqs_matrix
 
     @property
     @memoize_instance
@@ -368,6 +355,7 @@ class Sfs(object):
         sampled_n_counts = np.array(list(sampled_n_counts.values()), dtype=float)
 
         ret = ret + np.sum(sampled_n_counts / n_snps * np.log(n_snps / sampled_n_counts))
+        assert not np.isnan(ret)
         return ret
 
 
@@ -427,58 +415,77 @@ class Sfs(object):
         Return the induced SFS on all subsets of n
         individuals
         """
-        config_sampled_n = np.sum( self.configs.value , axis=-1)
-        total_freqs = self._total_freqs
-        def get_cnt(super_n, sub_n):
-            assert super_n.shape[1:] == sub_n.shape
-            denom = np.prod( comb(config_sampled_n, np.sum(sub_n, axis=-1)) , axis=-1)
-            keep = denom > 0
-            return np.dot(total_freqs[keep],
-                          np.prod(comb(super_n[keep,:,:], sub_n),
-                                  axis=(1,2)) / denom[keep])
+        subconfigs, weights = _get_subsample_counts(self.configs, n)
+        freqs = np.array(self.freqs_matrix.T.dot(weights.T).T)
+        assert freqs.shape == (weights.shape[0], self.n_loci)
+        return site_freq_spectrum(self.sampled_pops,
+                                  [{c:f for c,f in zip(subconfigs, loc_freqs) if f != 0}
+                                   for loc_freqs in freqs.T])
 
-        ret = {}
-        for pop_comb in itertools.combinations_with_replacement(self.sampled_pops, n):
-            subsample_n = Counter(pop_comb)
-            subsample_n = np.array([subsample_n[pop] for pop in self.sampled_pops], dtype=int)
-            if np.any(subsample_n > self.sampled_n):
+def _freq_matrix_from_counters(idx_counts_list, n_configs):
+    data = []
+    indices = []
+    indptr = []
+    for locus in idx_counts_list:
+        locus = locus.items()
+        if locus:
+            idxs, cnts = zip(*locus)
+        else:
+            idxs, cnts = [],[]
+        indptr += [len(data)]
+        data += list(cnts)
+        indices += list(idxs)
+    indptr += [len(data)]
+    return scipy.sparse.csc_matrix((data,indices,indptr), shape=(n_configs, len(idx_counts_list))).tocsr()
+
+def _get_subsample_counts(configs, n):
+    config_sampled_n = np.sum(configs.value, axis=-1)
+    def get_cnt(super_n, sub_n):
+        assert super_n.shape[1:] == sub_n.shape
+        denom = np.prod(comb(config_sampled_n, np.sum(sub_n, axis=-1)), axis=-1)
+        cnt = np.prod(comb(super_n, sub_n), axis=(1,2)) / denom
+        cnt[denom == 0] = 0
+        return cnt
+
+    ret = {}
+    for pop_comb in itertools.combinations_with_replacement(configs.sampled_pops, n):
+        subsample_n = Counter(pop_comb)
+        subsample_n = np.array([subsample_n[pop] for pop in configs.sampled_pops], dtype=int)
+        if np.any(subsample_n > configs.sampled_n):
+            continue
+
+        for sfs_entry in itertools.product(*(range(sub_n+1)
+                                            for sub_n in subsample_n)):
+            sfs_entry = np.array(sfs_entry, dtype=int)
+            if np.all(sfs_entry == 0) or np.all(sfs_entry == subsample_n):
+                ## monomorphic
                 continue
 
-            curr = {}
-            for sfs_entry in itertools.product(*(range(sub_n+1)
-                                                for sub_n in subsample_n)):
-                sfs_entry = np.array(sfs_entry, dtype=int)
-                if np.all(sfs_entry == 0) or np.all(sfs_entry == subsample_n):
-                    ## monomorphic
-                    continue
+            sfs_entry = np.transpose([subsample_n - sfs_entry, sfs_entry])
+            sfs_entry = tuple(map(tuple, sfs_entry))
+            cnt_vec = get_cnt(configs.value, np.array(sfs_entry, dtype=int))
+            if not np.all(cnt_vec == 0):
+                ret[sfs_entry] = cnt_vec
 
-                sfs_entry = np.transpose([subsample_n - sfs_entry, sfs_entry])
-                sfs_entry = tuple(map(tuple, sfs_entry))
-                cnt = get_cnt(self.configs.value, np.array( sfs_entry, dtype=int ))
-                if cnt > 0:
-                    curr[sfs_entry] = cnt
+    subconfigs, weights = zip(*ret.items())
+    return list(subconfigs), np.array(weights)
 
-            ret.update(curr)
-
-        return site_freq_spectrum(self.sampled_pops, [ret])
-
-def _randomly_drop_alleles(sfs, p_missing, ascertainment_pop=None):
-    p_missing = p_missing * np.ones(len(sfs.sampled_n))
+def _randomly_drop_alleles(seg_sites, p_missing, ascertainment_pop=None):
+    p_missing = p_missing * np.ones(len(seg_sites.sampled_n))
     if ascertainment_pop is None:
-        ascertainment_pop = np.array([True] * len(sfs.sampled_n))
+        ascertainment_pop = np.array([True] * len(seg_sites.sampled_n))
 
     p_sampled = 1.0-np.transpose([p_missing, p_missing])
-    ret = [[] for _ in range(sfs.n_loci)]
-
-    counts = sfs.freqs_matrix.tocoo()
-    for config,loc,freq in zip(counts.row, counts.col, counts.data):
-        config = sfs.configs[config]
-        for newconfig in np.random.binomial(config, p_sampled, size=(freq, len(sfs.sampled_n), 2)):
+    ret = []
+    for locus in seg_sites:
+        ret.append([])
+        for config in locus:
+            newconfig = np.random.binomial(config, p_sampled)
             if np.any(newconfig[ascertainment_pop,:].sum(axis=0) == 0):
                 ## monomorphic
                 continue
-            ret[loc].append(newconfig)
-    return seg_site_configs(sfs.sampled_pops, ret, ascertainment_pop=ascertainment_pop).sfs
+            ret[-1].append(newconfig)
+    return seg_site_configs(seg_sites.sampled_pops, ret, ascertainment_pop=ascertainment_pop)
 
 def seg_site_configs(sampled_pops, config_sequences, ascertainment_pop=None):
     """
@@ -515,14 +522,29 @@ class SegSitesLocus(object):
     def __len__(self):
         return len(self.idxs)
     def __getitem__(self,site):
+        if self.configs is None:
+            raise NotImplementedError("Iterating through the configs at each position is not supported, because each position is representing a mixture of configs, not a single config")
         return self.configs[self.idxs[site]]
+    def _get_likelihoods(self, idx_likelihoods):
+        return idx_likelihoods[self.idxs]
 
 class SegSites(object):
-    def __init__(self, configs, idx_list):
+    def __init__(self, configs, idx_list, config_mixture_by_idx = None):
         self.configs = configs
         self.idx_list = idx_list
-        self.sfs = Sfs(self.idx_list, self.configs)
-        self.loci = [SegSitesLocus(self.configs, idxs) for idxs in idx_list]
+        self.config_mixture_by_idx = config_mixture_by_idx
+        if config_mixture_by_idx is None:
+            self.sfs = Sfs(self.idx_list, self.configs)
+            self.loci = [SegSitesLocus(self.configs, idxs) for idxs in idx_list]
+        else:
+            self.loci = [SegSitesLocus(None, idxs) for idxs in idx_list]
+            idx_counts_list = [Counter(loc) for loc in idx_list]
+            idx_freqs_matrix = _freq_matrix_from_counters(idx_counts_list, len(config_mixture_by_idx))
+            config_freqs_matrix = np.array(idx_freqs_matrix.T.dot(config_mixture_by_idx).T)
+            configs_counts_list = [{c:f for c,f in zip(range(len(configs)), col) if f != 0}
+                                   for col in config_freqs_matrix.T]
+            self.sfs = Sfs(configs_counts_list, self.configs)
+
 
     def __getitem__(self,loc):
         return self.loci[loc]
@@ -548,6 +570,25 @@ class SegSites(object):
             return configs == other.configs and idx_list == other.idx_list and np.all(ascertainment_pop == other.ascertainment_pop)
         except AttributeError:
             return False
+
+    def subsample_inds(self, n):
+        subconfigs, weights = _get_subsample_counts(self.configs, n)
+        if not np.all( self.configs.ascertainment_pop ):
+            raise NotImplementedError("Generating subsamples of individuals not implemented for data with ascertainment populations")
+        subconfigs = config_array(self.sampled_pops, subconfigs)
+        return SegSites(subconfigs, self.idx_list, config_mixture_by_idx=weights.T)
+
+
+
+    ## used for confidence intervals
+    def _get_likelihood_sequences(self, config_likelihoods):
+        if self.config_mixture_by_idx is not None:
+            idx_likelihoods = np.dot(self.config_mixture_by_idx, config_likelihoods)
+        else:
+            idx_likelihoods = config_likelihoods
+        for loc in self:
+            yield loc._get_likelihoods(idx_likelihoods)
+
 
 ## to hash configs, represent it as a str
 ## (this seems to be more memory efficient than representing it as a tuple)

@@ -10,6 +10,13 @@ from collections import Counter
 
 from test_ms import ms_path, scrm_path
 
+def test_subsample_inds():
+    demo = simple_admixture_demo()
+    data = momi.simulate_ms(ms_path, demo.rescaled(),
+                            num_loci=1000, mut_rate=1.0)
+    assert data.sfs.n_snps() > 0
+    assert data.subsample_inds(4).sfs == data.sfs.subsample_inds(4)
+
 @pytest.mark.parametrize("folded,n_lins",
                          ((f,n) for f in (True,False) for n in ((2,3),(0,3))))
 def test_simple_admixture_subsampling(folded,n_lins):

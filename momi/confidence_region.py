@@ -251,8 +251,6 @@ def _long_score_cov(params, seg_sites, demo_func, **kwargs):
     def snp_log_probs(x):
         ret = np.log(expected_sfs(demo_func(*x), configs, normalized=True, **kwargs))
         return ret - np.sum(weights * ret) # subtract off mean
-       
-    idx_series_list = [np.array(idxs) for idxs in seg_sites.idx_list]
 
     # g_out = sum(autocov(einsum("ij,ik->ikj",jacobian(idx_series), jacobian(idx_series))))
     # computed in roundabout way, in case jacobian is slow for many snps
@@ -260,10 +258,8 @@ def _long_score_cov(params, seg_sites, demo_func, **kwargs):
     def g_out_antihess(y):
         lp = snp_log_probs(y)
         ret = 0.0
-        for idx_series in idx_series_list:
-            L = len(idx_series)
-            
-            l = lp[idx_series]
+        for l in seg_sites._get_likelihood_sequences(lp):
+            L = len(l)
             lc = make_constant(l)
 
             fft = np.fft.fft(l)
@@ -342,7 +338,7 @@ def _project_scores(simulated_scores, fisher_information, polyhedral_cone, init_
            try:
                fisher_information = check_psd(fisher_information)
            except AssertionError:
-               raise Exception("Optimization problem is unbounded and unconstrained")
+               raise Exception("Fisher information is not PSD (optimization problem is unbounded and unconstrained)")
            mles = np.linalg.solve(fisher_information, simulated_scores.T).T
            liks = np.einsum("ij,ij->i", mles, simulated_scores)
            liks = liks-.5*np.einsum("ij,ij->i", mles, 

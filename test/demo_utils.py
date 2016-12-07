@@ -28,7 +28,7 @@ def simple_three_pop_demo(t0, t1):
     return make_demography([('-ej', t0, 1, 2), ('-ej', t0+t1, 2, 3)],
                       (1,2,3), (1,1,1))
 
-def simple_nea_admixture_demo(N_chb_bottom, N_chb_top, pulse_t, pulse_p, ej_chb, ej_yri):
+def simple_nea_admixture_demo(N_chb_bottom, N_chb_top, pulse_t, pulse_p, ej_chb, ej_yri, sampled_n=(14,10)):
     ej_chb = pulse_t + ej_chb
     ej_yri = ej_chb + ej_yri
 
@@ -43,7 +43,7 @@ def simple_nea_admixture_demo(N_chb_bottom, N_chb_top, pulse_t, pulse_p, ej_chb,
               ('-ej', ej_yri, 'yri', 'nea'),
               ]
 
-    return make_demography(events, ('yri','chb'), (14,10))
+    return make_demography(events, ('yri','chb'), sampled_n)
 simple_nea_admixture_demo.bounds = [(.01, 100.),
                                     (.01, 100.),
                                     (.01,5.),

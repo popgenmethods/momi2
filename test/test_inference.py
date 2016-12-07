@@ -71,19 +71,18 @@ def check_jointime_inference(sampled_n=(5,5,5), folded=False, add_n=0, finite_di
     true_demo = true_demo.copy(sampled_n = np.array(true_demo.sampled_n) - add_n)
     data = simulate_ms(ms_path, true_demo.rescaled(),
                        num_loci=num_runs, mut_rate=theta)
-    sfs = data.sfs
+    
     if missing_p:
-        sfs = momi.data_structure._randomly_drop_alleles(sfs, missing_p)
+        data = momi.data_structure._randomly_drop_alleles(data, missing_p)
+    if subsample_n:
+        data = data.subsample_inds(subsample_n)
 
+    sfs = data.sfs
     assert sfs.n_snps() > 0
     sfs = sfs._copy(sampled_n=np.array(true_demo.sampled_n)+add_n)
     if folded:
         sfs = sfs.fold()
 
-    if subsample_n:
-        sfs = sfs.subsample_inds(subsample_n)
-        sampled_n = sfs.sampled_n
-    
     print((t0,t1))
     
     #prim_log_lik = momi.likelihood._log_lik_diff
