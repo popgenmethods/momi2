@@ -2,7 +2,7 @@
 import warnings
 import autograd.numpy as np
 import scipy
-from .util import memoize_instance, memoize, make_constant, set0, closegeq
+from .util import memoize, make_constant, set0, closegeq
 from .data_structure import config_array
 from .math_functions import sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs, _apply_error_matrices, par_einsum
 #from .data_structure import Configs

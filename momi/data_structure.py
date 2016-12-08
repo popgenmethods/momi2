@@ -1,4 +1,5 @@
 
+from cached_property import cached_property
 from .util import memoize_instance
 import autograd.numpy as np
 import scipy, scipy.misc, scipy.sparse
@@ -279,8 +280,7 @@ class Sfs(object):
         """
         return self._freqs_matrix
 
-    @property
-    @memoize_instance
+    @cached_property
     def p_missing(self):
         if not self.configs.has_missing_data:
             return 0.0
@@ -336,8 +336,7 @@ class Sfs(object):
             return [{_hashed2config(k):v for k,v in d.items()}
                     for d in self._get_dict(vector=True)]
 
-    @property
-    @memoize_instance
+    @cached_property
     def _entropy(self):
         counts = self._total_freqs
         n_snps = float(self.n_snps())

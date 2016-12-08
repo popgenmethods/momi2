@@ -38,7 +38,7 @@ class ConfidenceRegion(object):
         self.demo_func = demo_func
         self.data = data
         self.regime = regime
-        self.kwargs = kwargs
+        self.kwargs = dict( kwargs )
 
         self.score = autograd.grad(self.lik_fun)(self.point)
         self.score_cov = _observed_score_covariance(self.regime, self.point, self.data,
