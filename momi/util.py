@@ -28,10 +28,10 @@ def check_symmetric(X):
     assert np.allclose(X, Xt)
     return 0.5 * (X + Xt)
 
-def check_psd(X):
+def check_psd(X, **tol_kwargs):
     X = check_symmetric(X)
     d,U = np.linalg.eigh(X)
-    d = truncate0(d)
+    d = truncate0(d, **tol_kwargs)
     ret = np.dot(U, np.dot(np.diag(d), np.transpose(U)))
     assert np.allclose(ret, X)
     return np.array(ret, ndmin=2)

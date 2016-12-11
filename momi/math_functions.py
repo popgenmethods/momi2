@@ -166,7 +166,7 @@ def _apply_error_matrices(vecs, error_matrices):
 
 ## inverse of a PSD matrix
 @primitive
-def inv_psd(x):
-    x = check_psd(x)
-    return check_psd(scipy.linalg.pinvh(x))
+def inv_psd(x, **tol_kwargs):
+    x = check_psd(x, **tol_kwargs)
+    return check_psd(scipy.linalg.pinvh(x), **tol_kwargs)
 inv_psd.defgrad(lambda ans, x: lambda g: -np.dot(np.dot(ans, g), ans))
