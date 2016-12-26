@@ -81,7 +81,7 @@ def closegeq(x,y):
 @primitive
 def make_constant(x):
     return x
-make_constant.defgrad_is_zero()
+make_constant.defgrad(lambda ans,x: lambda g: np.zeros(x.shape, dtype=x.dtype))
 
 def memoize(obj):
     cache = obj.cache = {}
