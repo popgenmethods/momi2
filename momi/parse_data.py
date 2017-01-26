@@ -6,7 +6,61 @@ from .data_structure import seg_site_configs
 
 logger = logging.getLogger(__name__)
 
+def read_vcftools_counts2(count_files_dict):
+    """
+    Reads data produced by vcftools --counts2 [--derived --keep]
+
+    Parameters:
+    count_files_dict: a dict, whose keys are populations, and values are corresponding filenames produced by vcftools --counts2
+         each file contains the allele counts for the subset of individuals in the population,
+         and every file should have the same number of lines, each corresponding to the same SNP
+
+    Returns:
+    momi.SegSites object
+    """
+    def get_lines(count_fname):
+        with open(count_fname) as f:
+            header = next(f).split()
+            expected_header = ["CHROM", "POS", "N_ALLELES", "N_CHR",  "{COUNT}"]
+            if header != expected_header:
+                raise IOError("Header {} does not match expected header {}".format(header, expected_header))
+            for line in f:
+                yield line.split()
+
+    count_files_dict = {k: get_lines(v) for k,v in count_files_dict.items()}
+    sampled_pops, lines_list = zip(*count_files_dict.items())
+    def get_counts(lines_list):
+        zipped_lines = it.zip_longest(*lines_list)
+        for zline in zipped_lines:
+            chrom, snp, n_alleles = zline[0][:3]
+            if not all(l[:3] == zline[0][:3] for l in zline):
+                raise IOError("Non-matching lines {}".format(zline))
+            if int(n_alleles) != 2:
+                continue
+            ancestral = tuple(int(l[4]) for l in zline)
+            derived = tuple(int(l[5]) for l in zline)
+            assert (a+d == int(l[3]) for l,a,d in zip(ancestral, derived, zline))
+            if all(a == 0 for a in ancestral) or all(d == 0 for d in derived):
+                continue
+            yield chrom, tuple(zip(ancestral, derived))
+    lines_list = get_counts(lines_list)
+    lines_list = it.groupby(lines_list, key=lambda x: x[0])
+
+    return seg_site_configs(sampled_pops,
+                            ((config for c, config in chrom_lines) for chrom, chrom_lines in lines_list))
+
 def read_plink_frq_strat(fname, polarize_pop, chunk_size = 10000):
+    """
+    Reads data produced by plink --within --freq counts.
+
+    Parameters:
+    fname: the filename
+    polarize_pop: the population in the dataset representing the ancestral allele
+    chunk_size: read the .frq.strat file in chunks of chunk_size snps
+
+    Returns:
+    momi.SegSites object
+    """
     def get_chunks(locus_id, locus_rows):
         snps_grouped = it.groupby(locus_rows, lambda r: r[1])
         snps_enum = enumerate(list(snp_rows) for snp_id, snp_rows in snps_grouped)
