@@ -7,6 +7,7 @@ import subprocess
 import logging
 from .data_structure import seg_site_configs, _build_data, _sort_configs, SegSites, ConfigArray
 from collections import defaultdict
+import ast
 
 logger = logging.getLogger(__name__)
 
@@ -237,21 +238,21 @@ class SnpAlleleCounts(object):
 
         populations = [popname]
         chrom_ids = []
-        snp_ids = []
+        positions = []
         def generate_counts(f):
             for line in f:
-                chrom, snp, n_alleles = line[:3]
+                chrom, pos, n_alleles = line[:3]
                 if int(n_alleles) != 2:
                     continue
                 chrom_ids.append(chrom)
-                snp_ids.append(snp)
+                positions.append(int(pos))
                 nchrom, cnt0, cnt1 = map(int, line[3:])
                 assert cnt0 + cnt1 == nchrom
                 yield ((cnt0, cnt1),)
-        ## this fills up snp_ids and chrom_ids as well iterating thru the configs
+        ## this fills up positions and chrom_ids as well iterating thru the configs
         compressed_counts = CompressedAlleleCounts.from_iter(generate_counts(f), len(populations))
 
-        return cls(chrom_ids, snp_ids, compressed_counts, populations)
+        return cls(chrom_ids, positions, compressed_counts, populations)
 
     @classmethod
     def concat_list(cls, args):
@@ -259,23 +260,45 @@ class SnpAlleleCounts(object):
         if not all(a.populations == populations for a in args):
             raise ValueError("Datasets must have same populations to concatenate")
         return cls.from_iter(np.concatenate([a.chrom_ids for a in args]),
-                             np.concatenate([a.snp_ids for a in args]),
+                             np.concatenate([a.positions for a in args]),
                              it.chain(*args), populations)
 
     @classmethod
-    def from_iter(cls, chrom_ids, snp_ids, allele_counts, populations):
+    def from_iter(cls, chrom_ids, positions, allele_counts, populations):
         populations = list(populations)
         return cls(list(chrom_ids),
-                   list(snp_ids),
+                   list(positions),
                    CompressedAlleleCounts.from_iter(allele_counts, len(populations)),
                    populations)
 
-    def __init__(self, chrom_ids, snp_ids, compressed_counts, populations):
-        if len(compressed_counts) != len(chrom_ids) or len(chrom_ids) != len(snp_ids):
-            raise IOError("chrom_ids, snp_ids, allele_counts should have same length")
+    @classmethod
+    def load(cls, f):
+        info = ast.literal_eval("".join(f))
+        logger.debug("Read allele counts from file")
+        chrom_ids, positions, config_ids = zip(*info[("chrom_id", "position", "config_id")])
+        compressed_counts = CompressedAlleleCounts(np.array(info["configs"], dtype=int), np.array(config_ids, dtype=int))
+        return cls(chrom_ids, positions, compressed_counts,
+                   info["populations"])
+
+    def dump(self, f):
+        print("{", file=f)
+        print("\t'populations': {},".format(list(self.populations)), file=f)
+        print("\t'configs': [", file=f)
+        for c in self.compressed_counts.config_array.tolist():
+            print("\t\t{},".format(c), file=f)
+        print("\t],", file=f)
+        print("\t('chrom_id', 'position', 'config_id'): [", file=f)
+        for chrom_id, pos, config_id in zip(self.chrom_ids, self.positions, self.compressed_counts.index2uniq):
+            print("\t\t{},".format((chrom_id, pos, config_id)), file=f)
+        print("\t],", file=f)
+        print("}", file=f)
+
+    def __init__(self, chrom_ids, positions, compressed_counts, populations):
+        if len(compressed_counts) != len(chrom_ids) or len(chrom_ids) != len(positions):
+            raise IOError("chrom_ids, positions, allele_counts should have same length")
 
         self.chrom_ids = np.array(chrom_ids)
-        self.snp_ids = np.array(snp_ids)
+        self.positions = np.array(positions)
         self.compressed_counts = compressed_counts
         self.populations = populations
 
@@ -289,10 +312,10 @@ class SnpAlleleCounts(object):
         combined_pops = list(self.populations) + list(other.populations)
         if len(combined_pops) != len(set(combined_pops)):
             raise ValueError("Overlapping populations: {}, {}".format(self.populations, other.populations))
-        if np.any(self.chrom_ids != other.chrom_ids) or np.any(self.snp_ids != other.snp_ids):
+        if np.any(self.chrom_ids != other.chrom_ids) or np.any(self.positions != other.positions):
             raise ValueError("Chromosome & SNP IDs must be identical")
         return SnpAlleleCounts.from_iter(self.chrom_ids,
-                                         self.snp_ids,
+                                         self.positions,
                                          (tuple(it.chain(cnt1, cnt2)) for cnt1, cnt2 in zip(self, other)),
                                          combined_pops)
 
@@ -300,12 +323,12 @@ class SnpAlleleCounts(object):
     #    if np.any(np.array(self.populations) != np.array(other.populations)):
     #        raise ValueError("Non-identical populations: {}, {}".format(self.populations, other.populations))
     #    return SnpAlleleCounts.from_iter(it.chain(self.chrom_ids, other.chrom_ids),
-    #                                     it.chain(self.snp_ids, other.snp_ids),
+    #                                     it.chain(self.positions, other.positions),
     #                                     it.chain(self, other),
     #                                     self.populations)
 
     def filter(self, idxs):
-        return SnpAlleleCounts(self.chrom_ids[idxs], self.snp_ids[idxs],
+        return SnpAlleleCounts(self.chrom_ids[idxs], self.positions[idxs],
                                self.compressed_counts.filter(idxs), self.populations)
 
     @property
