@@ -49,7 +49,7 @@ class ConfigArray(object):
                         used to construct the likelihood vectors for
                         junction tree algorithm.
     """
-    def __init__(self, sampled_pops, conf_arr, sampled_n, ascertainment_pop):
+    def __init__(self, sampled_pops, conf_arr, sampled_n=None, ascertainment_pop=None):
         """Use config_array() instead of calling this constructor directly"""
         ##If sampled_n=None, ConfigArray.sampled_n will be the max number of observed individuals/alleles per population.
         self.sampled_pops = tuple(sampled_pops)
@@ -627,7 +627,7 @@ def _hashed2config(config_str):
                  for a,d in (x.split(",")
                              for x in config_str.strip().split()))
 
-def _build_data(config_iter, npops):
+def _build_data(config_iter, npops, sort_configs=True):
     config_list = []
     config2uniq = {}
     index2uniq = []
@@ -647,7 +647,10 @@ def _build_data(config_iter, npops):
     for i,config_str in enumerate(config_list):
         config_array[i,:,:] = _hashed2config(config_str)
 
-    return _sort_configs(config_array, config2uniq, index2uniq)
+    if sort_configs:
+        return _sort_configs(config_array, config2uniq, index2uniq)
+    else:
+        return (config_array, config2uniq, index2uniq)
 
 def _sort_configs(config_array, config2uniq, index2uniq):
     ## sort configs so that "(very) similar" configs are next to each other
@@ -674,7 +677,8 @@ def _sort_configs(config_array, config2uniq, index2uniq):
         unsorted_idxs[j] = i
 
     config_array = config_array[sorted_idxs,:,:]
-    config2uniq = {k: unsorted_idxs[v] for k,v in config2uniq.items()}
+    if config2uniq is not None:
+        config2uniq = {k: unsorted_idxs[v] for k,v in config2uniq.items()}
     index2uniq = [unsorted_idxs[i] for i in index2uniq]
 
     return (config_array, config2uniq, index2uniq)
