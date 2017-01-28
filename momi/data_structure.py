@@ -216,6 +216,10 @@ def site_freq_spectrum(sampled_pops, loci):
 
            if loci[i] is a list, then loci[i][j]
            is the config of the j-th SNP at locus i
+
+    See also
+    --------
+    site_freq_spectrum.load(): load in sfs from file created by Sfs.dump()
     """
     index2loc = []
     index2count = []
@@ -243,6 +247,9 @@ def site_freq_spectrum(sampled_pops, loci):
     return Sfs(loci_counters, configs)
 
 def load_sfs(f):
+    """
+    Read in Sfs that has been written to file by Sfs.dump()
+    """
     info = json.load(f)
 
     loci = []
@@ -281,6 +288,10 @@ class Sfs(object):
                                      ndmin=1)
 
     def dump(self, f):
+        """
+        Write the Sfs in a compressed JSON format,
+        that can be read in by site_freq_spectrum.load()
+        """
         print("{", file=f)
         print('\t"sampled_pops": {},'.format(json.dumps(list(self.sampled_pops))), file=f)
         print('\t"configs": [', file=f)
