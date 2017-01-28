@@ -7,7 +7,7 @@ from scipy.misc import comb
 from .math_functions import _apply_error_matrices
 from collections import Counter
 import warnings
-import itertools
+import itertools, json
 
 def config_array(sampled_pops, counts, sampled_n=None, ascertainment_pop=None):
     """
@@ -242,6 +242,20 @@ def site_freq_spectrum(sampled_pops, loci):
     configs = ConfigArray(sampled_pops, conf_arr, None, None)
     return Sfs(loci_counters, configs)
 
+def load_sfs(f):
+    info = json.load(f)
+
+    loci = []
+    for locus, locus_rows in itertools.groupby(info["(locus,config_id,count)"], lambda x: x[0]):
+        loci.append({config_id: count
+                     for _, config_id, count in locus_rows})
+
+    configs = ConfigArray(info["sampled_pops"],
+                            np.array(info["configs"]))
+
+    return Sfs(loci, configs)
+site_freq_spectrum.load = load_sfs
+
 class Sfs(object):
     """
     Represents an observed SFS across several loci.
@@ -265,6 +279,34 @@ class Sfs(object):
         self._freqs_matrix = _freq_matrix_from_counters(loci, len(self.configs))
         self._total_freqs = np.array(np.squeeze(np.asarray(self.freqs_matrix.sum(axis=1))),
                                      ndmin=1)
+
+    def dump(self, f):
+        print("{", file=f)
+        print('\t"sampled_pops": {},'.format(json.dumps(list(self.sampled_pops))), file=f)
+        print('\t"configs": [', file=f)
+        n_configs = len(self.configs.value)
+        for i,c in enumerate(self.configs.value.tolist()):
+            if i != n_configs-1:
+                print("\t\t{},".format(c), file=f)
+            else:
+                # no trailing comma
+                print("\t\t{}".format(c), file=f)
+        print("\t],", file=f)
+        print('\t"(locus,config_id,count)": [', file=f)
+        for loc in range(self.n_loci):
+            n_loc_rows = len(self.loc_idxs[loc])
+            assert n_loc_rows == len(self.loc_counts[loc])
+            for i in range(n_loc_rows):
+                config_id = int(self.loc_idxs[loc][i])
+                count = float(self.loc_counts[loc][i])
+                if loc == self.n_loci-1 and i == n_loc_rows-1:
+                    # no trailing comma
+                    print("\t\t{}".format(json.dumps((loc, config_id, count))), file=f)
+                else:
+                    print("\t\t{},".format(json.dumps((loc, config_id, count))), file=f)
+        print("\t]", file=f)
+        print("}", file=f)
+
 
     def combine_loci(self):
         """
