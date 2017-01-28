@@ -13,4 +13,4 @@ from .likelihood import SfsLikelihoodSurface
 from .confidence_region import ConfidenceRegion
 from .tensor import sfs_tensor_prod
 from .data_structure import write_seg_sites, read_seg_sites, seg_site_configs, site_freq_spectrum, config_array
-from .parse_data import read_plink_frq_strat, read_vcftools_counts2
+from .parse_data import read_plink_frq_strat, SnpAlleleCounts

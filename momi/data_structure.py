@@ -7,7 +7,7 @@ from scipy.misc import comb
 from .math_functions import _apply_error_matrices
 from collections import Counter
 import warnings
-import itertools
+import itertools, json
 
 def config_array(sampled_pops, counts, sampled_n=None, ascertainment_pop=None):
     """
@@ -49,7 +49,7 @@ class ConfigArray(object):
                         used to construct the likelihood vectors for
                         junction tree algorithm.
     """
-    def __init__(self, sampled_pops, conf_arr, sampled_n, ascertainment_pop):
+    def __init__(self, sampled_pops, conf_arr, sampled_n=None, ascertainment_pop=None):
         """Use config_array() instead of calling this constructor directly"""
         ##If sampled_n=None, ConfigArray.sampled_n will be the max number of observed individuals/alleles per population.
         self.sampled_pops = tuple(sampled_pops)
@@ -216,6 +216,10 @@ def site_freq_spectrum(sampled_pops, loci):
 
            if loci[i] is a list, then loci[i][j]
            is the config of the j-th SNP at locus i
+
+    See also
+    --------
+    site_freq_spectrum.load(): load in sfs from file created by Sfs.dump()
     """
     index2loc = []
     index2count = []
@@ -242,6 +246,23 @@ def site_freq_spectrum(sampled_pops, loci):
     configs = ConfigArray(sampled_pops, conf_arr, None, None)
     return Sfs(loci_counters, configs)
 
+def load_sfs(f):
+    """
+    Read in Sfs that has been written to file by Sfs.dump()
+    """
+    info = json.load(f)
+
+    loci = []
+    for locus, locus_rows in itertools.groupby(info["(locus,config_id,count)"], lambda x: x[0]):
+        loci.append({config_id: count
+                     for _, config_id, count in locus_rows})
+
+    configs = ConfigArray(info["sampled_pops"],
+                            np.array(info["configs"]))
+
+    return Sfs(loci, configs)
+site_freq_spectrum.load = load_sfs
+
 class Sfs(object):
     """
     Represents an observed SFS across several loci.
@@ -265,6 +286,38 @@ class Sfs(object):
         self._freqs_matrix = _freq_matrix_from_counters(loci, len(self.configs))
         self._total_freqs = np.array(np.squeeze(np.asarray(self.freqs_matrix.sum(axis=1))),
                                      ndmin=1)
+
+    def dump(self, f):
+        """
+        Write the Sfs in a compressed JSON format,
+        that can be read in by site_freq_spectrum.load()
+        """
+        print("{", file=f)
+        print('\t"sampled_pops": {},'.format(json.dumps(list(self.sampled_pops))), file=f)
+        print('\t"configs": [', file=f)
+        n_configs = len(self.configs.value)
+        for i,c in enumerate(self.configs.value.tolist()):
+            if i != n_configs-1:
+                print("\t\t{},".format(c), file=f)
+            else:
+                # no trailing comma
+                print("\t\t{}".format(c), file=f)
+        print("\t],", file=f)
+        print('\t"(locus,config_id,count)": [', file=f)
+        for loc in range(self.n_loci):
+            n_loc_rows = len(self.loc_idxs[loc])
+            assert n_loc_rows == len(self.loc_counts[loc])
+            for i in range(n_loc_rows):
+                config_id = int(self.loc_idxs[loc][i])
+                count = float(self.loc_counts[loc][i])
+                if loc == self.n_loci-1 and i == n_loc_rows-1:
+                    # no trailing comma
+                    print("\t\t{}".format(json.dumps((loc, config_id, count))), file=f)
+                else:
+                    print("\t\t{},".format(json.dumps((loc, config_id, count))), file=f)
+        print("\t]", file=f)
+        print("}", file=f)
+
 
     def combine_loci(self):
         """
@@ -627,7 +680,7 @@ def _hashed2config(config_str):
                  for a,d in (x.split(",")
                              for x in config_str.strip().split()))
 
-def _build_data(config_iter, npops):
+def _build_data(config_iter, npops, sort_configs=True):
     config_list = []
     config2uniq = {}
     index2uniq = []
@@ -647,7 +700,10 @@ def _build_data(config_iter, npops):
     for i,config_str in enumerate(config_list):
         config_array[i,:,:] = _hashed2config(config_str)
 
-    return _sort_configs(config_array, config2uniq, index2uniq)
+    if sort_configs:
+        return _sort_configs(config_array, config2uniq, index2uniq)
+    else:
+        return (config_array, config2uniq, index2uniq)
 
 def _sort_configs(config_array, config2uniq, index2uniq):
     ## sort configs so that "(very) similar" configs are next to each other
@@ -674,7 +730,8 @@ def _sort_configs(config_array, config2uniq, index2uniq):
         unsorted_idxs[j] = i
 
     config_array = config_array[sorted_idxs,:,:]
-    config2uniq = {k: unsorted_idxs[v] for k,v in config2uniq.items()}
+    if config2uniq is not None:
+        config2uniq = {k: unsorted_idxs[v] for k,v in config2uniq.items()}
     index2uniq = [unsorted_idxs[i] for i in index2uniq]
 
     return (config_array, config2uniq, index2uniq)
