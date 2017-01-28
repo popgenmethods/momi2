@@ -7,7 +7,7 @@ import subprocess
 import logging
 from .data_structure import seg_site_configs, _build_data, _sort_configs, SegSites, ConfigArray
 from collections import defaultdict
-import ast
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class SnpAlleleCounts(object):
 
     Important methods:
     read_vcf_list(): read allele counts from a list of vcf files using multiple parallel cores
-    dump(): save data in a compressed JSON-like format that can be quickly read by load()
+    dump(): save data in a compressed JSON format that can be quickly read by load()
     load(): load data stored by dump(). Much faster than read_vcf_list()
     """
     @classmethod
@@ -159,22 +159,22 @@ class SnpAlleleCounts(object):
     @classmethod
     def load(cls, f):
         """
-        Reads the compressed JSON-like format produced
+        Reads the compressed JSON produced
         by SnpAlleleCounts.dump().
 
         Parameters:
         f: a file-like object
         """
-        info = ast.literal_eval("".join(f))
+        info = json.load(f)
         logger.debug("Read allele counts from file")
-        chrom_ids, positions, config_ids = zip(*info[("chrom_id", "position", "config_id")])
+        chrom_ids, positions, config_ids = zip(*info["(chrom_id,position,config_id)"])
         compressed_counts = CompressedAlleleCounts(np.array(info["configs"], dtype=int), np.array(config_ids, dtype=int))
         return cls(chrom_ids, positions, compressed_counts,
                    info["populations"])
 
     def dump(self, f):
         """
-        Writes data in a compressed JSON-like format that can be
+        Writes data in a compressed JSON format that can be
         quickly loaded.
 
         Parameters:
@@ -189,15 +189,27 @@ class SnpAlleleCounts(object):
             allele_counts.dump(f)
         """
         print("{", file=f)
-        print("\t'populations': {},".format(list(self.populations)), file=f)
-        print("\t'configs': [", file=f)
-        for c in self.compressed_counts.config_array.tolist():
-            print("\t\t{},".format(c), file=f)
+        print('\t"populations": {},'.format(json.dumps(list(self.populations))), file=f)
+        print('\t"configs": [', file=f)
+        n_configs = len(self.compressed_counts.config_array)
+        for i,c in enumerate(self.compressed_counts.config_array.tolist()):
+            if i != n_configs-1:
+                print("\t\t{},".format(c), file=f)
+            else:
+                # no trailing comma
+                print("\t\t{}".format(c), file=f)
         print("\t],", file=f)
-        print("\t('chrom_id', 'position', 'config_id'): [", file=f)
-        for chrom_id, pos, config_id in zip(self.chrom_ids, self.positions, self.compressed_counts.index2uniq):
-            print("\t\t{},".format((chrom_id, pos, config_id)), file=f)
-        print("\t],", file=f)
+        print('\t"(chrom_id,position,config_id)": [', file=f)
+        n_positions = len(self)
+        for i, chrom_id, pos, config_id in zip(range(n_positions), self.chrom_ids.tolist(),
+                                               self.positions.tolist(),
+                                               self.compressed_counts.index2uniq.tolist()):
+            if i != n_positions - 1:
+                print("\t\t{},".format(json.dumps((chrom_id, pos, config_id))), file=f)
+            else:
+                # no trailling comma
+                print("\t\t{}".format(json.dumps((chrom_id, pos, config_id))), file=f)
+        print("\t]", file=f)
         print("}", file=f)
 
     def __init__(self, chrom_ids, positions, compressed_counts, populations):
