@@ -12,7 +12,8 @@ import scipy
 
 def check_cov(method, params, demo_func, num_runs, theta, bounds=None, subsample_inds=False, p_missing = None, **kwargs):
     true_demo = demo_func(*params)
-    seg_sites = simulate_ms(scrm_path, true_demo,
+    seg_sites = simulate_ms(scrm_path, true_demo.demo_hist,
+                            sampled_pops = true_demo.pops, sampled_n = true_demo.n,
                             num_loci=num_runs, mut_rate=theta,
                             additional_ms_params="-r %f 1000" % theta)
     if p_missing:
@@ -23,10 +24,10 @@ def check_cov(method, params, demo_func, num_runs, theta, bounds=None, subsample
         old_demo_func = demo_func
         demo_func = functools.partial(old_demo_func, sampled_n = seg_sites.sampled_n)
     
-    cmle_search_res = momi.SfsLikelihoodSurface(seg_sites, demo_func).find_mle(params, options={'maxiter':1000}, bounds=bounds, **kwargs)
+    cmle_search_res = momi.SfsLikelihoodSurface(seg_sites, lambda *x: demo_func(*x).demo_hist).find_mle(params, options={'maxiter':1000}, bounds=bounds, **kwargs)
     est_params = cmle_search_res.x
 
-    cr = momi.ConfidenceRegion(est_params, demo_func, seg_sites, regime=method, **kwargs)
+    cr = momi.ConfidenceRegion(est_params, lambda *x: demo_func(*x).demo_hist, seg_sites, regime=method, **kwargs)
     cov = cr.godambe(inverse=True)
 
     #print( cr.test(params,sims=100) )
@@ -63,24 +64,25 @@ def test_admixture_cov_long():
 def test_admixture_cov_long_subsample():
     cr = check_admixture_cov("long", 2, 1000., subsample_inds=6, p_missing = .1)
 
+    ## commented because pickling confidence region is too large in filesize
     ## test that pickling the confidence region works
-    fname = "cr.tmp.pickle"
-    try:
-        with open(fname,"wb") as f:
-            pickle.dump(cr, f)
+    #fname = "cr.tmp.pickle"
+    #try:
+    #    with open(fname,"wb") as f:
+    #        pickle.dump(cr, f)
 
-        with open(fname, "rb") as f:
-            cr2 = pickle.load(f)
+    #    with open(fname, "rb") as f:
+    #        cr2 = pickle.load(f)
 
-        assert cr.data == cr2.data
-        assert np.all(cr.score == cr2.score)
-        assert np.all(cr.score_cov == cr2.score_cov)
-        assert np.all(cr.fisher == cr2.fisher)
-        assert np.allclose(cr.godambe(), cr2.godambe())
-    except:
-        if os.path.exists(fname):
-            os.remove(fname)
-        raise
-    else:
-        os.remove(fname)
+    #    assert cr.data == cr2.data
+    #    assert np.all(cr.score == cr2.score)
+    #    assert np.all(cr.score_cov == cr2.score_cov)
+    #    assert np.all(cr.fisher == cr2.fisher)
+    #    assert np.allclose(cr.godambe(), cr2.godambe())
+    #except:
+    #    if os.path.exists(fname):
+    #        os.remove(fname)
+    #    raise
+    #else:
+    #    os.remove(fname)
 

@@ -9,27 +9,33 @@ import autograd.numpy as np
 from collections import Counter
 
 def test_combine_loci():
-    demo = simple_five_pop_demo(n_lins=(10,10,10,10,10)).rescaled()
+    demo = simple_five_pop_demo(n_lins=(10,10,10,10,10))
+    demo.demo_hist = demo.demo_hist.rescaled()
     n_loci = 1000
     
     #data = momi.simulate_ms(scrm_path, demo,
     #                        num_loci=n_loci, mut_rate=.1)
-    raw_ms = momi.simulate_ms(scrm_path, demo, num_loci=n_loci, mut_rate=.1,
+    raw_ms = momi.simulate_ms(scrm_path, demo.demo_hist,
+                              sampled_pops=demo.pops, sampled_n=demo.n,
+                              num_loci=n_loci, mut_rate=.1,
                               raw_output=True)
-    data = momi.parse_ms.seg_sites_from_ms(raw_ms, demo.sampled_pops)
+    data = momi.parse_ms.seg_sites_from_ms(raw_ms, demo.pops)
     assert data.n_loci == n_loci
 
     data.sfs.combine_loci()
 
 def test_readwrite_segsites_parse_ms_equal():
-    demo = simple_five_pop_demo(n_lins=(10,10,10,10,10)).rescaled()
+    demo = simple_five_pop_demo(n_lins=(10,10,10,10,10))
+    demo.demo_hist = demo.demo_hist.rescaled()
     n_loci = 1000
     
     #data = momi.simulate_ms(scrm_path, demo,
     #                        num_loci=n_loci, mut_rate=.1)
-    raw_ms = momi.simulate_ms(scrm_path, demo, num_loci=n_loci, mut_rate=.1,
+    raw_ms = momi.simulate_ms(scrm_path, demo.demo_hist,
+                              sampled_pops=demo.pops, sampled_n=demo.n,
+                              num_loci=n_loci, mut_rate=.1,
                               raw_output=True)
-    data = momi.parse_ms.seg_sites_from_ms(raw_ms, demo.sampled_pops)
+    data = momi.parse_ms.seg_sites_from_ms(raw_ms, demo.pops)
     assert data.n_loci == n_loci
 
     check_readwrite_data(data)
@@ -38,11 +44,11 @@ def test_readwrite_segsites_parse_ms_equal():
     raw_ms.seek(0)
     sfs_dict = Counter()
     curr_lines = None
-    ind2pop = sum([[i]*n for i,n in enumerate(demo.sampled_n)], [])
+    ind2pop = sum([[i]*n for i,n in enumerate(demo.n)], [])
     def update_sfs_dict():
-        assert len(curr_lines) == np.sum(demo.sampled_n)
+        assert len(curr_lines) == np.sum(demo.n)
         n_snps = len(curr_lines[0])
-        config_array = np.zeros((n_snps, len(demo.sampled_pops), 2), dtype=int)
+        config_array = np.zeros((n_snps, len(demo.pops), 2), dtype=int)
         for i,snp in enumerate(zip(*curr_lines)):
             snp = map(int, snp)
             for pop,allele in zip(ind2pop, snp):

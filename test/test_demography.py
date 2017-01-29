@@ -11,7 +11,8 @@ from momi.math_functions import hypergeom_quasi_inverse
 import autograd
 
 def test_constructor():
-    demo = simple_admixture_demo()
+    pre_demo = simple_admixture_demo()
+    demo = pre_demo.demo_hist._get_multipop_moran(pre_demo.pops, pre_demo.n)
     demo2 = momi.demography.Demography(demo._get_graph_structure(), *demo._get_differentiable_part())
 
     assert np.allclose(expected_total_branch_len(demo),
@@ -26,7 +27,9 @@ def test_constructor():
     assert False
 
 def test_constructor_grad():
-    fun1 = lambda x: expected_total_branch_len(simple_admixture_demo(x))
+    def fun1(x):
+        pre_demo = simple_admixture_demo(x)
+        return expected_total_branch_len(pre_demo.demo_hist, sampled_n=pre_demo.n, sampled_pops=pre_demo.pops)
 
     fun2_helper = lambda diff_vals, diff_keys, G: expected_total_branch_len(momi.demography.Demography(G, diff_keys, diff_vals))
 
@@ -37,7 +40,8 @@ def test_constructor_grad():
     fun2_helper.defgrad(lambda ans, diff_vals, diff_keys, G: lambda g: tuple(g*y for y in helper_grad(diff_vals, diff_keys, G)))
 
     def fun2(x):
-        demo = simple_admixture_demo(x)
+        pre_demo = simple_admixture_demo(x)
+        demo = pre_demo.demo_hist._get_multipop_moran(pre_demo.pops, pre_demo.n)
         return fun2_helper(*reversed([demo._get_graph_structure()] + list(demo._get_differentiable_part())))
 
     x_val = np.random.normal(size=7)
@@ -58,6 +62,7 @@ class TestDemography(momi.demography.Demography):
 
 def test_pseudoinverse():
     demo = simple_admixture_demo()
+    demo = demo.demo_hist._get_multipop_moran(demo.pops, demo.n)
 
     # construct from same event_list so that nodes have same labels
     demo0 = make_demography(demo.events, demo.sampled_pops, demo.sampled_n, demo.sampled_t, demo.default_N)

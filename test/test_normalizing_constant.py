@@ -13,6 +13,7 @@ from demo_utils import simple_admixture_demo, random_tree_demo, simple_admixture
 from test_ms import ms_path
 
 def check_num_snps(demo, num_loci, mut_rate, ascertainment_pop=None, p_missing=0.0, error_matrices=None):
+    demo = demo.demo_hist._get_multipop_moran(demo.pops, demo.n)
     demo = demo.rescaled()
     if error_matrices is not None:
         ## TODO
@@ -50,6 +51,7 @@ def test_admixture_demo_numsnps():
     check_num_snps(simple_admixture_demo(), 1000.0, 1.0)
     
 def check_demo_normalization(demo, ascertainment_pop=None, add_n=None, p_missing=0.0, error_matrices=True, **kwargs):
+    demo = demo.demo_hist._get_multipop_moran(demo.pops, demo.n)
     leaves = demo.sampled_pops
 
     sampled_n = demo.sampled_n
