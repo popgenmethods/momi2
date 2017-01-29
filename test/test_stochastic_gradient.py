@@ -14,9 +14,11 @@ from test_ms import ms_path, scrm_path
 @pytest.mark.parametrize("fold,normalized",
                          ((random.choice((True,False)),random.choice((True,False))),))
 def test_subconfigs(fold, normalized):
-    demo = simple_admixture_demo().rescaled()
+    demo = simple_admixture_demo()
+    demo.demo_hist = demo.demo_hist.rescaled()
    
-    configs = momi.simulate_ms(scrm_path, demo,
+    configs = momi.simulate_ms(scrm_path, demo.demo_hist,
+                               sampled_pops=demo.pops, sampled_n=demo.n,
                               num_loci=1000, mut_rate=1.).sfs.configs
 
     if fold:
@@ -26,21 +28,23 @@ def test_subconfigs(fold, normalized):
     sub_idxs = np.array(random.sample(list(range(len(configs))), int(len(configs)/2)+1))
     assert len(sub_idxs) > 0 and len(sub_idxs) < len(configs)
 
-    val1 = momi.expected_sfs(demo, configs, normalized=normalized, folded=fold)[sub_idxs]
+    val1 = momi.expected_sfs(demo.demo_hist, configs, normalized=normalized, folded=fold)[sub_idxs]
 
     sub_configs = momi.data_structure._ConfigArray_Subset(configs, sub_idxs)
-    val2 = momi.expected_sfs(demo, sub_configs, normalized=normalized, folded=fold)
+    val2 = momi.expected_sfs(demo.demo_hist, sub_configs, normalized=normalized, folded=fold)
 
     assert np.allclose(val1,val2)
 
 @pytest.mark.parametrize("fold,use_mut",
                          ((random.choice((True,False)),random.choice((True,False))),))
 def test_subsfs(fold, use_mut):
-    demo = simple_admixture_demo().rescaled()
+    demo = simple_admixture_demo()
+    demo.demo_hist = demo.demo_hist.rescaled()
 
     n_loci = 10
     mut_rate = 100.
-    sfs = momi.simulate_ms(scrm_path, demo,
+    sfs = momi.simulate_ms(scrm_path, demo.demo_hist,
+                           sampled_pops = demo.pops, sampled_n = demo.n,
                            num_loci=n_loci, mut_rate=mut_rate).sfs
 
     if fold:
@@ -56,20 +60,22 @@ def test_subsfs(fold, use_mut):
     if not use_mut:
         mut_rate = None
     
-    val1 = momi.likelihood._composite_log_likelihood(sfs, demo, mut_rate=mut_rate, vector=True, folded=fold)[locus]
+    val1 = momi.likelihood._composite_log_likelihood(sfs, demo.demo_hist, mut_rate=mut_rate, vector=True, folded=fold)[locus]
     #val2 = momi.CompositeLogLikelihood(subsfs, mut_rate=mut_rate, folded=fold).evaluate(demo)
-    val2 = momi.likelihood._composite_log_likelihood(subsfs, demo, mut_rate=mut_rate, folded=fold)
+    val2 = momi.likelihood._composite_log_likelihood(subsfs, demo.demo_hist, mut_rate=mut_rate, folded=fold)
 
     assert np.isclose(val1, val2)
 
 @pytest.mark.parametrize("fold",
                          (random.choice((True,False)),))
 def test_subsfs2(fold):
-    demo = simple_admixture_demo().rescaled()
+    demo = simple_admixture_demo()
+    demo.demo_hist = demo.demo_hist.rescaled()
 
     n_loci = 10
     mut_rate = 100.
-    sfs = momi.simulate_ms(scrm_path, demo,
+    sfs = momi.simulate_ms(scrm_path, demo.demo_hist,
+                           sampled_pops=demo.pops, sampled_n=demo.n,
                            num_loci=n_loci, mut_rate=mut_rate).sfs
 
     if fold:
@@ -89,15 +95,17 @@ def test_subsfs2(fold):
 @pytest.mark.parametrize("fold",
                          (random.choice((True,False)),))
 def test_subliks(fold):
-    demo_func = lambda *x: simple_admixture_demo(x).rescaled()
+    pre_demo_func = lambda *x: simple_admixture_demo(x)
+    demo_func = lambda *x: pre_demo_func(*x).demo_hist.rescaled()
     rnd = np.random.RandomState()    
     x0 = rnd.normal(size=7)
 
-    demo = demo_func(*x0)
+    demo = pre_demo_func(*x0)
 
     n_loci = 100
     mut_rate = 10.
-    sfs = momi.simulate_ms(scrm_path, demo,
+    sfs = momi.simulate_ms(scrm_path, demo.demo_hist.rescaled(),
+                           sampled_pops = demo.pops, sampled_n = demo.n,
                            num_loci=n_loci, mut_rate=mut_rate).sfs
 
     if fold:
@@ -118,13 +126,15 @@ def test_subliks(fold):
 def test_stochastic_inference(folded):
     num_runs = 1000
     mu=1.0
+    sampled_pops = (1,2,3)
+    sampled_n = (5,5,5)
     def get_demo(t0, t1):
-        return momi.make_demography([('-ej', t0, 1, 2), ('-ej', t0 + t1, 2, 3)],
-                               (1,2,3), (5,5,5))
+        return momi.demographic_history([('-ej', t0, 1, 2), ('-ej', t0 + t1, 2, 3)])
     true_x = np.array([.5,.2])
     true_demo = get_demo(*true_x)
 
     sfs = momi.simulate_ms(ms_path, true_demo,
+                           sampled_pops = sampled_pops, sampled_n = sampled_n,
                            num_loci=num_runs, mut_rate=mu).sfs
     if folded:
         sfs = sfs.fold()

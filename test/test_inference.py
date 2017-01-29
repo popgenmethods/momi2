@@ -3,7 +3,7 @@ import os, random, sys
 import autograd.numpy as np
 from autograd import grad
 import logging
-from momi import make_demography, simulate_ms, SfsLikelihoodSurface
+from momi import simulate_ms, SfsLikelihoodSurface, demographic_history
 import momi
 from test_ms import ms_path, scrm_path
 
@@ -16,14 +16,17 @@ def test_archaic_sample():
     expit = lambda x: 1. / (1. + np.exp(-x))
         
     true_sample_t = logit(random.uniform(0,join_time) / join_time)
+
+    sampled_pops=['a','b']
+    sampled_n=[2,2]
+
     def get_demo(sample_t):
-        return make_demography([('-ej',join_time,'a','b')],
-                          sampled_pops=['a','b'],
-                          sampled_n=[2,2],
-                          sampled_t=[0,expit(sample_t)*join_time])
+        return demographic_history([('-ej',join_time,'a','b')],
+                                   archaic_times_dict={"b": expit(sample_t) * join_time})
     true_demo = get_demo(true_sample_t)
 
     sfs = simulate_ms(scrm_path, true_demo,
+                      sampled_pops=sampled_pops, sampled_n=sampled_n,
                       num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
     
 
@@ -60,16 +63,18 @@ def check_jointime_inference(sampled_n=(5,5,5), folded=False, add_n=0, finite_di
     t0=random.uniform(.25,2.5)
     t1= t0 + random.uniform(.5,5.0)
 
+    sampled_pops = (1,2,3)
     def get_demo(join_time):
-        return make_demography([('-ej', join_time, 1, 2), ('-ej', t1, 2, 3)],
-                               (1,2,3), sampled_n)
+        return demographic_history([('-ej', join_time, 1, 2), ('-ej', t1, 2, 3)])
 
     true_demo = get_demo(t0)
     #true_demo = make_demography(true_demo.events,
     #                       true_demo.sampled_pops,
     #                       np.array(true_demo.sampled_n) - add_n)
-    true_demo = true_demo.copy(sampled_n = np.array(true_demo.sampled_n) - add_n)
+    #true_demo = true_demo.copy(sampled_n = np.array(true_demo.sampled_n) - add_n)
     data = simulate_ms(ms_path, true_demo.rescaled(),
+                       sampled_pops = sampled_pops,
+                       sampled_n = sampled_n,
                        num_loci=num_runs, mut_rate=theta)
     
     if missing_p:
@@ -79,7 +84,7 @@ def check_jointime_inference(sampled_n=(5,5,5), folded=False, add_n=0, finite_di
 
     sfs = data.sfs
     assert sfs.n_snps() > 0
-    sfs = sfs._copy(sampled_n=np.array(true_demo.sampled_n)+add_n)
+    sfs = sfs._copy(sampled_n=np.array(sampled_n)+add_n)
     if folded:
         sfs = sfs.fold()
 
@@ -119,13 +124,15 @@ def check_jointime_inference(sampled_n=(5,5,5), folded=False, add_n=0, finite_di
 def test_underflow_robustness(folded):
     num_runs = 1000
     mu=1e-3
+    sampled_pops = (1,2,3)
+    sampled_n = (5,5,5)
     def get_demo(t0, t1):
-        return make_demography([('-ej', np.exp(t0), 1, 2), ('-ej', np.exp(t0) + np.exp(t1), 2, 3)],
-                          (1,2,3), (5,5,5)).rescaled(1e4)
+        return demographic_history([('-ej', np.exp(t0), 1, 2), ('-ej', np.exp(t0) + np.exp(t1), 2, 3)]).rescaled(1e4)
     true_x = np.array([np.log(.5),np.log(.2)])
     true_demo = get_demo(*true_x)
 
     sfs = simulate_ms(ms_path, true_demo.rescaled(),
+                      sampled_pops = sampled_pops, sampled_n = sampled_n,
                       num_loci=num_runs, mut_rate=mu*true_demo.default_N).sfs
     if folded:
         sfs = sfs.fold()

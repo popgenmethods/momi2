@@ -30,7 +30,8 @@ def generate_sfs():
             m_name,params,sampled_sfs = k
 
             n_lin = MODELS[m_name]['nlins']
-            demo = MODELS[m_name]['demo'](np.array(params),n_lin).rescaled()
+            demo = MODELS[m_name]['demo'](np.array(params),n_lin)
+            demo.demo_hist = demo.demo_hist.rescaled()
             v2 = compute_stats(demo, sampled_sfs)
             yield m_name,v,v2
 
@@ -40,10 +41,10 @@ def test_generated_cases(m_name,v,v2):
         assert np.allclose(stat1,stat2)
     
 def compute_stats(demo, sampled_sfs):
-    sampled_sfs = momi.site_freq_spectrum(demo.sampled_pops, to_dict(sampled_sfs))
-    config_list = momi.config_array(demo.sampled_pops, sorted([tuple(map(tuple,c)) for c in sampled_sfs.configs]))
+    sampled_sfs = momi.site_freq_spectrum(demo.pops, to_dict(sampled_sfs))
+    config_list = momi.config_array(demo.pops, sorted([tuple(map(tuple,c)) for c in sampled_sfs.configs]))
        
-    return expected_sfs(demo,config_list), expected_total_branch_len(demo)
+    return expected_sfs(demo.demo_hist,config_list), expected_total_branch_len(demo.demo_hist, sampled_pops=demo.pops, sampled_n=demo.n)
 
 def from_dict(sampled_sfs):
     # make it hashable
@@ -62,8 +63,9 @@ if __name__=="__main__":
             print("# GENERATING %s" % m_name)
             for i in range(10):
                 x = np.random.normal(size=m_val['params'])
-                demo = m_val['demo'](x, m_val['nlins']).rescaled()
+                demo = m_val['demo'](x, m_val['nlins'])
                 
+                demo.demo_hist = demo.demo_hist.rescaled()
                 seg_sites = simulate_ms(ms_path, demo, num_loci=100, mut_rate=1.0)
                 sampled_sfs = from_dict(seg_sites.sfs.to_dict(vector=True))
                 results[(m_name, tuple(x), sampled_sfs)] = compute_stats(demo, sampled_sfs)

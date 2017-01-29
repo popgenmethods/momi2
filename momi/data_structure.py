@@ -26,6 +26,7 @@ def config_array(sampled_pops, counts, sampled_n=None, ascertainment_pop=None):
     return ConfigArray(sampled_pops, counts, sampled_n, ascertainment_pop)
 
 def full_config_array(sampled_pops, sampled_n, ascertainment_pop=None):
+    sampled_n = np.array(sampled_n)
     if ascertainment_pop is None:
         ascertainment_pop = [True]*len(sampled_pops)
     ascertainment_pop = np.array(ascertainment_pop)

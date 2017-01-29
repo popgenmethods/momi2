@@ -7,7 +7,6 @@ import autograd
 from autograd import primitive
 
 from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory#, _TrivialHistory
-from .parse_ms import _convert_ms_cmd
 from .compute_sfs import expected_total_branch_len
 from functools import partial
 
@@ -27,9 +26,12 @@ def getval(x):
    except AttributeError:
       return x
 
+def demographic_history(events, archaic_times_dict=None, default_N=1.0):
+   return DemographicHistory(events, archaic_times_dict, default_N)
+
 def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N=1.0, time_scale='ms'):
    """
-     Create a demography object. Use this instead of the Demography() constructor directly.
+   Depracated. Use momi.demographic_history() instead.
 
      Parameters
      ----------
@@ -73,6 +75,10 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
            if time_scale=='standard', coalescence rate is 1/N
            if float, coalescence rate is 2/(N*time_scale)
    """
+   logger.warn("momi.make_demography() is depracated, use momi.demographic_history() instead")
+   return _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t, default_N, time_scale)
+
+def _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t = None, default_N=1.0, time_scale='ms'):
    if sampled_t is None:
       sampled_t = (0.0,) * len(sampled_n)
 
@@ -156,6 +162,44 @@ class differentiable_method(object):
          res = cache[key] = self.func(*args, **kw)
       return res
 
+
+class DemographicHistory(object):
+   def __init__(self, events, archaic_times_dict, default_N):
+      self.events = events
+      self.archaic_times_dict = archaic_times_dict
+      self.default_N = default_N
+
+   def _get_multipop_moran(self, sampled_pops, sampled_n):
+      if sampled_pops is None or sampled_n is None:
+         raise ValueError("Need to provide sampled_n/sampled_pops parameters")
+      return self._get_multipop_moran_helper(tuple(sampled_pops), tuple(sampled_n))
+
+   @memoize_instance
+   def _get_multipop_moran_helper(self, sampled_pops, sampled_n):
+      return _make_multipop_moran(self.events, sampled_pops, sampled_n,
+                                  self.get_sampled_t(sampled_pops),
+                                  self.default_N, time_scale="ms")
+
+   def get_sampled_t(self, sampled_pops):
+      if self.archaic_times_dict:
+         return [self.archaic_times_dict[pop]
+                 if pop in self.archaic_times_dict else 0.0
+                 for pop in sampled_pops]
+      else:
+         return None
+
+   def rescaled(self, factor=None):
+      if factor is None:
+         factor = 1.0/self.default_N
+      rescaled_events = rescale_events(self.events, factor)
+      default_N = self.default_N * factor
+      if self.archaic_times_dict:
+         archaic_times_dict = {p: t*factor for p,t in self.archaic_times_dict.items()}
+      else:
+         archaic_times_dict = None
+      return DemographicHistory(rescaled_events, archaic_times_dict, default_N)
+
+
 class Demography(object):
     """
     The demographic history relating a sample of individuals.
@@ -213,7 +257,7 @@ class Demography(object):
        """
        if sampled_n is None:
           sampled_n = self.sampled_n
-       return make_demography(self.events, self.sampled_pops, sampled_n, self.sampled_t, self.default_N)
+       return _make_multipop_moran(self.events, self.sampled_pops, sampled_n, self.sampled_t, self.default_N)
 
     @property
     def events(self):
@@ -236,6 +280,14 @@ class Demography(object):
         """
         return np.array(tuple(self._G.node[(l,0)]['lineages'] for l in self.sampled_pops), dtype=int)
 
+    def _get_multipop_moran(self, sampled_pops, sampled_n):
+        err_msg = "{0} attribute already present in Demography object, and disagrees with the provided value. To avoid this error, replace the depracated momi.make_demography() with momi.demographic_history()."
+        if sampled_pops is not None and tuple(sampled_pops) != tuple(self.sampled_pops):
+           raise ValueError(err_msg.format("sampled_pops"))
+        if sampled_n is not None and tuple(sampled_n) != tuple(self.sampled_n):
+           raise ValueError(err_msg.format("sampled_n"))
+        return self
+
     def rescaled(self,factor=None):
         """
         Returns the equivalent Demography, but with time rescaled by factor
@@ -254,29 +306,13 @@ class Demography(object):
         """
         if factor is None:
             factor = 1.0/self.default_N
-        rescaled_events = []
-        for event in self.events:
-            if event[0] == '-ej':
-                flag,t,i,j = event
-                event = (flag, t*factor,i,j)
-            elif event[0] == '-en':
-                flag,t,i,N = event
-                event = (flag, t*factor,i, N*factor)
-            elif event[0] == '-eg':
-                flag,t,i,alpha = event
-                event = (flag, t*factor, i, alpha/(1.0*factor))
-            elif event[0] == '-ep':
-                flag,t,i,j,p = event
-                event = (flag, t*factor,i,j,p)
-            else:
-                assert False
-            rescaled_events += [event]
+        rescaled_events = rescale_events(self.events, factor)
         default_N = self.default_N * factor
         try:
             sampled_t = self.sampled_t * factor
         except:
             sampled_t = None
-        return make_demography(rescaled_events,
+        return _make_multipop_moran(rescaled_events,
                                self.sampled_pops, self.sampled_n,
                                sampled_t = sampled_t, default_N = default_N)
 
@@ -449,6 +485,26 @@ class Demography(object):
 
         assert [admixture_node, parent1, parent2] == self._admixture_prob_idxs(admixture_node)
         return ret
+
+def rescale_events(events, factor):
+   rescaled_events = []
+   for event in events:
+      if event[0] == '-ej':
+            flag,t,i,j = event
+            event = (flag, t*factor,i,j)
+      elif event[0] == '-en':
+            flag,t,i,N = event
+            event = (flag, t*factor,i, N*factor)
+      elif event[0] == '-eg':
+            flag,t,i,alpha = event
+            event = (flag, t*factor, i, alpha/(1.0*factor))
+      elif event[0] == '-ep':
+            flag,t,i,j,p = event
+            event = (flag, t*factor,i,j,p)
+      else:
+            assert False
+      rescaled_events += [event]
+   return rescaled_events
 
 @memoize
 def _der_in_admixture_node(n_node):

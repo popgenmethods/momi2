@@ -89,6 +89,8 @@ class SfsLikelihoodSurface(object):
             demo = self.demo_func(*x)
         else:
             demo = x
+        demo = demo._get_multipop_moran(self.sfs.sampled_pops,
+                                        self.sfs.sampled_n)
 
         if self.sfs_batches:
             G,(diff_keys,diff_vals) = demo._get_graph_structure(), demo._get_differentiable_part()
@@ -297,7 +299,7 @@ def _mut_factor(sfs, demo, mut_rate, vector, p_missing=None):
 
     if p_missing is None:
         p_missing = sfs.p_missing
-    E_total = expected_total_branch_len(demo, p_missing=p_missing)
+    E_total = expected_total_branch_len(demo, p_missing=p_missing, sampled_pops = sfs.sampled_pops, sampled_n = sfs.sampled_n)
     lambd = mut_rate * E_total
 
     ret = -lambd + sfs.n_snps(vector=True) * np.log(lambd)

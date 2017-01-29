@@ -12,9 +12,11 @@ import autograd
 from test_ms import ms_path, scrm_path
 
 def test_batches():
-    demo = simple_five_pop_demo(n_lins=(10,10,10,10,10)).rescaled()
+    demo = simple_five_pop_demo(n_lins=(10,10,10,10,10))
+    demo.demo_hist = demo.demo_hist.rescaled()
 
-    sfs = momi.simulate_ms(scrm_path, demo,
+    sfs = momi.simulate_ms(scrm_path, demo.demo_hist,
+                           sampled_pops = demo.pops, sampled_n = demo.n,
                            num_loci=1000, mut_rate=.1).sfs
 
     sfs_len = sfs.n_nonzero_entries
@@ -24,16 +26,19 @@ def test_batches():
 
     assert sfs_len > 30
 
-    assert np.isclose(SfsLikelihoodSurface(sfs, batch_size=5).log_lik(demo),
-                      momi.likelihood._composite_log_likelihood(sfs, demo))
+    assert np.isclose(SfsLikelihoodSurface(sfs, batch_size=5).log_lik(demo.demo_hist),
+                      momi.likelihood._composite_log_likelihood(sfs, demo.demo_hist))
 
 def test_batches_grad():
     x0 = np.random.normal(size=30)
-    demo_func = lambda *x: simple_five_pop_demo(x=np.array(x), n_lins=(10,10,10,10,10)).rescaled()
-    demo = demo_func(*x0)
+    pre_demo_func = lambda *x: simple_five_pop_demo(x=np.array(x), n_lins=(10,10,10,10,10))
+    demo_func = lambda *x: pre_demo_func(*x).demo_hist.rescaled()
+    pre_demo = pre_demo_func(*x0)
 
     mu = .05
-    sfs = momi.simulate_ms(scrm_path, demo,
+    sfs = momi.simulate_ms(scrm_path, pre_demo.demo_hist,
+                           sampled_pops = pre_demo.pops,
+                           sampled_n = pre_demo.n,
                            num_loci=2000, mut_rate=mu).sfs
 
     sfs_len = sfs.n_nonzero_entries
@@ -52,11 +57,14 @@ def test_batches_grad():
 
 def test_batches_hess():
     x0 = np.random.normal(size=30)
-    demo_func = lambda *x: simple_five_pop_demo(x=np.array(x), n_lins=(10,10,10,10,10)).rescaled()
-    demo = demo_func(*x0)
+    pre_demo_func = lambda *x: simple_five_pop_demo(x=np.array(x), n_lins=(10,10,10,10,10))
+    demo_func = lambda *x: pre_demo_func(*x).demo_hist.rescaled()
+    pre_demo = pre_demo_func(*x0)
 
     mu = .05
-    sfs = momi.simulate_ms(scrm_path, demo,
+    sfs = momi.simulate_ms(scrm_path, pre_demo.demo_hist,
+                           sampled_pops = pre_demo.pops,
+                           sampled_n = pre_demo.n,
                            num_loci=2000, mut_rate=mu).sfs
 
     sfs_len = sfs.n_nonzero_entries

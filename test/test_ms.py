@@ -26,11 +26,13 @@ demo_funcs = {f.__name__ : f for f in [simple_admixture_demo, simple_two_pop_dem
                                                            [True,False])))
 def test_sfs_counts(k,folded):
     """Test to make sure converting momi demography to ms cmd works"""
-    check_sfs_counts(demo=demo_funcs[k]().rescaled(), folded=folded)
+    demo = demo_funcs[k]()
+    demo.demo_hist = demo.demo_hist.rescaled()
+    check_sfs_counts(demo.demo_hist, demo.pops, demo.n, folded=folded)
 
 
-def check_sfs_counts(demo, theta=10., rho=10.0, num_loci=1000, folded=False):
-    seg_sites = simulate_ms(ms_path, demo, num_loci=num_loci, mut_rate=theta, additional_ms_params='-r %f %d' % (rho, num_loci))
+def check_sfs_counts(demo, sampled_pops, sampled_n, theta=10., rho=10.0, num_loci=1000, folded=False):
+    seg_sites = simulate_ms(ms_path, demo, num_loci=num_loci, mut_rate=theta, additional_ms_params='-r %f %d' % (rho, num_loci), sampled_n=sampled_n, sampled_pops=sampled_pops)
     sfs_list = seg_sites.sfs
 
     if folded:
@@ -39,7 +41,7 @@ def check_sfs_counts(demo, theta=10., rho=10.0, num_loci=1000, folded=False):
 
     #config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list.loci],[])))
 
-    sfs_vals,branch_len = expected_sfs(demo, sfs_list.configs, folded=folded), expected_total_branch_len(demo)
+    sfs_vals,branch_len = expected_sfs(demo, sfs_list.configs, folded=folded), expected_total_branch_len(demo, sampled_pops = sfs_list.sampled_pops, sampled_n = sfs_list.sampled_n)
     theoretical = sfs_vals * theta
 
     # observed = np.zeros((len(sfs_list.configs), len(sfs_list.loci)))

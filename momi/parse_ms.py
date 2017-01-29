@@ -54,7 +54,7 @@ def seg_sites_from_ms(ms_file, sampled_pops):
     #    ret = mylist(ret, sampled_pops=tuple(sampled_pops))
     #return ret
 
-def simulate_ms(ms_path, demo, num_loci, mut_rate, seeds=None, additional_ms_params="", cmd_format="ms", raw_output=False):
+def simulate_ms(ms_path, demo, num_loci, mut_rate, seeds=None, additional_ms_params="", cmd_format="ms", raw_output=False, sampled_pops=None, sampled_n=None):
     """
     Use ms to simulate from a Demography, and get an open file object containing the output.
 
@@ -91,6 +91,8 @@ def simulate_ms(ms_path, demo, num_loci, mut_rate, seeds=None, additional_ms_par
     sfs_list_from_ms : convert ms file output to a list of SFS
     to_ms_cmd : converts a Demography to a partial ms command
     """   
+    demo = demo._get_multipop_moran(sampled_pops, sampled_n)
+
     if any([(x in additional_ms_params) for x in ("-t","-T","seed")]):
         raise IOError("additional_ms_params should not contain -t,-T,-seed,-seeds")
 
