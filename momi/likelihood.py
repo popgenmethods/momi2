@@ -2,7 +2,7 @@
 from .util import count_calls, rearrange_tuple_gradients
 from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
 import autograd.numpy as np
-from .compute_sfs import expected_sfs, expected_total_branch_len
+from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
 from .demography import DemographyError, Demography
 from .data_structure import _sub_sfs, site_freq_spectrum, ConfigArray, Sfs
 import scipy
@@ -14,7 +14,7 @@ import random, functools, logging, time
 logger = logging.getLogger(__name__)
 
 class SfsLikelihoodSurface(object):
-    def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=1000, p_missing=None):
+    def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=1000, p_missing=None, use_pairwise_diffs=False):
         """
         Object for computing composite likelihoods, and searching for the maximum composite likelihood.
 
@@ -80,6 +80,11 @@ class SfsLikelihoodSurface(object):
             p_missing = self.sfs.p_missing
         self.p_missing = p_missing
 
+        self.use_pairwise_diffs = use_pairwise_diffs
+
+        if self.mut_rate and self.sfs.configs.has_missing_data and not self.use_pairwise_diffs:
+            raise ValueError("Expected total branch length not implemented for missing data; set use_pairwise_diffs=True to scale total mutations by the pairwise differences instead.")
+
     def log_lik(self, x):
         """
         Returns the composite log-likelihood of the data at the point x.
@@ -98,10 +103,10 @@ class SfsLikelihoodSurface(object):
             for batch in self.sfs_batches:
                 ret = ret + _raw_log_lik(diff_vals, diff_keys, G, batch, self.truncate_probs, self.folded, self.error_matrices)
         else:
-            ret = _composite_log_likelihood(self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices)
+            ret = _composite_log_likelihood(self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices, use_pairwise_diffs=self.use_pairwise_diffs)
 
         if self.mut_rate is not None:
-            ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False, p_missing=self.p_missing)
+            ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False, p_missing=self.p_missing, use_pairwise_diffs=self.use_pairwise_diffs)
 
         if self.log_prior:
             ret = ret + self.log_prior(x)
@@ -276,7 +281,7 @@ def _make_likelihood_fun(sampled_pops, conf_arr, sampled_n, counts_arr, *args, *
     surface = SfsLikelihoodSurface(sfs, *args, **kwargs)
     return surface.log_lik
 
-def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, p_missing=None, **kwargs):
+def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, vector=False, p_missing=None, use_pairwise_diffs=False, **kwargs):
     try:
         sfs = data.sfs
     except AttributeError:
@@ -288,18 +293,39 @@ def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, v
 
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
-        log_lik = log_lik + _mut_factor(sfs, demo, mut_rate, vector, p_missing=p_missing)
+        log_lik = log_lik + _mut_factor(sfs, demo, mut_rate, vector, p_missing=p_missing, use_pairwise_diffs=use_pairwise_diffs)
 
     if not vector:
         log_lik = np.squeeze(log_lik)
     return log_lik
 
-def _mut_factor(sfs, demo, mut_rate, vector, p_missing=None):
-    mut_rate = mut_rate * np.ones(sfs.n_loci)
+def _mut_factor(sfs, demo, mut_rate, vector, p_missing=None, use_pairwise_diffs=False):
+    if use_pairwise_diffs:
+        return _mut_factor_het(sfs, demo, mut_rate, vector, p_missing)
+    else:
+        return _mut_factor_total(sfs, demo, mut_rate, vector)
 
+def _mut_factor_het(sfs, demo, mut_rate, vector, p_missing=None):
+    mut_rate = mut_rate * np.ones(sfs.n_loci)
+    E_het = expected_heterozygosity(demo, sampled_pops = sfs.sampled_pops)[sfs.ascertainment_pop]
     if p_missing is None:
         p_missing = sfs.p_missing
-    E_total = expected_total_branch_len(demo, p_missing=p_missing, sampled_pops = sfs.sampled_pops, sampled_n = sfs.sampled_n)
+    lambd = np.einsum("i,j->ij", mut_rate, E_het*(1.0-p_missing))
+
+    ret = -lambd + sfs.avg_pairwise_hets * np.log(lambd)
+    #ret = ret / sum(sfs.ascertainment_pop)
+    if not vector:
+        ret = np.sum(ret)
+    else:
+        ret = np.sum(ret, axis=1)
+    return ret
+
+def _mut_factor_total(sfs, demo, mut_rate, vector):
+    mut_rate = mut_rate * np.ones(sfs.n_loci)
+
+    if sfs.configs.has_missing_data:
+        raise ValueError("Expected total branch length not implemented for missing data; set use_pairwise_diffs=True to scale total mutations by the pairwise differences instead.")
+    E_total = expected_total_branch_len(demo, sampled_pops = sfs.sampled_pops, sampled_n = sfs.sampled_n, ascertainment_pop = sfs.ascertainment_pop)
     lambd = mut_rate * E_total
 
     ret = -lambd + sfs.n_snps(vector=True) * np.log(lambd)

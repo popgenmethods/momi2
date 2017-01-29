@@ -335,15 +335,31 @@ class Sfs(object):
         return self._freqs_matrix
 
     @cached_property
+    def avg_pairwise_hets(self):
+        """
+        Returns the number of SNPs where a single individual is heterozygote,
+        averaged over all individuals within each population
+
+        Returns numpy.ndarray pairwise_hets, where
+        pairwise_hets[i,j] is the average number of hets in population j at locus i
+        """
+        n_nonmissing = np.sum(self.configs.value, axis=2)
+        # for denominator, assume 1 allele is drawn from whole sample, and 1 allele is drawn only from nomissing alleles
+        denoms = np.maximum(n_nonmissing * (self.sampled_n - 1), 1.0)
+        p_het = 2 * self.configs.value[:,:,0] * self.configs.value[:,:,1] / denoms
+
+        return self.freqs_matrix.T.dot(p_het)
+
+    @cached_property
     def p_missing(self):
         if not self.configs.has_missing_data:
             return 0.0
-        #return  1.0 - np.einsum("ijk,i->j", self.configs.value, self._total_freqs / float(self.n_snps())) / self.sampled_n
-        n_missing = self.sampled_n - np.sum(self.configs.value, axis=2)
-        ret = [Counter(n_missing[:,i]) for i in range(n_missing.shape[1])]
-        n_snps = len(self.configs)
-        ret = [[cnts[i]/float(n_snps) for i in range(n+1)] for cnts,n in zip(ret, self.sampled_n)]
-        return ret
+        return  1.0 - np.einsum("ijk,i->j", self.configs.value, self._total_freqs / float(self.n_snps())) / self.sampled_n
+        #n_missing = self.sampled_n - np.sum(self.configs.value, axis=2)
+        #ret = [Counter(n_missing[:,i]) for i in range(n_missing.shape[1])]
+        #n_snps = len(self.configs)
+        #ret = [[cnts[i]/float(n_snps) for i in range(n+1)] for cnts,n in zip(ret, self.sampled_n)]
+        #return ret
 
     @property
     def sampled_n(self):

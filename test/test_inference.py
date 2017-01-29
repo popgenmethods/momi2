@@ -20,23 +20,23 @@ def test_archaic_sample():
     sampled_pops=['a','b']
     sampled_n=[2,2]
 
-    def get_demo(sample_t):
+    def get_demo(sample_t, log_N):
         return demographic_history([('-ej',join_time,'a','b')],
-                                   archaic_times_dict={"b": expit(sample_t) * join_time})
-    true_demo = get_demo(true_sample_t)
+                                   archaic_times_dict={"b": expit(sample_t) * join_time}, default_N=np.exp(log_N))
+    true_demo = get_demo(true_sample_t, 0)
 
     sfs = simulate_ms(scrm_path, true_demo,
                       sampled_pops=sampled_pops, sampled_n=sampled_n,
                       num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
     
 
-    log_prior = lambda t: -t/float(true_sample_t)
+    log_prior = lambda x: -x[0]/float(true_sample_t)
     
-    x0 = np.array([logit(random.uniform(0,join_time) / join_time)])
-    res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta, log_prior=log_prior, batch_size=-1).find_mle(x0, method='trust-ncg', hessp=True)
+    x0 = np.array([logit(random.uniform(0,join_time) / join_time), random.uniform(-1,1)])
+    res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta, log_prior=log_prior, batch_size=-1, use_pairwise_diffs=True).find_mle(x0, method='trust-ncg', hessp=True)
     
     print(res.jac)
-    assert abs(expit(res.x) - expit(true_sample_t)) < .1
+    assert abs(expit(res.x[0]) - expit(true_sample_t)) < .1 and abs(res.x[1]) < .1
     #for i,subres in enumerate(res.subsample_results):
     #    assert abs(subres.x - true_sample_t) < .15, "subsample %d did not fit truth well" % i
 
@@ -109,8 +109,8 @@ def check_jointime_inference(sampled_n=(5,5,5), folded=False, add_n=0, finite_di
     if use_prior:
         log_prior = lambda t: -t/float(t0)
     else: log_prior = None
-    res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded, log_prior=log_prior, p_missing=missing_p).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
-    #res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded, log_prior=log_prior).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
+    res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded, log_prior=log_prior, p_missing=missing_p, use_pairwise_diffs=True).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
+    #res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded, log_prior=log_prior, use_pairwise_diffs=True).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
     
     #res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_mle(x0, bounds=[(0,t1),])
 
@@ -139,6 +139,7 @@ def test_underflow_robustness(folded):
     
     #logging.basicConfig(level=logging.INFO)
     optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_mle(np.array([np.log(0.1),np.log(100.0)]))
+    #optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_mle(np.array([np.log(0.1),np.log(0.1)]))
     print(optimize_res)
     
     inferred_x = optimize_res.x

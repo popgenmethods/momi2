@@ -281,11 +281,9 @@ class Demography(object):
         return np.array(tuple(self._G.node[(l,0)]['lineages'] for l in self.sampled_pops), dtype=int)
 
     def _get_multipop_moran(self, sampled_pops, sampled_n):
-        err_msg = "{0} attribute already present in Demography object, and disagrees with the provided value. To avoid this error, replace the depracated momi.make_demography() with momi.demographic_history()."
-        if sampled_pops is not None and tuple(sampled_pops) != tuple(self.sampled_pops):
-           raise ValueError(err_msg.format("sampled_pops"))
-        if sampled_n is not None and tuple(sampled_n) != tuple(self.sampled_n):
-           raise ValueError(err_msg.format("sampled_n"))
+        if sampled_pops is not None and sampled_n is not None:
+           if tuple(sampled_pops) != tuple(self.sampled_pops) or tuple(sampled_n) != tuple(self.sampled_n):
+              raise ValueError("sampled_pops/sampled_n attributes already present in Demography object, and disagrees with the provided values. To avoid this error, replace the depracated momi.make_demography() with momi.demographic_history().")
         return self
 
     def rescaled(self,factor=None):

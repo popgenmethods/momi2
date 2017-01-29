@@ -2,7 +2,7 @@ import warnings
 import autograd.numpy as np
 import scipy
 from .util import memoize, make_constant, set0, closegeq
-from .data_structure import config_array
+from .data_structure import config_array, ConfigArray
 from .math_functions import sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs, _apply_error_matrices, par_einsum
 #from .data_structure import Configs
 from .moran_model import moran_action
@@ -85,7 +85,8 @@ def _expected_sfs(demography, configs, folded, error_matrices):
 
     return sfs, denom
 
-def expected_total_branch_len(demography, error_matrices=None, ascertainment_pop=None, p_missing=0.0, sampled_pops=None, sampled_n=None):
+def expected_total_branch_len(demography, error_matrices=None, ascertainment_pop=None,
+                              sampled_pops=None, sampled_n=None):
     """
     The expected total branch length of the sample genealogy.
     Equivalently, the expected number of observed mutations when
@@ -122,38 +123,14 @@ def expected_total_branch_len(demography, error_matrices=None, ascertainment_pop
         ascertainment_pop = [True]*len(demography.sampled_n)
     ascertainment_pop = np.array(ascertainment_pop)
 
-    try:
-        len(p_missing)
-    except:
-        p_missing = p_missing * np.ones(len(demography.sampled_n))
-
-    p_missing = list(p_missing)
-    for i,p in enumerate(p_missing):
-        n = demography.sampled_n[i]
-        b = binom_coeffs(n)
-        j = np.arange(n + 1)
-        try:
-            len(p)
-        except:
-            assert p >= 0.0 and p <= 1.0
-            p = b * p**j * (1-p)**(j[::-1])
-
-        assert np.isclose(np.sum(p), 1.0)
-        J = np.outer(j, np.ones(n+1))
-        p = np.dot(scipy.misc.comb(np.transpose(J), J), p) / b
-        assert np.isclose(p[0], 1.0) and np.all(closegeq(p[:-1], p[1:]))
-
-        p_missing[i] = p
-
-    vecs = [[np.ones(n+1), p, p[::-1]]
+    vecs = [[np.ones(n+1), [1] + [0]*n, [0]*n + [1]]
             if asc else np.ones((3, n+1), dtype=float)
-            for p,asc,n in zip(p_missing, ascertainment_pop, demography.sampled_n)]
+            for asc,n in zip(ascertainment_pop, demography.sampled_n)]
     if error_matrices is not None:
         vecs = _apply_error_matrices(vecs, error_matrices)
 
     ret = expected_sfs_tensor_prod(vecs, demography)
-    ## inclusion-exclusion: subtract off fraction where all ancestral missing, allderived missing, add back on all missing
-    return ret[0] - ret[1] - ret[2] + ret[0] * np.prod([p[-1] for p,asc in zip(p_missing, ascertainment_pop) if asc])
+    return ret[0] - ret[1] - ret[2]
 
 def expected_tmrca(demography, sampled_pops=None, sampled_n=None):
     """
@@ -178,6 +155,19 @@ def expected_tmrca(demography, sampled_pops=None, sampled_n=None):
     n0 = len(vecs[0])-1.0
     vecs[0] = np.arange(n0+1) / n0
     return np.squeeze(expected_sfs_tensor_prod(vecs, demography))
+
+def expected_heterozygosity(demography, sampled_pops=None, error_matrices=None):
+    try:
+        sampled_n = demography.sampled_n
+    except AttributeError:
+        sampled_n = [2]*len(sampled_pops)
+    demography = demography._get_multipop_moran(sampled_pops, sampled_n)
+    configs = np.zeros((len(demography.sampled_pops), len(demography.sampled_pops), 2), dtype=int)
+    for i in range(len(demography.sampled_pops)):
+        configs[i,i,:] = 1
+    configs = ConfigArray(demography.sampled_pops, configs,
+                          sampled_n = demography.sampled_n)
+    return expected_sfs(demography, configs, error_matrices=error_matrices)
 
 def expected_deme_tmrca(demography, deme, sampled_pops=None, sampled_n=None):
     """
