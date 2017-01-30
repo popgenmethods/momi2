@@ -7,7 +7,7 @@ from momi import simulate_ms, SfsLikelihoodSurface, demographic_history
 import momi
 from test_ms import ms_path, scrm_path
 
-def test_archaic_sample():
+def test_archaic_and_missing():
     theta=.1
     join_time = 1.0
     num_runs = 10000
