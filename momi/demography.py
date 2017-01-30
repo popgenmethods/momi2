@@ -75,7 +75,7 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
            if time_scale=='standard', coalescence rate is 1/N
            if float, coalescence rate is 2/(N*time_scale)
    """
-   logger.warn("momi.make_demography() is depracated, use momi.demographic_history() instead")
+   #logger.warn("momi.make_demography() is depracated, use momi.demographic_history() instead")
    return _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t, default_N, time_scale)
 
 def _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t = None, default_N=1.0, time_scale='ms'):

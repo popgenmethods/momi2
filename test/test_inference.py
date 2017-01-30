@@ -7,10 +7,11 @@ from momi import simulate_ms, SfsLikelihoodSurface, demographic_history
 import momi
 from test_ms import ms_path, scrm_path
 
-def test_archaic_and_missing():
+def test_archaic_and_pairwisediffs():
     theta=.1
     join_time = 1.0
-    num_runs = 10000
+    #num_runs = 10000
+    num_runs = 1000
     
     logit = lambda p: np.log(p / (1.-p))
     expit = lambda x: 1. / (1. + np.exp(-x))
@@ -34,6 +35,7 @@ def test_archaic_and_missing():
     
     x0 = np.array([logit(random.uniform(0,join_time) / join_time), random.uniform(-1,1)])
     res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta, log_prior=log_prior, batch_size=-1, use_pairwise_diffs=True).find_mle(x0, method='trust-ncg', hessp=True)
+    #res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta, log_prior=log_prior, batch_size=-1).find_mle(x0, method='trust-ncg', hessp=True)
     
     print(res.jac)
     assert abs(expit(res.x[0]) - expit(true_sample_t)) < .1 and abs(res.x[1]) < .1

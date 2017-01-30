@@ -427,6 +427,24 @@ class Sfs(object):
         assert not np.isnan(ret)
         return ret
 
+    def _get_muts_poisson_entropy(self, use_pairwise_diffs):
+        if use_pairwise_diffs:
+            return self._pairwise_muts_poisson_entropy
+        else:
+            return self._total_muts_poisson_entropy
+
+    @cached_property
+    def _total_muts_poisson_entropy(self):
+        lambd = self.n_snps(vector=True)
+        lambd = lambd[lambd > 0]
+        return np.sum(-lambd + lambd*np.log(lambd) - scipy.special.gammaln(lambd+1))
+    @cached_property
+    def _pairwise_muts_poisson_entropy(self):
+        lambd = self.avg_pairwise_hets
+        ret = -lambd + lambd * np.log(lambd) - scipy.special.gammaln(lambd+1)
+        ret[lambd <= 1e-16] = 0
+        ret = ret * self.sampled_n / float(np.sum(self.sampled_n))
+        return np.sum(ret)
 
     def fold(self):
         """

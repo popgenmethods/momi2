@@ -106,7 +106,7 @@ class SfsLikelihoodSurface(object):
             ret = _composite_log_likelihood(self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded, error_matrices=self.error_matrices, use_pairwise_diffs=self.use_pairwise_diffs)
 
         if self.mut_rate is not None:
-            ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False, p_missing=self.p_missing, use_pairwise_diffs=self.use_pairwise_diffs)
+            ret = ret + _mut_factor(self.sfs, demo, self.mut_rate, False, self.p_missing, self.use_pairwise_diffs)
 
         if self.log_prior:
             ret = ret + self.log_prior(x)
@@ -118,12 +118,13 @@ class SfsLikelihoodSurface(object):
         Returns KL-Divergence(Empirical || Theoretical(x)).
         """
         log_lik = self.log_lik(x)
-        ret = -log_lik + self.sfs.n_snps() * self.sfs._entropy + _entropy_mut_term(self.mut_rate, self.sfs.n_snps(vector=True))
-
+        #ret = -log_lik + self.sfs.n_snps() * self.sfs._entropy + _entropy_mut_term(self.mut_rate, self.sfs, self.p_missing, self.use_pairwise_diffs)
+        ret = -log_lik + self.sfs.n_snps() * self.sfs._entropy 
+        if self.mut_rate:
+            ret = ret + self.sfs._get_muts_poisson_entropy(self.use_pairwise_diffs)
         ret = ret / float(self.sfs.n_snps())
         if not self.log_prior:
             assert ret >= 0, "kl-div: %s, log_lik: %s, total_count: %s" % (str(ret), str(log_lik), str(self.sfs.n_snps()))
-
         return ret
 
     def find_mle(self, x0, method="tnc", jac=True, hess=False, hessp=False, bounds=None, callback=None, **kwargs):
@@ -265,7 +266,10 @@ class StochasticSfsLikelihoodSurface(object):
             else:
                 if full_surface.log_prior: lp = full_surface.log_prior(x)
                 else: lp = 0.0
-                ret = -self.pieces[i].log_lik(x) + self.pieces[i].sfs.n_snps() * (full_surface.sfs._entropy - lp/float(full_surface.sfs.n_snps())) + _entropy_mut_term(self.pieces[i].mut_rate, self.pieces[i].sfs.n_snps(vector=True))
+                #ret = -self.pieces[i].log_lik(x) + self.pieces[i].sfs.n_snps() * (full_surface.sfs._entropy - lp/float(full_surface.sfs.n_snps())) + _entropy_mut_term(self.pieces[i].mut_rate, self.pieces[i].sfs, self.p_missing, self.use_pairwise_diffs)
+                ret = -self.pieces[i].log_lik(x) + self.pieces[i].sfs.n_snps() * (full_surface.sfs._entropy - lp/float(full_surface.sfs.n_snps()))
+                if full_surface.mut_rate is not None:
+                    ret = ret + self.pieces[i].sfs._get_muts_poisson_entropy(full_surface.use_pairwise_diffs)
                 return ret / float(full_surface.sfs.n_snps()) * self.n_minibatches
 
         opt_kwargs = dict(kwargs)
@@ -293,26 +297,28 @@ def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs = 0.0, v
 
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
-        log_lik = log_lik + _mut_factor(sfs, demo, mut_rate, vector, p_missing=p_missing, use_pairwise_diffs=use_pairwise_diffs)
+        log_lik = log_lik + _mut_factor(sfs, demo, mut_rate, vector, p_missing, use_pairwise_diffs)
 
     if not vector:
         log_lik = np.squeeze(log_lik)
     return log_lik
 
-def _mut_factor(sfs, demo, mut_rate, vector, p_missing=None, use_pairwise_diffs=False):
+def _mut_factor(sfs, demo, mut_rate, vector, p_missing, use_pairwise_diffs):
     if use_pairwise_diffs:
         return _mut_factor_het(sfs, demo, mut_rate, vector, p_missing)
     else:
         return _mut_factor_total(sfs, demo, mut_rate, vector)
 
-def _mut_factor_het(sfs, demo, mut_rate, vector, p_missing=None):
+def _mut_factor_het(sfs, demo, mut_rate, vector, p_missing):
+    ## TODO: not correctly implemented for ascertainment populations...
     mut_rate = mut_rate * np.ones(sfs.n_loci)
     E_het = expected_heterozygosity(demo, sampled_pops = sfs.sampled_pops)[sfs.ascertainment_pop]
     if p_missing is None:
         p_missing = sfs.p_missing
     lambd = np.einsum("i,j->ij", mut_rate, E_het*(1.0-p_missing))
 
-    ret = -lambd + sfs.avg_pairwise_hets * np.log(lambd)
+    counts = sfs.avg_pairwise_hets
+    ret = -lambd + counts * np.log(lambd) - scipy.special.gammaln(counts+1)
     #ret = ret / sum(sfs.ascertainment_pop)
     ret = ret * sfs.sampled_n / float(len(sfs.sampled_n))
     if not vector:
@@ -329,18 +335,37 @@ def _mut_factor_total(sfs, demo, mut_rate, vector):
     E_total = expected_total_branch_len(demo, sampled_pops = sfs.sampled_pops, sampled_n = sfs.sampled_n, ascertainment_pop = sfs.ascertainment_pop)
     lambd = mut_rate * E_total
 
-    ret = -lambd + sfs.n_snps(vector=True) * np.log(lambd)
+    counts = sfs.n_snps(vector=True)
+    ret = -lambd + counts * np.log(lambd) - scipy.special.gammaln(counts+1)
     if not vector:
         ret = np.sum(ret)
     return ret
 
-def _entropy_mut_term(mut_rate, counts_i):
-    if mut_rate is not None:
-        mu = mut_rate * np.ones(len(counts_i))
-        mu = mu[counts_i > 0]
-        counts_i = counts_i[counts_i > 0]
-        return np.sum(-counts_i + counts_i * np.log(np.sum(counts_i) * mu / float(np.sum(mu))))
-    return 0.0
+#def _entropy_mut_term(mut_rate, sfs, p_missing, use_pairwise_diffs):
+#    ## TODO: not correctly implemented for ascertainment pops...
+#    if mut_rate is None:
+#        return 0.0
+#    elif use_pairwise_diffs:
+#        if p_missing is None:
+#            p_missing = sfs.p_missing
+#        p_missing = p_missing * np.ones(len(sfs.sampled_pops))
+#        mu_ik = np.einsum("i,k->ik", mut_rate * np.ones(sfs.n_loci), p_missing)
+#        counts_ik = sfs.avg_pairwise_hets
+#
+#        ret = np.sum(counts_ik, axis=0) * mu_ik / np.sum(mu_ik, axis=0)
+#        ret = -counts_ik + counts_ik * np.log(ret)
+#        # sum over loci
+#        ret = np.sum(ret, axis=0)
+#        # sum over populations
+#        return np.sum(ret * sfs.sampled_n) / float(np.sum(sfs.sampled_n))
+#    elif p_missing is not None and np.any(p_missing > 0):
+#        raise ValueError("Expected total branch length not implemented for missing data; set use_pairwise_diffs=True to scale total mutations by the pairwise differences instead.")
+#    else:
+#        counts_i = sfs.n_snps(vector=True)
+#        mu = mut_rate * np.ones(len(counts_i))
+#        mu = mu[counts_i > 0]
+#        counts_i = counts_i[counts_i > 0]
+#        return np.sum(-counts_i + counts_i * np.log(np.sum(counts_i) * mu / float(np.sum(mu))))
 
 
 @rearrange_tuple_gradients()
