@@ -6,7 +6,7 @@ import functools as ft
 import subprocess
 import logging
 from .data_structure import seg_site_configs, _build_data, _sort_configs, SegSites, ConfigArray
-from collections import defaultdict
+from collections import defaultdict, Counter
 import json
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class SnpAlleleCounts(object):
                               additional_options=additional_options)
         allele_counts_list = pool.map(read_vcf, vcf_list)
         logger.debug("Concatenating vcf files {}".format(vcf_list))
-        ret = cls.concat_list(allele_counts_list)
+        ret = cls.concatenate(allele_counts_list)
         logger.debug("Finished concatenating vcf files {}".format(vcf_list))
         return ret
 
@@ -67,6 +67,11 @@ class SnpAlleleCounts(object):
 
     @classmethod
     def _read_vcf_helper(cls, vcf, inds2pop, vcftools_path, input_format, derived, additional_options):
+        """
+        Uses a recursive strategy to read in the data,
+        repeatedly splitting the populations in 2,
+        in order to save memory.
+        """
         pop2inds = defaultdict(list)
         for ind,pop in inds2pop.items():
             pop2inds[pop].append(ind)
@@ -140,13 +145,28 @@ class SnpAlleleCounts(object):
         return cls(chrom_ids, positions, compressed_counts, populations)
 
     @classmethod
-    def concat_list(cls, args):
-        populations = args[0].populations
-        if not all(a.populations == populations for a in args):
-            raise ValueError("Datasets must have same populations to concatenate")
-        return cls.from_iter(np.concatenate([a.chrom_ids for a in args]),
-                             np.concatenate([a.positions for a in args]),
-                             it.chain(*args), populations)
+    def concatenate(cls, to_concatenate):
+        first = next(to_concatenate)
+        populations = first.populations
+        to_concatenate = it.chain([first], to_concatenate)
+
+        chrom_ids = []
+        positions = []
+        def get_allele_counts(snp_allele_counts):
+            if snp_allele_counts.populations != populations:
+                raise ValueError("Datasets must have same populations to concatenate")
+            chrom_ids.extend(snp_allele_counts.chrom_ids)
+            positions.extend(snp_allele_counts.positions)
+            for c in snp_allele_counts:
+                yield c
+            for k,v in Counter(snp_allele_counts.chrom_ids).items():
+                logger.info("Added {} SNPs from Chromosome {}".format(v, k))
+
+        compressed_counts = CompressedAlleleCounts.from_iter(it.chain.from_iterable((get_allele_counts(cnts)
+                                                                                     for cnts in to_concatenate)), len(populations))
+        ret = cls(chrom_ids, positions, compressed_counts, populations)
+        logger.info("Finished concatenating datasets")
+        return ret
 
     @classmethod
     def from_iter(cls, chrom_ids, positions, allele_counts, populations):
