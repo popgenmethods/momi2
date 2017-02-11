@@ -2,16 +2,20 @@ from .compute_sfs import expected_sfs
 from .likelihood import _composite_log_likelihood
 from .util import memoize_instance, make_constant, check_psd
 from .math_functions import inv_psd
-import scipy, scipy.stats
+import scipy
+import scipy.stats
 import autograd
 import autograd.numpy as np
 
-### stuff for confidence intervals
+# stuff for confidence intervals
+
+
 class ConfidenceRegion(object):
     """
     Constructs asymptotic confidence regions and hypothesis tests,
     using the Limit of Experiments theory.
     """
+
     def __init__(self, point_estimate, demo_func, data, regime="long", psd_rtol=1e-8, **kwargs):
         """
         Parameters
@@ -34,20 +38,20 @@ class ConfidenceRegion(object):
               negative eigenvalue has magnitude less than epsilon * most positive eigenvalue.
         **kwargs : additional arguments passed into composite_log_likelihood
         """
-        if regime not in ("long","many"):
+        if regime not in ("long", "many"):
             raise ValueError("Unrecognized regime '%s'" % regime)
 
         self.point = np.array(point_estimate)
         self.demo_func = demo_func
         self.data = data
         self.regime = regime
-        self.kwargs = dict( kwargs )
+        self.kwargs = dict(kwargs)
         self.psd_rtol = psd_rtol
 
         self.score = autograd.grad(self.lik_fun)(self.point)
         self.score_cov = _observed_score_covariance(self.regime, self.point, self.data,
-                                                    self.demo_func, psd_rtol = self.psd_rtol, **self.kwargs)
-        self.fisher = _observed_fisher_information(self.point, self.data, self.demo_func, psd_rtol = self.psd_rtol,
+                                                    self.demo_func, psd_rtol=self.psd_rtol, **self.kwargs)
+        self.fisher = _observed_fisher_information(self.point, self.data, self.demo_func, psd_rtol=self.psd_rtol,
                                                    assert_psd=False, **self.kwargs)
 
     def lik_fun(self, params, vector=False):
@@ -63,7 +67,8 @@ class ConfidenceRegion(object):
         and covariance given by the Godambe information.
         """
         fisher_inv = inv_psd(self.fisher, tol=self.psd_rtol)
-        ret = check_psd(np.dot(fisher_inv, np.dot(self.score_cov, fisher_inv)), tol=self.psd_rtol)
+        ret = check_psd(np.dot(fisher_inv, np.dot(
+            self.score_cov, fisher_inv)), tol=self.psd_rtol)
         if not inverse:
             ret = inv_psd(ret, tol=self.psd_rtol)
         return ret
@@ -124,7 +129,7 @@ class ConfidenceRegion(object):
         null_point = np.array(null_point, ndmin=2)
 
         if null_cone is None:
-            null_cone = [0]*null_point.shape[1]
+            null_cone = [0] * null_point.shape[1]
         null_cone = np.array(null_cone, ndmin=2)
 
         if alt_point is None:
@@ -132,7 +137,7 @@ class ConfidenceRegion(object):
         alt_point = np.array(alt_point, ndmin=2)
 
         if alt_cone is None:
-            alt_cone = [None]*null_point.shape[1]
+            alt_cone = [None] * null_point.shape[1]
         alt_cone = np.array(alt_cone, ndmin=2)
 
         b = np.broadcast_arrays(null_point, null_cone, alt_point, alt_cone)
@@ -144,7 +149,8 @@ class ConfidenceRegion(object):
         null_point, null_cone, alt_point, alt_cone = b
 
         if test_type == "ratio":
-            sims = np.random.multivariate_normal(self.score, self.score_cov, size=sims)
+            sims = np.random.multivariate_normal(
+                self.score, self.score_cov, size=sims)
 
             liks = {}
             for p in list(null_point) + list(alt_point):
@@ -153,35 +159,38 @@ class ConfidenceRegion(object):
 
             sim_mls = {}
             for nc, ac in zip(null_cone, alt_cone):
-                if (nc,ac) not in sim_mls:
-                    nml, nmle = _project_scores(sims, self.fisher, nc, psd_rtol = self.psd_rtol)
-                    aml, amle = _project_scores(sims, self.fisher, ac, psd_rtol = self.psd_rtol, init_vals=nmle)
-                    sim_mls[(nc,ac)] = (nml,aml)
+                if (nc, ac) not in sim_mls:
+                    nml, nmle = _project_scores(
+                        sims, self.fisher, nc, psd_rtol=self.psd_rtol)
+                    aml, amle = _project_scores(
+                        sims, self.fisher, ac, psd_rtol=self.psd_rtol, init_vals=nmle)
+                    sim_mls[(nc, ac)] = (nml, aml)
 
             ret = []
-            for n_p,n_c,a_p,a_c in zip(null_point, null_cone, alt_point, alt_cone):
+            for n_p, n_c, a_p, a_c in zip(null_point, null_cone, alt_point, alt_cone):
                 lr = _trunc_lik_ratio(liks[n_p], liks[a_p])
-                lr_distn = _trunc_lik_ratio(*sim_mls[(n_c,a_c)])
+                lr_distn = _trunc_lik_ratio(*sim_mls[(n_c, a_c)])
                 ret += [list(map(np.mean, [lr > lr_distn,
-                                      lr == lr_distn,
-                                      lr < lr_distn]))]
+                                           lr == lr_distn,
+                                           lr < lr_distn]))]
             ret = np.array(ret)
         elif test_type == "wald":
-            if np.any(np.array(null_cone) != 0) or any(a_c != tuple([None]*len(self.point)) for a_c in alt_cone):
-                raise NotImplementedError("Only simple tests implemented for wald")
+            if np.any(np.array(null_cone) != 0) or any(a_c != tuple([None] * len(self.point)) for a_c in alt_cone):
+                raise NotImplementedError(
+                    "Only simple tests implemented for wald")
 
             gdmb = self.godambe(inverse=False)
 
             resids = np.array(alt_point) - np.array(null_point)
             ret = np.einsum("ij,ij->i", resids,
                             np.dot(resids, gdmb))
-            ret = 1.-scipy.stats.chi2.cdf(ret, df=len(self.point))
-            ret = np.array([ret, [0]*len(ret), 1.-ret]).T
+            ret = 1. - scipy.stats.chi2.cdf(ret, df=len(self.point))
+            ret = np.array([ret, [0] * len(ret), 1. - ret]).T
         else:
             raise NotImplementedError("%s tests not implemented" % test_type)
 
         if p_only:
-            ret = ret[:,0]
+            ret = ret[:, 0]
         if len(in_shape) == 1:
             ret = np.squeeze(ret)
         return ret
@@ -191,12 +200,14 @@ class ConfidenceRegion(object):
         Marginal wald-type confidence intervals.
         """
         conf_lower, conf_upper = scipy.stats.norm.interval(.95,
-                                                           loc = self.point,
-                                                           scale = np.sqrt(np.diag(self.godambe(inverse=True))))
+                                                           loc=self.point,
+                                                           scale=np.sqrt(np.diag(self.godambe(inverse=True))))
         return np.array([conf_lower, conf_upper]).T
 
+
 def _trunc_lik_ratio(null, alt):
-    return (1-np.isclose(alt,null)) * (null - alt)
+    return (1 - np.isclose(alt, null)) * (null - alt)
+
 
 def _observed_fisher_information(params, data, demo_func, psd_rtol, assert_psd=True, **kwargs):
     params = np.array(params)
@@ -206,13 +217,16 @@ def _observed_fisher_information(params, data, demo_func, psd_rtol, assert_psd=T
         try:
             ret = check_psd(ret, tol=psd_rtol)
         except AssertionError:
-            raise Exception("Observed Fisher Information is not PSD (either due to numerical instability, or because the parameters are not a local maxima in the interior)")
+            raise Exception(
+                "Observed Fisher Information is not PSD (either due to numerical instability, or because the parameters are not a local maxima in the interior)")
     return ret
+
 
 def _observed_score_covariance(method, params, seg_sites, demo_func, psd_rtol, **kwargs):
     if method == "long":
         if "mut_rate" in kwargs:
-            raise NotImplementedError("'long' godambe method not implemented for Poisson approximation")
+            raise NotImplementedError(
+                "'long' godambe method not implemented for Poisson approximation")
         ret = _long_score_cov(params, seg_sites, demo_func, **kwargs)
     elif method == "many":
         ret = _many_score_cov(params, seg_sites, demo_func, **kwargs)
@@ -225,11 +239,13 @@ def _observed_score_covariance(method, params, seg_sites, demo_func, psd_rtol, *
         raise Exception("Numerical instability: score covariance is not PSD")
     return ret
 
+
 def _many_score_cov(params, data, demo_func, **kwargs):
     params = np.array(params)
 
     def f_vec(x):
-        ret = _composite_log_likelihood(data, demo_func(*x), vector=True, **kwargs)
+        ret = _composite_log_likelihood(
+            data, demo_func(*x), vector=True, **kwargs)
         # centralize
         return ret - np.mean(ret)
 
@@ -238,13 +254,14 @@ def _many_score_cov(params, data, demo_func, **kwargs):
     def _g_out_antihess(x):
         l = f_vec(x)
         lc = make_constant(l)
-        return np.sum(0.5 * (l**2 - l*lc - lc*l))
+        return np.sum(0.5 * (l**2 - l * lc - lc * l))
     return autograd.hessian(_g_out_antihess)(params)
 
 
 def _long_score_cov(params, seg_sites, demo_func, **kwargs):
     if "mut_rate" in kwargs:
-        raise NotImplementedError("Currently only implemented for multinomial composite likelihood")
+        raise NotImplementedError(
+            "Currently only implemented for multinomial composite likelihood")
     params = np.array(params)
 
     configs = seg_sites.sfs.configs
@@ -253,12 +270,14 @@ def _long_score_cov(params, seg_sites, demo_func, **kwargs):
     weights = snp_counts / float(np.sum(snp_counts))
 
     def snp_log_probs(x):
-        ret = np.log(expected_sfs(demo_func(*x), configs, normalized=True, **kwargs))
-        return ret - np.sum(weights * ret) # subtract off mean
+        ret = np.log(expected_sfs(
+            demo_func(*x), configs, normalized=True, **kwargs))
+        return ret - np.sum(weights * ret)  # subtract off mean
 
     # g_out = sum(autocov(einsum("ij,ik->ikj",jacobian(idx_series), jacobian(idx_series))))
     # computed in roundabout way, in case jacobian is slow for many snps
-    # autocovariance is truncated at sqrt(len(idx_series)), to avoid statistical/numerical issues
+    # autocovariance is truncated at sqrt(len(idx_series)), to avoid
+    # statistical/numerical issues
     def g_out_antihess(y):
         lp = snp_log_probs(y)
         ret = 0.0
@@ -269,10 +288,12 @@ def _long_score_cov(params, seg_sites, demo_func, **kwargs):
             fft = np.fft.fft(l)
             # (assumes l is REAL)
             assert np.all(np.imag(l) == 0.0)
-            fft_rev = np.conj(fft) * np.exp(2 * np.pi * 1j * np.arange(L) / float(L))
+            fft_rev = np.conj(fft) * np.exp(2 * np.pi *
+                                            1j * np.arange(L) / float(L))
 
-            curr = 0.5 * (fft * fft_rev - fft * make_constant(fft_rev) - make_constant(fft) * fft_rev)
-            curr = np.fft.ifft(curr)[(L-1)::-1]
+            curr = 0.5 * (fft * fft_rev - fft *
+                          make_constant(fft_rev) - make_constant(fft) * fft_rev)
+            curr = np.fft.ifft(curr)[(L - 1)::-1]
 
             # make real
             assert np.allclose(np.imag(curr / L), 0.0)
@@ -327,46 +348,52 @@ def _project_scores(simulated_scores, fisher_information, polyhedral_cone, psd_r
         if all(fixed_params):
             return np.zeros(init_vals.shape[0]), init_vals
         fixed_params = np.array(fixed_params)
-        proj = np.eye(len(polyhedral_cone))[~fixed_params,:]
+        proj = np.eye(len(polyhedral_cone))[~fixed_params, :]
         fisher_information = np.dot(proj, np.dot(fisher_information, proj.T))
         simulated_scores = np.einsum("ij,kj->ik", simulated_scores, proj)
-        polyhedral_cone = [c for c in polyhedral_cone if c != 0 ]
+        polyhedral_cone = [c for c in polyhedral_cone if c != 0]
         init_vals = np.einsum("ij,kj->ik", init_vals, proj)
 
-        liks, mles = _project_scores(simulated_scores, fisher_information, polyhedral_cone, psd_rtol, init_vals, method)
+        liks, mles = _project_scores(
+            simulated_scores, fisher_information, polyhedral_cone, psd_rtol, init_vals, method)
         mles = np.einsum("ik,kj->ij", mles, proj)
-        return liks,mles
+        return liks, mles
     else:
         if all(c is None for c in polyhedral_cone):
-           # solve analytically
-           try:
-               fisher_information = check_psd(fisher_information, tol=psd_rtol)
-           except AssertionError:
-               raise Exception("Fisher information is not PSD (optimization problem is unbounded and unconstrained)")
-           mles = np.linalg.solve(fisher_information, simulated_scores.T).T
-           liks = np.einsum("ij,ij->i", mles, simulated_scores)
-           liks = liks-.5*np.einsum("ij,ij->i", mles,
-                                    np.dot(mles, fisher_information))
-           return liks,mles
+            # solve analytically
+            try:
+                fisher_information = check_psd(
+                    fisher_information, tol=psd_rtol)
+            except AssertionError:
+                raise Exception(
+                    "Fisher information is not PSD (optimization problem is unbounded and unconstrained)")
+            mles = np.linalg.solve(fisher_information, simulated_scores.T).T
+            liks = np.einsum("ij,ij->i", mles, simulated_scores)
+            liks = liks - .5 * np.einsum("ij,ij->i", mles,
+                                         np.dot(mles, fisher_information))
+            return liks, mles
 
         bounds = []
         for c in polyhedral_cone:
-            assert c in (None,-1,1)
+            assert c in (None, -1, 1)
             if c == -1:
-                bounds += [(None,0)]
+                bounds += [(None, 0)]
             elif c == 1:
-                bounds += [(0,None)]
+                bounds += [(0, None)]
             else:
-                bounds += [(None,None)]
+                bounds += [(None, None)]
 
         assert init_vals.shape == simulated_scores.shape
+
         def obj(x):
-            return -np.dot(z,x) + .5 * np.dot(x, np.dot(fisher_information, x))
+            return -np.dot(z, x) + .5 * np.dot(x, np.dot(fisher_information, x))
+
         def jac(x):
             return -z + np.dot(fisher_information, x)
         sols = []
-        for z,i in zip(simulated_scores,init_vals):
-            sols += [scipy.optimize.minimize(obj, i, method=method, jac=jac, bounds=bounds)]
+        for z, i in zip(simulated_scores, init_vals):
+            sols += [scipy.optimize.minimize(obj, i,
+                                             method=method, jac=jac, bounds=bounds)]
         liks = np.array([-s.fun for s in sols])
         mles = np.array([s.x for s in sols])
         return liks, mles

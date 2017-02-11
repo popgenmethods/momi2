@@ -11,6 +11,7 @@ import json
 
 logger = logging.getLogger(__name__)
 
+
 class SnpAlleleCounts(object):
     """
     The allele counts for a list of SNPs.
@@ -61,7 +62,8 @@ class SnpAlleleCounts(object):
         Similar to read_vcf_list, but only reads in a single vcf.
         """
         logger.debug("Reading vcf {}".format(vcf))
-        ret = cls._read_vcf_helper(vcf, inds2pop, vcftools_path, input_format, derived, additional_options)
+        ret = cls._read_vcf_helper(
+            vcf, inds2pop, vcftools_path, input_format, derived, additional_options)
         logger.debug("Finished reading vcf {}".format(vcf))
         return ret
 
@@ -73,7 +75,7 @@ class SnpAlleleCounts(object):
         in order to save memory.
         """
         pop2inds = defaultdict(list)
-        for ind,pop in inds2pop.items():
+        for ind, pop in inds2pop.items():
             pop2inds[pop].append(ind)
 
         if len(pop2inds) == 1:
@@ -124,11 +126,13 @@ class SnpAlleleCounts(object):
         header = next(f)
         expected_header = ["CHROM", "POS", "N_ALLELES", "N_CHR", "{COUNT}"]
         if header != expected_header:
-            raise IOError("Header {} does not match expected header {}".format(header, expected_header))
+            raise IOError("Header {} does not match expected header {}".format(
+                header, expected_header))
 
         populations = [popname]
         chrom_ids = []
         positions = []
+
         def generate_counts(f):
             for line in f:
                 chrom, pos, n_alleles = line[:3]
@@ -139,8 +143,10 @@ class SnpAlleleCounts(object):
                 nchrom, cnt0, cnt1 = map(int, line[3:])
                 assert cnt0 + cnt1 == nchrom
                 yield ((cnt0, cnt1),)
-        ## this fills up positions and chrom_ids as well iterating thru the configs
-        compressed_counts = CompressedAlleleCounts.from_iter(generate_counts(f), len(populations))
+        # this fills up positions and chrom_ids as well iterating thru the
+        # configs
+        compressed_counts = CompressedAlleleCounts.from_iter(
+            generate_counts(f), len(populations))
 
         return cls(chrom_ids, positions, compressed_counts, populations)
 
@@ -152,14 +158,16 @@ class SnpAlleleCounts(object):
 
         chrom_ids = []
         positions = []
+
         def get_allele_counts(snp_allele_counts):
             if snp_allele_counts.populations != populations:
-                raise ValueError("Datasets must have same populations to concatenate")
+                raise ValueError(
+                    "Datasets must have same populations to concatenate")
             chrom_ids.extend(snp_allele_counts.chrom_ids)
             positions.extend(snp_allele_counts.positions)
             for c in snp_allele_counts:
                 yield c
-            for k,v in Counter(snp_allele_counts.chrom_ids).items():
+            for k, v in Counter(snp_allele_counts.chrom_ids).items():
                 logger.info("Added {} SNPs from Chromosome {}".format(v, k))
 
         compressed_counts = CompressedAlleleCounts.from_iter(it.chain.from_iterable((get_allele_counts(cnts)
@@ -173,7 +181,8 @@ class SnpAlleleCounts(object):
         populations = list(populations)
         return cls(list(chrom_ids),
                    list(positions),
-                   CompressedAlleleCounts.from_iter(allele_counts, len(populations)),
+                   CompressedAlleleCounts.from_iter(
+                       allele_counts, len(populations)),
                    populations)
 
     @classmethod
@@ -187,8 +196,10 @@ class SnpAlleleCounts(object):
         """
         info = json.load(f)
         logger.debug("Read allele counts from file")
-        chrom_ids, positions, config_ids = zip(*info["(chrom_id,position,config_id)"])
-        compressed_counts = CompressedAlleleCounts(np.array(info["configs"], dtype=int), np.array(config_ids, dtype=int))
+        chrom_ids, positions, config_ids = zip(
+            *info["(chrom_id,position,config_id)"])
+        compressed_counts = CompressedAlleleCounts(
+            np.array(info["configs"], dtype=int), np.array(config_ids, dtype=int))
         return cls(chrom_ids, positions, compressed_counts,
                    info["populations"])
 
@@ -209,11 +220,12 @@ class SnpAlleleCounts(object):
             allele_counts.dump(f)
         """
         print("{", file=f)
-        print('\t"populations": {},'.format(json.dumps(list(self.populations))), file=f)
+        print('\t"populations": {},'.format(
+            json.dumps(list(self.populations))), file=f)
         print('\t"configs": [', file=f)
         n_configs = len(self.compressed_counts.config_array)
-        for i,c in enumerate(self.compressed_counts.config_array.tolist()):
-            if i != n_configs-1:
+        for i, c in enumerate(self.compressed_counts.config_array.tolist()):
+            if i != n_configs - 1:
                 print("\t\t{},".format(c), file=f)
             else:
                 # no trailing comma
@@ -225,16 +237,19 @@ class SnpAlleleCounts(object):
                                                self.positions.tolist(),
                                                self.compressed_counts.index2uniq.tolist()):
             if i != n_positions - 1:
-                print("\t\t{},".format(json.dumps((chrom_id, pos, config_id))), file=f)
+                print("\t\t{},".format(json.dumps(
+                    (chrom_id, pos, config_id))), file=f)
             else:
                 # no trailling comma
-                print("\t\t{}".format(json.dumps((chrom_id, pos, config_id))), file=f)
+                print("\t\t{}".format(json.dumps(
+                    (chrom_id, pos, config_id))), file=f)
         print("\t]", file=f)
         print("}", file=f)
 
     def __init__(self, chrom_ids, positions, compressed_counts, populations):
         if len(compressed_counts) != len(chrom_ids) or len(chrom_ids) != len(positions):
-            raise IOError("chrom_ids, positions, allele_counts should have same length")
+            raise IOError(
+                "chrom_ids, positions, allele_counts should have same length")
 
         self.chrom_ids = np.array(chrom_ids)
         self.positions = np.array(positions)
@@ -250,12 +265,14 @@ class SnpAlleleCounts(object):
     def join(self, other):
         combined_pops = list(self.populations) + list(other.populations)
         if len(combined_pops) != len(set(combined_pops)):
-            raise ValueError("Overlapping populations: {}, {}".format(self.populations, other.populations))
+            raise ValueError("Overlapping populations: {}, {}".format(
+                self.populations, other.populations))
         if np.any(self.chrom_ids != other.chrom_ids) or np.any(self.positions != other.positions):
             raise ValueError("Chromosome & SNP IDs must be identical")
         return SnpAlleleCounts.from_iter(self.chrom_ids,
                                          self.positions,
-                                         (tuple(it.chain(cnt1, cnt2)) for cnt1, cnt2 in zip(self, other)),
+                                         (tuple(it.chain(cnt1, cnt2))
+                                          for cnt1, cnt2 in zip(self, other)),
                                          combined_pops)
 
     def filter(self, idxs):
@@ -268,14 +285,15 @@ class SnpAlleleCounts(object):
 
     @property
     def seg_sites(self):
-        try: self._seg_sites
+        try:
+            self._seg_sites
         except:
             filtered = self.filter(self.is_polymorphic)
             filtered.compressed_counts.sort_configs()
             idx_list = [np.array([i for chrom, i in grouped_idxs])
                         for key, grouped_idxs in it.groupby(zip(filtered.chrom_ids,
                                                                 filtered.compressed_counts.index2uniq),
-                                                            key = lambda x: x[0])]
+                                                            key=lambda x: x[0])]
             self._seg_sites = SegSites(ConfigArray(self.populations,
                                                    filtered.compressed_counts.config_array),
                                        idx_list)
@@ -289,7 +307,8 @@ class SnpAlleleCounts(object):
     def configs(self):
         return self.sfs.configs
 
-def read_plink_frq_strat(fname, polarize_pop, chunk_size = 10000):
+
+def read_plink_frq_strat(fname, polarize_pop, chunk_size=10000):
     """
     Reads data produced by plink --within --freq counts.
 
@@ -303,37 +322,39 @@ def read_plink_frq_strat(fname, polarize_pop, chunk_size = 10000):
     """
     def get_chunks(locus_id, locus_rows):
         snps_grouped = it.groupby(locus_rows, lambda r: r[1])
-        snps_enum = enumerate(list(snp_rows) for snp_id, snp_rows in snps_grouped)
+        snps_enum = enumerate(list(snp_rows)
+                              for snp_id, snp_rows in snps_grouped)
 
         for chunk_num, chunk in it.groupby(snps_enum, lambda idx_snp_pair: idx_snp_pair[0] // chunk_size):
             chunk = pd.DataFrame(list(it.chain.from_iterable(snp for snp_num, snp in chunk)),
-                                columns = header)
-            for col_name, col in chunk.ix[:,("MAC","NCHROBS")].items():
+                                 columns=header)
+            for col_name, col in chunk.ix[:, ("MAC", "NCHROBS")].items():
                 chunk[col_name] = [int(x) for x in col]
 
             # check A1, A2 agrees for every row of every SNP
-            for a in ("A1","A2"):
-                assert all(len(set(snp[a])) == 1 for _,snp in chunk.groupby(["CHR","SNP"]))
+            for a in ("A1", "A2"):
+                assert all(len(set(snp[a])) == 1 for _,
+                           snp in chunk.groupby(["CHR", "SNP"]))
 
             # replace allele name with counts
             chunk["A1"] = chunk["MAC"]
             chunk["A2"] = chunk["NCHROBS"] - chunk["A1"]
 
             # drop extraneous columns, label indices
-            chunk = chunk.ix[:,["SNP","CLST","A1","A2"]]
-            chunk.set_index(["SNP","CLST"], inplace=True)
+            chunk = chunk.ix[:, ["SNP", "CLST", "A1", "A2"]]
+            chunk.set_index(["SNP", "CLST"], inplace=True)
             chunk.columns.name = "Allele"
 
-            ## convert to 3d array (panel)
+            # convert to 3d array (panel)
             chunk = chunk.stack("Allele").unstack("SNP").to_panel()
             assert chunk.shape[2] == 2
             populations = list(chunk.axes[1])
             chunk = chunk.values
 
-            ## polarize
+            # polarize
             # remove ancestral population
             anc_pop_idx = populations.index(polarize_pop)
-            anc_counts = chunk[:,anc_pop_idx,:]
+            anc_counts = chunk[:, anc_pop_idx, :]
             chunk = np.delete(chunk, anc_pop_idx, axis=1)
             populations.pop(anc_pop_idx)
             # check populations are same as sampled_pops
@@ -341,16 +362,16 @@ def read_plink_frq_strat(fname, polarize_pop, chunk_size = 10000):
                 sampled_pops.extend(populations)
             assert sampled_pops == populations
 
-            is_ancestral = [(anc_counts[:,allele] > 0) & (anc_counts[:,other_allele] == 0)
-                           for allele, other_allele in ((0,1),(1,0))]
+            is_ancestral = [(anc_counts[:, allele] > 0) & (anc_counts[:, other_allele] == 0)
+                            for allele, other_allele in ((0, 1), (1, 0))]
 
             assert np.all(~(is_ancestral[0] & is_ancestral[1]))
-            chunk[is_ancestral[1],:,:] = chunk[is_ancestral[1],:,::-1]
-            chunk = chunk[is_ancestral[0] | is_ancestral[1],:,:]
+            chunk[is_ancestral[1], :, :] = chunk[is_ancestral[1], :, ::-1]
+            chunk = chunk[is_ancestral[0] | is_ancestral[1], :, :]
 
             # remove monomorphic sites
             polymorphic = (chunk.sum(axis=1) > 0).sum(axis=1) == 2
-            chunk = chunk[polymorphic,:,:]
+            chunk = chunk[polymorphic, :, :]
 
             yield chunk
         logger.info("Finished reading CHR {}".format(locus_id))
@@ -361,7 +382,7 @@ def read_plink_frq_strat(fname, polarize_pop, chunk_size = 10000):
         assert header[:2] == ["CHR", "SNP"]
 
         loci = (it.chain.from_iterable(get_chunks(locus_id, locus_rows))
-                   for locus_id, locus_rows in it.groupby(rows, lambda r: r[0]))
+                for locus_id, locus_rows in it.groupby(rows, lambda r: r[0]))
 
         # sampled_pops is not read until the first chunk is processed
         sampled_pops = []
@@ -376,7 +397,9 @@ def read_plink_frq_strat(fname, polarize_pop, chunk_size = 10000):
         logger.info("Finished reading {}".format(fname))
         return ret
 
+
 class CompressedAlleleCounts(object):
+
     @classmethod
     def from_iter(cls, config_iter, npops):
         config_array, config2uniq, index2uniq = _build_data(config_iter, npops,
@@ -395,9 +418,11 @@ class CompressedAlleleCounts(object):
 
     def filter(self, idxs):
         to_keep = self.index2uniq[idxs]
-        uniq_to_keep, uniq_to_keep_inverse = np.unique(to_keep, return_inverse=True)
-        return CompressedAlleleCounts(self.config_array[uniq_to_keep,:,:],
+        uniq_to_keep, uniq_to_keep_inverse = np.unique(
+            to_keep, return_inverse=True)
+        return CompressedAlleleCounts(self.config_array[uniq_to_keep, :, :],
                                       uniq_to_keep_inverse)
 
     def sort_configs(self):
-        self.config_array, _, self.index2uniq = _sort_configs(self.config_array, None, self.index2uniq)
+        self.config_array, _, self.index2uniq = _sort_configs(
+            self.config_array, None, self.index2uniq)

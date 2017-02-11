@@ -3,6 +3,7 @@ import pandas as pd
 from .math_functions import symmetric_matrix, log_wishart_pdf, slogdet_pos
 from .compute_sfs import expected_sfs_tensor_prod
 
+
 def sfs_tensor_prod(sfs, vecs):
     """
     Viewing the SFS as a D-tensor (where D is the number of demes), this
@@ -20,7 +21,7 @@ def sfs_tensor_prod(sfs, vecs):
          with n[k]+1 columns, where n[k] is the number of samples in the
          k-th deme. The row vectors vecs[k][j,:] are multiplied against
          the SFS along the k-th mode, to obtain res[j].
-    
+
     Returns
     -------
     res : numpy.ndarray (1-dimensional)
@@ -39,17 +40,18 @@ def sfs_tensor_prod(sfs, vecs):
     entries = sfs.configs.value
     counts = sfs._total_freqs
 
-    sampled_n = np.array([v.shape[1]-1 for v in vecs], dtype=int)
+    sampled_n = np.array([v.shape[1] - 1 for v in vecs], dtype=int)
     if np.any(np.sum(entries, axis=2) != sampled_n):
-        raise NotImplementedError("SFS-tensor-product not implemented for missing data. Consider removing all entries with deficient sample size.")
-    
-    for config,val in zip(entries, counts):
-        for d,(_,i) in zip(vecs, config):
-            val = val * d[:,i]
+        raise NotImplementedError(
+            "SFS-tensor-product not implemented for missing data. Consider removing all entries with deficient sample size.")
+
+    for config, val in zip(entries, counts):
+        for d, (_, i) in zip(vecs, config):
+            val = val * d[:, i]
         res = res + val
     return res
 
-## TODO: rewrite commented code
+# TODO: rewrite commented code
 # try:
 #     import sktensor as skt
 #     from sktensor.tucker import hosvd
@@ -59,17 +61,18 @@ def sfs_tensor_prod(sfs, vecs):
 # def get_sfs_tensor(sfs, n_per_pop):
 #     idx, vals = zip(*(sfs.iteritems()))
 #     idx = tuple(np.array(x) for x in zip(*idx))
-#     return skt.sptensor(idx, vals, shape=tuple(n+1 for n in n_per_pop), dtype=np.float)
+# return skt.sptensor(idx, vals, shape=tuple(n+1 for n in n_per_pop),
+# dtype=np.float)
 
 # def greedy_hosvd(sfs_tensor, n_entries, verbose=False):
 #     U_list = hosvd(sfs_tensor, sfs_tensor.shape, compute_core=False)
 #     total_energy = sfs_tensor.norm()**2
 #     curr_entries = [(total_energy, [], [], sfs_tensor)]
-    
+
 #     for d in range(len(sfs_tensor.shape)):
 #         prev_entries = curr_entries
 #         curr_entries = []
-        
+
 #         for prev_energy, prev_vecs, prev_idxs, prev_tens in prev_entries:
 
 #             energy_sum = 0.0
@@ -114,7 +117,7 @@ def sfs_tensor_prod(sfs, vecs):
 
 #     def evaluate(self, params, vector=False):
 #         pass
-        
+
 #     def _get_mu(self, params):
 #         ## TODO: require same mu for all loci, until I figure out how to appropriately compute confidence intervals when using different mu
 #         try:
@@ -124,15 +127,15 @@ def sfs_tensor_prod(sfs, vecs):
 #         return np.array(ret)
 
 # class PoisGaussSurface(MEstimatorSurface):
-#     def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):    
+#     def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):
 #         super(PoisGaussSurface, self).__init__(mu, demo_func)
 
 #         self.n_vecs = sfs_directions[0].shape[0]
 #         self.sfs_directions = [np.vstack([[1.0]*s.shape[1], s])
 #                                for s in sfs_directions]
-               
+
 #         self.n_loci = len(sfs_list)
-        
+
 #         self.sfs_aggregated = sum_sfs_list(sfs_list)
 #         projection = sfs_tensor_prod(self.sfs_aggregated, self.sfs_directions)
 
@@ -145,13 +148,13 @@ def sfs_tensor_prod(sfs, vecs):
 #     def evaluate(self, params, vector=False):
 #         if vector:
 #             raise Exception("Vectorized likelihood not implemented")
-        
-#         demo = self.demo_func(params)        
+
+#         demo = self.demo_func(params)
 
 #         expectations = expected_sfs_tensor_prod(self.sfs_directions, demo)
 #         branch_len, expectations = expectations[0], expectations[1:]
 #         expectations = expectations / branch_len
-        
+
 #         mu = self._get_mu(params)
 #         mu = np.ones(self.n_loci) * mu
 #         mu = np.sum(mu)
@@ -159,11 +162,14 @@ def sfs_tensor_prod(sfs, vecs):
 #         resids =  expectations - self.means
 #         Sigma_inv = self.inv_cov_mat(demo, branch_len, expectations)
 
-#         return self.neg_log_lik(mu * branch_len, self.num_muts, resids, Sigma_inv)
+# return self.neg_log_lik(mu * branch_len, self.num_muts, resids,
+# Sigma_inv)
 
 #     def neg_log_lik(self, expected_snps, n_snps, resids, Sigma_inv):
-#         return expected_snps - n_snps * np.log(expected_snps) + 0.5 * n_snps * np.dot(resids, np.dot(Sigma_inv, resids)) - 0.5 * slogdet_pos(Sigma_inv * n_snps)
-    
+# return expected_snps - n_snps * np.log(expected_snps) + 0.5 * n_snps *
+# np.dot(resids, np.dot(Sigma_inv, resids)) - 0.5 * slogdet_pos(Sigma_inv
+# * n_snps)
+
 # def get_cross_vecs(sfs_directions, n_vecs):
 #     cross_vecs = []
 #     for vecs in sfs_directions:
@@ -173,14 +179,14 @@ def sfs_tensor_prod(sfs, vecs):
 #         cross_vecs += [np.einsum('ik,jk->ijk',
 #                                  vecs, vecs)[idx0,idx1,:]]
 #     return cross_vecs
-    
+
 # class PGSurface_Empirical(PoisGaussSurface):
-#     def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):    
+#     def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):
 #         super(PGSurface_Empirical, self).__init__(sfs_list, sfs_directions, mu, demo_func)
-       
+
 #         cross_means = sfs_tensor_prod(self.sfs_aggregated, get_cross_vecs(sfs_directions, self.n_vecs)) / self.num_muts
 #         cross_means = symmetric_matrix(cross_means, self.n_vecs)
-        
+
 #         cov_mat = cross_means - np.outer(self.means, self.means)
 
 #         self.Sigma_inv = np.linalg.inv(cov_mat)
@@ -189,32 +195,33 @@ def sfs_tensor_prod(sfs, vecs):
 #         return self.Sigma_inv
 
 # class PGSurface_Diag(PoisGaussSurface):
-#     def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):    
+#     def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):
 #         super(PGSurface_Diag, self).__init__(sfs_list, sfs_directions, mu, demo_func)
-       
+
 #         self.square_sfs_vecs = [s**2 for s in sfs_directions]
-       
+
 #     def inv_cov_mat(self, demo, branch_len, means):
-#         return np.diag(1./ (expected_sfs_tensor_prod(self.square_sfs_vecs, demo) / branch_len - means**2))
+# return np.diag(1./ (expected_sfs_tensor_prod(self.square_sfs_vecs, demo)
+# / branch_len - means**2))
 
 # class PGSurface_Exact(PoisGaussSurface):
-#     def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):    
+#     def __init__(self, sfs_list, sfs_directions, mu, demo_func=lambda demo: demo):
 #         super(PGSurface_Exact, self).__init__(sfs_list, sfs_directions, mu, demo_func)
 
 #         self.cross_vecs = get_cross_vecs(sfs_directions, self.n_vecs)
 #         cross_means = sfs_tensor_prod(self.sfs_aggregated, self.cross_vecs) / self.num_muts
 #         cross_means = symmetric_matrix(cross_means, self.n_vecs)
-        
+
 #         self.empirical_covariance = cross_means - np.outer(self.means, self.means)
 
 #     def inv_cov_mat(self, demo, branch_len, means):
 #         cross_means = expected_sfs_tensor_prod(self.cross_vecs, demo) / branch_len
 #         cross_means = symmetric_matrix(cross_means, self.n_vecs)
-        
+
 #         return np.linalg.inv(cross_means - np.outer(means, means))
-    
+
 # class PoissonWishartSurface(PGSurface_Exact):
 #     def neg_log_lik(self, expected_snps, n_snps, resids, Sigma_inv):
 #         ret = super(PoissonWishartSurface, self).neg_log_lik(expected_snps, n_snps, resids, Sigma_inv)
 #         return ret - log_wishart_pdf(self.empirical_covariance * self.num_muts,
-#                                      np.linalg.inv(Sigma_inv), self.num_muts-1, self.n_vecs)
+# np.linalg.inv(Sigma_inv), self.num_muts-1, self.n_vecs)

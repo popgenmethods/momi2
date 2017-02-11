@@ -8,40 +8,52 @@ from autograd import hessian, grad, hessian_vector_product, jacobian, value_and_
 import autograd
 import itertools
 from collections import Counter
-import sys, warnings, collections, logging, gc, multiprocessing, os
+import sys
+import warnings
+import collections
+import logging
+import gc
+import multiprocessing
+import os
+
 
 def count_calls(fun):
-    call_counter=[0]
+    call_counter = [0]
+
     @wraps(fun)
     def new_fun(*args, **kwargs):
         call_counter[0] += 1
         return fun(*args, **kwargs)
 
-    new_fun.num_calls = lambda : call_counter[0]
+    new_fun.num_calls = lambda: call_counter[0]
+
     def reset_count(): call_counter[0] = 0
     new_fun.reset_count = reset_count
 
     return new_fun
+
 
 def check_symmetric(X):
     Xt = np.transpose(X)
     assert np.allclose(X, Xt)
     return 0.5 * (X + Xt)
 
+
 def check_psd(X, **tol_kwargs):
     X = check_symmetric(X)
-    d,U = np.linalg.eigh(X)
+    d, U = np.linalg.eigh(X)
     d = truncate0(d, **tol_kwargs)
     ret = np.dot(U, np.dot(np.diag(d), np.transpose(U)))
     #assert np.allclose(ret, X)
     return np.array(ret, ndmin=2)
+
 
 def truncate0(x, axis=None, strict=False, tol=1e-13):
     '''make sure everything in x is non-negative'''
     # the maximum along axis
     maxes = np.maximum(np.amax(x, axis=axis), 1e-300)
     # the negative part of minimum along axis
-    mins = np.maximum(-np.amin(x,axis=axis), 0.0)
+    mins = np.maximum(-np.amin(x, axis=axis), 0.0)
 
     # assert the negative numbers are small (relative to maxes)
     assert np.all(mins <= tol * maxes)
@@ -57,40 +69,49 @@ def truncate0(x, axis=None, strict=False, tol=1e-13):
         return set0(x, x < tol * maxes)
     else:
         # set everything of same magnitude as most negative number, to 0
-        return set0(x, x < 2*mins)
+        return set0(x, x < 2 * mins)
+
 
 def check_probs_matrix(x):
     x = truncate0(x)
     rowsums = np.sum(x, axis=1)
-    assert np.allclose(rowsums,1.0)
-    return np.einsum('ij,i->ij',x,1.0/rowsums)
+    assert np.allclose(rowsums, 1.0)
+    return np.einsum('ij,i->ij', x, 1.0 / rowsums)
+
 
 @primitive
 def set0(x, indices):
     y = np.array(x)
     y[indices] = 0
     return y
-set0.defgrad(lambda ans,x,indices: lambda g: set0(g,indices))
+set0.defgrad(lambda ans, x, indices: lambda g: set0(g, indices))
 
-def closeleq(x,y):
-    return np.logical_or(np.isclose(x,y), x <= y)
-def closegeq(x,y):
-    return np.logical_or(np.isclose(x,y), x >= y)
+
+def closeleq(x, y):
+    return np.logical_or(np.isclose(x, y), x <= y)
+
+
+def closegeq(x, y):
+    return np.logical_or(np.isclose(x, y), x >= y)
 
 
 @primitive
 def make_constant(x):
     return x
-make_constant.defgrad(lambda ans,x: lambda g: np.zeros(x.shape, dtype=x.dtype))
+make_constant.defgrad(
+    lambda ans, x: lambda g: np.zeros(x.shape, dtype=x.dtype))
+
 
 def memoize(obj):
     cache = obj.cache = {}
+
     @wraps(obj)
     def memoizer(*args, **kwargs):
         if args not in cache:
             cache[args] = obj(*args, **kwargs)
         return cache[args]
     return memoizer
+
 
 class memoize_instance(object):
     """cache the return value of a method
@@ -111,12 +132,15 @@ class memoize_instance(object):
 
     recipe from http://code.activestate.com/recipes/577452-a-memoize-decorator-for-instance-methods/
     """
+
     def __init__(self, func):
         self.func = func
+
     def __get__(self, obj, objtype=None):
         if obj is None:
             return self.func
         return partial(self, obj)
+
     def __call__(self, *args, **kw):
         obj = args[0]
         try:
@@ -150,6 +174,7 @@ class rearrange_gradients(object):
     second-order gradients remain well-defined, but use an
     extra forward-pass.
     """
+
     def __call__(self, fun):
         # Notation:
         # f(x) = fun(x, *args, **kwargs)
@@ -169,24 +194,30 @@ class rearrange_gradients(object):
             if isinstance(x, Node):
                 # use y as a dummy variable for x
                 #f = lambda y: fun(y, *args, **kwargs)
-                # a primitive version of f, to avoid storing its gradient in memory
+                # a primitive version of f, to avoid storing its gradient in
+                # memory
                 @primitive
                 def f_primitive(y, df_dy_container):
                     # use value_and_grad to precompute df_dy
-                    fy, df_dy = self.get_value_and_grad(fun)(y, *args, **kwargs)
-                    ## TODO: remove this after autograd issue #103 resolved (https://github.com/HIPS/autograd/issues/103)
-                    #gc.collect()
+                    fy, df_dy = self.get_value_and_grad(
+                        fun)(y, *args, **kwargs)
+                    # TODO: remove this after autograd issue #103 resolved (https://github.com/HIPS/autograd/issues/103)
+                    # gc.collect()
                     # store df_dy for the backward pass
                     df_dy_container.append(df_dy)
                     return fy
+
                 def make_dF_dy_chainrule(fy, y, df_dy_container):
                     df_dy, = df_dy_container
-                    # needs to be primitive, so we can properly obtain the gradient of df_dy
+                    # needs to be primitive, so we can properly obtain the
+                    # gradient of df_dy
+
                     @primitive
                     # use z as dummy variable for y
                     def dF_dz_primitive(z, dF_df):
                         return get_dF_dx(dF_df, df_dy)
-                    make_dG_dz_chainrule = lambda dF_dz, z, dF_df: lambda dGdz_d2F: get_dG_dx(fun, dF_df, dGdz_d2F)(z, *args, **kwargs)
+                    make_dG_dz_chainrule = lambda dF_dz, z, dF_df: lambda dGdz_d2F: get_dG_dx(
+                        fun, dF_df, dGdz_d2F)(z, *args, **kwargs)
                     dF_dz_primitive.defgrad(make_dG_dz_chainrule)
 
                     dF_dy_chainrule = lambda dF_df: dF_dz_primitive(y, dF_df)
@@ -195,7 +226,8 @@ class rearrange_gradients(object):
                 return f_primitive(x, [])
             else:
                 return fun(x, *args, **kwargs)
-        ## for unit tests associated with @count_calls
+        # for unit tests associated with @count_calls
+
         def reset_grad_count():
             get_dF_dx.reset_count()
             get_dG_dx.reset_count()
@@ -215,6 +247,7 @@ class rearrange_gradients(object):
         dF_dx_fun = vec_jac_prod_fun(f, dF_df)
         return vec_jac_prod_fun(dF_dx_fun, dGdx_d2F)
 
+
 class rearrange_tuple_gradients(rearrange_gradients):
     """
     similar to rearrange_gradients, except fun is assumed to have
@@ -224,14 +257,18 @@ class rearrange_tuple_gradients(rearrange_gradients):
 
     also, second-order gradients are disabled.
     """
+
     def get_dF_dx(self, dF_df, df_dx_tuple):
-        return tuple(dF_df*df_dx for df_dx in df_dx_tuple)
+        return tuple(dF_df * df_dx for df_dx in df_dx_tuple)
 
     def get_dG_dx(self, *args, **kwargs):
-        raise HessianDisabledError("Autograd hessians disabled to allow for computational improvements to memory usage. To disable these memory savings and allow Hessian usage, use SfsLikelihoodSurface(..., batch_size=-1).")
+        raise HessianDisabledError(
+            "Autograd hessians disabled to allow for computational improvements to memory usage. To disable these memory savings and allow Hessian usage, use SfsLikelihoodSurface(..., batch_size=-1).")
+
 
 class HessianDisabledError(NotImplementedError):
     pass
 
+
 def vec_jac_prod_fun(fun, vec):
-    return lambda x: vector_jacobian_product(fun)(x,vec)
+    return lambda x: vector_jacobian_product(fun)(x, vec)
