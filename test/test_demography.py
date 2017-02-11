@@ -158,15 +158,15 @@ def test_time_scale():
                        sampled_t=(0.,t[1]),
                        time_scale='ms')
 
-    demo1 = make_demography([('-en',2.0*t[0],'a',.3),
-                        ('-eg',2.0*t[0],'a',0.5/2.0),
-                        ('-ej',2.0*t[2],'a','b')],
+    demo1 = make_demography([('-en',4.0*t[0],'a',.3),
+                        ('-eg',4.0*t[0],'a',0.5/4.0),
+                        ('-ej',4.0*t[2],'a','b')],
                        sampled_pops=('a','b'), sampled_n=(7,5),
-                       sampled_t=(0.,2.0*t[1]),
+                       sampled_t=(0.,4.0*t[1]),
                        time_scale='standard')
 
     vecs = [np.random.normal(size=(10,n+1)) for n in demo0.sampled_n]
     val0,val1 = [expected_sfs_tensor_prod(vecs, d) for d in (demo0,demo1)]
 
-    assert np.allclose(val0,val1/2.)
+    assert np.allclose(val0,val1/4)
     

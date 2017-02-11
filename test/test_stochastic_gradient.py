@@ -8,7 +8,7 @@ import autograd.numpy as np
 import itertools, random, sys
 from collections import Counter
 import logging
-from test_ms import ms_path, scrm_path
+from test_msprime import ms_path, scrm_path
 
 ### test subsampling of SNPs
 @pytest.mark.parametrize("fold,normalized",

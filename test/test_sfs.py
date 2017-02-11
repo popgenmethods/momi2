@@ -55,7 +55,7 @@ def to_dict(sampled_sfs):
     return [dict(locus) for locus in sampled_sfs]
 
 if __name__=="__main__":
-    from test_ms import ms_path
+    from test_msprime import ms_path
     
     if len(sys.argv) == 2 and sys.argv[1] == "generate":
         results = {}

@@ -9,7 +9,7 @@ import autograd.numpy as np
 from autograd import grad, hessian, hessian_vector_product
 import autograd
 
-from test_ms import ms_path, scrm_path
+from test_msprime import ms_path, scrm_path
 
 def test_batches():
     demo = simple_five_pop_demo(n_lins=(10,10,10,10,10))

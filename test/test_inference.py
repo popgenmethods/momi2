@@ -5,7 +5,7 @@ from autograd import grad
 import logging
 from momi import SfsLikelihoodSurface, demographic_history
 import momi
-from test_ms import ms_path, scrm_path
+from test_msprime import ms_path, scrm_path
 
 def test_archaic_and_pairwisediffs():
     theta=.1

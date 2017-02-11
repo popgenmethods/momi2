@@ -10,7 +10,7 @@ import autograd.numpy as np
 import scipy, scipy.stats
 
 from demo_utils import simple_admixture_demo, random_tree_demo, simple_admixture_3pop
-from test_ms import ms_path
+from test_msprime import ms_path
 
 def check_num_snps(demo, num_loci, mut_rate, ascertainment_pop=None, error_matrices=None):
     demo = demo.demo_hist._get_multipop_moran(demo.pops, demo.n)

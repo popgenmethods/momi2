@@ -8,7 +8,7 @@ import autograd.numpy as np
 import itertools, random
 from collections import Counter
 
-from test_ms import ms_path, scrm_path
+from test_msprime import ms_path, scrm_path
 
 def test_subsample_inds():
     demo = simple_admixture_demo()

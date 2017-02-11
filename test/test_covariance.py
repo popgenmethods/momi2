@@ -4,7 +4,7 @@ import autograd.numpy as np
 
 from momi import simulate_ms
 import momi
-from test_ms import scrm_path
+from test_msprime import scrm_path
 
 from demo_utils import simple_three_pop_demo, simple_nea_admixture_demo
 
