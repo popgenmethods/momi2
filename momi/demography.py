@@ -1,21 +1,18 @@
 import networkx as nx
 from .util import memoize_instance, memoize
 from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse, par_einsum
-import scipy, scipy.misc
+import scipy, scipy.misc, scipy.sparse
 import autograd.numpy as np
 import autograd
 from autograd import primitive
+import msprime
 
-from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory#, _TrivialHistory
+from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 from .compute_sfs import expected_total_branch_len
+from .data_structure import seg_site_configs
 from functools import partial
 
 import os, itertools
-
-try: # check whether python knows about 'basestring'
-   str
-except NameError: # no, it doesn't (it's Python3); use 'str' instead
-   str=str
 
 import logging
 logger = logging.getLogger(__name__)
@@ -72,7 +69,7 @@ def make_demography(events, sampled_pops, sampled_n, sampled_t = None, default_N
            the scaled size N of all populations, unless changed by -en or -eg
      time_scale : str or float
            if time_scale=='ms', coalescence rate is 2/N per unit time
-           if time_scale=='standard', coalescence rate is 1/N
+           if time_scale=='standard', coalescence rate is 1/2N
            if float, coalescence rate is 2/(N*time_scale)
    """
    #logger.warn("momi.make_demography() is depracated, use momi.demographic_history() instead")
@@ -92,7 +89,7 @@ def _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t = None, defa
    if time_scale == 'ms':
       time_scale = 1.0
    elif time_scale == 'standard':
-      time_scale = 2.0
+      time_scale = 4.0
    elif isinstance(time_scale, str):
       raise DemographyError("time_scale must be float, 'ms', or 'standard'")
 
@@ -173,6 +170,18 @@ class DemographicHistory(object):
       if sampled_pops is None or sampled_n is None:
          raise ValueError("Need to provide sampled_n/sampled_pops parameters")
       return self._get_multipop_moran_helper(tuple(sampled_pops), tuple(sampled_n))
+
+   def simulate_trees(self, sampled_pops, sampled_n,
+                      **kwargs):
+      return self._get_multipop_moran(
+         sampled_pops, sampled_n
+      ).simulate_trees(**kwargs)
+
+   def simulate_data(self, sampled_pops, sampled_n,
+                     **kwargs):
+      return self._get_multipop_moran(
+         sampled_pops, sampled_n
+      ).simulate_data(**kwargs)
 
    @memoize_instance
    def _get_multipop_moran_helper(self, sampled_pops, sampled_n):
@@ -483,6 +492,86 @@ class Demography(object):
 
         assert [admixture_node, parent1, parent2] == self._admixture_prob_idxs(admixture_node)
         return ret
+
+    def simulate_data(self, **kwargs):
+       treeseq = self.simulate_trees(**kwargs)
+       try: treeseq.variants
+       except: pass
+       else: treeseq = [treeseq]
+
+       mat = np.zeros((len(self.sampled_n), sum(self.sampled_n)), dtype=int)
+       j = 0
+       for i,n in enumerate(self.sampled_n):
+          for _ in range(n):
+             mat[i,j] = 1
+             j += 1
+       mat = scipy.sparse.csr_matrix(mat)
+       def get_config(genos):
+          derived_counts = mat.dot(genos)
+          return np.array([
+             self.sampled_n - derived_counts,
+             derived_counts
+          ]).T
+
+       return seg_site_configs(
+          self.sampled_pops,
+          ((get_config(v.genotypes)
+            for v in locus.variants())
+           for locus in treeseq)
+       )
+
+
+    def simulate_trees(self, **kwargs):
+        sampled_t = self.sampled_t
+        if sampled_t is None:
+            sampled_t = 0.0
+        sampled_t = np.array(sampled_t) * np.ones(len(self.sampled_pops))
+
+        pops = {p:i for i,p in enumerate(self.sampled_pops)}
+        sampled_n = self.sampled_n
+
+        events = sorted(self.events, key=lambda x:x[1])
+        demographic_events = []
+        for event in events:
+            flag = event[0]
+            if flag == '-ep':
+                _,t,i,j,pij = event
+                for k in (i,j):
+                   if k not in pops:
+                      pops[k] = len(pops)
+                demographic_events.append(msprime.MassMigration(t, pops[i], pops[j], proportion=pij))
+                continue
+            elif flag == '-ej':
+                _,t,i,j = event
+                for k in (i,j):
+                   if k not in pops:
+                      pops[k] = len(pops)
+                demographic_events.append(msprime.MassMigration(t, pops[i], pops[j]))
+            elif flag == '-eg':
+                _,t,i,alpha = event
+                if i not in pops:
+                    pops[i] = len(pops)
+                demographic_events.append(msprime.PopulationParametersChange(t,
+                                                                             growth_rate=alpha,
+                                                                             population_id=pops[i]))
+            elif flag == '-en':
+                _,t,i,N = event
+                if i not in pops:
+                    pops[i] = len(pops)
+                demographic_events.append(msprime.PopulationParametersChange(t,
+                                                                             initial_size=N/4,
+                                                                             growth_rate=0,
+                                                                             population_id=pops[i]))
+            else:
+                assert False
+        return msprime.simulate(population_configurations = [msprime.PopulationConfiguration()
+                                                            for _ in range(len(pops))],
+                               Ne = self.default_N/4,
+                               demographic_events = demographic_events,
+                               samples = [msprime.Sample(population=pops[p], time=t)
+                                          for p,t,n in zip(self.sampled_pops, self.sampled_t, self.sampled_n)
+                                          for _ in range(n)],
+                                **kwargs)
 
 def rescale_events(events, factor):
    rescaled_events = []

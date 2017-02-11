@@ -31,8 +31,15 @@ def test_sfs_counts(k,folded):
     check_sfs_counts(demo.demo_hist, demo.pops, demo.n, folded=folded)
 
 
-def check_sfs_counts(demo, sampled_pops, sampled_n, theta=10., rho=10.0, num_loci=1000, folded=False):
-    seg_sites = simulate_ms(ms_path, demo, num_loci=num_loci, mut_rate=theta, additional_ms_params='-r %f %d' % (rho, num_loci), sampled_n=sampled_n, sampled_pops=sampled_pops)
+def check_sfs_counts(demo, sampled_pops, sampled_n, theta=10., rho=10.0, num_loci=1000, num_bases=1e5, folded=False):
+    #seg_sites = simulate_ms(ms_path, demo, num_loci=num_loci, mut_rate=theta, additional_ms_params='-r %f %d' % (rho, num_loci), sampled_n=sampled_n, sampled_pops=sampled_pops)
+    seg_sites = demo.simulate_data(
+        sampled_pops, sampled_n,
+        mutation_rate = theta/num_bases,
+        recombination_rate = rho/num_bases,
+        length = num_bases,
+        num_replicates = num_loci,
+    )
     sfs_list = seg_sites.sfs
 
     if folded:
@@ -91,6 +98,11 @@ def my_t_test(labels, theoretical, observed, min_samples=25):
     return scipy.stats.beta.cdf(np.min(p_vals), 1, len(p_vals))
 
 
-# if  __name__=="__main__":
+if  __name__=="__main__":
 #     demo = Demography.from_ms(1.0," ".join(sys.argv[3:]))
 #     check_sfs_counts(demo, mu=float(sys.argv[2]), num_loci=int(sys.argv[1]))
+    demo = simple_admixture_3pop()
+    demo = demo.demo_hist._get_multipop_moran(demo.pops, demo.n)
+    treeseq = demo.simulate_trees(mutation_rate=1)
+    seg_sites = demo.simulate_data(mutation_rate=1)
+

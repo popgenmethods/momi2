@@ -3,7 +3,7 @@ import os, random, sys
 import autograd.numpy as np
 from autograd import grad
 import logging
-from momi import simulate_ms, SfsLikelihoodSurface, demographic_history
+from momi import SfsLikelihoodSurface, demographic_history
 import momi
 from test_ms import ms_path, scrm_path
 
@@ -26,9 +26,16 @@ def test_archaic_and_pairwisediffs():
                                    archaic_times_dict={"b": expit(sample_t) * join_time}, default_N=np.exp(log_N))
     true_demo = get_demo(true_sample_t, 0)
 
-    sfs = simulate_ms(scrm_path, true_demo,
-                      sampled_pops=sampled_pops, sampled_n=sampled_n,
-                      num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
+    #sfs = simulate_ms(scrm_path, true_demo,
+    #                  sampled_pops=sampled_pops, sampled_n=sampled_n,
+    #                  num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
+    num_bases = 1e3
+    sfs = true_demo.simulate_data(
+        sampled_pops, sampled_n,
+        mutation_rate = theta / num_bases,
+        length = num_bases,
+        num_replicates = num_runs,
+    ).sfs
     
 
     log_prior = lambda x: -x[0]/float(true_sample_t)
@@ -74,10 +81,17 @@ def check_jointime_inference(sampled_n=(5,5,5), folded=False, add_n=0, finite_di
     #                       true_demo.sampled_pops,
     #                       np.array(true_demo.sampled_n) - add_n)
     #true_demo = true_demo.copy(sampled_n = np.array(true_demo.sampled_n) - add_n)
-    data = simulate_ms(ms_path, true_demo.rescaled(),
-                       sampled_pops = sampled_pops,
-                       sampled_n = sampled_n,
-                       num_loci=num_runs, mut_rate=theta)
+    #data = simulate_ms(ms_path, true_demo.rescaled(),
+    #                   sampled_pops = sampled_pops,
+    #                   sampled_n = sampled_n,
+    #                   num_loci=num_runs, mut_rate=theta)
+    num_bases = 1e3
+    data = true_demo.rescaled().simulate_data(
+        sampled_pops, sampled_n,
+        mutation_rate = theta / num_bases,
+        length = num_bases,
+        num_replicates = num_runs,
+    )
     
     if missing_p:
         data = momi.data_structure._randomly_drop_alleles(data, missing_p)
@@ -133,9 +147,16 @@ def test_underflow_robustness(folded):
     true_x = np.array([np.log(.5),np.log(.2)])
     true_demo = get_demo(*true_x)
 
-    sfs = simulate_ms(ms_path, true_demo.rescaled(),
-                      sampled_pops = sampled_pops, sampled_n = sampled_n,
-                      num_loci=num_runs, mut_rate=mu*true_demo.default_N).sfs
+    #sfs = simulate_ms(ms_path, true_demo.rescaled(),
+    #                  sampled_pops = sampled_pops, sampled_n = sampled_n,
+    #                  num_loci=num_runs, mut_rate=mu*true_demo.default_N).sfs
+    num_bases = 1e3
+    sfs = true_demo.rescaled().simulate_data(
+        sampled_pops, sampled_n,
+        mutation_rate = mu*true_demo.default_N / num_bases,
+        length = num_bases,
+        num_replicates = num_runs,
+    ).sfs
     if folded:
         sfs = sfs.fold()
     
