@@ -23,9 +23,6 @@ report bugs/issues [here](https://github.com/jackkamm/momi/issues)
 
 Prerequisites:
 
-* [einsum2](https://github.com/jackkamm/einsum2)
-* [autograd](https://github.com/HIPS/autograd)
-  * autograd will automatically be installed by pip if you don't have it, but it's recommended to install the latest version from github, as it fixes a [memory issue](https://github.com/HIPS/autograd/issues/103) and this patch is not yet in PyPi.
 * C compiler that is OpenMP compatible
 * Scientific distribution of Python 3 (recommended) or 2.7, e.g. [Anaconda](http://continuum.io/downloads), [Enthought Canopy](https://www.enthought.com/products/canopy/)
   * Alternatively, custom installation of pip, cython, the SciPy stack
@@ -36,17 +33,16 @@ pip install .
 ```
 in the top-level directory of momi (where "setup.py" lives).
 
-If you have problem installing or running, it's probably because of your C compiler.
-The default C compiler in OSX does not support OpenMP and thus will break.
-I've also sometimes run into issues with Anaconda Python on Linux
-because of the old gcc-4 used to compile it (however I can no longer reproduce this error).
+### Troubleshooting
 
+If you have problem installing on OSX, it's likely due to your C compiler.
+The default C compiler in OSX does not support OpenMP and thus will break.
 In case you are having issues with the C compiler, it is recommended
 to install and run momi in a virtual environment with a compatible
 C compiler. For example, if you use Anaconda Python, you can do the
 following:
 
-1. Create a new virtual environment named `momi2_env` with `conda create -n momi2_env python=3.5 anaconda` (alternatively, you can use `python=2.7 anaconda`).
+1. Create a new virtual environment named `momi2_env` with `conda create -n momi2_env python=3.6 anaconda`.
 2. Switch to the environment with `source activate momi2_env`
 3. Install the Anaconda distribution of `gcc` with `conda install gcc`. Note this will clobber your system `gcc`, which is why we are doing this in a virtual environment.
 4. Install extra dependencies such as `einsum2` and `autograd`.
@@ -90,12 +86,3 @@ Anaconda Python.
 momi is not yet publicly released; please do not share with others.
 
 When momi is publicly released, it will be free software under conditions of GNU GPL v3.
-
-## TODO
-
-* Pickling data_structures, demography fails because of decorators/descriptors. Very annoying for multiprocessing. Using setstate/getstate doesn't solve the problem.
-* Fix text of tutorial.py
-* Fix documentation (e.g. in likelihood.py, but also in a lot of other places now)
-* Relatively few tests checking `Demography._pulse_probs()`.
-* `import logging`
-* add composite_log_likelihood back to the API, as an alternative to SfsLikelihoodSurface that allows second-order derivatives

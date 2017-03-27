@@ -4,7 +4,7 @@ from autograd.core import primitive
 import scipy
 from .util import memoize, check_psd
 from .convolution import sum_trailing_antidiagonals, add_trailing_axis, convolve_trailing_axes, transposed_convolve_trailing_axes, roll_trailing_axes, unroll_trailing_axes
-from einsum2 import einsum2, einsum1
+from .einsum2 import einsum1, einsum2
 
 
 def par_einsum(*args):

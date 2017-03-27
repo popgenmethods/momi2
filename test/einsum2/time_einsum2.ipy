@@ -1,0 +1,29 @@
+import argparse, os
+import numpy as np
+import momi.einsum2 as einsum2
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--npeinsum", action="store_true")
+parser.add_argument("--length", type=int, default=100)
+parser.add_argument("--nobatch", action="store_true")
+
+args = parser.parse_args()
+
+I = args.length
+if args.nobatch:
+    size = (1,I,I)
+else:
+    size = (I,I,I)
+
+A = np.random.normal(size=size)
+B = np.random.normal(size=size)
+
+subs = "ijk,ilk->ijl"
+
+if args.npeinsum:
+    fun = np.einsum
+else:
+    fun = einsum2.einsum2
+
+print("Timing {fun}({subs}, A, B), with A.shape=B.shape={size}, and OMP_NUM_THREADS={num_threads}".format(fun=fun.__name__, subs=subs, size=size, num_threads=os.getenv("OMP_NUM_THREADS")))
+%timeit fun(subs, A, B)
