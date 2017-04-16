@@ -5,7 +5,7 @@ import multiprocessing as mp
 import functools as ft
 import subprocess
 import logging
-from .data_structure import seg_site_configs, _build_data, _sort_configs, SegSites, ConfigArray
+from .data_structure import seg_site_configs, SegSites, ConfigArray, CompressedAlleleCounts
 from collections import defaultdict, Counter
 import json
 
@@ -398,31 +398,3 @@ def read_plink_frq_strat(fname, polarize_pop, chunk_size=10000):
         return ret
 
 
-class CompressedAlleleCounts(object):
-
-    @classmethod
-    def from_iter(cls, config_iter, npops):
-        config_array, config2uniq, index2uniq = _build_data(config_iter, npops,
-                                                            sort_configs=False)
-        return cls(config_array, index2uniq)
-
-    def __init__(self, config_array, index2uniq):
-        self.config_array = config_array
-        self.index2uniq = np.array(index2uniq)
-
-    def __getitem__(self, i):
-        return self.config_array[self.index2uniq[i], :, :]
-
-    def __len__(self):
-        return len(self.index2uniq)
-
-    def filter(self, idxs):
-        to_keep = self.index2uniq[idxs]
-        uniq_to_keep, uniq_to_keep_inverse = np.unique(
-            to_keep, return_inverse=True)
-        return CompressedAlleleCounts(self.config_array[uniq_to_keep, :, :],
-                                      uniq_to_keep_inverse)
-
-    def sort_configs(self):
-        self.config_array, _, self.index2uniq = _sort_configs(
-            self.config_array, None, self.index2uniq)

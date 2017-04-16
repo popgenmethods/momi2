@@ -234,8 +234,6 @@ class ConfigArray(object):
 
         return np.array(augmented_configs, dtype=int), idxs
 
-# TODO: change parameters to list of configs, and a sparse matrix giving counts
-
 
 def site_freq_spectrum(sampled_pops, loci):
     """
@@ -270,15 +268,18 @@ def site_freq_spectrum(sampled_pops, loci):
                 index2count.append(count)
                 yield config
 
-    conf_arr, config2uniq, index2uniq = _build_data(chained_sequences(),
-                                                    len(sampled_pops))
+    compressed_counts = CompressedAlleleCounts.from_iter(
+        chained_sequences(), len(sampled_pops))
+    compressed_counts.sort_configs()
+    config_array = compressed_counts.config_array
+    index2uniq = compressed_counts.index2uniq
 
     assert len(index2loc) == len(index2count) and len(
         index2count) == len(index2uniq)
     for loc, count, uniq in zip(index2loc, index2count, index2uniq):
         loci_counters[loc][uniq] += count
 
-    configs = ConfigArray(sampled_pops, conf_arr, None, None)
+    configs = ConfigArray(sampled_pops, config_array, None, None)
     return Sfs(loci_counters, configs)
 
 
@@ -658,8 +659,13 @@ def seg_site_configs(sampled_pops, config_sequences, ascertainment_pop=None):
                 index2loc.append(loc)
                 yield config
 
-    config_array, config2uniq, index2uniq = _build_data(chained_sequences(),
-                                                        len(sampled_pops))
+    #config_array, config2uniq, index2uniq = _build_data(chained_sequences(),
+    #                                                    len(sampled_pops))
+    compressed_counts = CompressedAlleleCounts.from_iter(
+        chained_sequences(), len(sampled_pops))
+    compressed_counts.sort_configs()
+    config_array = compressed_counts.config_array
+    index2uniq = compressed_counts.index2uniq
 
     assert len(index2loc) == len(index2uniq)
     for loc, uniq_idx in zip(index2loc, index2uniq):
@@ -798,63 +804,99 @@ def _hashed2config(config_str):
                               for x in config_str.strip().split()))
 
 
-def _build_data(config_iter, npops, sort_configs=True):
-    config_list = []
-    config2uniq = {}
-    index2uniq = []
+class _CompressedList(object):
+    def __init__(self):
+        self.uniq_values = []
+        self.value2uniq = {}
+        self.index2uniq = []
 
-    for idx, config in enumerate(config_iter):
-        # representing config as str is more memory efficient than representing
-        # as tuple
-        config_str = _config2hashable(config)
+    def __len__(self):
+        return len(self.index2uniq)
+
+    def __getitem__(self, index):
+        return self.uniq_values[self.index2uniq[index]]
+
+    def append(self, value):
         try:
-            uniq_idx = config2uniq[config_str]
+            uniq_idx = self.value2uniq[value]
         except KeyError:
-            uniq_idx = len(config2uniq)
-            config2uniq[config_str] = uniq_idx
-            config_list.append(config_str)
-        index2uniq.append(uniq_idx)
-
-    config_array = np.zeros((len(config_list), npops, 2), dtype=int)
-    for i, config_str in enumerate(config_list):
-        config_array[i, :, :] = _hashed2config(config_str)
-
-    if sort_configs:
-        return _sort_configs(config_array, config2uniq, index2uniq)
-    else:
-        return (config_array, config2uniq, index2uniq)
+            uniq_idx = len(self.uniq_values)
+            self.value2uniq[value] = uniq_idx
+            self.uniq_values.append(value)
+        self.index2uniq.append(uniq_idx)
 
 
-def _sort_configs(config_array, config2uniq, index2uniq):
-    # sort configs so that "(very) similar" configs are next to each other
-    # and will end up in the same batch,
-    # thus avoiding redundant computation
-    # "similar" == configs have same num missing alleles
-    # "very similar" == configs are folded copies of each other
-    a = config_array[:, :, 0]  # ancestral counts
-    d = config_array[:, :, 1]  # derived counts
-    n = a + d  # totals
+class _CompressedHashedCounts(object):
+    def __init__(self, npops):
+        self.compressed_list = _CompressedList()
+        self.npops = npops
 
-    n = list(map(tuple, n))
-    a = list(map(tuple, a))
-    d = list(map(tuple, d))
+    def append(self, config):
+        self.compressed_list.append(_config2hashable(config))
 
-    folded = list(map(min, list(zip(a, d))))
+    def index2uniq(self):
+        return self.compressed_list.index2uniq
 
-    keys = list(zip(n, folded))
-    sorted_idxs = sorted(range(len(n)), key=lambda i: keys[i])
-    sorted_idxs = np.array(sorted_idxs, dtype=int)
+    def config_array(self):
+        ret = np.zeros((len(self.compressed_list.uniq_values), self.npops, 2),
+                       dtype=int)
+        for i, config_str in enumerate(self.compressed_list.uniq_values):
+            ret[i, :, :] = _hashed2config(config_str)
+        return ret
 
-    unsorted_idxs = [None] * len(sorted_idxs)
-    for i, j in enumerate(sorted_idxs):
-        unsorted_idxs[j] = i
+class CompressedAlleleCounts(object):
+    @classmethod
+    def from_iter(cls, config_iter, npops):
+        compressed_hashes = _CompressedHashedCounts(npops)
+        for config in config_iter:
+            compressed_hashes.append(config)
+        return cls(compressed_hashes.config_array(),
+                   compressed_hashes.index2uniq())
 
-    config_array = config_array[sorted_idxs, :, :]
-    if config2uniq is not None:
-        config2uniq = {k: unsorted_idxs[v] for k, v in config2uniq.items()}
-    index2uniq = [unsorted_idxs[i] for i in index2uniq]
+    def __init__(self, config_array, index2uniq):
+        self.config_array = config_array
+        self.index2uniq = np.array(index2uniq, dtype=int)
 
-    return (config_array, config2uniq, index2uniq)
+    def __getitem__(self, i):
+        return self.config_array[self.index2uniq[i], :, :]
+
+    def __len__(self):
+        return len(self.index2uniq)
+
+    def filter(self, idxs):
+        to_keep = self.index2uniq[idxs]
+        uniq_to_keep, uniq_to_keep_inverse = np.unique(
+            to_keep, return_inverse=True)
+        return CompressedAlleleCounts(self.config_array[uniq_to_keep, :, :],
+                                      uniq_to_keep_inverse)
+
+    def sort_configs(self):
+        # sort configs so that "(very) similar" configs are next to each other
+        # and will end up in the same batch,
+        # thus avoiding redundant computation
+        # "similar" == configs have same num missing alleles
+        # "very similar" == configs are folded copies of each other
+        a = self.config_array[:, :, 0]  # ancestral counts
+        d = self.config_array[:, :, 1]  # derived counts
+        n = a + d  # totals
+
+        n = list(map(tuple, n))
+        a = list(map(tuple, a))
+        d = list(map(tuple, d))
+
+        folded = list(map(min, list(zip(a, d))))
+
+        keys = list(zip(n, folded))
+        sorted_idxs = sorted(range(len(n)), key=lambda i: keys[i])
+        sorted_idxs = np.array(sorted_idxs, dtype=int)
+
+        unsorted_idxs = [None] * len(sorted_idxs)
+        for i, j in enumerate(sorted_idxs):
+            unsorted_idxs[j] = i
+        unsorted_idxs = np.array(unsorted_idxs, dtype=int)
+
+        self.config_array = self.config_array[sorted_idxs, :, :]
+        self.index2uniq = unsorted_idxs[self.index2uniq]
 
 
 def write_seg_sites(sequences_file, seg_sites):
