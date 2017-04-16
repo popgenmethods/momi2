@@ -270,7 +270,6 @@ def site_freq_spectrum(sampled_pops, loci):
 
     compressed_counts = CompressedAlleleCounts.from_iter(
         chained_sequences(), len(sampled_pops))
-    compressed_counts.sort_configs()
     config_array = compressed_counts.config_array
     index2uniq = compressed_counts.index2uniq
 
@@ -663,7 +662,6 @@ def seg_site_configs(sampled_pops, config_sequences, ascertainment_pop=None):
     #                                                    len(sampled_pops))
     compressed_counts = CompressedAlleleCounts.from_iter(
         chained_sequences(), len(sampled_pops))
-    compressed_counts.sort_configs()
     config_array = compressed_counts.config_array
     index2uniq = compressed_counts.index2uniq
 
@@ -705,7 +703,7 @@ class SegSites(object):
         SegSites objects corresponding to subsamples of individuals.
         """
         self.configs = configs
-        self.idx_list = idx_list
+        self.idx_list = [list(idxs) for idxs in idx_list]
 
         # if config_mixture_by_idx is not None, then each idx corresponds to a mixture of configs
         # in particular, this is used for constructing datasets over all
@@ -844,6 +842,10 @@ class _CompressedHashedCounts(object):
             ret[i, :, :] = _hashed2config(config_str)
         return ret
 
+    def compressed_allele_counts(self):
+        return CompressedAlleleCounts(self.config_array(),
+                                      self.index2uniq())
+
 class CompressedAlleleCounts(object):
     @classmethod
     def from_iter(cls, config_iter, npops):
@@ -853,9 +855,12 @@ class CompressedAlleleCounts(object):
         return cls(compressed_hashes.config_array(),
                    compressed_hashes.index2uniq())
 
-    def __init__(self, config_array, index2uniq):
+    def __init__(self, config_array, index2uniq,
+                 sort=True):
         self.config_array = config_array
         self.index2uniq = np.array(index2uniq, dtype=int)
+        if sort:
+            self.sort_configs()
 
     def __getitem__(self, i):
         return self.config_array[self.index2uniq[i], :, :]

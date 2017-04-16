@@ -1,15 +1,141 @@
 import itertools as it
 import pandas as pd
 import numpy as np
+from scipy import sparse
 import multiprocessing as mp
 import functools as ft
 import subprocess
 import logging
-from .data_structure import seg_site_configs, SegSites, ConfigArray, CompressedAlleleCounts
+from .data_structure import seg_site_configs, SegSites, ConfigArray, CompressedAlleleCounts, _CompressedHashedCounts
 from collections import defaultdict, Counter
 import json
+import vcf
 
 logger = logging.getLogger(__name__)
+
+def allele_counts_from_vcf(vcf_reader, population2samples,
+                           ancestral_allele,
+                           chunk_size=10000, ploidy=2):
+    if ploidy != 2:
+        raise NotImplementedError("vcf ploidy != 2")
+
+    samples2columns = {s: i for i, s in enumerate(
+        vcf_reader.samples)}
+    populations = list(population2samples.keys())
+    mat = np.zeros((len(population2samples),
+                    len(samples2columns)),
+                   dtype = int)
+    for pop_idx, pop in enumerate(populations):
+        for s in population2samples[pop]:
+            mat[pop_idx, samples2columns[s]] = 1
+
+    assert np.all(mat.sum(axis=1) == np.array([len(
+        population2samples[pop]) for pop in populations]))
+    assert np.all(mat.sum(axis=0) <= 1)
+
+    mat = sparse.csr_matrix(mat)
+
+    npops = len(populations)
+    chrom = []
+    pos = []
+    counter = it.count(0)
+    use_aa_info = (ancestral_allele is True)
+    polarize_outgroup = (ancestral_allele not in (True, False, None))
+    if polarize_outgroup:
+        anc_pop_idx = populations.index(ancestral_allele)
+        data_pops = np.array(populations)[np.arange(len(populations)) != anc_pop_idx]
+    else:
+        data_pops = populations
+    compressed_hashed = _CompressedHashedCounts(len(data_pops))
+    for chunk_num, chunk_records in it.groupby(
+            vcf_reader,
+            lambda x: next(counter) // chunk_size):
+        logger.debug("Reading vcf lines {} to {}".format(
+            chunk_num * chunk_size, (chunk_num+1) * chunk_size))
+
+        chunk_array = vcf_records_array(chunk_records, use_aa_info)
+        chunk_chrom = []
+        chunk_pos = []
+        for record in chunk_array.records:
+            chunk_chrom.append(record.CHROM)
+            chunk_pos.append(record.POS)
+        gt_array = chunk_array.gt_array()
+
+        allele_counts = [mat.dot(gt_array[:, :, a].T)
+                         for a in (0, 1)]
+        allele_counts = np.array(allele_counts).transpose(
+            2, 1, 0)
+        assert allele_counts.shape[1:] == (len(populations), 2)
+
+        if polarize_outgroup:
+            anc_pop_ac = allele_counts[:, anc_pop_idx, :]
+            anc_pop_nonzero = anc_pop_ac > 0
+            anc_is_ref = anc_pop_nonzero[:, 0] & (~anc_pop_nonzero[:, 1])
+            anc_is_alt = (~anc_pop_nonzero[:, 0]) & anc_pop_nonzero[:, 1]
+
+            allele_counts[anc_is_alt, :, :] = allele_counts[anc_is_alt, :, ::-1]
+
+            to_keep = anc_is_ref | anc_is_alt
+            allele_counts = allele_counts[to_keep, :, :]
+            chunk_chrom = np.array(chunk_chrom)[to_keep]
+            chunk_pos = np.array(chunk_pos)[to_keep]
+
+            allele_counts = allele_counts[:, np.arange(allele_counts.shape[1]) != anc_pop_idx, :]
+
+        chrom.extend(chunk_chrom)
+        pos.extend(chunk_pos)
+
+        for config in allele_counts:
+            compressed_hashed.append(config)
+
+    compressed_allele_counts = compressed_hashed.compressed_allele_counts()
+    return SnpAlleleCounts(chrom, pos, compressed_allele_counts, data_pops)
+
+
+class vcf_records_array(object):
+    def __init__(self, vcf_records, require_aa):
+        self.records = []
+        self.require_aa = require_aa
+        for record in vcf_records:
+            if len(record.alleles) != 2:
+                continue
+            if len(record.ALT) != 1:
+                continue
+            if self.require_aa and "AA" not in record.INFO:
+                continue
+            self.records.append(record)
+
+    def gt_array(self):
+        """
+        indices = [row, individual, allele]
+        """
+        raw_genotypes_arr = []
+        for record in self.records:
+            raw_genotypes_row = []
+            for call in record.samples:
+                if call.gt_type is None:
+                    raw_genotypes_row.append(-1)
+                else:
+                    raw_genotypes_row.append(call.gt_type)
+
+            raw_genotypes_arr.append(raw_genotypes_row)
+
+        raw_genotypes_arr = np.array(
+            raw_genotypes_arr, dtype=int)
+
+        allele_counts = [2-raw_genotypes_arr,
+                         np.array(raw_genotypes_arr)]
+        for arr in allele_counts:
+            arr[raw_genotypes_arr < 0] = 0
+
+        ret = np.array(allele_counts).transpose(1, 2, 0)
+        if self.require_aa:
+            alt_is_aa = np.array([
+                record.INFO["AA"] != record.REF
+                for record in self.records
+            ])
+            ret[alt_is_aa, :, :] = ref[alt_is_aa, :, ::-1]
+        return ret
 
 
 class SnpAlleleCounts(object):
@@ -289,14 +415,15 @@ class SnpAlleleCounts(object):
             self._seg_sites
         except:
             filtered = self.filter(self.is_polymorphic)
-            filtered.compressed_counts.sort_configs()
-            idx_list = [np.array([i for chrom, i in grouped_idxs])
-                        for key, grouped_idxs in it.groupby(zip(filtered.chrom_ids,
-                                                                filtered.compressed_counts.index2uniq),
-                                                            key=lambda x: x[0])]
-            self._seg_sites = SegSites(ConfigArray(self.populations,
-                                                   filtered.compressed_counts.config_array),
-                                       idx_list)
+            idx_list = [
+                np.array([i for chrom, i in grouped_idxs])
+                for key, grouped_idxs in it.groupby(
+                        zip(filtered.chrom_ids, filtered.compressed_counts.index2uniq),
+                        key=lambda x: x[0])]
+            self._seg_sites = SegSites(ConfigArray(
+                self.populations,
+                filtered.compressed_counts.config_array
+            ), idx_list)
         return self._seg_sites
 
     @property
@@ -310,6 +437,8 @@ class SnpAlleleCounts(object):
 
 def read_plink_frq_strat(fname, polarize_pop, chunk_size=10000):
     """
+    DEPRACATED
+
     Reads data produced by plink --within --freq counts.
 
     Parameters:
