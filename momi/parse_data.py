@@ -152,6 +152,7 @@ class SnpAlleleCounts(object):
 
     @classmethod
     def concatenate(cls, to_concatenate):
+        to_concatenate = iter(to_concatenate)
         first = next(to_concatenate)
         populations = first.populations
         to_concatenate = it.chain([first], to_concatenate)
