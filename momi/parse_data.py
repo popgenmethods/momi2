@@ -1,55 +1,95 @@
 import itertools as it
 import pandas as pd
 import numpy as np
+from scipy import sparse
 import multiprocessing as mp
 import functools as ft
 import subprocess
 import logging
-from .data_structure import seg_site_configs, _build_data, _sort_configs, SegSites, ConfigArray
+from .data_structure import seg_site_configs, SegSites, ConfigArray, CompressedAlleleCounts, _CompressedHashedCounts
 from collections import defaultdict, Counter
 import json
+import vcf
 
 logger = logging.getLogger(__name__)
+
+
+
+class vcf_records_array(object):
+    def __init__(self, vcf_records, require_aa):
+        self.records = []
+        self.require_aa = require_aa
+        for record in vcf_records:
+            if len(record.alleles) != 2:
+                continue
+            if len(record.ALT) != 1:
+                continue
+            if self.require_aa and "AA" not in record.INFO:
+                continue
+            self.records.append(record)
+
+    def gt_array(self):
+        """
+        indices = [row, individual, allele]
+        """
+        raw_genotypes_arr = []
+        for record in self.records:
+            raw_genotypes_row = []
+            for call in record.samples:
+                if call.gt_type is None:
+                    raw_genotypes_row.append(-1)
+                else:
+                    raw_genotypes_row.append(call.gt_type)
+
+            raw_genotypes_arr.append(raw_genotypes_row)
+
+        raw_genotypes_arr = np.array(
+            raw_genotypes_arr, dtype=int)
+
+        allele_counts = [2-raw_genotypes_arr,
+                         np.array(raw_genotypes_arr)]
+        for arr in allele_counts:
+            arr[raw_genotypes_arr < 0] = 0
+
+        ret = np.array(allele_counts).transpose(1, 2, 0)
+        if self.require_aa:
+            alt_is_aa = np.array([
+                record.INFO["AA"] != record.REF
+                for record in self.records
+            ])
+            ret[alt_is_aa, :, :] = ref[alt_is_aa, :, ::-1]
+        return ret
 
 
 class SnpAlleleCounts(object):
     """
     The allele counts for a list of SNPs.
-    Includes methods for easily reading from vcf files (requires vcftools).
     Can be passed as data into SfsLikelihoodSurface to compute site frequency spectrum and likelihoods.
 
     Important methods:
+    read_vcf(): read allele counts from a single vcf
     read_vcf_list(): read allele counts from a list of vcf files using multiple parallel cores
     dump(): save data in a compressed JSON format that can be quickly read by load()
     load(): load data stored by dump(). Much faster than read_vcf_list()
     """
     @classmethod
-    def read_vcf_list(cls, vcf_list, inds2pop, n_cores=1, vcftools_path="vcftools", input_format="--gzvcf", derived=True, additional_options=[]):
+    def read_vcf_list(cls, vcf_list, inds2pop, n_cores=1, **kwargs):
         """
         Read in allele counts from a list of vcf (vcftools required).
 
-        Files are allowed to contain multiple chromosomes;
-        however, each chromosome should be in at most 1 file.
+        Files may contain multiple chromosomes;
+        however, chromosomes should not be spread across multiple files.
 
         Parameters:
         vcf_list: list of filenames
         inds2pop: dict mapping individual ids to populations
         n_cores: number of parallel cores to use
-        vcftools_path: path to vcftools binary. Default assumes vcftools is on your $PATH
-        input_format: one of "--vcf", "--gzvcf", "--bcf"
-        derived: polarizes the allele counts using the "--derived" option in vcftools. Requires AA in INFO filed of vcf.
-        additional_options: additional options to pass to vcftools (e.g. filtering by SNP quality). A list whose entries will be concatenated with spaces before being passed as command line options to vcftools
 
         Returns:
         SnpAlleleCounts
-
-        Example usage:
-        SnpAlleleCounts.read_vcf_list(["file1.vcf.gz", "file2.vcf.gz"], {"ID1": "Pop1", "ID2": "Pop2"}, additional_options=["--snp", "snps_to_keep.txt", "--remove-filtered-all"])
         """
         pool = mp.Pool(n_cores)
-        read_vcf = ft.partial(cls.read_vcf, inds2pop=inds2pop, vcftools_path=vcftools_path,
-                              input_format=input_format, derived=derived,
-                              additional_options=additional_options)
+        read_vcf = ft.partial(cls.read_vcf, inds2pop=inds2pop, **kwargs)
         allele_counts_list = pool.map(read_vcf, vcf_list)
         logger.debug("Concatenating vcf files {}".format(vcf_list))
         ret = cls.concatenate(allele_counts_list)
@@ -57,98 +97,91 @@ class SnpAlleleCounts(object):
         return ret
 
     @classmethod
-    def read_vcf(cls, vcf, inds2pop, vcftools_path="vcftools", input_format="--gzvcf", derived=True, additional_options=[]):
-        """
-        Similar to read_vcf_list, but only reads in a single vcf.
-        """
-        logger.debug("Reading vcf {}".format(vcf))
-        ret = cls._read_vcf_helper(
-            vcf, inds2pop, vcftools_path, input_format, derived, additional_options)
-        logger.debug("Finished reading vcf {}".format(vcf))
-        return ret
-
-    @classmethod
-    def _read_vcf_helper(cls, vcf, inds2pop, vcftools_path, input_format, derived, additional_options):
-        """
-        Uses a recursive strategy to read in the data,
-        repeatedly splitting the populations in 2,
-        in order to save memory.
-        """
-        pop2inds = defaultdict(list)
-        for ind, pop in inds2pop.items():
-            pop2inds[pop].append(ind)
-
-        if len(pop2inds) == 1:
-            pop, = pop2inds.keys()
-            inds, = pop2inds.values()
-            cmd = [vcftools_path, input_format, vcf, "--stdout"]
-            cmd += ["--counts2"]
-            cmd += list(it.chain(*[["--indv", i] for i in inds]))
-            cmd += list(additional_options)
-            if derived:
-                cmd.append("--derived")
-            logger.debug("Executing command: {}".format(" ".join(cmd)))
-            ret = cls.read_vcftools_counts2(pop,
-                                            subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                                             universal_newlines=True).stdout)
-            logger.debug("Read population {}".format(pop))
-            return ret
+    def read_vcf(cls, vcf_stream_or_filename, inds2pop,
+                outgroup = None,
+                aa_info_field = False,
+                chunk_size=10000, ploidy=2):
+        if type(vcf_stream_or_filename) is str:
+            vcf_reader = vcf.Reader(filename = vcf_stream_or_filename)
         else:
-            populations = sorted(pop2inds.keys())
-            half_npops = len(populations) // 2
-            set0, set1 = [cls._read_vcf_helper(vcf,
-                                               {ind: pop
-                                                for ind, pop in inds2pop.items()
-                                                if pop in pop_subset},
-                                               vcftools_path, input_format, derived, additional_options)
-                          for pop_subset in (populations[:half_npops], populations[half_npops:])]
-            return set0.join(set1)
+            vcf_reader = vcf.Reader(vcf_stream_or_filename)
 
-    @classmethod
-    def read_vcftools_counts2(cls, popname, f):
-        """
-        Reads the output produced by
-        vcftools --counts2.
+        if ploidy != 2:
+            raise NotImplementedError("vcf ploidy != 2")
 
-        Parameters:
-        popname: the name of the population to create
-        f: a file-like object containing the output of vcftools --counts2
-        """
-        def make_stream(f):
-            if isinstance(f, str):
-                with open(f) as f_opened:
-                    for line in f_opened:
-                        yield line.split()
-            else:
-                for line in f:
-                    yield line.split()
-        f = make_stream(f)
-        header = next(f)
-        expected_header = ["CHROM", "POS", "N_ALLELES", "N_CHR", "{COUNT}"]
-        if header != expected_header:
-            raise IOError("Header {} does not match expected header {}".format(
-                header, expected_header))
+        population2samples = defaultdict(list)
+        for i, p in inds2pop.items():
+            population2samples[p].append(i)
 
-        populations = [popname]
-        chrom_ids = []
-        positions = []
+        samples2columns = {s: i for i, s in enumerate(
+            vcf_reader.samples)}
+        populations = sorted(population2samples.keys())
+        mat = np.zeros((len(population2samples),
+                        len(samples2columns)),
+                    dtype = int)
+        for pop_idx, pop in enumerate(populations):
+            for s in population2samples[pop]:
+                mat[pop_idx, samples2columns[s]] = 1
 
-        def generate_counts(f):
-            for line in f:
-                chrom, pos, n_alleles = line[:3]
-                if int(n_alleles) != 2:
-                    continue
-                chrom_ids.append(chrom)
-                positions.append(int(pos))
-                nchrom, cnt0, cnt1 = map(int, line[3:])
-                assert cnt0 + cnt1 == nchrom
-                yield ((cnt0, cnt1),)
-        # this fills up positions and chrom_ids as well iterating thru the
-        # configs
-        compressed_counts = CompressedAlleleCounts.from_iter(
-            generate_counts(f), len(populations))
+        assert np.all(mat.sum(axis=1) == np.array([len(
+            population2samples[pop]) for pop in populations]))
+        assert np.all(mat.sum(axis=0) <= 1)
 
-        return cls(chrom_ids, positions, compressed_counts, populations)
+        mat = sparse.csr_matrix(mat)
+
+        npops = len(populations)
+        chrom = []
+        pos = []
+        counter = it.count(0)
+        if outgroup:
+            anc_pop_idx = populations.index(outgroup)
+            data_pops = np.array(populations)[np.arange(len(populations)) != anc_pop_idx]
+        else:
+            data_pops = populations
+        compressed_hashed = _CompressedHashedCounts(len(data_pops))
+        for chunk_num, chunk_records in it.groupby(
+                vcf_reader,
+                lambda x: next(counter) // chunk_size):
+            logger.debug("Reading vcf lines {} to {}".format(
+                chunk_num * chunk_size, (chunk_num+1) * chunk_size))
+
+            chunk_array = vcf_records_array(chunk_records, aa_info_field)
+            chunk_chrom = []
+            chunk_pos = []
+            for record in chunk_array.records:
+                chunk_chrom.append(record.CHROM)
+                chunk_pos.append(record.POS)
+            gt_array = chunk_array.gt_array()
+
+            allele_counts = [mat.dot(gt_array[:, :, a].T)
+                            for a in (0, 1)]
+            allele_counts = np.array(allele_counts).transpose(
+                2, 1, 0)
+            assert allele_counts.shape[1:] == (len(populations), 2)
+
+            if outgroup:
+                anc_pop_ac = allele_counts[:, anc_pop_idx, :]
+                anc_pop_nonzero = anc_pop_ac > 0
+                anc_is_ref = anc_pop_nonzero[:, 0] & (~anc_pop_nonzero[:, 1])
+                anc_is_alt = (~anc_pop_nonzero[:, 0]) & anc_pop_nonzero[:, 1]
+
+                allele_counts[anc_is_alt, :, :] = allele_counts[anc_is_alt, :, ::-1]
+
+                to_keep = anc_is_ref | anc_is_alt
+                allele_counts = allele_counts[to_keep, :, :]
+                chunk_chrom = np.array(chunk_chrom)[to_keep]
+                chunk_pos = np.array(chunk_pos)[to_keep]
+
+                allele_counts = allele_counts[:, np.arange(allele_counts.shape[1]) != anc_pop_idx, :]
+
+            chrom.extend(chunk_chrom)
+            pos.extend(chunk_pos)
+
+            for config in allele_counts:
+                compressed_hashed.append(config)
+
+        compressed_allele_counts = compressed_hashed.compressed_allele_counts()
+        return cls(chrom, pos, compressed_allele_counts, data_pops)
 
     @classmethod
     def concatenate(cls, to_concatenate):
@@ -290,14 +323,15 @@ class SnpAlleleCounts(object):
             self._seg_sites
         except:
             filtered = self.filter(self.is_polymorphic)
-            filtered.compressed_counts.sort_configs()
-            idx_list = [np.array([i for chrom, i in grouped_idxs])
-                        for key, grouped_idxs in it.groupby(zip(filtered.chrom_ids,
-                                                                filtered.compressed_counts.index2uniq),
-                                                            key=lambda x: x[0])]
-            self._seg_sites = SegSites(ConfigArray(self.populations,
-                                                   filtered.compressed_counts.config_array),
-                                       idx_list)
+            idx_list = [
+                np.array([i for chrom, i in grouped_idxs])
+                for key, grouped_idxs in it.groupby(
+                        zip(filtered.chrom_ids, filtered.compressed_counts.index2uniq),
+                        key=lambda x: x[0])]
+            self._seg_sites = SegSites(ConfigArray(
+                self.populations,
+                filtered.compressed_counts.config_array
+            ), idx_list)
         return self._seg_sites
 
     @property
@@ -311,6 +345,8 @@ class SnpAlleleCounts(object):
 
 def read_plink_frq_strat(fname, polarize_pop, chunk_size=10000):
     """
+    DEPRACATED
+
     Reads data produced by plink --within --freq counts.
 
     Parameters:
@@ -399,31 +435,3 @@ def read_plink_frq_strat(fname, polarize_pop, chunk_size=10000):
         return ret
 
 
-class CompressedAlleleCounts(object):
-
-    @classmethod
-    def from_iter(cls, config_iter, npops):
-        config_array, config2uniq, index2uniq = _build_data(config_iter, npops,
-                                                            sort_configs=False)
-        return cls(config_array, index2uniq)
-
-    def __init__(self, config_array, index2uniq):
-        self.config_array = config_array
-        self.index2uniq = np.array(index2uniq)
-
-    def __getitem__(self, i):
-        return self.config_array[self.index2uniq[i], :, :]
-
-    def __len__(self):
-        return len(self.index2uniq)
-
-    def filter(self, idxs):
-        to_keep = self.index2uniq[idxs]
-        uniq_to_keep, uniq_to_keep_inverse = np.unique(
-            to_keep, return_inverse=True)
-        return CompressedAlleleCounts(self.config_array[uniq_to_keep, :, :],
-                                      uniq_to_keep_inverse)
-
-    def sort_configs(self):
-        self.config_array, _, self.index2uniq = _sort_configs(
-            self.config_array, None, self.index2uniq)
