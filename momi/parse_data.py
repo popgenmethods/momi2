@@ -100,14 +100,11 @@ class SnpAlleleCounts(object):
     def read_vcf(cls, vcf_stream_or_filename, inds2pop,
                 outgroup = None,
                 aa_info_field = False,
-                chunk_size=10000, ploidy=2):
+                chunk_size=10000):
         if type(vcf_stream_or_filename) is str:
             vcf_reader = vcf.Reader(filename = vcf_stream_or_filename)
         else:
             vcf_reader = vcf.Reader(vcf_stream_or_filename)
-
-        if ploidy != 2:
-            raise NotImplementedError("vcf ploidy != 2")
 
         population2samples = defaultdict(list)
         for i, p in inds2pop.items():
@@ -146,6 +143,10 @@ class SnpAlleleCounts(object):
                 chunk_num * chunk_size, (chunk_num+1) * chunk_size))
 
             chunk_array = vcf_records_array(chunk_records, aa_info_field)
+            if chunk_num == 0:
+                if any([len(s.data.GT) != 3 for s in chunk_array.records[0].samples]):
+                    raise NotImplementedError("Reading vcf currently only implemented for diploid samples")
+
             chunk_chrom = []
             chunk_pos = []
             for record in chunk_array.records:
