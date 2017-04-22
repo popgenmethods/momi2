@@ -4,7 +4,7 @@ import autograd.numpy as np
 import scipy
 from .util import memoize, make_constant, set0, closegeq
 from .data_structure import config_array, ConfigArray
-from .math_functions import sum_antidiagonals, hypergeom_quasi_inverse, convolve_axes, roll_axes, binom_coeffs, _apply_error_matrices, par_einsum, convolve_trailing_axes, sum_trailing_antidiagonals
+from .math_functions import hypergeom_quasi_inverse, binom_coeffs, _apply_error_matrices, convolve_trailing_axes, sum_trailing_antidiagonals
 #from .data_structure import Configs
 from .moran_model import moran_action, moran_transition
 from autograd.core import primitive
@@ -429,7 +429,6 @@ class LikelihoodTensorList(object):
             lik.make_last_axis(non_recipient)
 
             lik.matmul_last_axis(pulse_probs, axes=2)
-            #lik.liks = np.tensordot(lik.liks, pulse_probs, axes=2)
 
             lik.rename_pop(recipient, non_donor)
             lik.rename_pop(non_recipient, donor)
