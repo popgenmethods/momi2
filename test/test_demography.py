@@ -119,9 +119,9 @@ def test_P():
                      ('-ep', t2, i, 'y', p2), ('-ej', t2, 'y', j)]
 
     demo0 = make_demography(pulse_events0 + [root_event],
-                            (0, 1), (5, 5))
+                            (0, 1), (5, 6))
     demo1 = make_demography(pulse_events1 + [root_event],
-                            (0, 1), (5, 5))
+                            (0, 1), (5, 6))
 
     p = 20
     vecs = [np.random.normal(size=(p, n + 1)) for n in demo0.sampled_n]

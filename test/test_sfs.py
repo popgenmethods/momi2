@@ -36,22 +36,27 @@ def generate_sfs():
             n_lin = MODELS[m_name]['nlins']
             demo = MODELS[m_name]['demo'](np.array(params), n_lin)
             demo.demo_hist = demo.demo_hist.rescaled()
-            v2 = compute_stats(demo, sampled_sfs)
-            yield m_name, v, v2
+            yield m_name, v, demo, sampled_sfs
 
 
-@pytest.mark.parametrize("m_name,v,v2", generate_sfs())
-def test_generated_cases(m_name, v, v2):
-    for stat1, stat2 in zip(v, v2):
-        assert np.allclose(stat1, stat2)
+@pytest.mark.parametrize("m_name,v,demo,sampled_sfs", generate_sfs())
+def test_generated_cases(m_name, v, demo, sampled_sfs):
+    compute_stats(demo, sampled_sfs, *v)
 
 
-def compute_stats(demo, sampled_sfs):
+def compute_stats(demo, sampled_sfs, true_sfs=None, true_branch_len=None):
     sampled_sfs = momi.site_freq_spectrum(demo.pops, to_dict(sampled_sfs))
     config_list = momi.config_array(demo.pops, sorted(
         [tuple(map(tuple, c)) for c in sampled_sfs.configs]))
 
-    return expected_sfs(demo.demo_hist, config_list), expected_total_branch_len(demo.demo_hist, sampled_pops=demo.pops, sampled_n=demo.n)
+    exp_sfs = expected_sfs(demo.demo_hist, config_list)
+    exp_branch_len = expected_total_branch_len(demo.demo_hist, sampled_pops=demo.pops, sampled_n=demo.n)
+    if true_sfs is not None:
+        assert np.allclose(true_sfs, exp_sfs)
+    if true_branch_len is not None:
+        assert np.allclose(true_branch_len, exp_branch_len)
+
+    return exp_sfs, exp_branch_len
 
 
 def from_dict(sampled_sfs):
@@ -66,22 +71,18 @@ def to_dict(sampled_sfs):
 if __name__ == "__main__":
     from test_msprime import ms_path
 
-    if len(sys.argv) == 2 and sys.argv[1] == "generate":
-        results = {}
-        for m_name, m_val in MODELS.items():
-            print("# GENERATING %s" % m_name)
-            for i in range(10):
-                x = np.random.normal(size=m_val['params'])
-                demo = m_val['demo'](x, m_val['nlins'])
+    results = {}
+    for m_name, m_val in MODELS.items():
+        print("# GENERATING %s" % m_name)
+        for i in range(10):
+            x = np.random.normal(size=m_val['params'])
+            demo = m_val['demo'](x, m_val['nlins'])
 
-                demo.demo_hist = demo.demo_hist.rescaled()
-                seg_sites = simulate_ms(
-                    ms_path, demo, num_loci=100, mut_rate=1.0)
-                sampled_sfs = from_dict(seg_sites.sfs.to_dict(vector=True))
-                results[(m_name, tuple(x), sampled_sfs)
-                        ] = compute_stats(demo, sampled_sfs)
+            demo.demo_hist = demo.demo_hist.rescaled()
+            seg_sites = simulate_ms(
+                ms_path, demo.demo_hist._get_multipop_moran(demo.pops, demo.n), num_loci=100, mut_rate=1.0)
+            sampled_sfs = from_dict(seg_sites.sfs.to_dict(vector=True))
+            results[(m_name, tuple(x), sampled_sfs)
+                    ] = compute_stats(demo, sampled_sfs)
+    if len(sys.argv) == 2 and sys.argv[1] == "generate":
         pickle.dump(results, open(PICKLE, "wb"))
-    elif len(sys.argv) == 1:
-        pass
-    else:
-        raise Exception("Unrecognized command line options.")

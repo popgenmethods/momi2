@@ -7,17 +7,18 @@ import autograd.numpy as np
 from autograd.numpy import dot, diag, exp
 
 
-def moran_action(t, v, axis=0):
+def moran_transition(t, n):
     assert t >= 0.0
+    P, d, Pinv = moran_eigensystem(n)
+    D = diag(exp(t * d))
+    return check_probs_matrix(dot(P, dot(D, Pinv)))
 
+def moran_action(t, v, axis=0):
     if v.shape[axis] == 1:
         return v
 
     n = v.shape[axis] - 1
-    P, d, Pinv = moran_eigensystem(n)
-    D = diag(exp(t * d))
-
-    PDPinv = check_probs_matrix(dot(P, dot(D, Pinv)))
+    PDPinv = moran_transition(t, n)
 
     vlen, output_dim = len(v.shape), list(range(len(v.shape)))
     output_dim[axis] = vlen
