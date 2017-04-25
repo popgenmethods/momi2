@@ -98,9 +98,10 @@ class SnpAlleleCounts(object):
 
     @classmethod
     def read_vcf(cls, vcf_stream_or_filename, inds2pop,
-                outgroup = None,
-                aa_info_field = False,
-                chunk_size=10000):
+                 outgroup = None,
+                 aa_info_field = False,
+                 non_ascertained_pops = [],
+                 chunk_size=10000):
         if type(vcf_stream_or_filename) is str:
             vcf_reader = vcf.Reader(filename = vcf_stream_or_filename)
         else:
@@ -182,22 +183,24 @@ class SnpAlleleCounts(object):
                 compressed_hashed.append(config)
 
         compressed_allele_counts = compressed_hashed.compressed_allele_counts()
-        return cls(chrom, pos, compressed_allele_counts, data_pops)
+        return cls(chrom, pos, compressed_allele_counts, data_pops, non_ascertained_pops = non_ascertained_pops)
 
     @classmethod
     def concatenate(cls, to_concatenate):
         to_concatenate = iter(to_concatenate)
         first = next(to_concatenate)
-        populations = first.populations
+        populations = list(first.populations)
+        non_ascertained_pops = list(first.non_ascertained_pops)
         to_concatenate = it.chain([first], to_concatenate)
 
         chrom_ids = []
         positions = []
 
         def get_allele_counts(snp_allele_counts):
-            if snp_allele_counts.populations != populations:
+            if list(snp_allele_counts.populations) != populations or list(
+                    snp_allele_counts.non_ascertained_pops) != non_ascertained_pops:
                 raise ValueError(
-                    "Datasets must have same populations to concatenate")
+                    "Datasets must have same populations with same ascertainment to concatenate")
             chrom_ids.extend(snp_allele_counts.chrom_ids)
             positions.extend(snp_allele_counts.positions)
             for c in snp_allele_counts:
@@ -207,7 +210,7 @@ class SnpAlleleCounts(object):
 
         compressed_counts = CompressedAlleleCounts.from_iter(it.chain.from_iterable((get_allele_counts(cnts)
                                                                                      for cnts in to_concatenate)), len(populations))
-        ret = cls(chrom_ids, positions, compressed_counts, populations)
+        ret = cls(chrom_ids, positions, compressed_counts, populations, non_ascertained_pops = non_ascertained_pops)
         logger.info("Finished concatenating datasets")
         return ret
 
@@ -231,12 +234,18 @@ class SnpAlleleCounts(object):
         """
         info = json.load(f)
         logger.debug("Read allele counts from file")
+
+        chrom_pos_config_key = "(chrom_id,position,config_id)"
         chrom_ids, positions, config_ids = zip(
-            *info["(chrom_id,position,config_id)"])
+            *info[chrom_pos_config_key])
+        del info[chrom_pos_config_key]
+
         compressed_counts = CompressedAlleleCounts(
             np.array(info["configs"], dtype=int), np.array(config_ids, dtype=int))
+        del info["configs"]
+
         return cls(chrom_ids, positions, compressed_counts,
-                   info["populations"])
+                   **info)
 
     def dump(self, f):
         """
@@ -257,6 +266,9 @@ class SnpAlleleCounts(object):
         print("{", file=f)
         print('\t"populations": {},'.format(
             json.dumps(list(self.populations))), file=f)
+        if self.non_ascertained_pops:
+            print('\t"non_ascertained_pops": {},'.format(
+                json.dumps(list(self.non_ascertained_pops))), file=f)
         print('\t"configs": [', file=f)
         n_configs = len(self.compressed_counts.config_array)
         for i, c in enumerate(self.compressed_counts.config_array.tolist()):
@@ -281,7 +293,7 @@ class SnpAlleleCounts(object):
         print("\t]", file=f)
         print("}", file=f)
 
-    def __init__(self, chrom_ids, positions, compressed_counts, populations):
+    def __init__(self, chrom_ids, positions, compressed_counts, populations, non_ascertained_pops=[]):
         if len(compressed_counts) != len(chrom_ids) or len(chrom_ids) != len(positions):
             raise IOError(
                 "chrom_ids, positions, allele_counts should have same length")
@@ -290,6 +302,7 @@ class SnpAlleleCounts(object):
         self.positions = np.array(positions)
         self.compressed_counts = compressed_counts
         self.populations = populations
+        self.non_ascertained_pops = non_ascertained_pops
 
     def __getitem__(self, i):
         return self.compressed_counts[i]
@@ -316,8 +329,12 @@ class SnpAlleleCounts(object):
 
     @property
     def is_polymorphic(self):
-        return (self.compressed_counts.config_array.sum(axis=1) != 0).all(axis=1)[self.compressed_counts.index2uniq]
+        return (self.compressed_counts.config_array[:, self.ascertainment_pop, :].sum(axis=1) != 0).all(axis=1)[self.compressed_counts.index2uniq]
 
+    @property
+    def ascertainment_pop(self):
+        return np.array([(pop not in self.non_ascertained_pops)
+                         for pop in self.populations])
     @property
     def seg_sites(self):
         try:
@@ -331,7 +348,8 @@ class SnpAlleleCounts(object):
                         key=lambda x: x[0])]
             self._seg_sites = SegSites(ConfigArray(
                 self.populations,
-                filtered.compressed_counts.config_array
+                filtered.compressed_counts.config_array,
+                ascertainment_pop = self.ascertainment_pop
             ), idx_list)
         return self._seg_sites
 
