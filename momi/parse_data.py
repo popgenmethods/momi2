@@ -14,18 +14,62 @@ import vcf
 logger = logging.getLogger(__name__)
 
 
+class batched_vcf_reader(object):
+    def __init__(self, vcf_reader, batch_size, **kwargs):
+        self.vcf_reader = vcf_reader
+        self.batch_size = batch_size
+        self.kwargs = kwargs
+
+    def __iter__(self):
+        counter = it.count(0)
+        for chunk_num, chunk_records in it.groupby(
+                self.vcf_reader,
+                lambda x: next(counter) // self.batch_size):
+            yield vcf_records_array(chunk_records, **self.kwargs)
+
+    def __next__(self):
+        return next(iter(self))
+
 
 class vcf_records_array(object):
-    def __init__(self, vcf_records, require_aa):
+    def __init__(self, vcf_records, samples, ancestral_alleles=None):
         self.records = []
-        self.require_aa = require_aa
+        self.samples = samples
+
+        if not ancestral_alleles:
+            self.get_aa = None
+        elif ancestral_alleles is True:
+            def get_aa(record):
+                if "AA" not in record.INFO:
+                    return None
+                else:
+                    return record.INFO["AA"]
+            self.get_aa = get_aa
+        else:
+            self.get_aa = ancestral_alleles
+
         for record in vcf_records:
             if len(record.alleles) != 2:
                 continue
+
             if len(record.ALT) != 1:
                 continue
-            if self.require_aa and "AA" not in record.INFO:
-                continue
+            else:
+                record.ref = str(record.REF)
+                record.alt = str(record.ALT[0])
+
+            if self.get_aa:
+                aa = self.get_aa(record)
+                if aa:
+                    aa = str(aa)
+                else:
+                    continue
+
+                if aa in (record.ref, record.alt):
+                    record.aa = aa
+                else:
+                    continue
+
             self.records.append(record)
 
     def gt_array(self):
@@ -35,7 +79,8 @@ class vcf_records_array(object):
         raw_genotypes_arr = []
         for record in self.records:
             raw_genotypes_row = []
-            for call in record.samples:
+            for s in self.samples:
+                call = record.genotype(s)
                 if call.gt_type is None:
                     raw_genotypes_row.append(-1)
                 else:
@@ -52,12 +97,12 @@ class vcf_records_array(object):
             arr[raw_genotypes_arr < 0] = 0
 
         ret = np.array(allele_counts).transpose(1, 2, 0)
-        if self.require_aa:
+        if self.get_aa:
             alt_is_aa = np.array([
-                record.INFO["AA"] != record.REF
+                record.aa != record.ref
                 for record in self.records
             ])
-            ret[alt_is_aa, :, :] = ref[alt_is_aa, :, ::-1]
+            ret[alt_is_aa, :, :] = ret[alt_is_aa, :, ::-1]
         return ret
 
 
@@ -73,7 +118,7 @@ class SnpAlleleCounts(object):
     load(): load data stored by dump(). Much faster than read_vcf_list()
     """
     @classmethod
-    def read_vcf_list(cls, vcf_list, inds2pop, n_cores=1, **kwargs):
+    def read_vcf_list(cls, vcf_list, ind2pop, n_cores=1, **kwargs):
         """
         Read in allele counts from a list of vcf (vcftools required).
 
@@ -82,14 +127,14 @@ class SnpAlleleCounts(object):
 
         Parameters:
         vcf_list: list of filenames
-        inds2pop: dict mapping individual ids to populations
+        ind2pop: dict mapping individual ids to populations
         n_cores: number of parallel cores to use
 
         Returns:
         SnpAlleleCounts
         """
         pool = mp.Pool(n_cores)
-        read_vcf = ft.partial(cls.read_vcf, inds2pop=inds2pop, **kwargs)
+        read_vcf = ft.partial(cls.read_vcf, ind2pop=ind2pop, **kwargs)
         allele_counts_list = pool.map(read_vcf, vcf_list)
         logger.debug("Concatenating vcf files {}".format(vcf_list))
         ret = cls.concatenate(allele_counts_list)
@@ -97,22 +142,43 @@ class SnpAlleleCounts(object):
         return ret
 
     @classmethod
-    def read_vcf(cls, vcf_stream_or_filename, inds2pop,
-                 outgroup = None,
-                 aa_info_field = False,
+    def read_vcf(cls, vcf_stream_or_filename, ind2pop,
+                 ancestral_alleles = None,
                  non_ascertained_pops = [],
                  chunk_size=10000):
+        """
+        Parameters:
+        vcf_stream_or_filename: stream or filename
+        ind2pop: dict mapping individual IDs to populations
+        ancestral_allele: str or bool or None or function
+           if the name of a population, then treats that population as the outgroup to determine AA
+           if None/False, uses REF to determine ancestral allele
+           if True, uses AA info field to determine ancestral allele, skipping records missing this field
+           if function, the function should take a vcf._Record (see pyvcf API) and return the ancestral allele
+              (or return None, if the record should be skipped)
+        non_ascertained_pops: list of str
+           list of populations to treat as non-ascertained
+        chunk_size: int
+           number of VCF lines to process at a time (controls memory usage)
+        """
+        if isinstance(ancestral_alleles, str):
+            outgroup = ancestral_alleles
+            ancestral_alleles = False
+        else:
+            outgroup = None
+
         if type(vcf_stream_or_filename) is str:
             vcf_reader = vcf.Reader(filename = vcf_stream_or_filename)
         else:
             vcf_reader = vcf.Reader(vcf_stream_or_filename)
 
+        samples = list(ind2pop.keys())
+
         population2samples = defaultdict(list)
-        for i, p in inds2pop.items():
+        for i, p in ind2pop.items():
             population2samples[p].append(i)
 
-        samples2columns = {s: i for i, s in enumerate(
-            vcf_reader.samples)}
+        samples2columns = {s: i for i, s in enumerate(samples)}
         populations = sorted(population2samples.keys())
         mat = np.zeros((len(population2samples),
                         len(samples2columns)),
@@ -140,11 +206,13 @@ class SnpAlleleCounts(object):
         for chunk_num, chunk_records in it.groupby(
                 vcf_reader,
                 lambda x: next(counter) // chunk_size):
-            logger.debug("Reading vcf lines {} to {}".format(
+            logger.info("Reading vcf lines {} to {}".format(
                 chunk_num * chunk_size, (chunk_num+1) * chunk_size))
 
-            chunk_array = vcf_records_array(chunk_records, aa_info_field)
-            if chunk_num == 0:
+            chunk_array = vcf_records_array(chunk_records, samples, ancestral_alleles=ancestral_alleles)
+            if not chunk_array.records:
+                continue
+            if not pos:
                 if any([len(s.data.GT) != 3 for s in chunk_array.records[0].samples]):
                     raise NotImplementedError("Reading vcf currently only implemented for diploid samples")
 
@@ -181,6 +249,9 @@ class SnpAlleleCounts(object):
 
             for config in allele_counts:
                 compressed_hashed.append(config)
+
+            if pos:
+                logger.info("Read vcf up to CHR {}, POS {}".format(chrom[-1], pos[-1]))
 
         compressed_allele_counts = compressed_hashed.compressed_allele_counts()
         return cls(chrom, pos, compressed_allele_counts, data_pops, non_ascertained_pops = non_ascertained_pops)

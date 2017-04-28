@@ -6,6 +6,15 @@ import vcf
 import collections as co
 import subprocess as sp
 
+vcf_header = """
+##fileformat=VCFv4.2
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FILTER=<ID=PASS,Description="All filters passed">
+##INFO=<ID=AA,Number=1,Type=String,Description="Ancestral allele">
+##contig=<ID=1>
+""".strip()
+
+
 def test_read_vcf():
     demo = demo_utils.simple_admixture_3pop(n_lins=(4, 4, 6))
     theta = 100.0
@@ -61,10 +70,26 @@ def test_read_vcf():
     combined_vcf_io.seek(0)
     combined_vcf_reader = vcf.Reader(combined_vcf_io)
     with open("test_vcf.vcf", "w") as f:
-        vcf_writer = vcf.Writer(f, vcf_readers[0])
+        header = str(vcf_header)
+        f.write(header + "\n")
+        print(*("#CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT".split() + list(combined_vcf_reader.samples)), sep="\t", file=f)
         for record in combined_vcf_reader:
-            record.ID = f"{record.CHROM}_{record.POS}"
-            vcf_writer.write_record(record)
+            anc_genotypes = [record.genotype(f"{s}").gt_type for s in pops2samples[demo_pops[0]]]
+            if all(a == 0 for a in anc_genotypes):
+                aa = record.REF
+            elif all(a == 2 for a in anc_genotypes):
+                aa = record.ALT[0]
+            else:
+                aa = "."
+            line = [record.CHROM, str(record.POS), f"{record.CHROM}_{record.POS}", record.REF, str(record.ALT[0]), ".", "PASS", f"AA={aa}", "GT"] + [s.data.GT for s in record.samples]
+            print(*line, sep="\t", file=f)
+    #combined_vcf_io.seek(0)
+    #combined_vcf_reader = vcf.Reader(combined_vcf_io)
+    #with open("test_vcf.vcf", "w") as f:
+    #    vcf_writer = vcf.Writer(f, vcf_readers[0])
+    #    for record in combined_vcf_reader:
+    #        record.ID = f"{record.CHROM}_{record.POS}"
+    #        vcf_writer.write_record(record)
 
     with open("test_vcf.within", "w") as f:
         samples_iter = iter(combined_vcf_reader.samples)
@@ -77,6 +102,8 @@ def test_read_vcf():
 
     data3 = momi.read_plink_frq_strat("test_vcf.frq.strat", demo_pops[0])
 
-    data4 = momi.SnpAlleleCounts.read_vcf("test_vcf.vcf", ind2pops, outgroup = demo_pops[0])
+    data4 = momi.SnpAlleleCounts.read_vcf("test_vcf.vcf", ind2pops, ancestral_alleles = demo_pops[0])
+    data5 = momi.SnpAlleleCounts.read_vcf("test_vcf.vcf", {i: p for i, p in ind2pops.items() if p != demo_pops[0]}, ancestral_alleles=True)
 
     assert data3.sfs == data4.sfs
+    assert data5.sfs == data4.sfs
