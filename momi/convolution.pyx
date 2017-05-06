@@ -56,19 +56,22 @@ def add_trailing_axis(np.ndarray[np.double_t, ndim=2] B, int trailing_dim):
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def convolve_trailing_axes(np.ndarray[np.double_t, ndim=3] A,
-                           np.ndarray[np.double_t, ndim=3] B):
+def convolve_sum_axes(np.ndarray[np.double_t, ndim=4] A,
+                      np.ndarray[np.double_t, ndim=4] B):
     # first dimension is for data points (shared by A and B)
     assert A.shape[0] == B.shape[0]
+    # last dimension is for matrix multiply (reduction)
+    assert A.shape[3] == B.shape[3]
 
     cdef np.ndarray[np.double_t, ndim=4] C = np.zeros((A.shape[0],
                                                        A.shape[1],
                                                        B.shape[1],
                                                        A.shape[2] + B.shape[2] - 1))
 
-    cdef int i,j,k,l,m,I,J,K,L,M
+    cdef int i,j,k,l,m,n,I,J,K,L,M,N
     I,J,L = A.shape[0],A.shape[1],A.shape[2]
     K,M = B.shape[1],B.shape[2]
+    N = A.shape[3]
 
     cdef int ijk, IJK, jk, JK
     JK = J*K
@@ -80,41 +83,43 @@ def convolve_trailing_axes(np.ndarray[np.double_t, ndim=3] A,
         k = jk % K
         for l in range(L):
             for m in range(M):
-                C[i,j,k,l+m] += A[i,j,l] * B[i,k,m]
+                for n in range(N):
+                    C[i,j,k,l+m] += A[i,j,l,n] * B[i,k,m,n]
     return C
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def transposed_convolve_trailing_axes(np.ndarray[np.double_t, ndim=4] C,
-                                      np.ndarray[np.double_t, ndim=3] B,
-                                      tuple Ashape):
+def transposed_convolve_sum_axes(np.ndarray[np.double_t, ndim=4] C,
+                                 np.ndarray[np.double_t, ndim=4] B):
     '''
     If convolve_trailing_axes is viewed as multiplying A and B by a certain tensor,
     this is equal to multiplying C and B by that tensor, but with the tensor transposed along
     the A/C directions.
     '''
-    assert len(Ashape) == 3
-    assert C.shape[0] == B.shape[0] and C.shape[0] == Ashape[0]
-    assert Ashape[2] + B.shape[2] - 1 == C.shape[3]
+    Ashape = (C.shape[0], C.shape[1], C.shape[3] + 1 - B.shape[2], B.shape[3])
 
-    cdef np.ndarray[np.double_t, ndim=3] A = np.zeros(Ashape)
+    cdef np.ndarray[np.double_t, ndim=4] A = np.zeros(Ashape)
 
-    cdef int i,j,k,l,m,I,J,K,L,M
+    cdef int i,j,k,l,m,n,I,J,K,L,M,N
     I,J,L = A.shape[0],A.shape[1],A.shape[2]
     K,M = B.shape[1],B.shape[2]
+    N = A.shape[3]
 
-    cdef int ijl, IJL, jl, JL
+    cdef int ijln, IJLN, ijl, IJL, jl, JL
     JL = J*L
     IJL = I*JL
-    for ijl in prange(IJL, schedule='guided', nogil=True):
+    IJLN = IJL*N
+    for ijln in prange(IJLN, schedule='guided', nogil=True):
+        n = ijln // IJL
+        ijl = ijln % IJL
         i = ijl // JL
         jl = ijl % JL
         j = jl // L
         l = jl % L
         for k in range(K):
             for m in range(M):
-                A[i,j,l] += C[i,j,k,l+m] * B[i,k,m]
+                A[i,j,l,n] += C[i,j,k,l+m] * B[i,k,m,n]
     return A
 
 

@@ -1,8 +1,9 @@
 import networkx as nx
 from .util import memoize_instance, memoize
-from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse, par_einsum
+from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse, par_einsum, convolve_sum_axes
 import scipy
 import scipy.misc
+from scipy.misc import comb
 import scipy.sparse
 import autograd.numpy as np
 import autograd
@@ -507,13 +508,14 @@ class Demography(object):
         prob1, prob2 = [e[2]['prob'] for e in (edge1, edge2)]
         assert prob1 + prob2 == 1.0
 
-        n_from_1 = np.arange(n_node + 1)
-        n_from_2 = n_node - n_from_1
-        binom_coeffs = (prob1**n_from_1) * (prob2**n_from_2) * \
-            scipy.misc.comb(n_node, n_from_1)
-        ret = par_einsum(_der_in_admixture_node(n_node), list(range(4)),
-                         binom_coeffs, [0],
-                         [1, 2, 3])
+        #n_from_1 = np.arange(n_node + 1)
+        #n_from_2 = n_node - n_from_1
+        #binom_coeffs = (prob1**n_from_1) * (prob2**n_from_2) * \
+        #    scipy.misc.comb(n_node, n_from_1)
+        #ret = par_einsum(_der_in_admixture_node(n_node), list(range(4)),
+        #                 binom_coeffs, [0],
+        #                 [1, 2, 3])
+        ret = np.transpose(admixture_operator(n_node, prob1))
         assert ret.shape == tuple([n_node + 1] * 3)
 
         assert [admixture_node, parent1,
@@ -630,12 +632,7 @@ def rescale_events(events, factor):
     return rescaled_events
 
 
-@memoize
-def _der_in_admixture_node(n_node):
-    '''
-    returns 4d-array, [n_from_parent1, der_in_child, der_in_parent1, der_in_parent2].
-    Used by Demography._admixture_prob_helper
-    '''
+def admixture_operator(n_node, p):
     # axis0=n_from_parent, axis1=der_from_parent, axis2=der_in_parent
     der_in_parent = np.tile(np.arange(n_node + 1), (n_node + 1, n_node + 1, 1))
     n_from_parent = np.transpose(der_in_parent, [2, 0, 1])
@@ -644,12 +641,58 @@ def _der_in_admixture_node(n_node):
     anc_in_parent = n_node - der_in_parent
     anc_from_parent = n_from_parent - der_from_parent
 
-    x = scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(
-        anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent)
+    x = comb(der_in_parent, der_from_parent) * comb(
+        anc_in_parent, anc_from_parent) / comb(n_node, n_from_parent)
+    # rearrange so axis0=1, axis1=der_in_parent, axis2=der_from_parent, axis3=n_from_parent
+    x = np.transpose(x)
+    x = np.reshape(x, [1] + list(x.shape))
 
-    ret, labels = convolve_axes(
-        x, x[::-1, ...], [[c for c in 'ijk'], [c for c in 'ilm']], ['j', 'l'], 'n')
-    return np.einsum('%s->inkm' % ''.join(labels), ret[..., :(n_node + 1)])
+    n = np.arange(n_node+1)
+    B = comb(n_node, n)
+
+    # the two arrays to convolve_sum_axes
+    x1 = (x * B * ((1-p)**n) * (p**(n[::-1])))
+    x2 = x[:, :, :, ::-1]
+
+    # reduce array size; approximate low probability events with 0
+    mu = n_node * (1-p)
+    sigma = np.sqrt(n_node * p * (1-p))
+    n_sd = 4
+    lower = np.max((0, np.floor(mu - n_sd*sigma)))
+    upper = np.min((n_node, np.ceil(mu + n_sd*sigma))) + 1
+    lower, upper = int(lower), int(upper)
+
+    x1 = x1[:,:,:upper,lower:upper]
+    x2 = x2[:,:,:(n_node-lower+1),lower:upper]
+
+    ret = convolve_sum_axes(x1, x2)
+    # axis0=der_in_parent1, axis1=der_in_parent2, axis2=der_in_child
+    ret = np.reshape(ret, ret.shape[1:])
+    if ret.shape[2] < (n_node+1):
+        ret = np.pad(ret, [(0,0),(0,0),(0,n_node+1-ret.shape[2])], "constant")
+    return ret[:, :, :(n_node+1)]
+
+
+#@memoize
+#def _der_in_admixture_node(n_node):
+#    '''
+#    returns 4d-array, [n_from_parent1, der_in_child, der_in_parent1, der_in_parent2].
+#    Used by Demography._admixture_prob_helper
+#    '''
+#    # axis0=n_from_parent, axis1=der_from_parent, axis2=der_in_parent
+#    der_in_parent = np.tile(np.arange(n_node + 1), (n_node + 1, n_node + 1, 1))
+#    n_from_parent = np.transpose(der_in_parent, [2, 0, 1])
+#    der_from_parent = np.transpose(der_in_parent, [0, 2, 1])
+#
+#    anc_in_parent = n_node - der_in_parent
+#    anc_from_parent = n_from_parent - der_from_parent
+#
+#    x = scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(
+#        anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent)
+#
+#    ret, labels = convolve_axes(
+#        x, x[::-1, ...], [[c for c in 'ijk'], [c for c in 'ilm']], ['j', 'l'], 'n')
+#    return np.einsum('%s->inkm' % ''.join(labels), ret[..., :(n_node + 1)])
 
 
 def _build_event_tree(G):

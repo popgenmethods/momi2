@@ -3,25 +3,32 @@ import autograd.numpy as np
 from autograd.core import primitive
 import scipy
 from .util import memoize, check_psd
-from .convolution import convolve_trailing_axes, sum_trailing_antidiagonals, add_trailing_axis, transposed_convolve_trailing_axes, roll_trailing_axes, unroll_trailing_axes
+from .convolution import convolve_sum_axes, transposed_convolve_sum_axes, sum_trailing_antidiagonals, add_trailing_axis, roll_trailing_axes, unroll_trailing_axes
 from .einsum2 import einsum1, einsum2
 
 
 def par_einsum(*args):
     return einsum2(*args)
 
-convolve_trailing_axes = primitive(convolve_trailing_axes)
-transposed_convolve_trailing_axes = primitive(
-    transposed_convolve_trailing_axes)
+def convolve_trailing_axes(A, B):
+    A = np.reshape(A, list(A.shape) + [1])
+    B = np.reshape(B, list(B.shape) + [1])
+    return convolve_sum_axes(A, B)
 
-convolve_trailing_axes.defgrad(
-    lambda ans, A, B: lambda g: transposed_convolve_trailing_axes(g, B, A.shape))
-convolve_trailing_axes.defgrad(lambda ans, A, B: lambda g: transposed_convolve_trailing_axes(
-    np.transpose(g, (0, 2, 1, 3)), A, B.shape), argnum=1)
-transposed_convolve_trailing_axes.defgrad(
-    lambda ans, C, B, Ashape: lambda g: convolve_trailing_axes(g, B))
-transposed_convolve_trailing_axes.defgrad(lambda ans, C, B, Ashape: lambda g: transposed_convolve_trailing_axes(
-    np.transpose(C, (0, 2, 1, 3)), g, B.shape), argnum=1)
+convolve_sum_axes = primitive(convolve_sum_axes)
+transposed_convolve_sum_axes = primitive(transposed_convolve_sum_axes)
+
+convolve_sum_axes.defgrad(
+    lambda ans, A, B: lambda g: transposed_convolve_sum_axes(g, B))
+convolve_sum_axes.defgrad(
+    lambda ans, A, B: lambda g: transposed_convolve_sum_axes(
+        np.transpose(g, (0, 2, 1, 3)), A), argnum=1)
+
+transposed_convolve_sum_axes.defgrad(
+    lambda ans, C, B: lambda g: convolve_sum_axes(g, B))
+transposed_convolve_sum_axes.defgrad(
+    lambda ans, C, B: lambda g: transposed_convolve_sum_axes(
+        np.transpose(C, (0, 2, 1, 3)), g), argnum=1)
 
 
 def convolve_axes(arr0, arr1, labs, axes, out_axis):

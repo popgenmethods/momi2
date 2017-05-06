@@ -52,9 +52,9 @@ def compute_stats(demo, sampled_sfs, true_sfs=None, true_branch_len=None):
     exp_sfs = expected_sfs(demo.demo_hist, config_list)
     exp_branch_len = expected_total_branch_len(demo.demo_hist, sampled_pops=demo.pops, sampled_n=demo.n)
     if true_sfs is not None:
-        assert np.allclose(true_sfs, exp_sfs)
+        assert np.allclose(true_sfs, exp_sfs, rtol=1e-4)
     if true_branch_len is not None:
-        assert np.allclose(true_branch_len, exp_branch_len)
+        assert np.allclose(true_branch_len, exp_branch_len, rtol=1e-4)
 
     return exp_sfs, exp_branch_len
 
