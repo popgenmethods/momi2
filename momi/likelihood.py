@@ -14,6 +14,7 @@ import random
 import functools
 import logging
 import time
+import itertools as it
 
 logger = logging.getLogger(__name__)
 
@@ -461,28 +462,50 @@ def _subsfs_list(sfs, n_chunks, rnd, exact):
 def _get_random_counts(sfs, n_chunks, rnd, exact):
     total_counts = sfs._total_freqs
     is_exact = np.zeros(len(total_counts), dtype='bool')
+    # row = SFS entry, column=chunk
+    ret = scipy.sparse.dok_matrix(
+        (len(total_counts), n_chunks))
     if exact:
-        sorted_idxs = np.argsort(total_counts, kind="heapsort")
+        sorted_idxs = np.argsort(total_counts,
+                                 kind="heapsort")
         exact = sorted_idxs[::-1][:exact]
         is_exact[exact] = True
+        for i in exact:
+            to_add = total_counts[i] / float(n_chunks)
+            for chunk in range(n_chunks):
+                ret[i, chunk] += to_add
 
-    data = []
-    indices = []
-    indptr = []
-    for cnt_i, use_exact in zip(total_counts, is_exact):
-        indptr.append(len(data))
+    idxs = []
+    for i, cnt, use_exact in zip(
+            it.count(), total_counts, is_exact):
+        if not use_exact:
+            for _ in range(int(cnt)):
+                idxs.append(i)
 
-        if use_exact:
-            curr = cnt_i / float(n_chunks) * np.ones(n_chunks, dtype=float)
-        else:
-            curr = rnd.multinomial(cnt_i, [1. / float(n_chunks)] * n_chunks)
-        indices += list(np.arange(len(curr))[curr != 0])
-        data += list(curr[curr != 0])
-    indptr.append(len(data))
+    rnd.shuffle(idxs)
+    for chunk in range(n_chunks):
+        for i in idxs[chunk::n_chunks]:
+            ret[i, chunk] += 1
 
-    # row = SFS entry, column=chunk
-    random_counts = scipy.sparse.csr_matrix(
-        (data, indices, indptr), shape=(len(total_counts), n_chunks))
-    random_counts = random_counts.tocsc()
+    return ret.tocsc(), is_exact
 
-    return random_counts, is_exact
+    #data = []
+    #indices = []
+    #indptr = []
+    #for cnt_i, use_exact in zip(total_counts, is_exact):
+    #    indptr.append(len(data))
+
+    #    if use_exact:
+    #        curr = cnt_i / float(n_chunks) * np.ones(n_chunks, dtype=float)
+    #    else:
+    #        curr = rnd.multinomial(cnt_i, [1. / float(n_chunks)] * n_chunks)
+    #    indices += list(np.arange(len(curr))[curr != 0])
+    #    data += list(curr[curr != 0])
+    #indptr.append(len(data))
+
+    ## row = SFS entry, column=chunk
+    #random_counts = scipy.sparse.csr_matrix(
+    #    (data, indices, indptr), shape=(len(total_counts), n_chunks))
+    #random_counts = random_counts.tocsc()
+
+    #return random_counts, is_exact
