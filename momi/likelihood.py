@@ -99,15 +99,22 @@ class SfsLikelihoodSurface(object):
         """
         Returns the composite log-likelihood of the data at the point x.
         """
+        demo = self._get_multipop_moran(x)
+        ret = self._get_multinom_loglik(demo) + self._mut_factor(demo) + self._log_prior(x)
+        logger.debug("log-likelihood = {0}".format(ret))
+        return ret
+
+    def _get_multipop_moran(self, x):
         if self.demo_func:
             logger.debug(
                 "Computing log-likelihood at x = {0}".format(str(x).replace('\n', '')))
             demo = self.demo_func(*x)
         else:
             demo = x
-        demo = demo._get_multipop_moran(self.sfs.sampled_pops,
+        return demo._get_multipop_moran(self.sfs.sampled_pops,
                                         self.sfs.sampled_n)
 
+    def _get_multinom_loglik(self, demo):
         if self.sfs_batches:
             G, (diff_keys, diff_vals) = demo._get_graph_structure(
             ), demo._get_differentiable_part()
@@ -118,15 +125,20 @@ class SfsLikelihoodSurface(object):
         else:
             ret = _composite_log_likelihood(self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded,
                                             error_matrices=self.error_matrices, use_pairwise_diffs=self.use_pairwise_diffs)
-
-        if self.mut_rate is not None:
-            ret = ret + _mut_factor(self.sfs, demo, self.mut_rate,
-                                    False, self.p_missing, self.use_pairwise_diffs)
-
-        if self.log_prior:
-            ret = ret + self.log_prior(x)
-        logger.debug("log-likelihood = {0}".format(ret))
         return ret
+
+    def _mut_factor(self, demo):
+        if self.mut_rate is not None:
+            return _mut_factor(self.sfs, demo, self.mut_rate,
+                               False, self.p_missing, self.use_pairwise_diffs)
+        else:
+            return 0
+
+    def _log_prior(self, x):
+        if self.log_prior:
+            return self.log_prior(x)
+        else:
+            return 0
 
     def kl_div(self, x):
         """
@@ -236,10 +248,9 @@ class SfsLikelihoodSurface(object):
             mut_rate = self.mut_rate * np.ones(self.sfs.n_loci)
             mut_rate = np.sum(mut_rate) / float(pieces)
 
-        return [SfsLikelihoodSurface(sfs, demo_func=self.demo_func, mut_rate=mut_rate,
+        return [SfsLikelihoodSurface(sfs, demo_func=self.demo_func, mut_rate=None,
                                      folded=self.folded, error_matrices=self.error_matrices,
-                                     truncate_probs=self.truncate_probs,
-                                     batch_size=self.batch_size)
+                                     truncate_probs=self.truncate_probs, batch_size=self.batch_size)
                 for sfs in sfs_pieces], is_exact
 
     def stochastic_surfaces(self, n_minibatches=None, snps_per_minibatch=None, rgen=np.random, exact=0):
@@ -287,6 +298,14 @@ class StochasticSfsLikelihoodSurface(object):
     @property
     def n_minibatches(self): return len(self.pieces)
 
+    def avg_neg_log_lik(self, x, i):
+        if i is None:
+            return -self.full_surface.log_lik(x) / self.full_surface.sfs.n_snps()
+        demo = self.full_surface._get_multipop_moran(x)
+        ret = -self.pieces[i]._get_multinom_loglik(demo) * self.n_minibatches
+        ret = ret - self.full_surface._mut_factor(demo) - self.full_surface._log_prior(x)
+        return ret / self.full_surface.sfs.n_snps()
+
     def find_mle(self, x0, method="adam", bounds=None, rgen=None, callback=None, **kwargs):
         if not rgen:
             rgen = self.rgen
@@ -294,27 +313,10 @@ class StochasticSfsLikelihoodSurface(object):
 
         full_surface = self.full_surface
 
-        def fun(x, i):
-            if i is None:
-                return full_surface.kl_div(x)
-            else:
-                if full_surface.log_prior:
-                    lp = full_surface.log_prior(x)
-                else:
-                    lp = 0.0
-                #ret = -self.pieces[i].log_lik(x) + self.pieces[i].sfs.n_snps() * (full_surface.sfs._entropy - lp/float(full_surface.sfs.n_snps())) + _entropy_mut_term(self.pieces[i].mut_rate, self.pieces[i].sfs, self.p_missing, self.use_pairwise_diffs)
-                ret = -self.pieces[i].log_lik(x) + self.pieces[i].sfs.n_snps() * (
-                    full_surface.sfs._entropy - lp / float(full_surface.sfs.n_snps()))
-                if full_surface.mut_rate is not None:
-                    ret = ret + \
-                        self.pieces[i].sfs._get_muts_poisson_entropy(
-                            full_surface.use_pairwise_diffs)
-                return ret / float(full_surface.sfs.n_snps()) * self.n_minibatches
-
         opt_kwargs = dict(kwargs)
         opt_kwargs.update({'pieces': self.n_minibatches, 'rgen': rgen})
 
-        return _find_minimum(fun, x0, optimizer=stochastic_opts[method],
+        return _find_minimum(self.avg_neg_log_lik, x0, optimizer=stochastic_opts[method],
                              bounds=bounds, callback=callback, opt_kwargs=opt_kwargs,
                              gradmakers={'fun_and_jac': autograd.value_and_grad})
 
