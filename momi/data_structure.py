@@ -311,20 +311,35 @@ class Sfs(object):
         self.configs = configs
 
         self.loc_idxs, self.loc_counts = [], []
-        loci = [Counter(loc) for loc in loci]
         for loc in loci:
             if len(loc) == 0:
                 self.loc_idxs.append(np.array([], dtype=int))
                 self.loc_counts.append(np.array([], dtype=float))
             else:
-                idxs, cnts = zip(*loc.items())
+                try:
+                    items = loc.items()
+                except:
+                    loc = np.array(loc)
+                    if len(loc.shape) == 2:
+                        assert loc.shape[0] == 2
+                        idxs, cnts = loc[0,:], loc[1,:]
+                    else:
+                        idxs, cnts = np.unique(loc, return_counts=True)
+                else:
+                    idxs, cnts = zip(*loc.items())
                 self.loc_idxs.append(np.array(idxs, dtype=int))
                 self.loc_counts.append(np.array(cnts, dtype=float))
 
-        self._freqs_matrix = _freq_matrix_from_counters(
-            loci, len(self.configs))
-        self._total_freqs = np.array(np.squeeze(np.asarray(self.freqs_matrix.sum(axis=1))),
-                                     ndmin=1)
+        if len(self.loc_idxs) > 1:
+            self._total_freqs = np.array(np.squeeze(np.asarray(self.freqs_matrix.sum(axis=1))),
+                                        ndmin=1)
+        else:
+            # avoid costly building of frequency matrix, when there are many Sfs's of a single locus
+            # (e.g. in many stochastic minibatches)
+            idxs, = self.loc_idxs
+            cnts, = self.loc_counts
+            self._total_freqs = np.zeros(len(self.configs))
+            self._total_freqs[idxs] = cnts
 
     def dump(self, f):
         """
@@ -372,6 +387,11 @@ class Sfs(object):
         Returns the frequencies as a sparse matrix;
         freqs_matrix[i, j] is the frequency of Sfs.configs[i] at locus j
         """
+        try:
+            self._freqs_matrix
+        except:
+            self._freqs_matrix = _freq_matrix_from_counters(
+                self.loc_idxs, self.loc_counts, len(self.configs))
         return self._freqs_matrix
 
     @cached_property
@@ -566,21 +586,18 @@ class Sfs(object):
                                    for loc_freqs in freqs.T])
 
 
-def _freq_matrix_from_counters(idx_counts_list, n_configs):
+def _freq_matrix_from_counters(idxs_by_loc, cnts_by_loc, n_configs):
     data = []
     indices = []
     indptr = []
-    for locus in idx_counts_list:
-        locus = locus.items()
-        if locus:
-            idxs, cnts = zip(*locus)
-        else:
-            idxs, cnts = [], []
-        indptr += [len(data)]
-        data += list(cnts)
-        indices += list(idxs)
-    indptr += [len(data)]
-    return scipy.sparse.csc_matrix((data, indices, indptr), shape=(n_configs, len(idx_counts_list))).tocsr()
+    n_loc = 0
+    for idxs, cnts in zip(idxs_by_loc, cnts_by_loc):
+        indptr.append(len(data))
+        data.extend(cnts)
+        indices.extend(idxs)
+        n_loc += 1
+    indptr.append(len(data))
+    return scipy.sparse.csc_matrix((data, indices, indptr), shape=(n_configs, n_loc)).tocsr()
 
 
 def _get_subsample_counts(configs, n):
@@ -693,7 +710,6 @@ class SegSitesLocus(object):
 
 
 class SegSites(object):
-
     def __init__(self, configs, idx_list, config_mixture_by_idx=None):
         """
         This constructor should not be called directly, instead use the function
@@ -714,15 +730,16 @@ class SegSites(object):
             self.loci = [SegSitesLocus(self.configs, idxs)
                          for idxs in idx_list]
         else:
-            self.loci = [SegSitesLocus(None, idxs) for idxs in idx_list]
-            idx_counts_list = [Counter(loc) for loc in idx_list]
+            self.loci = [SegSitesLocus(None, idxs) for idxs in self.idx_list]
+            loc_idxs, loc_counts = zip(*[np.unique(loc, return_counts=True) for loc in self.idx_list])
             idx_freqs_matrix = _freq_matrix_from_counters(
-                idx_counts_list, len(config_mixture_by_idx))
+                loc_idxs, loc_counts, len(config_mixture_by_idx))
             config_freqs_matrix = np.array(
                 idx_freqs_matrix.T.dot(config_mixture_by_idx).T)
-            configs_counts_list = [{c: f for c, f in zip(range(len(configs)), col) if f != 0}
-                                   for col in config_freqs_matrix.T]
-            self.sfs = Sfs(configs_counts_list, self.configs)
+            arange = np.arange(len(configs))
+            config_counts_list = [(arange[col != 0], col[col != 0])
+                                  for col in config_freqs_matrix.T]
+            self.sfs = Sfs(config_counts_list, self.configs)
 
     def __getitem__(self, loc):
         return self.loci[loc]

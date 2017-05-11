@@ -85,7 +85,7 @@ class SfsLikelihoodSurface(object):
         else:
             self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
 
-        if p_missing is None:
+        if p_missing is None and self.mut_rate:
             p_missing = self.sfs.p_missing
         self.p_missing = p_missing
 
@@ -240,8 +240,8 @@ class SfsLikelihoodSurface(object):
                              bounds=bounds, callback=callback,
                              opt_kwargs=opt_kwargs, gradmakers=gradmakers, replacefun=replacefun)
 
-    def _get_stochastic_pieces(self, pieces, rgen, exact):
-        sfs_pieces, is_exact = _subsfs_list(self.sfs, pieces, rgen, exact)
+    def _get_stochastic_pieces(self, pieces, rgen):
+        sfs_pieces = _subsfs_list(self.sfs, pieces, rgen)
         if self.mut_rate is None:
             mut_rate = None
         else:
@@ -251,9 +251,9 @@ class SfsLikelihoodSurface(object):
         return [SfsLikelihoodSurface(sfs, demo_func=self.demo_func, mut_rate=None,
                                      folded=self.folded, error_matrices=self.error_matrices,
                                      truncate_probs=self.truncate_probs, batch_size=self.batch_size)
-                for sfs in sfs_pieces], is_exact
+                for sfs in sfs_pieces]
 
-    def stochastic_surfaces(self, n_minibatches=None, snps_per_minibatch=None, rgen=np.random, exact=0):
+    def stochastic_surfaces(self, n_minibatches=None, snps_per_minibatch=None, rgen=np.random):
         """
         Partitions the data into n_minibatches random subsets ("minibatches") of roughly equal size. It returns a StochasticSfsLikelihoodSurface object, which can be used for stochastic gradient descent.
 
@@ -268,27 +268,21 @@ class SfsLikelihoodSurface(object):
         if snps_per_minibatch is not None:
             n_minibatches = int(
                 np.ceil(self.sfs.n_snps() / float(snps_per_minibatch)))
-        return StochasticSfsLikelihoodSurface(self, n_minibatches, rgen, exact)
+        return StochasticSfsLikelihoodSurface(self, n_minibatches, rgen)
 
 
 class StochasticSfsLikelihoodSurface(object):
 
-    def __init__(self, full_surface, pieces, rgen, exact):
+    def __init__(self, full_surface, pieces, rgen):
         try:
             assert pieces > 0 and pieces == int(pieces)
         except (TypeError, AssertionError):
             raise ValueError("pieces should be a positive integer")
 
-        self.pieces, self.exact_snps = full_surface._get_stochastic_pieces(
-            pieces, rgen, exact)
+        self.pieces = full_surface._get_stochastic_pieces(pieces, rgen)
         self.total_snp_counts = full_surface.sfs._total_freqs
         logger.info("Created {n_batches} minibatches, with an average of {n_snps} SNPs and {n_sfs} unique SFS entries per batch".format(n_batches=len(
             self.pieces), n_snps=full_surface.sfs.n_snps() / float(len(self.pieces)), n_sfs=np.mean([len(piece.sfs.configs) for piece in self.pieces])))
-        if exact:
-            total = np.sum(self.total_snp_counts)
-            nexact = np.sum(self.total_snp_counts[self.exact_snps])
-            logger.info("Using exact frequencies for %d most frequent entries, accounting for %f of SNPs (%d out of %d)" % (
-                exact, nexact / float(total), nexact, total))
 
         self.rgen = rgen
         self.full_surface = full_surface
@@ -392,33 +386,6 @@ def _mut_factor_total(sfs, demo, mut_rate, vector):
         ret = np.sum(ret)
     return ret
 
-# def _entropy_mut_term(mut_rate, sfs, p_missing, use_pairwise_diffs):
-#    ## TODO: not correctly implemented for ascertainment pops...
-#    if mut_rate is None:
-#        return 0.0
-#    elif use_pairwise_diffs:
-#        if p_missing is None:
-#            p_missing = sfs.p_missing
-#        p_missing = p_missing * np.ones(len(sfs.sampled_pops))
-#        mu_ik = np.einsum("i,k->ik", mut_rate * np.ones(sfs.n_loci), p_missing)
-#        counts_ik = sfs.avg_pairwise_hets
-#
-#        ret = np.sum(counts_ik, axis=0) * mu_ik / np.sum(mu_ik, axis=0)
-#        ret = -counts_ik + counts_ik * np.log(ret)
-#        # sum over loci
-#        ret = np.sum(ret, axis=0)
-#        # sum over populations
-#        return np.sum(ret * sfs.sampled_n) / float(np.sum(sfs.sampled_n))
-#    elif p_missing is not None and np.any(p_missing > 0):
-#        raise ValueError("Expected total branch length not implemented for missing data; set use_pairwise_diffs=True to scale total mutations by the pairwise differences instead.")
-#    else:
-#        counts_i = sfs.n_snps(vector=True)
-#        mu = mut_rate * np.ones(len(counts_i))
-#        mu = mu[counts_i > 0]
-#        counts_i = counts_i[counts_i > 0]
-# return np.sum(-counts_i + counts_i * np.log(np.sum(counts_i) * mu /
-# float(np.sum(mu))))
-
 
 @rearrange_tuple_gradients()
 def _raw_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_matrices):
@@ -451,63 +418,24 @@ def _build_sfs_batches(sfs, batch_size):
     return [_sub_sfs(sfs.configs, counts[idx], subidxs=idx) for idx in idx_list]
 
 
-def _subsfs_list(sfs, n_chunks, rnd, exact):
-    random_counts, is_exact = _get_random_counts(sfs, n_chunks, rnd, exact)
+def _subsfs_list(sfs, n_chunks, rnd):
+    n_snps = int(sfs.n_snps())
+    logger.debug("Splitting {} SNPs into {} minibatches".format(n_snps, n_chunks))
 
+    logger.debug("Building list of length {}".format(n_snps))
+    idxs = np.zeros(n_snps, dtype=int)
+    total_counts = np.array(sfs._total_freqs, dtype=int)
+    curr = 0
+    for i, cnt in enumerate(total_counts):
+        idxs[curr:(curr+cnt)] = i
+        curr += cnt
+
+    logger.debug("Permuting list of {} SNPs".format(n_snps))
+    idxs = rnd.permutation(idxs)
+
+    logger.debug("Splitting permuted SNPs into {} minibatches".format(n_chunks))
     ret = []
-    for start, end in zip(random_counts.indptr[:-1], random_counts.indptr[1:]):
-        ret.append(_sub_sfs(sfs.configs, random_counts.data[
-                   start:end], random_counts.indices[start:end]))
-    return ret, is_exact
-
-
-def _get_random_counts(sfs, n_chunks, rnd, exact):
-    total_counts = sfs._total_freqs
-    is_exact = np.zeros(len(total_counts), dtype='bool')
-    # row = SFS entry, column=chunk
-    ret = scipy.sparse.dok_matrix(
-        (len(total_counts), n_chunks))
-    if exact:
-        sorted_idxs = np.argsort(total_counts,
-                                 kind="heapsort")
-        exact = sorted_idxs[::-1][:exact]
-        is_exact[exact] = True
-        for i in exact:
-            to_add = total_counts[i] / float(n_chunks)
-            for chunk in range(n_chunks):
-                ret[i, chunk] += to_add
-
-    idxs = []
-    for i, cnt, use_exact in zip(
-            it.count(), total_counts, is_exact):
-        if not use_exact:
-            for _ in range(int(cnt)):
-                idxs.append(i)
-
-    rnd.shuffle(idxs)
     for chunk in range(n_chunks):
-        for i in idxs[chunk::n_chunks]:
-            ret[i, chunk] += 1
-
-    return ret.tocsc(), is_exact
-
-    #data = []
-    #indices = []
-    #indptr = []
-    #for cnt_i, use_exact in zip(total_counts, is_exact):
-    #    indptr.append(len(data))
-
-    #    if use_exact:
-    #        curr = cnt_i / float(n_chunks) * np.ones(n_chunks, dtype=float)
-    #    else:
-    #        curr = rnd.multinomial(cnt_i, [1. / float(n_chunks)] * n_chunks)
-    #    indices += list(np.arange(len(curr))[curr != 0])
-    #    data += list(curr[curr != 0])
-    #indptr.append(len(data))
-
-    ## row = SFS entry, column=chunk
-    #random_counts = scipy.sparse.csr_matrix(
-    #    (data, indices, indptr), shape=(len(total_counts), n_chunks))
-    #random_counts = random_counts.tocsc()
-
-    #return random_counts, is_exact
+        chunk_idxs, chunk_cnts = np.unique(idxs[chunk::n_chunks], return_counts=True)
+        ret.append(_sub_sfs(sfs.configs, chunk_cnts, chunk_idxs))
+    return ret

@@ -93,7 +93,7 @@ def test_subsfs2(fold):
     if fold:
         sfs = sfs.fold()
 
-    subsfs_list, _ = momi.likelihood._subsfs_list(sfs, 10, np.random, 0)
+    subsfs_list = momi.likelihood._subsfs_list(sfs, 10, np.random)
     total = [([tuple(map(tuple, sfs.configs[i])) for i in subsfs.configs.sub_idxs],
               subsfs._total_freqs)
              for subsfs in subsfs_list]
@@ -126,7 +126,7 @@ def test_subliks(fold):
 
     surface = momi.SfsLikelihoodSurface(
         sfs, demo_func=demo_func, mut_rate=None, folded=fold)
-    subsurfaces, _ = surface._get_stochastic_pieces(n_chunks, np.random, 0)
+    subsurfaces = surface._get_stochastic_pieces(n_chunks, np.random)
 
     val0 = [s.log_lik(x0) for s in subsurfaces]
     val1 = surface.log_lik(x0)
