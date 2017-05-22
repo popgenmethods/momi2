@@ -315,12 +315,13 @@ class LikelihoodTensorList(object):
         for newpop in self.demo._parent_pops(event):
             lik = self._get_likelihoods(newpop)
             lik.make_last_axis(newpop)
-            lik.add_last_axis_sfs(self.demo._truncated_sfs(newpop))
-            if event != self.demo._event_root:
-                lik.matmul_last_axis(
-                    np.transpose(moran_transition(
-                        self.demo._scaled_time(newpop),
-                        lik.get_last_axis_n())))
+            n = lik.get_last_axis_n()
+            if n > 0:
+                lik.add_last_axis_sfs(self.demo._truncated_sfs(newpop))
+                if event != self.demo._event_root:
+                    lik.matmul_last_axis(
+                        np.transpose(moran_transition(
+                            self.demo._scaled_time(newpop), n)))
 
     def _rename_pop(self, oldpop, newpop):
         self._get_likelihoods(oldpop).rename_pop(
