@@ -12,7 +12,8 @@ import msprime
 
 from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 from .compute_sfs import expected_total_branch_len
-from .data_structure import seg_site_configs
+from .data_structure import CompressedAlleleCounts, _CompressedHashedCounts, seg_site_configs
+from .parse_data import SnpAlleleCounts
 from functools import partial
 
 import os
@@ -531,11 +532,33 @@ class Demography(object):
         else:
             treeseq = [treeseq]
 
-        return seg_site_configs(
-            self.sampled_pops,
-            (get_treeseq_configs(locus, self.sampled_n)
-             for locus in treeseq)
-        )
+        mat = np.zeros((len(self.sampled_n), sum(self.sampled_n)), dtype=int)
+        j = 0
+        for i, n in enumerate(self.sampled_n):
+            for _ in range(n):
+                mat[i, j] = 1
+                j += 1
+        mat = scipy.sparse.csr_matrix(mat)
+
+        def get_config(genos):
+            derived_counts = mat.dot(genos)
+            return np.array([
+                self.sampled_n - derived_counts,
+                derived_counts
+            ]).T
+
+        chrom = []
+        pos = []
+        compressed_counts = _CompressedHashedCounts(len(self.sampled_pops))
+
+        for c, locus in enumerate(treeseq):
+            for v in locus.variants():
+                compressed_counts.append(get_config(v.genotypes))
+                chrom.append(c)
+                pos.append(v.position)
+
+        return SnpAlleleCounts(chrom, pos, compressed_counts.compressed_allele_counts(),
+                               self.sampled_pops)
 
     def simulate_trees(self, **kwargs):
         sampled_t = self.sampled_t
@@ -590,25 +613,6 @@ class Demography(object):
                                          for p, t, n in zip(self.sampled_pops, self.sampled_t, self.sampled_n)
                                          for _ in range(n)],
                                 **kwargs)
-
-def get_treeseq_configs(treeseq, sampled_n):
-    mat = np.zeros((len(sampled_n), sum(sampled_n)), dtype=int)
-    j = 0
-    for i, n in enumerate(sampled_n):
-        for _ in range(n):
-            mat[i, j] = 1
-            j += 1
-    mat = scipy.sparse.csr_matrix(mat)
-
-    def get_config(genos):
-        derived_counts = mat.dot(genos)
-        return np.array([
-            sampled_n - derived_counts,
-            derived_counts
-        ]).T
-
-    for v in treeseq.variants():
-        yield get_config(v.genotypes)
 
 
 def rescale_events(events, factor):

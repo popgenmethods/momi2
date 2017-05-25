@@ -11,50 +11,41 @@ from test_msprime import ms_path, scrm_path
 
 
 def test_archaic_and_pairwisediffs():
-    theta = .1
+    #logging.basicConfig(level=logging.DEBUG)
+    theta = 1
+    N_e = 1.0
     join_time = 1.0
-    #num_runs = 10000
     num_runs = 1000
 
     logit = lambda p: np.log(p / (1. - p))
     expit = lambda x: 1. / (1. + np.exp(-x))
 
-    true_sample_t = logit(random.uniform(0, join_time) / join_time)
+    model = momi.DemographicModel(N_e)
+    model.add_param("sample_t", x0=logit(random.uniform(0.001, join_time-.001) / join_time),
+                    lower_x=None, upper_x=None,
+                    transform_x = lambda x, **kw: expit(x)*join_time)
+    model.add_param("N", x0=0, lower_x=None, upper_x=None,
+                    transform_x = lambda x, **kw: np.exp(x))
+    model.add_leaf("a", N="N")
+    model.add_leaf("b", t="sample_t", N="N")
+    model.move_lineages("a", "b", join_time)
 
-    sampled_pops = ['a', 'b']
-    sampled_n = [2, 2]
+    n_bases = 1000
+    data = model.simulate_data(length=n_bases, recombination_rate=None,
+                               mutation_rate=theta/4./N_e/n_bases,
+                               num_replicates=num_runs,
+                               sampled_n_dict={"a": 2, "b": 2})
 
-    def get_demo(sample_t, log_N):
-        return demographic_history([('-ej', join_time, 'a', 'b')],
-                                   archaic_times_dict={"b": expit(sample_t) * join_time}, default_N=np.exp(log_N))
-    true_demo = get_demo(true_sample_t, 0)
+    model.set_data(data, muts_per_gen=theta/4./N_e*num_runs,
+                   use_pairwise_diffs=False, chunk_size=-1)
 
-    # sfs = simulate_ms(scrm_path, true_demo,
-    #                  sampled_pops=sampled_pops, sampled_n=sampled_n,
-    # num_loci=num_runs, mut_rate=theta, cmd_format='scrm').sfs
-    num_bases = 1e3
-    sfs = true_demo.simulate_data(
-        sampled_pops, sampled_n,
-        mutation_rate=theta / num_bases,
-        length=num_bases,
-        num_replicates=num_runs,
-    ).sfs
+    true_params = np.array(list(model.get_params().values()))
+    model.set_x([logit(random.uniform(.001, join_time-.001) / join_time),
+                 random.uniform(-1, 1)])
+    res = model.optimize(method="trust-ncg", hessp=True)
+    inferred_params = np.array(list(model.get_params().values()))
 
-    log_prior = lambda x: -x[0] / float(true_sample_t)
-
-    x0 = np.array(
-        [logit(random.uniform(0, join_time) / join_time), random.uniform(-1, 1)])
-    res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta, log_prior=log_prior,
-                               batch_size=-1, use_pairwise_diffs=True).find_mle(x0, method='trust-ncg', hessp=True)
-    #res = SfsLikelihoodSurface(sfs, demo_func=get_demo, mut_rate=theta, log_prior=log_prior, batch_size=-1).find_mle(x0, method='trust-ncg', hessp=True)
-
-    print(res.jac)
-    assert abs(expit(res.x[0]) - expit(true_sample_t)
-               ) < .1 and abs(res.x[1]) < .1
-    # for i,subres in enumerate(res.subsample_results):
-    #    assert abs(subres.x - true_sample_t) < .15, "subsample %d did not fit truth well" % i
-
-    #assert False
+    assert np.max(np.abs(np.log(true_params / inferred_params))) < .2
 
 
 @pytest.mark.parametrize("folded,add_n",
@@ -83,6 +74,13 @@ def check_jointime_inference(sampled_n=(5, 5, 5), folded=False, add_n=0, finite_
     t0 = random.uniform(.25, 2.5)
     t1 = t0 + random.uniform(.5, 5.0)
 
+    model = momi.DemographicModel(1)
+    model.add_leaf(1)
+    model.add_leaf(2)
+    model.add_leaf(3)
+    model.add_param("join_time", x0=t0, upper_x=t1)
+    model.move_lineages(1, 2,)
+
     sampled_pops = (1, 2, 3)
 
     def get_demo(join_time):
@@ -106,8 +104,12 @@ def check_jointime_inference(sampled_n=(5, 5, 5), folded=False, add_n=0, finite_
     )
 
     if missing_p:
-        data = momi.data_structure._randomly_drop_alleles(data, missing_p)
+        data = momi.data_structure._randomly_drop_alleles(data.seg_sites, missing_p)
     if subsample_n:
+        try:
+            data = data.seg_sites
+        except:
+            pass
         data = data.subsample_inds(subsample_n)
 
     sfs = data.sfs

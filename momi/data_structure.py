@@ -865,12 +865,13 @@ class _CompressedHashedCounts(object):
 
 class CompressedAlleleCounts(object):
     @classmethod
-    def from_iter(cls, config_iter, npops):
+    def from_iter(cls, config_iter, npops, sort=True):
         compressed_hashes = _CompressedHashedCounts(npops)
         for config in config_iter:
             compressed_hashes.append(config)
         return cls(compressed_hashes.config_array(),
-                   compressed_hashes.index2uniq())
+                   compressed_hashes.index2uniq(),
+                   sort=sort)
 
     def __init__(self, config_array, index2uniq,
                  sort=True):

@@ -23,6 +23,9 @@ class SfsLikelihoodSurface(object):
 
     def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=1000, p_missing=None, use_pairwise_diffs=False):
         """
+        Depracated. Use momi.DemographicModel instead.
+
+
         Object for computing composite likelihoods, and searching for the maximum composite likelihood.
 
         Parameters
