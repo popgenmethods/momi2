@@ -10,53 +10,13 @@ import autograd.numpy as np
 # stuff for confidence intervals
 
 
-class ConfidenceRegion(object):
-    """
-    Constructs asymptotic confidence regions and hypothesis tests,
-    using the Limit of Experiments theory.
-    """
-
-    def __init__(self, point_estimate, demo_func, data, regime="long", psd_rtol=1e-8, **kwargs):
-        """
-        Parameters
-        ----------
-        point_estimate : array
-                 a statistically consistent estimate for the true parameters.
-                 confidence regions and hypothesis tests are computed for a (shrinking)
-                 neighborhood around this point.
-        demo_func : function that returns a Demography from parameters
-        data : SegSites (or Sfs, if regime="many")
-        regime : the limiting regime for the asymptotic confidence region
-              if "long", number of loci is fixed, and the length of the loci -> infinity.
-                 * uses time series information to estimate covariance structure
-                 * requires isinstance(data, SegSites)
-                 * loci should be independent. they don't have to be identically distributed
-              if "many", the number of loci -> infinity
-                 * loci should be independent, and roughly identically distributed
-        psd_rtol: for checking if certain matrices (e.g. covariance matrices) are positive semidefinite
-              if psd_rtol = epsilon, then we will consider a matrix positive semidefinite if its most
-              negative eigenvalue has magnitude less than epsilon * most positive eigenvalue.
-        **kwargs : additional arguments passed into composite_log_likelihood
-        """
-        if regime not in ("long", "many"):
-            raise ValueError("Unrecognized regime '%s'" % regime)
-
-        self.point = np.array(point_estimate)
-        self.demo_func = demo_func
-        self.data = data
-        self.regime = regime
-        self.kwargs = dict(kwargs)
+class _ConfidenceRegion(object):
+    def __init__(self, point, score, score_cov, fisher, psd_rtol=1e-8):
+        self.point = point
+        self.score = score
+        self.score_cov = check_psd(score_cov, tol=psd_rtol)
+        self.fisher = fisher
         self.psd_rtol = psd_rtol
-
-        self.score = autograd.grad(self.lik_fun)(self.point)
-        self.score_cov = _observed_score_covariance(self.regime, self.point, self.data,
-                                                    self.demo_func, psd_rtol=self.psd_rtol, **self.kwargs)
-        self.fisher = _observed_fisher_information(self.point, self.data, self.demo_func, psd_rtol=self.psd_rtol,
-                                                   assert_psd=False, **self.kwargs)
-
-    def lik_fun(self, params, vector=False):
-        """Returns composite log likelihood from params"""
-        return _composite_log_likelihood(self.data, self.demo_func(*params), vector=vector, **self.kwargs)
 
     @memoize_instance
     def godambe(self, inverse=False):
@@ -203,6 +163,55 @@ class ConfidenceRegion(object):
                                                            loc=self.point,
                                                            scale=np.sqrt(np.diag(self.godambe(inverse=True))))
         return np.array([conf_lower, conf_upper]).T
+
+
+class ConfidenceRegion(_ConfidenceRegion):
+    """
+    Constructs asymptotic confidence regions and hypothesis tests,
+    using the Limit of Experiments theory.
+    """
+
+    def __init__(self, point_estimate, demo_func, data, regime="long", psd_rtol=1e-8, **kwargs):
+        """
+        Parameters
+        ----------
+        point_estimate : array
+                 a statistically consistent estimate for the true parameters.
+                 confidence regions and hypothesis tests are computed for a (shrinking)
+                 neighborhood around this point.
+        demo_func : function that returns a Demography from parameters
+        data : SegSites (or Sfs, if regime="many")
+        regime : the limiting regime for the asymptotic confidence region
+              if "long", number of loci is fixed, and the length of the loci -> infinity.
+                 * uses time series information to estimate covariance structure
+                 * requires isinstance(data, SegSites)
+                 * loci should be independent. they don't have to be identically distributed
+              if "many", the number of loci -> infinity
+                 * loci should be independent, and roughly identically distributed
+        psd_rtol: for checking if certain matrices (e.g. covariance matrices) are positive semidefinite
+              if psd_rtol = epsilon, then we will consider a matrix positive semidefinite if its most
+              negative eigenvalue has magnitude less than epsilon * most positive eigenvalue.
+        **kwargs : additional arguments passed into composite_log_likelihood
+        """
+        if regime not in ("long", "many"):
+            raise ValueError("Unrecognized regime '%s'" % regime)
+
+        self.point = np.array(point_estimate)
+        self.demo_func = demo_func
+        self.data = data
+        self.regime = regime
+        self.kwargs = dict(kwargs)
+        self.psd_rtol = psd_rtol
+
+        self.score = autograd.grad(self.lik_fun)(self.point)
+        self.score_cov = _observed_score_covariance(self.regime, self.point, self.data,
+                                                    self.demo_func, psd_rtol=self.psd_rtol, **self.kwargs)
+        self.fisher = _observed_fisher_information(self.point, self.data, self.demo_func, psd_rtol=self.psd_rtol,
+                                                   assert_psd=False, **self.kwargs)
+
+    def lik_fun(self, params, vector=False):
+        """Returns composite log likelihood from params"""
+        return _composite_log_likelihood(self.data, self.demo_func(*params), vector=vector, **self.kwargs)
 
 
 def _trunc_lik_ratio(null, alt):

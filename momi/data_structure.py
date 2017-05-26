@@ -9,7 +9,7 @@ from scipy.misc import comb
 from .math_functions import _apply_error_matrices
 from collections import Counter
 import warnings
-import itertools
+import itertools as it
 import json
 
 
@@ -38,7 +38,7 @@ def full_config_array(sampled_pops, sampled_n, ascertainment_pop=None):
 
     ranges = [list(range(n + 1)) for n in sampled_n]
     config_list = []
-    for x in itertools.product(*ranges):
+    for x in it.product(*ranges):
         x = np.array(x, dtype=int)
         if not (np.all(x[ascertainment_pop] == 0) or np.all(x[ascertainment_pop] == sampled_n[ascertainment_pop])):
             config_list.append(x)
@@ -289,7 +289,7 @@ def load_sfs(f):
     info = json.load(f)
 
     loci = []
-    for locus, locus_rows in itertools.groupby(info["(locus,config_id,count)"], lambda x: x[0]):
+    for locus, locus_rows in it.groupby(info["(locus,config_id,count)"], lambda x: x[0]):
         loci.append({config_id: count
                      for _, config_id, count in locus_rows})
 
@@ -612,14 +612,14 @@ def _get_subsample_counts(configs, n):
         return cnt
 
     ret = {}
-    for pop_comb in itertools.combinations_with_replacement(configs.sampled_pops, n):
+    for pop_comb in it.combinations_with_replacement(configs.sampled_pops, n):
         subsample_n = Counter(pop_comb)
         subsample_n = np.array([subsample_n[pop]
                                 for pop in configs.sampled_pops], dtype=int)
         if np.any(subsample_n > configs.sampled_n):
             continue
 
-        for sfs_entry in itertools.product(*(range(sub_n + 1)
+        for sfs_entry in it.product(*(range(sub_n + 1)
                                              for sub_n in subsample_n)):
             sfs_entry = np.array(sfs_entry, dtype=int)
             if np.all(sfs_entry == 0) or np.all(sfs_entry == subsample_n):
@@ -804,6 +804,16 @@ class SegSites(object):
         for loc in self:
             yield loc._get_likelihoods(idx_likelihoods)
 
+    # reorganize the sites into n_chunks equally sized loci
+    def _make_equal_len_chunks(self, n_chunks):
+        all_idxs = list(it.chain.from_iterable(self.idx_list))
+        chunk_len = int(np.ceil(len(all_idxs) / float(n_chunks)))
+        count = it.count()
+        def new_idx_chunks():
+            for _, sub_idxs in it.groupby(all_idxs, lambda x: next(count) // chunk_len):
+                yield sub_idxs
+        return SegSites(self.configs, new_idx_chunks(), self.config_mixture_by_idx)
+
 
 # to hash configs, represent it as a str
 # (this seems to be more memory efficient than representing it as a tuple)
@@ -950,7 +960,7 @@ def read_seg_sites(sequences_file):
         return get_loc.curr
     get_loc.curr = -1
 
-    loci = itertools.groupby(lines, get_loc)
+    loci = it.groupby(lines, get_loc)
 
     _, header = next(loci)
     sampled_pops = tuple(next(header).split())

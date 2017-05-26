@@ -79,7 +79,7 @@ def check_jointime_inference(sampled_n=(5, 5, 5), folded=False, add_n=0, finite_
     model.add_leaf(2)
     model.add_leaf(3)
     model.add_param("join_time", x0=t0, upper_x=t1)
-    model.move_lineages(1, 2,)
+    model.move_lineages(1, 2, )
 
     sampled_pops = (1, 2, 3)
 

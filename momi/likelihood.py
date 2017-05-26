@@ -1,14 +1,13 @@
 
-from .util import count_calls, rearrange_tuple_gradients
+from .util import count_calls, rearrange_tuple_gradients, make_constant
 from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
 import autograd.numpy as np
 from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
 from .demography import DemographyError, Demography
 from .data_structure import _sub_sfs, site_freq_spectrum, ConfigArray, Sfs
 import scipy
-import autograd
-import numdifftools
-from autograd import grad, hessian_vector_product, hessian
+import autograd as ag
+import numdifftools as ndt
 from collections import Counter
 import random
 import functools
@@ -20,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class SfsLikelihoodSurface(object):
-
     def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=1000, p_missing=None, use_pairwise_diffs=False):
         """
         Depracated. Use momi.DemographicModel instead.
@@ -102,9 +100,41 @@ class SfsLikelihoodSurface(object):
         """
         Returns the composite log-likelihood of the data at the point x.
         """
-        demo = self._get_multipop_moran(x)
-        ret = self._get_multinom_loglik(demo) + self._mut_factor(demo) + self._log_prior(x)
+        ret = self._log_lik(x, vector=False)
         logger.debug("log-likelihood = {0}".format(ret))
+        return ret
+
+    def _score(self, x):
+        return ag.grad(self.log_lik)(x)
+
+    def _fisher(self, x):
+        # compute second order derivative numerically to avoid memory problems
+        ret = -ndt.Jacobian(self._score)(x)
+        return .5 * (ret + np.transpose(ret))
+
+    def _score_cov(self, params):
+        params = np.array(params)
+
+        def f_vec(x):
+            ret = self._log_lik(x, vector=True)
+            # centralize
+            return ret - np.mean(ret)
+
+        # g_out = einsum('ij,ik', jacobian(f_vec)(params), jacobian(f_vec)(params))
+        # but computed in a roundabout way because jacobian implementation is slow
+        def _g_out_antihess(x):
+            l = f_vec(x)
+            lc = make_constant(l)
+            return np.sum(0.5 * (l**2 - l * lc - lc * l))
+        return ag.hessian(_g_out_antihess)(params)
+
+    def _log_lik(self, x, vector):
+        demo = self._get_multipop_moran(x)
+        ret = self._get_multinom_loglik(demo, vector=vector) + self._mut_factor(demo, vector=vector)
+        if vector:
+            ret = ret + self._log_prior(x) / len(ret)
+        else:
+            ret = ret + self._log_prior(x)
         return ret
 
     def _get_multipop_moran(self, x):
@@ -117,23 +147,28 @@ class SfsLikelihoodSurface(object):
         return demo._get_multipop_moran(self.sfs.sampled_pops,
                                         self.sfs.sampled_n)
 
-    def _get_multinom_loglik(self, demo):
+    def _get_multinom_loglik(self, demo, vector):
         if self.sfs_batches:
-            G, (diff_keys, diff_vals) = demo._get_graph_structure(
-            ), demo._get_differentiable_part()
+            G = demo._get_graph_structure()
+            diff_keys, diff_vals = demo._get_differentiable_part()
             ret = 0.0
             for batch in self.sfs_batches:
-                ret = ret + _raw_log_lik(diff_vals, diff_keys, G, batch,
-                                         self.truncate_probs, self.folded, self.error_matrices)
+                ret = ret + _raw_log_lik(
+                    diff_vals, diff_keys, G, batch,
+                    self.truncate_probs, self.folded, self.error_matrices,
+                    vector=vector)
         else:
-            ret = _composite_log_likelihood(self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded,
-                                            error_matrices=self.error_matrices, use_pairwise_diffs=self.use_pairwise_diffs)
+            ret = _composite_log_likelihood(
+                self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded,
+                error_matrices=self.error_matrices, use_pairwise_diffs=self.use_pairwise_diffs,
+                vector=vector)
         return ret
 
-    def _mut_factor(self, demo):
+    def _mut_factor(self, demo, vector):
         if self.mut_rate is not None:
-            return _mut_factor(self.sfs, demo, self.mut_rate,
-                               False, self.p_missing, self.use_pairwise_diffs)
+            return _mut_factor(
+                self.sfs, demo, self.mut_rate,
+                vector, self.p_missing, self.use_pairwise_diffs)
         else:
             return 0
 
@@ -223,15 +258,15 @@ class SfsLikelihoodSurface(object):
 
         opt_kwargs['jac'] = jac
         if jac:
-            replacefun = autograd.value_and_grad
+            replacefun = ag.value_and_grad
         else:
             replacefun = None
 
         gradmakers = {}
         if hess:
-            gradmakers['hess'] = autograd.hessian
+            gradmakers['hess'] = ag.hessian
         if hessp:
-            gradmakers['hessp'] = autograd.hessian_vector_product
+            gradmakers['hessp'] = ag.hessian_vector_product
 
         @functools.wraps(self.kl_div)
         def fun(x):
@@ -315,7 +350,7 @@ class StochasticSfsLikelihoodSurface(object):
 
         return _find_minimum(self.avg_neg_log_lik, x0, optimizer=stochastic_opts[method],
                              bounds=bounds, callback=callback, opt_kwargs=opt_kwargs,
-                             gradmakers={'fun_and_jac': autograd.value_and_grad})
+                             gradmakers={'fun_and_jac': ag.value_and_grad})
 
 
 def _make_likelihood_fun(sampled_pops, conf_arr, sampled_n, counts_arr, *args, **kwargs):
@@ -390,12 +425,12 @@ def _mut_factor_total(sfs, demo, mut_rate, vector):
 
 
 @rearrange_tuple_gradients()
-def _raw_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_matrices):
+def _raw_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_matrices, vector=False):
     # computes log likelihood from the "raw" arrays and graph objects comprising the Demography,
     # allowing us to compute gradients directly w.r.t. these values,
     # and thus apply util.precompute_gradients to save memory
     demo = Demography(G, diff_keys, diff_vals)
-    return _composite_log_likelihood(data, demo, truncate_probs=truncate_probs, folded=folded, error_matrices=error_matrices)
+    return _composite_log_likelihood(data, demo, truncate_probs=truncate_probs, folded=folded, error_matrices=error_matrices, vector=vector)
 
 
 def _build_sfs_batches(sfs, batch_size):

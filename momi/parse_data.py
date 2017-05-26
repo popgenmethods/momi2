@@ -374,36 +374,32 @@ class SnpAlleleCounts(object):
         self.compressed_counts = compressed_counts
         self.populations = populations
         self.non_ascertained_pops = non_ascertained_pops
-
-    #def subset_populations(self, populations):
-    #    non_ascertained_pops = [p for p in self.non_ascertained_pops if p in populations]
-    #    new_idx_to_old_idx = np.array([self.populations.index(p) for p in populations], dtype=int)
-
-    #    new_configs = self.compressed_counts.config_array[:, new_idx_to_old_idx, :]
-    #    config_iter = (new_configs[i] for i in self.compressed_counts.index2uniq)
-
-    #    compressed_allele_counts = CompressedAlleleCounts.from_iter(config_iter, len(populations))
-    #    return SnpAlleleCounts(self.chrom_ids, self.positions,
-    #                           compressed_allele_counts, populations,
-    #                           non_ascertained_pops)
+        self._subset_populations_cache = {}
 
     def subset_populations(self, populations):
-        non_ascertained_pops = [p for p in self.non_ascertained_pops if p in populations]
-        newPopIdx_to_oldPopIdx = np.array([self.populations.index(p) for p in populations], dtype=int)
+        populations = tuple(populations)
 
-        uniq_new_configs = CompressedAlleleCounts.from_iter(
-            self.compressed_counts.config_array[:, newPopIdx_to_oldPopIdx, :],
-            len(populations), sort=False)
+        if populations not in self._subset_populations_cache:
+            non_ascertained_pops = [p for p in self.non_ascertained_pops
+                                    if p in populations]
+            newPopIdx_to_oldPopIdx = np.array([
+                self.populations.index(p) for p in populations], dtype=int)
 
-        new_compressed_configs = CompressedAlleleCounts(
-            uniq_new_configs.config_array,
-            [uniq_new_configs.index2uniq[i] for i in self.compressed_counts.index2uniq],
-            sort=False)
+            uniq_new_configs = CompressedAlleleCounts.from_iter(
+                self.compressed_counts.config_array[:, newPopIdx_to_oldPopIdx, :],
+                len(populations), sort=False)
 
-        return SnpAlleleCounts(self.chrom_ids, self.positions,
-                               new_compressed_configs, populations,
-                               non_ascertained_pops)
+            new_compressed_configs = CompressedAlleleCounts(
+                uniq_new_configs.config_array,
+                [uniq_new_configs.index2uniq[i] for i in self.compressed_counts.index2uniq],
+                sort=False)
 
+            self._subset_populations_cache[populations] = SnpAlleleCounts(
+                self.chrom_ids, self.positions,
+                new_compressed_configs, populations,
+                non_ascertained_pops)
+
+        return self._subset_populations_cache[populations]
 
     def __getitem__(self, i):
         return self.compressed_counts[i]

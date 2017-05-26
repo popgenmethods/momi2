@@ -1,38 +1,68 @@
+import autograd as ag
 import autograd.numpy as np
 import logging
 import collections as co
 import networkx as nx
+import pandas as pd
 from .demography import demographic_history
 from .likelihood import SfsLikelihoodSurface
+from .confidence_region import _ConfidenceRegion
+
+
+def demographic_model(default_N, gen_time=1):
+    """
+    Arguments
+    ---------
+    default_N: the default population size
+        every population is assumed to have its size
+        as default_N, unless manually changed by
+        set_size().
+
+        the optimizer also internally uses this value
+        to rescale the problem. for best optimizer
+        performance, default_N should be on the same
+        order magnitude as the "typical" effective size
+        (e.g. 1e4 in humans)
+    gen_time: units of time per generation
+        (e.g. if generation is 29 years, set gen_time=29
+            to use years as the time unit)
+    """
+    return DemographicModel(
+        N_e=default_N, gen_time=gen_time, parameters=[],
+        event_funs=[], sample_t_funs={}, leafs=[],
+        data=None, muts_per_gen=None, folded=None,
+        mem_chunk_size=None, use_pairwise_diffs=None,
+        n_blocks_jackknife=None)
 
 
 class DemographicModel(object):
-    def __init__(self, default_N, gen_time=1):
-        """
-        Arguments
-        ---------
-        default_N: the default population size
-            every population is assumed to have its size
-            as default_N, unless manually changed by
-            set_size().
-
-            the optimizer also internally uses this value
-            to rescale the problem. for best optimizer
-            performance, default_N should be on the same
-            order magnitude as the "typical" effective size
-            (e.g. 1e4 in humans)
-        gen_time: units of time per generation
-            (e.g. if generation is 29 years, set gen_time=29
-             to use years as the time unit)
-        """
-        self.N_e = default_N
+    def __init__(self, N_e, gen_time, parameters,
+                 event_funs, sample_t_funs, leafs,
+                 data, muts_per_gen, folded,
+                 mem_chunk_size, use_pairwise_diffs,
+                 n_blocks_jackknife):
+        self.N_e = N_e
         self.gen_time = gen_time
-        self.parameters = []
-        self.event_funs = []
-        self.sample_t_funs = {}
-        self._surface = None
-        self._data = None
-        self.leafs = []
+        self.parameters = [p.copy() for p in parameters]
+        self.event_funs = list(event_funs)
+        self.sample_t_funs = dict(sample_t_funs)
+        self.leafs = list(leafs)
+
+        self.set_data(data=data, muts_per_gen=muts_per_gen,
+                      folded=folded, mem_chunk_size=mem_chunk_size,
+                      use_pairwise_diffs=use_pairwise_diffs,
+                      n_blocks_jackknife=n_blocks_jackknife)
+
+    def copy(self):
+        return DemographicModel(
+            N_e=self.N_e, gen_time=self.gen_time,
+            parameters=self.parameters, event_funs=self.event_funs,
+            sample_t_funs=self.sample_t_funs, leafs=self.leafs,
+            data=self._data, muts_per_gen=self._muts_per_gen,
+            folded=self._folded, mem_chunk_size=self._mem_chunk_size,
+            use_pairwise_diffs=self._use_pairwise_diffs,
+            n_blocks_jackknife=self._n_blocks_jackknife)
+
 
     def add_param(self, name, x0,
                   lower_x=1e-12, upper_x=None,
@@ -72,6 +102,8 @@ class DemographicModel(object):
             elif lower_x > 0: "log"
             else: "linear"
         """
+        self._conf_region = None
+
         if transform_x is None:
             transform_x = lambda x, **kw: x
 
@@ -120,7 +152,7 @@ class DemographicModel(object):
            or a function of the parameters
         N: None or float or str or function
            the population size.
-           If None, the starting size is default_N.
+           If None, the starting size is N_e.
            Otherwise, this is a constant, or the name
            of a parameter, or a function of the parameters
         """
@@ -133,7 +165,7 @@ class DemographicModel(object):
         if N is not None:
             self.set_size(pop, t, N)
 
-    def move_lineages(self, pop1, pop2, t, p=1):
+    def move_lineages(self, pop1, pop2, t, p=1, N=None):
         """
         Move each lineage in pop1 to pop2 at time t
         with probability p.
@@ -147,6 +179,8 @@ class DemographicModel(object):
         p: float or str or function
            either a constant, or the name of a parameter,
            or a function of the parameters
+        N: None or float or str or function
+           if non-None, set the size of pop2 to N
         """
         if p == 1:
             self.event_funs.append((JoinEventFun(
@@ -155,6 +189,10 @@ class DemographicModel(object):
             self.event_funs.append(PulseEventFun(
                 t, p, pop1, pop2, self.N_e,
                 self.gen_time))
+
+        if N is not None:
+            self.event_funs.append((SizeEventFun(
+                t, N, pop2, self.N_e, self.gen_time)))
 
     def set_size(self, pop, t, N=None, g=0):
         """
@@ -266,19 +304,34 @@ class DemographicModel(object):
         return np.array([p.inv_opt_trans(p.x)
                          for p in self.parameters])
 
-    def _set_from_opt_x(self, opt_x):
-        self.set_x([
-            p.opt_trans(ox)
-            for p, ox in zip(self.parameters, opt_x)
+    def _x_from_opt_x(self, opt_x):
+        return [p.opt_trans(ox)
+                for p, ox in zip(self.parameters, opt_x)]
+
+    def _opt_x_from_x(self, x):
+        return np.array([
+            p.inv_opt_trans(x_i)
+            for p, x_i in zip(self.parameters, x)
         ])
 
     def _opt_demo_fun(self, *opt_x):
-        self._set_from_opt_x(opt_x)
-        return self._get_demo()
+        x = self._x_from_opt_x(opt_x)
+        return self._demo_fun(*x)
+
+    def _demo_fun(self, *x):
+        prev_x = self.get_x()
+        try:
+            self.set_x(x)
+            return self._get_demo()
+        except:
+            raise
+        finally:
+            self.set_x(prev_x)
 
     def set_data(
             self, data, muts_per_gen=None, folded=False,
-            chunk_size=1000, use_pairwise_diffs=None):
+            mem_chunk_size=1000, use_pairwise_diffs=None,
+            n_blocks_jackknife=100):
         """
         Sets data, and optionally the mutation rate,
         in order to compute likelihoods and fit parameters
@@ -296,10 +349,10 @@ class DemographicModel(object):
             whole genome sequencing)
         folded:
             whether the SFS should be folded
-        chunk_size:
+        mem_chunk_size:
             controls memory usage by computing likelihood
             in chunks of SNPs.
-            if chunk_size=-1 then the data is not broken up
+            if mem_chunk_size=-1 then the data is not broken up
             into chunks
 
         Other Arguments
@@ -315,42 +368,107 @@ class DemographicModel(object):
             if None, uses the pairwise heterozygosity if there is missing data;
             else, if there is no missing data, use the total number of mutations
         """
-        self._surface = None
+        self._opt_surface = None
+        self._conf_region = None
         self._data = data
         self._folded = folded
-        self._chunk_size = chunk_size
-        if muts_per_gen is None:
-            self._mut_rate = None
-        else:
-            self._mut_rate = 4 * self.N_e * muts_per_gen
-        if use_pairwise_diffs is None:
-            use_pairwise_diffs = data.sfs.configs.has_missing_data
-        self.use_pairwise_diffs = use_pairwise_diffs
+        self._mem_chunk_size = mem_chunk_size
+        self._muts_per_gen = muts_per_gen
+        self._use_pairwise_diffs = use_pairwise_diffs
+        self._n_blocks_jackknife = n_blocks_jackknife
 
-    def _get_surface(self):
-        if self._surface is None or list(self._surface.data.sampled_pops) != list(self.leafs):
+    def _get_opt_surface(self):
+        if self._opt_surface is None or list(
+                self._opt_surface.data.sampled_pops) != list(self.leafs):
+            self._conf_region = None
             if self._data is None:
                 raise ValueError("Need to call DemographicModel.set_data()")
             logging.info("Constructing likelihood surface...")
-            sfs = self._data.subset_populations(self.leafs).sfs.combine_loci()
-            self._surface = SfsLikelihoodSurface(
-                sfs, self._opt_demo_fun, mut_rate=self._mut_rate,
-                folded=self._folded, batch_size=self._chunk_size,
-                use_pairwise_diffs=self.use_pairwise_diffs)
+
+            sfs = self._data.subset_populations(
+                self.leafs).seg_sites._make_equal_len_chunks(
+                    self._n_blocks_jackknife).sfs
+            self._opt_surface = self._make_surface(
+                sfs, opt_surface=True)
+
             logging.info("Finished constructing likelihood surface")
-        return self._surface
+
+        return self._opt_surface
+
+    def _get_conf_region(self):
+        opt_surface = self._get_opt_surface()
+        if self._conf_region is None or not np.allclose(
+                self.get_x(), self._conf_region.point):
+            opt_x = self._get_opt_x()
+            opt_score = opt_surface._score(opt_x)
+            opt_score_cov = opt_surface._score_cov(opt_x)
+            opt_fisher = opt_surface._fisher(opt_x)
+
+            self._conf_region = _ConfidenceRegion(
+                opt_x, opt_score, opt_score_cov, opt_fisher,
+                psd_rtol=1e-4)
+        return self._conf_region
+
+    def marginal_wald(self):
+        ret = co.OrderedDict()
+        ret["Param"] = [p.name for p in self.parameters]
+        ret["Value"] = list(self.get_params().values())
+        ret["x"] = list(self.get_x())
+        ret["std_x"] = np.sqrt(np.diag(self.godambe(inverse=True)))
+        return pd.DataFrame(ret)
+
+    def godambe(self, inverse=False):
+        # use delta method
+        G = self._get_conf_region().godambe(inverse=inverse)
+        opt_x = self._get_opt_x()
+        dx_do = np.array([
+            p.opt_trans(ox) for p, ox in zip(self.parameters, opt_x)
+        ])
+        if not inverse:
+            dx_do = 1./dx_do
+        return np.einsum("i,ij,j->ij", dx_do, G, dx_do)
+
+    def test(self, null_point=None, sims=int(1e3), test_type="ratio", alt_point=None, *args, **kwargs):
+        if null_point is None:
+            null_point = self.get_x()
+        null_point = self._opt_x_from_x(null_point)
+        if alt_point is not None:
+            alt_point = self._opt_x_from_x(alt_point)
+        return self._get_conf_region.test(null_point=null_point, sims=sims, test_type=test_type, alt_point=alt_point, *args, **kwargs)
+
+    def _make_surface(self, sfs, opt_surface):
+        use_pairwise_diffs = self._use_pairwise_diffs
+        if use_pairwise_diffs is None:
+            use_pairwise_diffs = sfs.configs.has_missing_data
+
+        muts_per_gen = self._muts_per_gen
+        if muts_per_gen is None:
+            mut_rate = None
+        else:
+            mut_rate = 4 * self.N_e * muts_per_gen / sfs.n_loci
+
+        if opt_surface:
+            demo_fun = self._opt_demo_fun
+        else:
+            demo_fun = self._demo_fun
+
+        return SfsLikelihoodSurface(
+            sfs, demo_fun, mut_rate=mut_rate,
+            folded=self._folded, batch_size=self._mem_chunk_size,
+            use_pairwise_diffs=use_pairwise_diffs)
+
 
     def log_likelihood(self):
         """
         The log likelihood at the current parameter values
         """
-        return self._get_surface().log_lik(self._get_opt_x())
+        return self._get_opt_surface().log_lik(self._get_opt_x())
 
     def kl_div(self):
         """
         The KL-divergence at the current parameter values
         """
-        return self._get_surface().kl_div(self._get_opt_x())
+        return self._get_opt_surface().kl_div(self._get_opt_x())
 
     def optimize(self, method="tnc", jac=True,
                  hess=False, hessp=False, **kwargs):
@@ -375,7 +493,7 @@ class DemographicModel(object):
               scipy.optimize.minimize.
 
               Requires that the data was set with
-              DemographicModel.set_data(..., chunk_size=-1),
+              DemographicModel.set_data(..., mem_chunk_size=-1),
               and may incur a high memory cost.
         **kwargs: additional arguments passed to
               scipy.optimize.minimize
@@ -384,13 +502,12 @@ class DemographicModel(object):
         if all([b is None for bnd in bounds for b in bnd]):
             bounds = None
 
-        res = self._get_surface().find_mle(
+        res = self._get_opt_surface().find_mle(
             self._get_opt_x(), method=method,
             jac=jac, hess=hess, hessp=hessp,
             bounds=bounds, **kwargs)
 
-        res.x = np.array([p.opt_trans(x) for p, x in zip(
-            self.parameters, res.x)])
+        res.x = self._x_from_opt_x(res.x)
         self.set_x(res.x)
         return res
 
@@ -471,13 +588,23 @@ class Parameter(object):
         self.x = x0
         self.opt_trans = opt_trans
         self.inv_opt_trans = inv_opt_trans
-        self.opt_x_bounds = []
-        for bnd in x_bounds:
-            if bnd is None:
-                self.opt_x_bounds.append(None)
-            else:
-                self.opt_x_bounds.append(inv_opt_trans(bnd))
+        self.x_bounds = list(x_bounds)
         self.transform_x = transform_x
+
+    def copy(self):
+        return Parameter(name=self.name, x0=self.x, opt_trans=self.opt_trans,
+                         inv_opt_trans=self.inv_opt_trans, transform_x=self.transform_x,
+                         x_bounds=self.x_bounds)
+
+    @property
+    def opt_x_bounds(self):
+        opt_x_bounds = []
+        for bnd in self.x_bounds:
+            if bnd is None:
+                opt_x_bounds.append(None)
+            else:
+                opt_x_bounds.append(self.inv_opt_trans(bnd))
+        return opt_x_bounds
 
     def update_params_dict(self, params_dict):
         params_dict[self.name] = self.transform_x(self.x, **params_dict)
