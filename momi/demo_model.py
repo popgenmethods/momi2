@@ -1,12 +1,16 @@
+
+from cached_property import cached_property
 import autograd as ag
 import autograd.numpy as np
 import logging
 import collections as co
 import networkx as nx
 import pandas as pd
+import itertools as it
 from .demography import demographic_history
 from .likelihood import SfsLikelihoodSurface
 from .confidence_region import _ConfidenceRegion
+from .compute_sfs import expected_sfs_tensor_prod
 
 
 def demographic_model(default_N, gen_time=1):
@@ -31,16 +35,14 @@ def demographic_model(default_N, gen_time=1):
         N_e=default_N, gen_time=gen_time, parameters=[],
         event_funs=[], sample_t_funs={}, leafs=[],
         data=None, muts_per_gen=None, folded=None,
-        mem_chunk_size=None, use_pairwise_diffs=None,
-        n_blocks_jackknife=None)
+        mem_chunk_size=None, use_pairwise_diffs=None)
 
 
 class DemographicModel(object):
     def __init__(self, N_e, gen_time, parameters,
                  event_funs, sample_t_funs, leafs,
                  data, muts_per_gen, folded,
-                 mem_chunk_size, use_pairwise_diffs,
-                 n_blocks_jackknife):
+                 mem_chunk_size, use_pairwise_diffs):
         self.N_e = N_e
         self.gen_time = gen_time
         self.parameters = [p.copy() for p in parameters]
@@ -48,10 +50,9 @@ class DemographicModel(object):
         self.sample_t_funs = dict(sample_t_funs)
         self.leafs = list(leafs)
 
-        self.set_data(data=data, muts_per_gen=muts_per_gen,
-                      folded=folded, mem_chunk_size=mem_chunk_size,
-                      use_pairwise_diffs=use_pairwise_diffs,
-                      n_blocks_jackknife=n_blocks_jackknife)
+        self._set_data(data=data, muts_per_gen=muts_per_gen,
+                       folded=folded, mem_chunk_size=mem_chunk_size,
+                       use_pairwise_diffs=use_pairwise_diffs)
 
     def copy(self):
         return DemographicModel(
@@ -60,8 +61,7 @@ class DemographicModel(object):
             sample_t_funs=self.sample_t_funs, leafs=self.leafs,
             data=self._data, muts_per_gen=self._muts_per_gen,
             folded=self._folded, mem_chunk_size=self._mem_chunk_size,
-            use_pairwise_diffs=self._use_pairwise_diffs,
-            n_blocks_jackknife=self._n_blocks_jackknife)
+            use_pairwise_diffs=self._use_pairwise_diffs)
 
 
     def add_param(self, name, x0,
@@ -256,7 +256,7 @@ class DemographicModel(object):
                 if p.name == param:
                     p.x = x
                     return
-            return ValueError("Unrecognized parameter {}".format(param))
+            raise ValueError("Unrecognized parameter {}".format(param))
 
     def simulate_data(self, length, recombination_rate,
                       mutation_rate, num_replicates,
@@ -368,6 +368,14 @@ class DemographicModel(object):
             if None, uses the pairwise heterozygosity if there is missing data;
             else, if there is no missing data, use the total number of mutations
         """
+        self._set_data(
+            data=data._chunk_data(n_blocks_jackknife),
+            muts_per_gen=muts_per_gen, folded=folded,
+            mem_chunk_size=mem_chunk_size,
+            use_pairwise_diffs=use_pairwise_diffs)
+
+    def _set_data(self, data, muts_per_gen, folded,
+            mem_chunk_size, use_pairwise_diffs):
         self._opt_surface = None
         self._conf_region = None
         self._data = data
@@ -375,7 +383,6 @@ class DemographicModel(object):
         self._mem_chunk_size = mem_chunk_size
         self._muts_per_gen = muts_per_gen
         self._use_pairwise_diffs = use_pairwise_diffs
-        self._n_blocks_jackknife = n_blocks_jackknife
 
     def _get_opt_surface(self):
         if self._opt_surface is None or list(
@@ -386,8 +393,7 @@ class DemographicModel(object):
             logging.info("Constructing likelihood surface...")
 
             sfs = self._data.subset_populations(
-                self.leafs).seg_sites._make_equal_len_chunks(
-                    self._n_blocks_jackknife).sfs
+                self.leafs).sfs
             self._opt_surface = self._make_surface(
                 sfs, opt_surface=True)
 
@@ -410,12 +416,12 @@ class DemographicModel(object):
         return self._conf_region
 
     def marginal_wald(self):
-        ret = co.OrderedDict()
-        ret["Param"] = [p.name for p in self.parameters]
-        ret["Value"] = list(self.get_params().values())
-        ret["x"] = list(self.get_x())
-        ret["std_x"] = np.sqrt(np.diag(self.godambe(inverse=True)))
-        return pd.DataFrame(ret)
+        marginal_wald_df = co.OrderedDict()
+        marginal_wald_df["Param"] = [p.name for p in self.parameters]
+        marginal_wald_df["Value"] = list(self.get_params().values())
+        marginal_wald_df["x"] = list(self.get_x())
+        marginal_wald_df["std_x"] = np.sqrt(np.diag(self.godambe(inverse=True)))
+        return pd.DataFrame(marginal_wald_df)
 
     def godambe(self, inverse=False):
         # use delta method
@@ -452,10 +458,37 @@ class DemographicModel(object):
         else:
             demo_fun = self._demo_fun
 
+        p_miss = self._data._p_missing
+        p_miss = {pop: pm for pop, pm in zip(
+            self._data.populations, p_miss)}
+        p_miss = np.array([p_miss[pop] for pop in sfs.sampled_pops])
         return SfsLikelihoodSurface(
             sfs, demo_fun, mut_rate=mut_rate,
             folded=self._folded, batch_size=self._mem_chunk_size,
-            use_pairwise_diffs=use_pairwise_diffs)
+            use_pairwise_diffs=use_pairwise_diffs,
+            p_missing = p_miss)
+
+    def check_fit_pairwise_diffs(self):
+        return self._make_pairwise_diffs_modelfit().folded_pairwise_diffs_df()
+
+    def check_excess_hets(self):
+        return self._make_pairwise_diffs_modelfit().excess_het_df()
+
+    def _make_pairwise_diffs_modelfit(self):
+        opt_surface = self._get_opt_surface()
+        sfs = opt_surface.sfs
+        pairwise_missingness = self._data._pairwise_missingness
+        pairwise_missingness = {
+            (pop_i, pop_j): pairwise_missingness[i,j]
+            for i, pop_i in enumerate(self._data.populations)
+            for j, pop_j in enumerate(self._data.populations)}
+        pairwise_missingness = np.array([[
+            pairwise_missingness[(pop_i, pop_j)]
+            for pop_j in sfs.sampled_pops] for pop_i in sfs.sampled_pops])
+        return PairwiseDiffsModelFit(
+            sfs, self._get_demo(),
+            opt_surface.mut_rate * sfs.n_loci,
+            pairwise_missingness)
 
 
     def log_likelihood(self):
@@ -608,3 +641,189 @@ class Parameter(object):
 
     def update_params_dict(self, params_dict):
         params_dict[self.name] = self.transform_x(self.x, **params_dict)
+
+
+class PairwiseDiffsModelFit(object):
+    def __init__(self, sfs, demo, mut_rate, pairwise_missingness):
+        config_arr = sfs.configs.value
+        self.sampled_pops = np.array(sfs.sampled_pops)
+        n_pops = len(self.sampled_pops)
+
+        pairwise_diffs = np.zeros((len(config_arr), n_pops, n_pops))
+        for i, derived_pop in enumerate(sfs.sampled_pops):
+            for j, anc_pop in enumerate(sfs.sampled_pops):
+                n_i = sfs.sampled_n[i]
+                n_j = sfs.sampled_n[j]
+                if i == j:
+                    denom = n_i * (n_i-1)
+                else:
+                    denom = n_i * n_j
+                if denom > 0:
+                    pairwise_diffs[:,i,j] = config_arr[:,i,1] * config_arr[:,j,0] / float(denom)
+
+        freqs_mat = sfs.freqs_matrix.T
+        pairwise_diffs = [[
+            freqs_mat.dot(pairwise_diffs[:, i, j])
+            for j in range(n_pops)] for i in range(n_pops)]
+        pairwise_diffs = np.transpose(pairwise_diffs, (2, 0, 1))
+        assert pairwise_diffs.shape == (sfs.n_loci, n_pops, n_pops)
+
+        melted_idxs = np.array([(i, j) for j in range(n_pops)
+                                for i in range(n_pops)])
+        self.unmelted_idxs = {(i, j): k for k, (i, j) in enumerate(
+            melted_idxs)}
+        self.melted_der_idx = melted_idxs[:,0]
+        self.melted_anc_idx = melted_idxs[:,1]
+
+        self.melted_der_pop = self.sampled_pops[self.melted_der_idx]
+        self.melted_anc_pop = self.sampled_pops[self.melted_anc_idx]
+
+        self.melted_diffs = np.array([pairwise_diffs[:, i, j]
+                                      for i, j in melted_idxs])
+        self.melted_pairwise_missing = np.array([
+            pairwise_missingness[i, j] for i, j in melted_idxs])
+
+        self.melted_corrected_cov = np.cov(
+            np.einsum("i,ij->ij", 1./(1.-self.melted_pairwise_missing), self.melted_diffs), rowvar=True) * sfs.n_loci
+        assert self.melted_corrected_cov.shape == (n_pops**2, n_pops**2)
+
+        self.melted_sum = np.sum(self.melted_diffs, axis=1)
+        self.corrected = self.melted_sum / (1.0-self.melted_pairwise_missing)
+
+        lik_arrs = [np.ones((len(melted_idxs), n+1))
+                    for n in sfs.sampled_n]
+        for i, (j, k) in enumerate(melted_idxs):
+            if j == k:
+                a = lik_arrs[j]
+                n_j = a.shape[1]-1
+                i_j = np.arange(n_j+1)
+                a[i,:] = i_j * (n_j-i_j) / float(
+                    n_j * (n_j-1))
+            else:
+                a_j = lik_arrs[j]
+                n_j = a_j.shape[1]-1
+                i_j = np.arange(n_j+1)
+                a_j[i,:] = i_j / float(n_j)
+
+                a_k = lik_arrs[k]
+                n_k = a_k.shape[1]-1
+                i_k = np.arange(n_k+1)
+                a_k[i,:] = 1 - i_k / float(n_k)
+
+        self.expected = expected_sfs_tensor_prod(
+            lik_arrs, demo, mut_rate=mut_rate,
+            sampled_pops = sfs.sampled_pops)
+
+    def linear_stats(self, mat=None):
+        if mat is None:
+            mat = np.eye(len(self.expected))
+        ret = {
+            "expected": np.dot(mat, self.expected),
+            "observed": np.dot(mat, self.melted_sum),
+            "corrected": np.dot(mat, self.corrected),
+            "cov": np.dot(mat, np.dot(
+                self.melted_corrected_cov, mat.T))
+        }
+        ret["stddev"] = np.sqrt(np.diag(ret["cov"]))
+        ret["z"] = (ret["corrected"] - ret["expected"]) / ret["stddev"]
+        return ret
+
+    def folded_pairwise_diffs_df(self):
+        allele1 = []
+        allele2 = []
+        folded_idxs = []
+        p_missing = []
+        for i, j, p in zip(
+                self.melted_der_idx, self.melted_anc_idx,
+                self.melted_pairwise_missing):
+            if i > j:
+                continue
+            allele1.append(self.sampled_pops[i])
+            allele2.append(self.sampled_pops[j])
+            folded_idxs.append((self.unmelted_idxs[(i,j)],
+                                self.unmelted_idxs[(j,i)]))
+            p_missing.append(p)
+        mat = np.zeros((len(folded_idxs), len(self.unmelted_idxs)))
+        for k, (i, j) in enumerate(folded_idxs):
+            mat[k, i] += 1
+            mat[k, j] += 1
+
+        stats = self.linear_stats(mat)
+        return pd.DataFrame(co.OrderedDict([
+            ("Allele1", allele1),
+            ("Allele2", allele2),
+            ("AvgDiffs", stats["observed"]),
+            ("EstMissingProb", p_missing),
+            ("CorrectedAvgDiffs", stats["corrected"]),
+            ("Expected", stats["expected"]),
+            ("StdDev", stats["stddev"]),
+            ("ZScore", stats["z"])
+        ]))
+
+    def excess_het_df(self):
+        allele1 = []
+        allele2 = []
+        folded_idxs = []
+        p_missing = []
+        avg_diffs = []
+        n_der_1 = []
+        n_der_2 = []
+        for idx in range(len(self.melted_der_idx)):
+            i = self.melted_der_idx[idx]
+            j = self.melted_anc_idx[idx]
+            p = self.melted_pairwise_missing[idx]
+
+            if i >= j:
+                continue
+            allele1.append(self.sampled_pops[i])
+            allele2.append(self.sampled_pops[j])
+
+            idx1 = self.unmelted_idxs[(i,j)]
+            idx2 = self.unmelted_idxs[(j,i)]
+            assert idx1 == idx
+            folded_idxs.append((idx1, idx2))
+            p_missing.append(p)
+
+            n_der_1.append(self.melted_sum[idx1])
+            n_der_2.append(self.melted_sum[idx2])
+            avg_diffs.append(n_der_1[-1] + n_der_2[-1])
+        mat = np.zeros((len(folded_idxs), len(self.unmelted_idxs)))
+        for k, (i, j) in enumerate(folded_idxs):
+            mat[k, i] = 1
+            mat[k, j] = -1
+
+        stats = self.linear_stats(mat)
+        return pd.DataFrame(co.OrderedDict([
+            ("Allele1", allele1),
+            ("Allele2", allele2),
+            ("AvgHet", avg_diffs),
+            ("Derived1", n_der_1),
+            ("Derived2", n_der_2),
+            ("Difference", stats["observed"]),
+            ("EstMissingProb", p_missing),
+            ("CorrectedDifference", stats["corrected"]),
+            ("Expected", stats["expected"]),
+            ("StdDev", stats["stddev"]),
+            ("ZScore", stats["z"])
+        ]))
+
+
+    def pairwise_diffs_df(self):
+        der = self.melted_der_pop
+        anc = self.melted_anc_pop
+
+        stats = self.linear_stats()
+
+        ret = list(zip(
+            der, anc, stats["observed"],
+            self.melted_pairwise_missing,
+            stats["corrected"],
+            stats["expected"],
+            stats["stddev"], stats["z"]))
+        ret = sorted(ret, key=lambda x: np.abs(x[-1]), reverse=True)
+
+        return pd.DataFrame(ret, columns=[
+            "Derived", "Ancestral", "Observed",
+            "EstMissingProb", "CorrectedObs", "Expected",
+            "StdDev", "ZScore"])
+

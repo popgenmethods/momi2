@@ -1,3 +1,5 @@
+
+from cached_property import cached_property
 import itertools as it
 import pandas as pd
 import numpy as np
@@ -376,6 +378,117 @@ class SnpAlleleCounts(object):
         self.non_ascertained_pops = non_ascertained_pops
         self._subset_populations_cache = {}
 
+    def _chunk_data(self, n_chunks):
+        chunk_len = len(self.chrom_ids) / float(n_chunks)
+        new_pos = list(range(len(self.chrom_ids)))
+        new_chrom = [int(np.floor(i / chunk_len)) for i in new_pos]
+        return SnpAlleleCounts(new_chrom, new_pos, self.compressed_counts, self.populations, self.non_ascertained_pops)
+
+    #@cached_property
+    #def _p_missing(self):
+    #    config_arr = self.compressed_counts.config_array
+    #    counts = self.compressed_counts.count_configs()
+    #    weights = counts / float(np.sum(counts))
+    #    sampled_n = self.compressed_counts.n_samples
+    #    n_pops = len(self.populations)
+
+    #    p_miss = (sampled_n - np.sum(config_arr, axis=2)) / sampled_n
+    #    return np.einsum(
+    #        "i, ij->j", weights, p_miss)
+
+    @cached_property
+    def _p_missing(self):
+        counts = self.compressed_counts.count_configs()
+        sampled_n = self.compressed_counts.n_samples
+        n_pops = len(self.populations)
+
+        config_arr = self.compressed_counts.config_array
+        # augment config_arr to contain the missing counts
+        n_miss = sampled_n - np.sum(config_arr, axis=2)
+        config_arr = np.concatenate((config_arr, np.reshape(
+            n_miss, list(n_miss.shape)+[1])), axis=2)
+
+        ret = []
+        for i in range(n_pops):
+            n_valid = []
+            for allele in (0, 1, -1):
+                removed = np.array(config_arr)
+                removed[:, i, allele] -= 1
+                valid_removed = (removed[:, i, allele] >= 0) & np.all(
+                    np.sum(removed[:,:,:2], axis=1) > 0, axis=1)
+
+                n_valid.append(np.sum((counts * config_arr[:, i, allele])[valid_removed]))
+            ret.append(n_valid[-1] / float(sum(n_valid)))
+        return np.array(ret)
+
+    @cached_property
+    def _pairwise_missingness(self):
+        counts = self.compressed_counts.count_configs()
+        sampled_n = self.compressed_counts.n_samples
+        n_pops = len(self.populations)
+
+        config_arr = self.compressed_counts.config_array
+        # augment config_arr to contain the missing counts
+        n_miss = sampled_n - np.sum(config_arr, axis=2)
+        config_arr = np.concatenate((config_arr, np.reshape(
+            n_miss, list(n_miss.shape)+[1])), axis=2)
+
+        ret = []
+        for i in range(n_pops):
+            ret.append([])
+            for j in range(n_pops):
+                n_valid = []
+                n_i = sampled_n[i]
+                n_j = sampled_n[j]
+                if i == j:
+                    n_j -= 1
+                for a_i in (0, 1, -1):
+                    n_valid.append([])
+                    for a_j in (0, 1, -1):
+                        n_ai = config_arr[:, i, a_i]
+                        n_aj = config_arr[:, j, a_j]
+                        if i == j and a_i == a_j:
+                            n_aj = n_aj - 1
+                        removed = np.array(config_arr)
+                        removed[:, i, a_i] -= 1
+                        removed[:, j, a_j] -= 1
+
+                        valid_removed = (n_ai > 0) & (n_aj > 0) & np.all(
+                            np.sum(removed[:,:,:2], axis=1) > 0, axis=1)
+
+                        n_valid[-1].append(np.sum(
+                            (counts * n_ai * n_aj)[valid_removed]))
+                n_valid = np.array(n_valid)
+                ret[-1].append(1.0 - np.sum(
+                    n_valid[:2,:][:,:2]) / float(np.sum(n_valid)))
+
+        return np.array(ret)
+
+    #@cached_property
+    #def _pairwise_missingness(self):
+    #    config_arr = self.compressed_counts.config_array
+    #    counts = self.compressed_counts.count_configs()
+    #    weights = counts / float(np.sum(counts))
+    #    sampled_n = self.compressed_counts.n_samples
+    #    n_pops = len(self.populations)
+
+    #    pairwise_missing_probs = np.zeros((
+    #        len(config_arr), n_pops, n_pops))
+    #    n_miss = sampled_n - np.sum(config_arr, axis=2)
+    #    p_miss1 = n_miss / sampled_n
+    #    p_miss2 = n_miss / (sampled_n-1)
+    #    for i, derived_pop in enumerate(self.populations):
+    #        for j, anc_pop in enumerate(self.populations):
+    #            p_imiss = p_miss1[:,i]
+    #            if i == j:
+    #                p_jmiss = p_miss2[:,j]
+    #            else:
+    #                p_jmiss = p_miss1[:,j]
+    #            pairwise_missing_probs[:,i,j] = p_imiss + (1-p_imiss)*p_jmiss
+    #    assert np.allclose(pairwise_missing_probs, np.transpose(pairwise_missing_probs, (0, 2, 1)))
+    #    return np.einsum(
+    #        "i, ijk->jk", weights, pairwise_missing_probs)
+
     def subset_populations(self, populations):
         populations = tuple(populations)
 
@@ -432,6 +545,7 @@ class SnpAlleleCounts(object):
     def ascertainment_pop(self):
         return np.array([(pop not in self.non_ascertained_pops)
                          for pop in self.populations])
+
     @property
     def seg_sites(self):
         try:

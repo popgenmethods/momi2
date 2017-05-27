@@ -585,6 +585,10 @@ class Sfs(object):
                                   [{c: f for c, f in zip(subconfigs, loc_freqs) if f != 0}
                                    for loc_freqs in freqs.T])
 
+    def _get_pairwise_missing_probs(self):
+        return np.dot(self._total_freqs,
+                      self.configs._get_pairwise_missing_probs())
+
 
 def _freq_matrix_from_counters(idxs_by_loc, cnts_by_loc, n_configs):
     data = []
@@ -804,15 +808,15 @@ class SegSites(object):
         for loc in self:
             yield loc._get_likelihoods(idx_likelihoods)
 
-    # reorganize the sites into n_chunks equally sized loci
-    def _make_equal_len_chunks(self, n_chunks):
-        all_idxs = list(it.chain.from_iterable(self.idx_list))
-        chunk_len = int(np.ceil(len(all_idxs) / float(n_chunks)))
-        count = it.count()
-        def new_idx_chunks():
-            for _, sub_idxs in it.groupby(all_idxs, lambda x: next(count) // chunk_len):
-                yield sub_idxs
-        return SegSites(self.configs, new_idx_chunks(), self.config_mixture_by_idx)
+    ## reorganize the sites into n_chunks equally sized loci
+    #def _make_equal_len_chunks(self, n_chunks):
+    #    all_idxs = list(it.chain.from_iterable(self.idx_list))
+    #    chunk_len = len(all_idxs) / float(n_chunks)
+    #    count = it.count()
+    #    def new_idx_chunks():
+    #        for _, sub_idxs in it.groupby(all_idxs, lambda x: int(np.floor(next(count)/ chunk_len))):
+    #            yield sub_idxs
+    #    return SegSites(self.configs, new_idx_chunks(), self.config_mixture_by_idx)
 
 
 # to hash configs, represent it as a str
@@ -930,6 +934,13 @@ class CompressedAlleleCounts(object):
 
         self.config_array = self.config_array[sorted_idxs, :, :]
         self.index2uniq = unsorted_idxs[self.index2uniq]
+
+    def count_configs(self):
+        return np.bincount(self.index2uniq)
+
+    @cached_property
+    def n_samples(self):
+        return np.max(np.sum(self.config_array, axis=2), axis=0)
 
 
 def write_seg_sites(sequences_file, seg_sites):
