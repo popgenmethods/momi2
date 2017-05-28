@@ -474,6 +474,9 @@ class DemographicModel(object):
     def check_excess_hets(self):
         return self._make_pairwise_diffs_modelfit().excess_het_df()
 
+    def check_f3(self):
+        return self._make_pairwise_diffs_modelfit().f3_df()
+
     def _make_pairwise_diffs_modelfit(self):
         opt_surface = self._get_opt_surface()
         sfs = opt_surface.sfs
@@ -645,185 +648,249 @@ class Parameter(object):
 
 class PairwiseDiffsModelFit(object):
     def __init__(self, sfs, demo, mut_rate, pairwise_missingness):
-        config_arr = sfs.configs.value
-        self.sampled_pops = np.array(sfs.sampled_pops)
-        n_pops = len(self.sampled_pops)
+        self.sampled_pops = sfs.sampled_pops
 
-        pairwise_diffs = np.zeros((len(config_arr), n_pops, n_pops))
-        for i, derived_pop in enumerate(sfs.sampled_pops):
-            for j, anc_pop in enumerate(sfs.sampled_pops):
-                n_i = sfs.sampled_n[i]
-                n_j = sfs.sampled_n[j]
-                if i == j:
-                    denom = n_i * (n_i-1)
-                else:
-                    denom = n_i * n_j
-                if denom > 0:
-                    pairwise_diffs[:,i,j] = config_arr[:,i,1] * config_arr[:,j,0] / float(denom)
+        self.der_pops = []
+        self.anc_pops = []
+        for d in self.sampled_pops:
+            for a in self.sampled_pops:
+                self.der_pops.append(d)
+                self.anc_pops.append(a)
 
-        freqs_mat = sfs.freqs_matrix.T
-        pairwise_diffs = [[
-            freqs_mat.dot(pairwise_diffs[:, i, j])
-            for j in range(n_pops)] for i in range(n_pops)]
-        pairwise_diffs = np.transpose(pairwise_diffs, (2, 0, 1))
-        assert pairwise_diffs.shape == (sfs.n_loci, n_pops, n_pops)
+        pop_idx_dict = {p: i for i, p in enumerate(self.sampled_pops)}
+        def get_pop_idxs(pop_list):
+            return np.array([pop_idx_dict[p] for p in pop_list])
+        der_idxs = get_pop_idxs(self.der_pops)
+        anc_idxs = get_pop_idxs(self.anc_pops)
 
-        melted_idxs = np.array([(i, j) for j in range(n_pops)
-                                for i in range(n_pops)])
-        self.unmelted_idxs = {(i, j): k for k, (i, j) in enumerate(
-            melted_idxs)}
-        self.melted_der_idx = melted_idxs[:,0]
-        self.melted_anc_idx = melted_idxs[:,1]
+        pairwise_diffs = pairwise_diffs_3tensor(sfs)
+        melted_diffs = np.array([pairwise_diffs[:, i, j]
+                                 for i, j in zip(der_idxs, anc_idxs)])
 
-        self.melted_der_pop = self.sampled_pops[self.melted_der_idx]
-        self.melted_anc_pop = self.sampled_pops[self.melted_anc_idx]
+        self.p_missing = np.array([
+            pairwise_missingness[i, j]
+            for i, j in zip(der_idxs, anc_idxs)])
 
-        self.melted_diffs = np.array([pairwise_diffs[:, i, j]
-                                      for i, j in melted_idxs])
-        self.melted_pairwise_missing = np.array([
-            pairwise_missingness[i, j] for i, j in melted_idxs])
+        corrected_diffs = np.einsum("i,ij->ij", 1./(1.-self.p_missing),
+                                    melted_diffs)
+        self.corrected_sum = LabeledMultivariateNormal(
+            [(d, a) for d, a in zip(self.der_pops, self.anc_pops)],
+            np.sum(corrected_diffs, axis=1),
+            expected_pairwise_diffs(
+                der_idxs, anc_idxs, demo, self.sampled_pops,
+                sfs.sampled_n, mut_rate),
+            np.cov(corrected_diffs, rowvar=True) * sfs.n_loci)
 
-        self.melted_corrected_cov = np.cov(
-            np.einsum("i,ij->ij", 1./(1.-self.melted_pairwise_missing), self.melted_diffs), rowvar=True) * sfs.n_loci
-        assert self.melted_corrected_cov.shape == (n_pops**2, n_pops**2)
+        self.uncorrected_sum = self.corrected_sum.transform(
+            {(lab, lab): 1.-p
+            for lab, p in zip(self.corrected_sum.labels,
+                              self.p_missing)},
+            new_labels=self.corrected_sum.labels)
 
-        self.melted_sum = np.sum(self.melted_diffs, axis=1)
-        self.corrected = self.melted_sum / (1.0-self.melted_pairwise_missing)
-
-        lik_arrs = [np.ones((len(melted_idxs), n+1))
-                    for n in sfs.sampled_n]
-        for i, (j, k) in enumerate(melted_idxs):
-            if j == k:
-                a = lik_arrs[j]
-                n_j = a.shape[1]-1
-                i_j = np.arange(n_j+1)
-                a[i,:] = i_j * (n_j-i_j) / float(
-                    n_j * (n_j-1))
-            else:
-                a_j = lik_arrs[j]
-                n_j = a_j.shape[1]-1
-                i_j = np.arange(n_j+1)
-                a_j[i,:] = i_j / float(n_j)
-
-                a_k = lik_arrs[k]
-                n_k = a_k.shape[1]-1
-                i_k = np.arange(n_k+1)
-                a_k[i,:] = 1 - i_k / float(n_k)
-
-        self.expected = expected_sfs_tensor_prod(
-            lik_arrs, demo, mut_rate=mut_rate,
-            sampled_pops = sfs.sampled_pops)
-
-    def linear_stats(self, mat=None):
-        if mat is None:
-            mat = np.eye(len(self.expected))
-        ret = {
-            "expected": np.dot(mat, self.expected),
-            "observed": np.dot(mat, self.melted_sum),
-            "corrected": np.dot(mat, self.corrected),
-            "cov": np.dot(mat, np.dot(
-                self.melted_corrected_cov, mat.T))
-        }
-        ret["stddev"] = np.sqrt(np.diag(ret["cov"]))
-        ret["z"] = (ret["corrected"] - ret["expected"]) / ret["stddev"]
-        return ret
+    def folded_diff_sums(self, corrected=True, triangular=True):
+        if corrected:
+            diff_sum = self.corrected_sum
+        else:
+            diff_sum = self.uncorrected_sum
+        dok_dict = co.Counter()
+        new_labels = []
+        for der_pop, anc_pop in self.corrected_sum.labels:
+            if triangular and self.sampled_pops.index(
+                    der_pop) > self.sampled_pops.index(anc_pop):
+                continue
+            lab = (der_pop, anc_pop)
+            new_labels.append(lab)
+            dok_dict[(lab, lab)] += 1
+            dok_dict[(lab, lab[::-1])] += 1
+        return diff_sum.transform(
+            dok_dict, new_labels=new_labels)
 
     def folded_pairwise_diffs_df(self):
-        allele1 = []
-        allele2 = []
-        folded_idxs = []
-        p_missing = []
-        for i, j, p in zip(
-                self.melted_der_idx, self.melted_anc_idx,
-                self.melted_pairwise_missing):
-            if i > j:
-                continue
-            allele1.append(self.sampled_pops[i])
-            allele2.append(self.sampled_pops[j])
-            folded_idxs.append((self.unmelted_idxs[(i,j)],
-                                self.unmelted_idxs[(j,i)]))
-            p_missing.append(p)
-        mat = np.zeros((len(folded_idxs), len(self.unmelted_idxs)))
-        for k, (i, j) in enumerate(folded_idxs):
-            mat[k, i] += 1
-            mat[k, j] += 1
-
-        stats = self.linear_stats(mat)
-        return pd.DataFrame(co.OrderedDict([
+        corrected = self.folded_diff_sums(True)
+        uncorrected = self.folded_diff_sums(False)
+        assert corrected.labels == uncorrected.labels
+        p_missing = 1. - uncorrected.observed / corrected.observed
+        allele1 = [i for i, _ in corrected.labels]
+        allele2 = [j for _, j in corrected.labels]
+        return sort_by_abs_value(co.OrderedDict([
             ("Allele1", allele1),
             ("Allele2", allele2),
-            ("AvgDiffs", stats["observed"]),
+            ("AvgDiffs", uncorrected.observed),
             ("EstMissingProb", p_missing),
-            ("CorrectedAvgDiffs", stats["corrected"]),
-            ("Expected", stats["expected"]),
-            ("StdDev", stats["stddev"]),
-            ("ZScore", stats["z"])
-        ]))
+            ("CorrectedAvgDiffs", corrected.observed),
+            ("Expected", corrected.expected),
+            ("StdDev", corrected.std),
+            ("ZScore", corrected.z_scores)
+        ]), "ZScore")
+
+
+    def f3_df(self):
+        dok_matrix = {}
+        for x in self.sampled_pops:
+            for y in self.sampled_pops:
+                if self.sampled_pops.index(
+                        x) >= self.sampled_pops.index(y):
+                    continue
+                for z in self.sampled_pops:
+                    if z == x or z == y:
+                        continue
+                    # (x-z)(y-z) = (x-z)(1-z-(1-y))
+                    # = x(1-z) - x(1-y) - z(1-z) + z(1-y)
+                    xyz = (x,y,z)
+                    dok_matrix[(xyz, (x, z))] = 1
+                    dok_matrix[(xyz, (x, y))] = -1
+                    dok_matrix[(xyz, (z, z))] = -1
+                    dok_matrix[(xyz, (z, y))] = 1
+
+        f3 = self.folded_diff_sums(
+            corrected=True, triangular=False).transform(
+                dok_matrix)
+
+        return sort_by_abs_value(co.OrderedDict([
+            ("X", [xyz[0] for xyz in f3.labels]),
+            ("Y", [xyz[1] for xyz in f3.labels]),
+            ("Z", [xyz[2] for xyz in f3.labels]),
+            ("(X-Z)*(Y-Z)", f3.observed),
+            ("E[(X-Z)*(Y-Z)]", f3.expected),
+            ("StdDev", f3.std),
+            ("ZScore", f3.z_scores)
+        ]), "ZScore")
+
 
     def excess_het_df(self):
-        allele1 = []
-        allele2 = []
-        folded_idxs = []
-        p_missing = []
-        avg_diffs = []
-        n_der_1 = []
-        n_der_2 = []
-        for idx in range(len(self.melted_der_idx)):
-            i = self.melted_der_idx[idx]
-            j = self.melted_anc_idx[idx]
-            p = self.melted_pairwise_missing[idx]
-
-            if i >= j:
+        dok_matrix = {}
+        new_labels = []
+        for der_pop, anc_pop in zip(self.der_pops, self.anc_pops):
+            if self.sampled_pops.index(
+                    der_pop) >= self.sampled_pops.index(anc_pop):
                 continue
-            allele1.append(self.sampled_pops[i])
-            allele2.append(self.sampled_pops[j])
+            lab = (der_pop, anc_pop)
+            new_labels.append(lab)
 
-            idx1 = self.unmelted_idxs[(i,j)]
-            idx2 = self.unmelted_idxs[(j,i)]
-            assert idx1 == idx
-            folded_idxs.append((idx1, idx2))
-            p_missing.append(p)
+        corrected_excess = self.corrected_sum.transform(
+            dict([((lab, lab), 1) for lab in new_labels] + [
+                ((lab, lab[::-1]), -1) for lab in new_labels]),
+            new_labels=new_labels)
 
-            n_der_1.append(self.melted_sum[idx1])
-            n_der_2.append(self.melted_sum[idx2])
-            avg_diffs.append(n_der_1[-1] + n_der_2[-1])
-        mat = np.zeros((len(folded_idxs), len(self.unmelted_idxs)))
-        for k, (i, j) in enumerate(folded_idxs):
-            mat[k, i] = 1
-            mat[k, j] = -1
+        der1 = self.uncorrected_sum.transform(
+            dict([((lab, lab), 1) for lab in new_labels]),
+            new_labels=new_labels).observed
 
-        stats = self.linear_stats(mat)
-        return pd.DataFrame(co.OrderedDict([
-            ("Allele1", allele1),
-            ("Allele2", allele2),
-            ("AvgHet", avg_diffs),
-            ("Derived1", n_der_1),
-            ("Derived2", n_der_2),
-            ("Difference", stats["observed"]),
-            ("EstMissingProb", p_missing),
-            ("CorrectedDifference", stats["corrected"]),
-            ("Expected", stats["expected"]),
-            ("StdDev", stats["stddev"]),
-            ("ZScore", stats["z"])
-        ]))
+        der2 = self.uncorrected_sum.transform(
+            dict([((lab, lab[::-1]), 1) for lab in new_labels]),
+            new_labels=new_labels).observed
+
+        return sort_by_abs_value(co.OrderedDict([
+            ("Allele1", [l[0] for l in new_labels]),
+            ("Allele2", [l[1] for l in new_labels]),
+            ("AvgHet", der1 + der2),
+            ("Derived1", der1),
+            ("Derived2", der2),
+            ("Difference", der1-der2),
+            ("EstMissingProb", 1.-(der1-der2)/corrected_excess.observed),
+            ("CorrectedDifference", corrected_excess.observed),
+            ("Expected", corrected_excess.expected),
+            ("StdDev", corrected_excess.std),
+            ("ZScore", corrected_excess.z_scores)
+        ]), "ZScore")
+
+def pairwise_diffs_3tensor(sfs):
+    config_arr = sfs.configs.value
+    n_pops = len(sfs.sampled_pops)
+
+    pairwise_diffs = np.zeros((len(config_arr), n_pops, n_pops))
+    for i, derived_pop in enumerate(sfs.sampled_pops):
+        for j, anc_pop in enumerate(sfs.sampled_pops):
+            n_i = sfs.sampled_n[i]
+            n_j = sfs.sampled_n[j]
+            if i == j:
+                denom = n_i * (n_i-1)
+            else:
+                denom = n_i * n_j
+            if denom > 0:
+                pairwise_diffs[:,i,j] = config_arr[:,i,1] * config_arr[:,j,0] / float(denom)
+
+    freqs_mat = sfs.freqs_matrix.T
+    pairwise_diffs = [[
+        freqs_mat.dot(pairwise_diffs[:, i, j])
+        for j in range(n_pops)] for i in range(n_pops)]
+    pairwise_diffs = np.transpose(pairwise_diffs, (2, 0, 1))
+    assert pairwise_diffs.shape == (sfs.n_loci, n_pops, n_pops)
+
+    return pairwise_diffs
+
+def expected_pairwise_diffs(
+        der_idxs, anc_idxs, demo,
+        sampled_pops, sampled_n, mut_rate):
+    assert len(der_idxs) == len(anc_idxs)
+    lik_arrs = [np.ones((len(der_idxs), n+1))
+                for n in sampled_n]
+    for i, j, k in zip(it.count(), der_idxs, anc_idxs):
+        if j == k:
+            a = lik_arrs[j]
+            n_j = a.shape[1]-1
+            i_j = np.arange(n_j+1)
+            a[i,:] = i_j * (n_j-i_j) / float(
+                n_j * (n_j-1))
+        else:
+            a_j = lik_arrs[j]
+            n_j = a_j.shape[1]-1
+            i_j = np.arange(n_j+1)
+            a_j[i,:] = i_j / float(n_j)
+
+            a_k = lik_arrs[k]
+            n_k = a_k.shape[1]-1
+            i_k = np.arange(n_k+1)
+            a_k[i,:] = 1 - i_k / float(n_k)
+
+    return expected_sfs_tensor_prod(
+        lik_arrs, demo, mut_rate=mut_rate,
+        sampled_pops = sampled_pops)
+
+class LabeledMultivariateNormal(object):
+    def __init__(self, labels, observed, expected, covariance):
+        self.labels = list(labels)
+        self.idx_dict = {
+            l: i for i, l in enumerate(self.labels)}
+        self.observed = observed
+        self.expected = expected
+        self.covariance = covariance
+
+    def transform(self, dok_matrix, new_labels = None):
+        if new_labels is None:
+            new_labels = list(set([
+                out_lab for out_lab, in_lab in dok_matrix.keys()]))
+        new_idx_dict = {
+            l: i for i, l in enumerate(new_labels)}
+
+        matrix = np.zeros((len(new_labels), len(self.labels)))
+        for (out_lab, in_lab), val in dok_matrix.items():
+            out_idx = new_idx_dict[out_lab]
+            in_idx = self.idx_dict[in_lab]
+            matrix[out_idx, in_idx] = val
+
+        return LabeledMultivariateNormal(
+            new_labels,
+            np.dot(matrix, self.observed),
+            np.dot(matrix, self.expected),
+            np.dot(matrix, np.dot(
+                self.covariance, np.transpose(matrix))))
+
+    @property
+    def std(self):
+        return np.sqrt(np.diag(self.covariance))
+
+    @property
+    def z_scores(self):
+        return (self.observed - self.expected) / self.std
 
 
-    def pairwise_diffs_df(self):
-        der = self.melted_der_pop
-        anc = self.melted_anc_pop
-
-        stats = self.linear_stats()
-
-        ret = list(zip(
-            der, anc, stats["observed"],
-            self.melted_pairwise_missing,
-            stats["corrected"],
-            stats["expected"],
-            stats["stddev"], stats["z"]))
-        ret = sorted(ret, key=lambda x: np.abs(x[-1]), reverse=True)
-
-        return pd.DataFrame(ret, columns=[
-            "Derived", "Ancestral", "Observed",
-            "EstMissingProb", "CorrectedObs", "Expected",
-            "StdDev", "ZScore"])
-
+def sort_by_abs_value(df, column, reverse=True):
+    df = pd.DataFrame(df)
+    columns = list(df.columns)
+    idx = columns.index(column)
+    value = sorted(
+        np.array(df.values).tolist(),
+        key=lambda x: np.abs(x[idx]),
+        reverse=reverse)
+    return pd.DataFrame(value, columns=columns)
