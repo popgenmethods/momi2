@@ -474,8 +474,14 @@ class DemographicModel(object):
     def check_excess_hets(self):
         return self._make_pairwise_diffs_modelfit().excess_het_df()
 
+    def check_f2(self):
+        return self._make_pairwise_diffs_modelfit().f2_df()
+
     def check_f3(self):
         return self._make_pairwise_diffs_modelfit().f3_df()
+
+    def check_f4(self):
+        return self._make_pairwise_diffs_modelfit().f4_df()
 
     def _make_pairwise_diffs_modelfit(self):
         opt_surface = self._get_opt_surface()
@@ -645,7 +651,6 @@ class Parameter(object):
     def update_params_dict(self, params_dict):
         params_dict[self.name] = self.transform_x(self.x, **params_dict)
 
-
 class PairwiseDiffsModelFit(object):
     def __init__(self, sfs, demo, mut_rate, pairwise_missingness):
         self.sampled_pops = sfs.sampled_pops
@@ -724,6 +729,79 @@ class PairwiseDiffsModelFit(object):
         ]), "ZScore")
 
 
+    def f2_df(self):
+        dok_matrix = {}
+        n_pop = len(self.sampled_pops)
+        for i in range(n_pop):
+            for j in range(i+1, n_pop):
+                x = self.sampled_pops[i]
+                y = self.sampled_pops[j]
+                xy = (x, y)
+                # (x-y)*(x-y) = (x-y)*(1-y-(1-x))
+                # = x(1-y) + y(1-x) - x(1-x) - y(1-y)
+                dok_matrix[(xy, (x, y))] = 1
+                dok_matrix[(xy, (y, x))] = 1
+                dok_matrix[(xy, (x, x))] = -1
+                dok_matrix[(xy, (y, y))] = -1
+
+        f2 = self.corrected_sum.transform(dok_matrix)
+
+        return sort_by_abs_value(co.OrderedDict([
+            ("X", [xy[0] for xy in f2.labels]),
+            ("Y", [xy[1] for xy in f2.labels]),
+            ("(X-Y)^2", f2.observed),
+            ("E[(X-Y)^2]", f2.expected),
+            ("StdDev", f2.std),
+            ("ZScore", f2.z_scores)
+        ]), "ZScore")
+
+    def f4_df(self):
+        dok_matrix = {}
+        n_pop = len(self.sampled_pops)
+        for i in range(n_pop):
+            for j in range(i+1, n_pop):
+                for k in range(j+1, n_pop):
+                    p1, p2, p3 = [self.sampled_pops[z]
+                                  for z in (i, j, k)]
+                    # ancesetral outgroup case
+                    for a, b, c in ((p1, p2, p3), (p1, p3, p2), (p2, p3, p1)):
+                        abcd = (a, b, c, "")
+                        dok_matrix[(abcd, (c, b))] = 1
+                        dok_matrix[(abcd, (c, a))] = -1
+
+                    # non-ancestral outgroup case
+                    for l in range(k+1, n_pop):
+                        p4 = self.sampled_pops[l]
+                        for a, b, c, d in ((p1,p2,p3,p4), (p1,p3,p2,p4), (p1,p4,p2,p3)):
+                            abcd = (a, b, c, d)
+                            # (a-b)*(c-d) = (a-b)*(1-d-(1-c))
+                            # = a(1-d) - a(1-c) - b(1-d) + b(1-c)
+                            # = c(1-b) - c(1-a) - d(1-b) + d(1-a)
+                            dok_matrix[(abcd, (a, d))] = 1
+                            dok_matrix[(abcd, (d, a))] = 1
+
+                            dok_matrix[(abcd, (a, c))] = -1
+                            dok_matrix[(abcd, (c, a))] = -1
+
+                            dok_matrix[(abcd, (b, d))] = -1
+                            dok_matrix[(abcd, (d, b))] = -1
+
+                            dok_matrix[(abcd, (b, c))] = 1
+                            dok_matrix[(abcd, (c, b))] = 1
+
+        f4 = self.corrected_sum.transform(dok_matrix)
+
+        return sort_by_abs_value(co.OrderedDict([
+            ("A", [abcd[0] for abcd in f4.labels]),
+            ("B", [abcd[1] for abcd in f4.labels]),
+            ("C", [abcd[2] for abcd in f4.labels]),
+            ("D", [abcd[3] for abcd in f4.labels]),
+            ("(A-B)*(C-D)", f4.observed),
+            ("E[(A-B)*(C-D)]", f4.expected),
+            ("StdDev", f4.std),
+            ("ZScore", f4.z_scores)
+        ]), "ZScore")
+
     def f3_df(self):
         dok_matrix = {}
         for x in self.sampled_pops:
@@ -738,13 +816,28 @@ class PairwiseDiffsModelFit(object):
                     # = x(1-z) - x(1-y) - z(1-z) + z(1-y)
                     xyz = (x,y,z)
                     dok_matrix[(xyz, (x, z))] = 1
-                    dok_matrix[(xyz, (x, y))] = -1
-                    dok_matrix[(xyz, (z, z))] = -1
-                    dok_matrix[(xyz, (z, y))] = 1
+                    dok_matrix[(xyz, (z, x))] = 1
 
-        f3 = self.folded_diff_sums(
-            corrected=True, triangular=False).transform(
-                dok_matrix)
+                    dok_matrix[(xyz, (x, y))] = -1
+                    dok_matrix[(xyz, (y, x))] = -1
+
+                    dok_matrix[(xyz, (z, y))] = 1
+                    dok_matrix[(xyz, (y, z))] = 1
+
+                    dok_matrix[(xyz, (z, z))] = -2
+
+        # f3 with ancestral outgroup
+        # ancestral outgroup always homozygous, so cannot be z
+        for z in self.sampled_pops:
+            for y in self.sampled_pops:
+                if z == y:
+                    continue
+                # x is ancesetral outgroup
+                xyz = ("", y, z)
+                dok_matrix[(xyz, (z, z))] = -1
+                dok_matrix[(xyz, (z, y))] = 1
+
+        f3 = self.corrected_sum.transform(dok_matrix)
 
         return sort_by_abs_value(co.OrderedDict([
             ("X", [xyz[0] for xyz in f3.labels]),
