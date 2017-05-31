@@ -378,11 +378,19 @@ class DemographicModel(object):
             mem_chunk_size, use_pairwise_diffs):
         self._opt_surface = None
         self._conf_region = None
+        self._sfs = None
         self._data = data
         self._folded = folded
         self._mem_chunk_size = mem_chunk_size
         self._muts_per_gen = muts_per_gen
         self._use_pairwise_diffs = use_pairwise_diffs
+
+    def _get_sfs(self):
+        if self._sfs is None or list(
+                self._sfs.sampled_pops) != list(self.leafs):
+            self._sfs = self._data.subset_populations(
+                self.leafs).sfs
+        return self._sfs
 
     def _get_opt_surface(self):
         if self._opt_surface is None or list(
@@ -392,8 +400,7 @@ class DemographicModel(object):
                 raise ValueError("Need to call DemographicModel.set_data()")
             logging.info("Constructing likelihood surface...")
 
-            sfs = self._data.subset_populations(
-                self.leafs).sfs
+            sfs = self._get_sfs()
             self._opt_surface = self._make_surface(
                 sfs, opt_surface=True)
 
@@ -445,7 +452,8 @@ class DemographicModel(object):
     def _make_surface(self, sfs, opt_surface):
         use_pairwise_diffs = self._use_pairwise_diffs
         if use_pairwise_diffs is None:
-            use_pairwise_diffs = sfs.configs.has_missing_data
+            #use_pairwise_diffs = sfs.configs.has_missing_data
+            use_pairwise_diffs = True
 
         muts_per_gen = self._muts_per_gen
         if muts_per_gen is None:
@@ -477,15 +485,14 @@ class DemographicModel(object):
     def check_f2(self):
         return self._make_pairwise_diffs_modelfit().f2_df()
 
-    def check_f3(self):
-        return self._make_pairwise_diffs_modelfit().f3_df()
+    def check_f3(self, use_anc_outgroup=False):
+        return self._make_pairwise_diffs_modelfit().f3_df(use_anc_outgroup=use_anc_outgroup)
 
     def check_f4(self):
         return self._make_pairwise_diffs_modelfit().f4_df()
 
-    def _make_pairwise_diffs_modelfit(self):
-        opt_surface = self._get_opt_surface()
-        sfs = opt_surface.sfs
+    def _sfs_pairwise_diffs(self):
+        sfs = self._get_sfs()
         pairwise_missingness = self._data._pairwise_missingness
         pairwise_missingness = {
             (pop_i, pop_j): pairwise_missingness[i,j]
@@ -494,10 +501,13 @@ class DemographicModel(object):
         pairwise_missingness = np.array([[
             pairwise_missingness[(pop_i, pop_j)]
             for pop_j in sfs.sampled_pops] for pop_i in sfs.sampled_pops])
-        return PairwiseDiffsModelFit(
-            sfs, self._get_demo(),
-            opt_surface.mut_rate * sfs.n_loci,
-            pairwise_missingness)
+        return SfsPairwiseDiffs(
+            sfs, pairwise_missingness,
+            self._muts_per_gen * 4 * self.N_e / sfs.n_loci)
+
+    def _make_pairwise_diffs_modelfit(self):
+        return self._sfs_pairwise_diffs().get_model_fit(
+            self._get_demo())
 
 
     def log_likelihood(self):
@@ -651,9 +661,12 @@ class Parameter(object):
     def update_params_dict(self, params_dict):
         params_dict[self.name] = self.transform_x(self.x, **params_dict)
 
-class PairwiseDiffsModelFit(object):
-    def __init__(self, sfs, demo, mut_rate, pairwise_missingness):
+
+class SfsPairwiseDiffs(object):
+    def __init__(self, sfs, pairwise_missingness, mut_rate):
         self.sampled_pops = sfs.sampled_pops
+        self.sampled_n = sfs.sampled_n
+        self.n_loci = sfs.n_loci
 
         self.der_pops = []
         self.anc_pops = []
@@ -661,36 +674,110 @@ class PairwiseDiffsModelFit(object):
             for a in self.sampled_pops:
                 self.der_pops.append(d)
                 self.anc_pops.append(a)
+        self.labels = list(zip(self.der_pops, self.anc_pops))
 
         pop_idx_dict = {p: i for i, p in enumerate(self.sampled_pops)}
         def get_pop_idxs(pop_list):
             return np.array([pop_idx_dict[p] for p in pop_list])
-        der_idxs = get_pop_idxs(self.der_pops)
-        anc_idxs = get_pop_idxs(self.anc_pops)
+
+        self.der_idxs = get_pop_idxs(self.der_pops)
+        self.anc_idxs = get_pop_idxs(self.anc_pops)
 
         pairwise_diffs = pairwise_diffs_3tensor(sfs)
         melted_diffs = np.array([pairwise_diffs[:, i, j]
-                                 for i, j in zip(der_idxs, anc_idxs)])
+                                 for i, j in zip(self.der_idxs, self.anc_idxs)])
+
 
         self.p_missing = np.array([
             pairwise_missingness[i, j]
-            for i, j in zip(der_idxs, anc_idxs)])
+            for i, j in zip(self.der_idxs, self.anc_idxs)])
 
-        corrected_diffs = np.einsum("i,ij->ij", 1./(1.-self.p_missing),
-                                    melted_diffs)
+        self.mut_rate = mut_rate * np.ones(self.n_loci)
+        #self.rescaled_diffs = np.einsum("i,ij,j->ij",
+        #                                1./(1.-self.p_missing),
+        #                                melted_diffs, 1./self.mut_rate)
+        self.rescaled_diffs = np.einsum("i,ij->ij",
+                                        1./(1.-self.p_missing),
+                                        melted_diffs)
+        self.rescaled_mean = np.mean(self.rescaled_diffs, axis=1)
+        self.rescaled_cov = np.cov(self.rescaled_diffs, rowvar=True)
+
+        self.unscaled_sum = np.sum(melted_diffs, axis=1)
+
+    def folded_diffs_loglik(self, demo):
+        polarized_errs = LabeledMultivariateNormal(
+            self.labels, self.rescaled_diffs,
+            self.expected_diffs(demo), self.rescaled_cov)
+
+        dok_matrix = co.Counter()
+        for der_pop, anc_pop in self.labels:
+            lab = (der_pop, anc_pop)
+            dok_matrix[(lab, lab)] += 1
+            dok_matrix[(lab, lab[::-1])] += 1
+
+        folded_errs = polarized_errs.transform(dok_matrix)
+        resids = np.transpose(
+            folded_errs.observed) - folded_errs.expected
+        ret = -.5 * np.einsum(
+            "ij,jk,ik->i", resids,
+            scipy.linalg.pinvh(folded_errs.covariance), resids)
+        return ret
+
+
+    def expected_diffs(self, demo):
+        assert len(self.der_idxs) == len(self.anc_idxs)
+        lik_arrs = [np.ones((len(self.der_idxs), n+1))
+                    for n in self.sampled_n]
+        for i, j, k in zip(it.count(), self.der_idxs, self.anc_idxs):
+            if j == k:
+                a = lik_arrs[j]
+                n_j = a.shape[1]-1
+                i_j = np.arange(n_j+1)
+                a[i,:] = i_j * (n_j-i_j) / float(
+                    n_j * (n_j-1))
+            else:
+                a_j = lik_arrs[j]
+                n_j = a_j.shape[1]-1
+                i_j = np.arange(n_j+1)
+                a_j[i,:] = i_j / float(n_j)
+
+                a_k = lik_arrs[k]
+                n_k = a_k.shape[1]-1
+                i_k = np.arange(n_k+1)
+                a_k[i,:] = 1 - i_k / float(n_k)
+
+        return expected_sfs_tensor_prod(
+            lik_arrs, demo,
+            sampled_pops=self.sampled_pops)
+
+
+    def get_model_fit(self, demo):
+        return PairwiseDiffsModelFit(
+            self.labels, self.sampled_pops,
+            self.expected_diffs(demo) * np.sum(self.mut_rate),
+            self.rescaled_mean * self.n_loci,
+            self.rescaled_cov * self.n_loci,
+            self.unscaled_sum, self.p_missing)
+
+
+
+class PairwiseDiffsModelFit(object):
+    def __init__(self, labels, sampled_pops,
+                 expected, observed_scaled,
+                 observed_scaled_cov, unscaled_sum,
+                 p_missing):
+        self.sampled_pops = sampled_pops
+        self.p_missing = p_missing
+
+        self.der_pops, self.anc_pops = zip(*labels)
         self.corrected_sum = LabeledMultivariateNormal(
-            [(d, a) for d, a in zip(self.der_pops, self.anc_pops)],
-            np.sum(corrected_diffs, axis=1),
-            expected_pairwise_diffs(
-                der_idxs, anc_idxs, demo, self.sampled_pops,
-                sfs.sampled_n, mut_rate),
-            np.cov(corrected_diffs, rowvar=True) * sfs.n_loci)
-
-        self.uncorrected_sum = self.corrected_sum.transform(
-            {(lab, lab): 1.-p
-            for lab, p in zip(self.corrected_sum.labels,
-                              self.p_missing)},
-            new_labels=self.corrected_sum.labels)
+            labels, observed_scaled,
+            expected, observed_scaled_cov)
+        self.uncorrected_sum = LabeledMultivariateNormal(
+            labels, unscaled_sum,
+            # expected, cov are dummies (not used), set to 0
+            np.zeros(len(unscaled_sum)),
+            np.zeros((len(unscaled_sum), len(unscaled_sum))))
 
     def folded_diff_sums(self, corrected=True, triangular=True):
         if corrected:
@@ -802,7 +889,7 @@ class PairwiseDiffsModelFit(object):
             ("ZScore", f4.z_scores)
         ]), "ZScore")
 
-    def f3_df(self):
+    def f3_df(self, use_anc_outgroup=False):
         dok_matrix = {}
         for x in self.sampled_pops:
             for y in self.sampled_pops:
@@ -828,14 +915,15 @@ class PairwiseDiffsModelFit(object):
 
         # f3 with ancestral outgroup
         # ancestral outgroup always homozygous, so cannot be z
-        for z in self.sampled_pops:
-            for y in self.sampled_pops:
-                if z == y:
-                    continue
-                # x is ancesetral outgroup
-                xyz = ("", y, z)
-                dok_matrix[(xyz, (z, z))] = -1
-                dok_matrix[(xyz, (z, y))] = 1
+        if use_anc_outgroup:
+            for z in self.sampled_pops:
+                for y in self.sampled_pops:
+                    if z == y:
+                        continue
+                    # x is ancesetral outgroup
+                    xyz = ("", y, z)
+                    dok_matrix[(xyz, (z, z))] = -1
+                    dok_matrix[(xyz, (z, y))] = 1
 
         f3 = self.corrected_sum.transform(dok_matrix)
 
@@ -912,33 +1000,6 @@ def pairwise_diffs_3tensor(sfs):
 
     return pairwise_diffs
 
-def expected_pairwise_diffs(
-        der_idxs, anc_idxs, demo,
-        sampled_pops, sampled_n, mut_rate):
-    assert len(der_idxs) == len(anc_idxs)
-    lik_arrs = [np.ones((len(der_idxs), n+1))
-                for n in sampled_n]
-    for i, j, k in zip(it.count(), der_idxs, anc_idxs):
-        if j == k:
-            a = lik_arrs[j]
-            n_j = a.shape[1]-1
-            i_j = np.arange(n_j+1)
-            a[i,:] = i_j * (n_j-i_j) / float(
-                n_j * (n_j-1))
-        else:
-            a_j = lik_arrs[j]
-            n_j = a_j.shape[1]-1
-            i_j = np.arange(n_j+1)
-            a_j[i,:] = i_j / float(n_j)
-
-            a_k = lik_arrs[k]
-            n_k = a_k.shape[1]-1
-            i_k = np.arange(n_k+1)
-            a_k[i,:] = 1 - i_k / float(n_k)
-
-    return expected_sfs_tensor_prod(
-        lik_arrs, demo, mut_rate=mut_rate,
-        sampled_pops = sampled_pops)
 
 class LabeledMultivariateNormal(object):
     def __init__(self, labels, observed, expected, covariance):
