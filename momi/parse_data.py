@@ -422,9 +422,36 @@ class SnpAlleleCounts(object):
             ret.append(n_valid[-1] / float(sum(n_valid)))
         return np.array(ret)
 
+    @memoize_instance
+    def _jacknife_pairwise_missingness(self, n_jackknife_blocks):
+        config_arr = self.compressed_counts.config_array
+        idxs = self.compressed_counts.index2uniq
+
+        blocklen = len(idxs) / float(n_jackknife_blocks)
+        block = np.array(np.floor(np.arange(len(idxs)) / blocklen),
+                         dtype=int)
+        block = iter(block)
+
+        minlength = int(np.max(idxs))+1
+        block_counts = np.stack([
+            np.bincount(list(block_idxs), minlength=minlength)
+            for grp, block_idxs in it.groupby(
+                    idxs, lambda x: next(block))
+        ])
+        total_counts = np.sum(block_counts, axis=0)
+
+        jackknife_counts = total_counts - block_counts
+        ret = self._est_pairwise_missing(jackknife_counts)
+        #assert np.allclose(np.mean(ret, axis=-1), self._pairwise_missingness)
+        return ret
+
     @cached_property
     def _pairwise_missingness(self):
-        counts = self.compressed_counts.count_configs()
+        return self._est_pairwise_missing()
+
+    def _est_pairwise_missing(self, counts=None):
+        if counts is None:
+            counts = self.compressed_counts.count_configs()
         sampled_n = self.compressed_counts.n_samples
         n_pops = len(self.populations)
 
@@ -458,10 +485,11 @@ class SnpAlleleCounts(object):
                             np.sum(removed[:,:,:2], axis=1) > 0, axis=1)
 
                         n_valid[-1].append(np.sum(
-                            (counts * n_ai * n_aj)[valid_removed]))
-                n_valid = np.array(n_valid)
+                            (counts * n_ai * n_aj).T[valid_removed,...],
+                            axis=0))
+                n_valid = np.array(n_valid, dtype=float)
                 ret[-1].append(1.0 - np.sum(
-                    n_valid[:2,:][:,:2]) / float(np.sum(n_valid)))
+                    n_valid[:2,:,...][:,:2,...], axis=(0,1)) / np.sum(n_valid, axis=(0,1)))
 
         return np.array(ret)
 

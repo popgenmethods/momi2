@@ -499,16 +499,13 @@ class DemographicModel(object):
 
     def _sfs_pairwise_diffs(self):
         sfs = self._get_sfs()
-        pairwise_missingness = self._data._pairwise_missingness
-        pairwise_missingness = {
-            (pop_i, pop_j): pairwise_missingness[i,j]
-            for i, pop_i in enumerate(self._data.populations)
-            for j, pop_j in enumerate(self._data.populations)}
-        pairwise_missingness = np.array([[
-            pairwise_missingness[(pop_i, pop_j)]
-            for pop_j in sfs.sampled_pops] for pop_i in sfs.sampled_pops])
+        pop_idxs = np.array([
+            self._data.populations.index(i) for i in sfs.sampled_pops])
+        pairwise_missingness = self._data._pairwise_missingness[pop_idxs,:][:,pop_idxs]
+        jackknife_missingness = self._data._jacknife_pairwise_missingness(sfs.n_loci)[pop_idxs,:,:][:,pop_idxs,:]
         return SfsPairwiseDiffs(
             sfs, pairwise_missingness,
+            jackknife_missingness,
             self._muts_per_gen * 4 * self.N_e / sfs.n_loci)
 
     def _make_pairwise_diffs_modelfit(self):
@@ -671,7 +668,8 @@ class Parameter(object):
 
 
 class SfsPairwiseDiffs(object):
-    def __init__(self, sfs, pairwise_missingness, mut_rate):
+    def __init__(self, sfs, pairwise_missingness,
+                 pairwise_missingness_jackknife, mut_rate):
         self.sampled_pops = sfs.sampled_pops
         self.sampled_n = sfs.sampled_n
         self.n_loci = sfs.n_loci
@@ -695,41 +693,57 @@ class SfsPairwiseDiffs(object):
         melted_diffs = np.array([pairwise_diffs[:, i, j]
                                  for i, j in zip(self.der_idxs, self.anc_idxs)])
 
+        self.mut_rate = mut_rate * np.ones(self.n_loci)
 
         self.p_missing = np.array([
             pairwise_missingness[i, j]
             for i, j in zip(self.der_idxs, self.anc_idxs)])
 
-        self.mut_rate = mut_rate * np.ones(self.n_loci)
-        #self.rescaled_diffs = np.einsum("i,ij,j->ij",
-        #                                1./(1.-self.p_missing),
-        #                                melted_diffs, 1./self.mut_rate)
-        self.rescaled_diffs = np.einsum("i,ij->ij",
-                                        1./(1.-self.p_missing),
-                                        melted_diffs)
-        self.rescaled_mean = np.mean(self.rescaled_diffs, axis=1)
-        self.rescaled_cov = np.cov(self.rescaled_diffs, rowvar=True)
+        self.rescaled_mean = np.mean(np.einsum(
+            "i,ij->ij", 1./(1.-self.p_missing),
+            melted_diffs), axis=1)
+
+        #rescaled_diffs = np.einsum("i,ij->ij",
+        #                           1./(1.-self.p_missing),
+        #                           melted_diffs)
+        #self.rescaled_cov = np.cov(rescaled_diffs, rowvar=True)
+
+        summed_diffs = np.sum(melted_diffs, axis=1)
+        jackknife_diffs = (summed_diffs - melted_diffs.T).T / float(
+            self.n_loci-1)
+        self.pairwise_missingness_jackknife = np.array([
+            pairwise_missingness_jackknife[i, j, :]
+            for i, j in zip(self.der_idxs, self.anc_idxs)
+        ])
+        self.jackknife_diffs = jackknife_diffs / (
+            1. - self.pairwise_missingness_jackknife)
+
+        jackknife_errs = self.jackknife_diffs.T - self.rescaled_mean
+        self.rescaled_cov = np.einsum(
+            "ij,ik->jk", jackknife_errs, jackknife_errs
+        ) * float(self.n_loci-1) / self.n_loci
+
 
         self.unscaled_sum = np.sum(melted_diffs, axis=1)
 
-    def folded_diffs_loglik(self, demo):
-        polarized_errs = LabeledMultivariateNormal(
-            self.labels, self.rescaled_diffs,
-            self.expected_diffs(demo), self.rescaled_cov)
+    #def folded_diffs_loglik(self, demo):
+    #    polarized_errs = LabeledMultivariateNormal(
+    #        self.labels, self.rescaled_diffs,
+    #        self.expected_diffs(demo), self.rescaled_cov)
 
-        dok_matrix = co.Counter()
-        for der_pop, anc_pop in self.labels:
-            lab = (der_pop, anc_pop)
-            dok_matrix[(lab, lab)] += 1
-            dok_matrix[(lab, lab[::-1])] += 1
+    #    dok_matrix = co.Counter()
+    #    for der_pop, anc_pop in self.labels:
+    #        lab = (der_pop, anc_pop)
+    #        dok_matrix[(lab, lab)] += 1
+    #        dok_matrix[(lab, lab[::-1])] += 1
 
-        folded_errs = polarized_errs.transform(dok_matrix)
-        resids = np.transpose(
-            folded_errs.observed) - folded_errs.expected
-        ret = -.5 * np.einsum(
-            "ij,jk,ik->i", resids,
-            scipy.linalg.pinvh(folded_errs.covariance), resids)
-        return ret
+    #    folded_errs = polarized_errs.transform(dok_matrix)
+    #    resids = np.transpose(
+    #        folded_errs.observed) - folded_errs.expected
+    #    ret = -.5 * np.einsum(
+    #        "ij,jk,ik->i", resids,
+    #        scipy.linalg.pinvh(folded_errs.covariance), resids)
+    #    return ret
 
 
     def expected_diffs(self, demo):
@@ -764,7 +778,7 @@ class SfsPairwiseDiffs(object):
             self.labels, self.sampled_pops,
             self.expected_diffs(demo) * np.sum(self.mut_rate),
             self.rescaled_mean * self.n_loci,
-            self.rescaled_cov * self.n_loci,
+            self.rescaled_cov * (self.n_loci**2),
             self.unscaled_sum, self.p_missing)
 
 
