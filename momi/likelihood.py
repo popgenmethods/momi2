@@ -389,17 +389,17 @@ def _mut_factor(sfs, demo, mut_rate, vector, p_missing, use_pairwise_diffs):
 
 
 def _mut_factor_het(sfs, demo, mut_rate, vector, p_missing):
-    # TODO: not correctly implemented for ascertainment populations...
     mut_rate = mut_rate * np.ones(sfs.n_loci)
     E_het = expected_heterozygosity(demo, sampled_pops=sfs.sampled_pops)[
         sfs.ascertainment_pop]
     if p_missing is None:
         p_missing = sfs.p_missing
+    p_missing = p_missing[sfs.ascertainment_pop]
     lambd = np.einsum("i,j->ij", mut_rate, E_het * (1.0 - p_missing))
 
-    counts = sfs.avg_pairwise_hets
+    counts = sfs.avg_pairwise_hets[:, sfs.ascertainment_pop]
     ret = -lambd + counts * np.log(lambd) - scipy.special.gammaln(counts + 1)
-    ret = ret * sfs.sampled_n / float(np.sum(sfs.sampled_n))
+    ret = ret * sfs.sampled_n[sfs.ascertainment_pop] / float(np.sum(sfs.sampled_n[sfs.ascertainment_pop]))
     if not vector:
         ret = np.sum(ret)
     else:

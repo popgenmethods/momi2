@@ -35,14 +35,16 @@ def demographic_model(default_N, gen_time=1):
         N_e=default_N, gen_time=gen_time, parameters=[],
         event_funs=[], sample_t_funs={}, leafs=[],
         data=None, muts_per_gen=None, folded=None,
-        mem_chunk_size=None, use_pairwise_diffs=None)
+        mem_chunk_size=None, use_pairwise_diffs=None,
+        non_ascertained_pops=None)
 
 
 class DemographicModel(object):
     def __init__(self, N_e, gen_time, parameters,
                  event_funs, sample_t_funs, leafs,
                  data, muts_per_gen, folded,
-                 mem_chunk_size, use_pairwise_diffs):
+                 mem_chunk_size, use_pairwise_diffs,
+                 non_ascertained_pops):
         self.N_e = N_e
         self.gen_time = gen_time
         self.parameters = [p.copy() for p in parameters]
@@ -52,7 +54,8 @@ class DemographicModel(object):
 
         self._set_data(data=data, muts_per_gen=muts_per_gen,
                        folded=folded, mem_chunk_size=mem_chunk_size,
-                       use_pairwise_diffs=use_pairwise_diffs)
+                       use_pairwise_diffs=use_pairwise_diffs,
+                       non_ascertained_pops=non_ascertained_pops)
 
     def copy(self):
         return DemographicModel(
@@ -61,7 +64,8 @@ class DemographicModel(object):
             sample_t_funs=self.sample_t_funs, leafs=self.leafs,
             data=self._data, muts_per_gen=self._muts_per_gen,
             folded=self._folded, mem_chunk_size=self._mem_chunk_size,
-            use_pairwise_diffs=self._use_pairwise_diffs)
+            use_pairwise_diffs=self._use_pairwise_diffs,
+            non_ascertained_pops=self._non_ascertained_pops)
 
 
     def add_param(self, name, x0,
@@ -238,7 +242,7 @@ class DemographicModel(object):
             for p in self.parameters:
                 if p.name == param:
                     return p.x
-            return ValueError("Unrecognized parameter {}".format(param))
+            raise ValueError("Unrecognized parameter {}".format(param))
 
     def set_x(self, x, param=None):
         """
@@ -331,7 +335,7 @@ class DemographicModel(object):
     def set_data(
             self, data, muts_per_gen=None, folded=False,
             mem_chunk_size=1000, use_pairwise_diffs=None,
-            n_blocks_jackknife=100):
+            n_blocks_jackknife=100, non_ascertained_pops=None):
         """
         Sets data, and optionally the mutation rate,
         in order to compute likelihoods and fit parameters
@@ -372,10 +376,11 @@ class DemographicModel(object):
             data=data._chunk_data(n_blocks_jackknife),
             muts_per_gen=muts_per_gen, folded=folded,
             mem_chunk_size=mem_chunk_size,
-            use_pairwise_diffs=use_pairwise_diffs)
+            use_pairwise_diffs=use_pairwise_diffs,
+            non_ascertained_pops=non_ascertained_pops)
 
     def _set_data(self, data, muts_per_gen, folded,
-            mem_chunk_size, use_pairwise_diffs):
+                  mem_chunk_size, use_pairwise_diffs, non_ascertained_pops):
         self._opt_surface = None
         self._conf_region = None
         self._sfs = None
@@ -384,12 +389,13 @@ class DemographicModel(object):
         self._mem_chunk_size = mem_chunk_size
         self._muts_per_gen = muts_per_gen
         self._use_pairwise_diffs = use_pairwise_diffs
+        self._non_ascertained_pops = non_ascertained_pops
 
     def _get_sfs(self):
         if self._sfs is None or list(
                 self._sfs.sampled_pops) != list(self.leafs):
             self._sfs = self._data.subset_populations(
-                self.leafs).sfs
+                self.leafs, non_ascertained_pops=self._non_ascertained_pops).sfs
         return self._sfs
 
     def _get_opt_surface(self):
@@ -506,6 +512,8 @@ class DemographicModel(object):
             self._muts_per_gen * 4 * self.N_e / sfs.n_loci)
 
     def _make_pairwise_diffs_modelfit(self):
+        if self._non_ascertained_pops:
+            logging.warn("Model fitting statistics f2,f3,f4,etc not properly implemented for non-ascertained populations")
         return self._sfs_pairwise_diffs().get_model_fit(
             self._get_demo())
 

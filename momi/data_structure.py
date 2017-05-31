@@ -516,8 +516,8 @@ class Sfs(object):
         lambd = self.avg_pairwise_hets
         ret = -lambd + lambd * np.log(lambd) - scipy.special.gammaln(lambd + 1)
         ret[lambd <= 1e-16] = 0
-        ret = ret * self.sampled_n / float(np.sum(self.sampled_n))
-        return np.sum(ret)
+        ret = ret * self.sampled_n / float(np.sum(self.sampled_n[self.ascertainment_pop]))
+        return np.sum(ret[:,self.ascertainment_pop])
 
     def fold(self):
         """
