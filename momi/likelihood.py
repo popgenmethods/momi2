@@ -109,7 +109,8 @@ class SfsLikelihoodSurface(object):
 
     def _fisher(self, x):
         # compute second order derivative numerically to avoid memory problems
-        ret = -ndt.Jacobian(self._score)(x)
+        #ret = -ndt.Jacobian(self._score)(x)
+        ret = -ag.hessian(self.log_lik)(x)
         return .5 * (ret + np.transpose(ret))
 
     def _score_cov(self, params):

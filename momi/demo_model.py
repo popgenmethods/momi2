@@ -2,6 +2,7 @@
 from cached_property import cached_property
 import autograd as ag
 import autograd.numpy as np
+import scipy
 import logging
 import collections as co
 import networkx as nx
@@ -222,6 +223,10 @@ class DemographicModel(object):
             self.event_funs.append(GrowthEventFun(
                 t, g, pop, self.N_e, self.gen_time))
 
+    def get_params_df(self):
+        return pd.DataFrame(list(self.get_params().items()),
+                            columns=["Param", "Value"])
+
     def get_params(self):
         """
         Return a dictionary with the current parameter
@@ -231,6 +236,15 @@ class DemographicModel(object):
         for param in self.parameters:
             param.update_params_dict(params_dict)
         return params_dict
+
+    def _get_params_opt_x_jacobian(self):
+        def fun(opt_x):
+            x = self._x_from_opt_x(opt_x)
+            params_dict = co.OrderedDict()
+            for x_i, param in zip(x, self.parameters):
+                param.update_params_dict(params_dict, x_i)
+            return np.array(list(params_dict.values()))
+        return ag.jacobian(fun)(self._get_opt_x())
 
     def get_x(self, param=None):
         """
@@ -432,20 +446,27 @@ class DemographicModel(object):
         marginal_wald_df = co.OrderedDict()
         marginal_wald_df["Param"] = [p.name for p in self.parameters]
         marginal_wald_df["Value"] = list(self.get_params().values())
-        marginal_wald_df["x"] = list(self.get_x())
-        marginal_wald_df["std_x"] = np.sqrt(np.diag(self.godambe(inverse=True)))
+        marginal_wald_df["StdDev"] = np.sqrt(np.diag(self.mle_cov()))
+        #marginal_wald_df["x"] = list(self.get_x())
+        #marginal_wald_df["std_x"] = np.sqrt(np.diag(self.godambe(inverse=True)))
         return pd.DataFrame(marginal_wald_df)
 
-    def godambe(self, inverse=False):
+    def mle_cov(self):
         # use delta method
-        G = self._get_conf_region().godambe(inverse=inverse)
-        opt_x = self._get_opt_x()
-        dx_do = np.array([
-            p.opt_trans(ox) for p, ox in zip(self.parameters, opt_x)
-        ])
-        if not inverse:
-            dx_do = 1./dx_do
-        return np.einsum("i,ij,j->ij", dx_do, G, dx_do)
+        G = self._get_conf_region().godambe(inverse=True)
+        dp_do = self._get_params_opt_x_jacobian()
+        return np.dot(dp_do, np.dot(G, dp_do.T))
+
+    #def godambe(self, inverse=False):
+    #    # use delta method
+    #    G = self._get_conf_region().godambe(inverse=inverse)
+    #    opt_x = self._get_opt_x()
+    #    dx_do = np.array([
+    #        p.opt_trans(ox) for p, ox in zip(self.parameters, opt_x)
+    #    ])
+    #    if not inverse:
+    #        dx_do = 1./dx_do
+    #    return np.einsum("i,ij,j->ij", dx_do, G, dx_do)
 
     def test(self, null_point=None, sims=int(1e3), test_type="ratio", alt_point=None, *args, **kwargs):
         if null_point is None:
@@ -663,8 +684,11 @@ class Parameter(object):
                 opt_x_bounds.append(self.inv_opt_trans(bnd))
         return opt_x_bounds
 
-    def update_params_dict(self, params_dict):
-        params_dict[self.name] = self.transform_x(self.x, **params_dict)
+    def update_params_dict(self, params_dict, x=None):
+        if x is None:
+            x = self.x
+        params_dict[self.name] = self.transform_x(
+            x, **params_dict)
 
 
 class SfsPairwiseDiffs(object):
