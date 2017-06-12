@@ -212,9 +212,6 @@ class SnpAlleleCounts(object):
                                             ancestral_alleles=ancestral_alleles)
             if not chunk_array.records:
                 continue
-            if not pos:
-                if any([len(s.data.GT) != 3 for s in chunk_array.records[0].samples]):
-                    raise NotImplementedError("Reading vcf currently only implemented for diploid samples")
 
             chunk_chrom = []
             chunk_pos = []
