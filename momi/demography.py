@@ -927,3 +927,22 @@ def _set_sizes(node_data, end_time):
 
 class DemographyError(Exception):
     pass
+
+def get_treeseq_configs(treeseq, sampled_n):
+    mat = np.zeros((len(sampled_n), sum(sampled_n)), dtype=int)
+    j = 0
+    for i, n in enumerate(sampled_n):
+        for _ in range(n):
+            mat[i, j] = 1
+            j += 1
+    mat = scipy.sparse.csr_matrix(mat)
+
+    def get_config(genos):
+        derived_counts = mat.dot(genos)
+        return np.array([
+            sampled_n - derived_counts,
+            derived_counts
+        ]).T
+
+    for v in treeseq.variants():
+        yield get_config(v.genotypes)

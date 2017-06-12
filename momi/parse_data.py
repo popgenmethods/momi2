@@ -35,9 +35,9 @@ class batched_vcf_reader(object):
 
 
 class vcf_records_array(object):
-    def __init__(self, vcf_records, samples, ancestral_alleles=None):
+    def __init__(self, vcf_records, sample_vcf_columns, ancestral_alleles=None):
         self.records = []
-        self.samples = samples
+        self.sample_vcf_columns = sample_vcf_columns
 
         if not ancestral_alleles:
             self.get_aa = None
@@ -82,31 +82,26 @@ class vcf_records_array(object):
         raw_genotypes_arr = []
         for record in self.records:
             raw_genotypes_row = []
-            for s in self.samples:
-                call = record.genotype(s)
-                if call.gt_type is None:
-                    raw_genotypes_row.append(-1)
-                else:
-                    raw_genotypes_row.append(call.gt_type)
-
+            for i in self.sample_vcf_columns:
+                s = record.samples[i]
+                raw_genotypes_row.append([0, 0])
+                gt = s.data.GT
+                for a in gt[::2]:
+                    if a == ".":
+                        continue
+                    raw_genotypes_row[-1][int(a)] += 1
             raw_genotypes_arr.append(raw_genotypes_row)
 
         raw_genotypes_arr = np.array(
             raw_genotypes_arr, dtype=int)
 
-        allele_counts = [2-raw_genotypes_arr,
-                         np.array(raw_genotypes_arr)]
-        for arr in allele_counts:
-            arr[raw_genotypes_arr < 0] = 0
-
-        ret = np.array(allele_counts).transpose(1, 2, 0)
         if self.get_aa:
             alt_is_aa = np.array([
                 record.aa != record.ref
                 for record in self.records
             ])
-            ret[alt_is_aa, :, :] = ret[alt_is_aa, :, ::-1]
-        return ret
+            raw_genotypes_arr[alt_is_aa, :, :] = raw_genotypes_arr[alt_is_aa, :, ::-1]
+        return raw_genotypes_arr
 
 
 class SnpAlleleCounts(object):
@@ -176,6 +171,7 @@ class SnpAlleleCounts(object):
             vcf_reader = vcf.Reader(vcf_stream_or_filename)
 
         samples = list(ind2pop.keys())
+        sample_vcf_columns = [vcf_reader.samples.index(s) for s in samples]
 
         population2samples = defaultdict(list)
         for i, p in ind2pop.items():
@@ -212,7 +208,8 @@ class SnpAlleleCounts(object):
             logger.info("Reading vcf lines {} to {}".format(
                 chunk_num * chunk_size, (chunk_num+1) * chunk_size))
 
-            chunk_array = vcf_records_array(chunk_records, samples, ancestral_alleles=ancestral_alleles)
+            chunk_array = vcf_records_array(chunk_records, sample_vcf_columns,
+                                            ancestral_alleles=ancestral_alleles)
             if not chunk_array.records:
                 continue
             if not pos:
