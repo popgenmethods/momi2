@@ -523,7 +523,9 @@ class DemographicModel(object):
         pop_idxs = np.array([
             self._data.populations.index(i) for i in sfs.sampled_pops])
         pairwise_missingness = self._data._pairwise_missingness[pop_idxs,:][:,pop_idxs]
-        jackknife_missingness = self._data._jacknife_pairwise_missingness(sfs.n_loci)[pop_idxs,:,:][:,pop_idxs,:]
+        jackknife_missingness = np.array([pairwise_missingness]*sfs.n_loci).T
+        # TODO: uncomment below for correct (but slow) jackknife. (above assumes fraction missingness is known without randomness)
+        #jackknife_missingness = self._data._jacknife_pairwise_missingness(sfs.n_loci)[pop_idxs,:,:][:,pop_idxs,:]
         return SfsPairwiseDiffs(
             sfs, pairwise_missingness,
             jackknife_missingness,
@@ -779,8 +781,11 @@ class SfsPairwiseDiffs(object):
                 a = lik_arrs[j]
                 n_j = a.shape[1]-1
                 i_j = np.arange(n_j+1)
-                a[i,:] = i_j * (n_j-i_j) / float(
-                    n_j * (n_j-1))
+                if n_j > 1:
+                    a[i,:] = i_j * (n_j-i_j) / float(
+                        n_j * (n_j-1))
+                else:
+                    a[i, :] = 0
             else:
                 a_j = lik_arrs[j]
                 n_j = a_j.shape[1]-1

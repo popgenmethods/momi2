@@ -165,10 +165,7 @@ def expected_tmrca(demography, sampled_pops=None, sampled_n=None):
 
 
 def expected_heterozygosity(demography, sampled_pops=None, error_matrices=None):
-    try:
-        sampled_n = demography.sampled_n
-    except AttributeError:
-        sampled_n = [2] * len(sampled_pops)
+    sampled_n = [2] * len(sampled_pops)
     demography = demography._get_multipop_moran(sampled_pops, sampled_n)
     configs = np.zeros((len(demography.sampled_pops), len(
         demography.sampled_pops), 2), dtype=int)

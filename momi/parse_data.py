@@ -118,8 +118,6 @@ class SnpAlleleCounts(object):
     @classmethod
     def read_vcf_list(cls, vcf_list, ind2pop, n_cores=1, **kwargs):
         """
-        Read in allele counts from a list of vcf (vcftools required).
-
         Files may contain multiple chromosomes;
         however, chromosomes should not be spread across multiple files.
 
@@ -464,6 +462,15 @@ class SnpAlleleCounts(object):
                 n_j = sampled_n[j]
                 if i == j:
                     n_j -= 1
+                if n_i + n_j < 2:
+                    if len(counts.shape) > 1:
+                        assert len(counts.shape) == 2
+                        assert counts.shape[1] == config_arr.shape[0]
+                        ret[-1].append(np.zeros(counts.shape[0]))
+                    else:
+                        ret[-1].append(0)
+                    continue
+
                 for a_i in (0, 1, -1):
                     n_valid.append([])
                     for a_j in (0, 1, -1):
