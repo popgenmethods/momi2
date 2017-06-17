@@ -8,100 +8,14 @@ import multiprocessing as mp
 import functools as ft
 import subprocess
 import logging
-from collections import defaultdict, Counter
+from collections import defaultdict, Counter, OrderedDict
 import json
-import vcf
+import re
+import gzip
 from .data_structure import seg_site_configs, SegSites, ConfigArray, CompressedAlleleCounts, _CompressedHashedCounts
 from .util import memoize_instance
 
 logger = logging.getLogger(__name__)
-
-
-class batched_vcf_reader(object):
-    def __init__(self, vcf_reader, batch_size, **kwargs):
-        self.vcf_reader = vcf_reader
-        self.batch_size = batch_size
-        self.kwargs = kwargs
-
-    def __iter__(self):
-        counter = it.count(0)
-        for chunk_num, chunk_records in it.groupby(
-                self.vcf_reader,
-                lambda x: next(counter) // self.batch_size):
-            yield vcf_records_array(chunk_records, **self.kwargs)
-
-    def __next__(self):
-        return next(iter(self))
-
-
-class vcf_records_array(object):
-    def __init__(self, vcf_records, sample_vcf_columns, ancestral_alleles=None):
-        self.records = []
-        self.sample_vcf_columns = sample_vcf_columns
-
-        if not ancestral_alleles:
-            self.get_aa = None
-        elif ancestral_alleles is True:
-            def get_aa(record):
-                if "AA" not in record.INFO:
-                    return None
-                else:
-                    return record.INFO["AA"]
-            self.get_aa = get_aa
-        else:
-            self.get_aa = ancestral_alleles
-
-        for record in vcf_records:
-            if len(record.alleles) != 2:
-                continue
-
-            if len(record.ALT) != 1:
-                continue
-            else:
-                record.ref = str(record.REF)
-                record.alt = str(record.ALT[0])
-
-            if self.get_aa:
-                aa = self.get_aa(record)
-                if aa:
-                    aa = str(aa)
-                else:
-                    continue
-
-                if aa in (record.ref, record.alt):
-                    record.aa = aa
-                else:
-                    continue
-
-            self.records.append(record)
-
-    def gt_array(self):
-        """
-        indices = [row, individual, allele]
-        """
-        raw_genotypes_arr = []
-        for record in self.records:
-            raw_genotypes_row = []
-            for i in self.sample_vcf_columns:
-                s = record.samples[i]
-                raw_genotypes_row.append([0, 0])
-                gt = s.data.GT
-                for a in gt[::2]:
-                    if a == ".":
-                        continue
-                    raw_genotypes_row[-1][int(a)] += 1
-            raw_genotypes_arr.append(raw_genotypes_row)
-
-        raw_genotypes_arr = np.array(
-            raw_genotypes_arr, dtype=int)
-
-        if self.get_aa:
-            alt_is_aa = np.array([
-                record.aa != record.ref
-                for record in self.records
-            ])
-            raw_genotypes_arr[alt_is_aa, :, :] = raw_genotypes_arr[alt_is_aa, :, ::-1]
-        return raw_genotypes_arr
 
 
 class SnpAlleleCounts(object):
@@ -138,13 +52,13 @@ class SnpAlleleCounts(object):
         return ret
 
     @classmethod
-    def read_vcf(cls, vcf_stream_or_filename, ind2pop,
+    def read_vcf(cls, vcf_file, ind2pop,
                  ancestral_alleles = None,
                  non_ascertained_pops = [],
                  chunk_size=10000):
         """
         Parameters:
-        vcf_stream_or_filename: stream or filename
+        vcf_file: stream or filename
         ind2pop: dict mapping individual IDs to populations
         ancestral_allele: str or bool or None or function
            if the name of a population, then treats that population as the outgroup to determine AA
@@ -157,99 +71,101 @@ class SnpAlleleCounts(object):
         chunk_size: int
            number of VCF lines to process at a time (controls memory usage)
         """
-        if isinstance(ancestral_alleles, str):
-            outgroup = ancestral_alleles
-            ancestral_alleles = False
-        else:
-            outgroup = None
+        if type(vcf_file) is str:
+            if vcf_file.endswith(".gz"):
+                openfun = lambda : gzip.open(vcf_file, "rt")
+            else:
+                openfun = lambda : open(vcf_file)
+            with openfun() as f:
+                return cls.read_vcf(
+                    vcf_file=f,
+                    ind2pop=ind2pop, ancestral_alleles=ancestral_alleles,
+                    non_ascertained_pops=non_ascertained_pops,
+                    chunk_size=chunk_size)
 
-        if type(vcf_stream_or_filename) is str:
-            vcf_reader = vcf.Reader(filename = vcf_stream_or_filename)
-        else:
-            vcf_reader = vcf.Reader(vcf_stream_or_filename)
-
-        samples = list(ind2pop.keys())
-        sample_vcf_columns = [vcf_reader.samples.index(s) for s in samples]
-
-        population2samples = defaultdict(list)
-        for i, p in ind2pop.items():
-            population2samples[p].append(i)
-
-        samples2columns = {s: i for i, s in enumerate(samples)}
-        populations = sorted(population2samples.keys())
-        mat = np.zeros((len(population2samples),
-                        len(samples2columns)),
-                    dtype = int)
-        for pop_idx, pop in enumerate(populations):
-            for s in population2samples[pop]:
-                mat[pop_idx, samples2columns[s]] = 1
-
-        assert np.all(mat.sum(axis=1) == np.array([len(
-            population2samples[pop]) for pop in populations]))
-        assert np.all(mat.sum(axis=0) <= 1)
-
-        mat = sparse.csr_matrix(mat)
-
-        npops = len(populations)
-        chrom = []
-        pos = []
-        counter = it.count(0)
-        if outgroup:
-            anc_pop_idx = populations.index(outgroup)
-            data_pops = np.array(populations)[np.arange(len(populations)) != anc_pop_idx]
-        else:
-            data_pops = populations
-        compressed_hashed = _CompressedHashedCounts(len(data_pops))
-        for chunk_num, chunk_records in it.groupby(
-                vcf_reader,
-                lambda x: next(counter) // chunk_size):
-            logger.info("Reading vcf lines {} to {}".format(
-                chunk_num * chunk_size, (chunk_num+1) * chunk_size))
-
-            chunk_array = vcf_records_array(chunk_records, sample_vcf_columns,
-                                            ancestral_alleles=ancestral_alleles)
-            if not chunk_array.records:
+        for linenum, line in enumerate(vcf_file):
+            if line.startswith("##"):
                 continue
+            elif line.startswith("#CHROM"):
+                columns = line.split()
+                format_idx = columns.index("FORMAT")
+                fixed_columns = columns[:(format_idx+1)]
+                sample_columns = columns[(format_idx+1):]
 
-            chunk_chrom = []
-            chunk_pos = []
-            for record in chunk_array.records:
-                chunk_chrom.append(record.CHROM)
-                chunk_pos.append(record.POS)
-            gt_array = chunk_array.gt_array()
+                if ancestral_alleles and not isinstance(ancestral_alleles, str):
+                    info_aa_re = re.compile(r"AA=(.)")
+                    outgroup = None
+                elif ancestral_alleles:
+                    info_aa_re = None
+                    outgroup = ancestral_alleles
+                else:
+                    info_aa_re = None
+                    outgroup = None
 
-            allele_counts = [mat.dot(gt_array[:, :, a].T)
-                            for a in (0, 1)]
-            allele_counts = np.array(allele_counts).transpose(
-                2, 1, 0)
-            assert allele_counts.shape[1:] == (len(populations), 2)
+                pop2idxs = defaultdict(list)
+                for i, p in ind2pop.items():
+                    pop2idxs[p].append(columns.index(i))
+                sampled_pops = [p for p in sorted(pop2idxs.keys()) if p != outgroup]
 
-            if outgroup:
-                anc_pop_ac = allele_counts[:, anc_pop_idx, :]
-                anc_pop_nonzero = anc_pop_ac > 0
-                anc_is_ref = anc_pop_nonzero[:, 0] & (~anc_pop_nonzero[:, 1])
-                anc_is_alt = (~anc_pop_nonzero[:, 0]) & anc_pop_nonzero[:, 1]
+                compressed_hashed = _CompressedHashedCounts(len(sampled_pops))
+                chrom = []
+                pos = []
+            else:
+                line = line.split()
+                fixed_fields = OrderedDict(zip(fixed_columns, line))
+                if not fixed_fields["FORMAT"].startswith("GT"):
+                    continue
 
-                allele_counts[anc_is_alt, :, :] = allele_counts[anc_is_alt, :, ::-1]
+                alt = fixed_fields["ALT"]
+                if "," in alt or alt == ".":
+                    continue
+                alleles = [fixed_fields["REF"], alt]
 
-                to_keep = anc_is_ref | anc_is_alt
-                allele_counts = allele_counts[to_keep, :, :]
-                chunk_chrom = np.array(chunk_chrom)[to_keep]
-                chunk_pos = np.array(chunk_pos)[to_keep]
+                aa = None
+                if info_aa_re:
+                    info_field_list = fixed_fields["INFO"].split(":")
+                    for info_field in info_field_list:
+                        aa_matched = info_aa_re.match(info_field)
+                        if aa_matched:
+                            aa = aa_matched.group(1)
+                            break
+                    if aa is None or aa == "." or aa not in alleles:
+                        continue
 
-                allele_counts = allele_counts[:, np.arange(allele_counts.shape[1]) != anc_pop_idx, :]
+                pop_allele_counts = {
+                    pop: Counter((
+                        a for i in idxs for a in line[i].split(":")[0][::2] if a != "."))
+                    for pop, idxs in pop2idxs.items()
+                }
 
-            chrom.extend(chunk_chrom)
-            pos.extend(chunk_pos)
+                if outgroup:
+                    outgroup_counts = pop_allele_counts.pop(outgroup)
+                    if len(outgroup_counts) != 1:
+                        continue
+                    aa, = outgroup_counts.keys()
+                    aa = alleles[int(aa)]
+                    if aa not in alleles:
+                        continue
 
-            for config in allele_counts:
+                if not aa or aa == alleles[0]:
+                    allele_order = "01"
+                else:
+                    assert aa == alleles[1]
+                    allele_order = "10"
+
+                config = [[pop_allele_counts[pop][a] for a in allele_order]
+                          for pop in sampled_pops]
                 compressed_hashed.append(config)
 
-            if pos:
-                logger.info("Read vcf up to CHR {}, POS {}".format(chrom[-1], pos[-1]))
+                chrom.append(fixed_fields["#CHROM"])
+                pos.append(fixed_fields["POS"])
+
+                if linenum % 10000 == 0:
+                    logger.info("Read vcf up to CHR {}, POS {}".format(
+                        chrom[-1], pos[-1]))
 
         compressed_allele_counts = compressed_hashed.compressed_allele_counts()
-        return cls(chrom, pos, compressed_allele_counts, data_pops, non_ascertained_pops = non_ascertained_pops)
+        return cls(chrom, pos, compressed_allele_counts, sampled_pops, non_ascertained_pops = non_ascertained_pops)
 
     @classmethod
     def concatenate(cls, to_concatenate):
