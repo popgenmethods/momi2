@@ -54,8 +54,7 @@ class SnpAlleleCounts(object):
     @classmethod
     def read_vcf(cls, vcf_file, ind2pop,
                  ancestral_alleles = None,
-                 non_ascertained_pops = [],
-                 chunk_size=10000):
+                 non_ascertained_pops = []):
         """
         Parameters:
         vcf_file: stream or filename
@@ -68,8 +67,6 @@ class SnpAlleleCounts(object):
               (or return None, if the record should be skipped)
         non_ascertained_pops: list of str
            list of populations to treat as non-ascertained
-        chunk_size: int
-           number of VCF lines to process at a time (controls memory usage)
         """
         if type(vcf_file) is str:
             if vcf_file.endswith(".gz"):
@@ -80,8 +77,7 @@ class SnpAlleleCounts(object):
                 return cls.read_vcf(
                     vcf_file=f,
                     ind2pop=ind2pop, ancestral_alleles=ancestral_alleles,
-                    non_ascertained_pops=non_ascertained_pops,
-                    chunk_size=chunk_size)
+                    non_ascertained_pops=non_ascertained_pops)
 
         for linenum, line in enumerate(vcf_file):
             if line.startswith("##"):
@@ -158,7 +154,7 @@ class SnpAlleleCounts(object):
                 compressed_hashed.append(config)
 
                 chrom.append(fixed_fields["#CHROM"])
-                pos.append(fixed_fields["POS"])
+                pos.append(int(fixed_fields["POS"]))
 
                 if linenum % 10000 == 0:
                     logger.info("Read vcf up to CHR {}, POS {}".format(
