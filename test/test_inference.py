@@ -20,7 +20,7 @@ def test_archaic_and_pairwisediffs():
     logit = lambda p: np.log(p / (1. - p))
     expit = lambda x: 1. / (1. + np.exp(-x))
 
-    model = momi.DemographicModel(N_e)
+    model = momi.demographic_model(N_e)
     model.add_param("sample_t", x0=logit(random.uniform(0.001, join_time-.001) / join_time),
                     lower_x=None, upper_x=None,
                     transform_x = lambda x, **kw: expit(x)*join_time)
@@ -37,7 +37,8 @@ def test_archaic_and_pairwisediffs():
                                sampled_n_dict={"a": 2, "b": 2})
 
     model.set_data(data, muts_per_gen=theta/4./N_e*num_runs,
-                   use_pairwise_diffs=False, chunk_size=-1)
+                   use_pairwise_diffs=False,
+                   mem_chunk_size=-1)
 
     true_params = np.array(list(model.get_params().values()))
     model.set_x([logit(random.uniform(.001, join_time-.001) / join_time),
@@ -53,64 +54,24 @@ def test_archaic_and_pairwisediffs():
 def test_jointime_inference(folded, add_n):
     check_jointime_inference(folded=folded, add_n=add_n)
 
-
-def test_nodiff():
-    return check_jointime_inference(finite_diff_eps=1e-8, use_prior=True)
-
-
-def test_missing_data():
-    return check_jointime_inference(missing_p=.75, theta=1., num_runs=1000, use_theta=True, sampled_n=(4, 4, 4))
-
-
-def test_subsample_4():
-    check_jointime_inference(sampled_n=(
-        10, 4, 2), subsample_n=3, missing_p=.25)
-
-
-def check_jointime_inference(sampled_n=(5, 5, 5), folded=False, add_n=0, finite_diff_eps=0, missing_p=0,
-                             use_prior=False,
-                             subsample_n=False,
-                             use_theta=False, theta=.1, num_runs=10000):
+def check_jointime_inference(
+        sampled_n=(5, 5, 5), folded=False, add_n=0,
+        use_theta=False, theta=.1, num_runs=10000):
     t0 = random.uniform(.25, 2.5)
     t1 = t0 + random.uniform(.5, 5.0)
 
-    model = momi.DemographicModel(1)
+    model = momi.demographic_model(1)
     model.add_leaf(1)
     model.add_leaf(2)
     model.add_leaf(3)
     model.add_param("join_time", x0=t0, upper_x=t1)
-    model.move_lineages(1, 2, )
+    model.move_lineages(1, 2, t="join_time")
+    model.move_lineages(2, 3, t=t1)
 
     sampled_pops = (1, 2, 3)
 
-    def get_demo(join_time):
-        return demographic_history([('-ej', join_time, 1, 2), ('-ej', t1, 2, 3)])
-
-    true_demo = get_demo(t0)
-    # true_demo = make_demography(true_demo.events,
-    #                       true_demo.sampled_pops,
-    #                       np.array(true_demo.sampled_n) - add_n)
-    #true_demo = true_demo.copy(sampled_n = np.array(true_demo.sampled_n) - add_n)
-    # data = simulate_ms(ms_path, true_demo.rescaled(),
-    #                   sampled_pops = sampled_pops,
-    #                   sampled_n = sampled_n,
-    #                   num_loci=num_runs, mut_rate=theta)
     num_bases = 1e3
-    data = true_demo.rescaled().simulate_data(
-        sampled_pops, sampled_n,
-        mutation_rate=theta / num_bases,
-        length=num_bases,
-        num_replicates=num_runs,
-    )
-
-    if missing_p:
-        data = momi.data_structure._randomly_drop_alleles(data.seg_sites, missing_p)
-    if subsample_n:
-        try:
-            data = data.seg_sites
-        except:
-            pass
-        data = data.subsample_inds(subsample_n)
+    data = model.simulate_data(num_bases, 0, theta / num_bases, num_runs, dict(zip(sampled_pops, sampled_n)))
 
     sfs = data.sfs
     assert sfs.n_snps() > 0
@@ -120,7 +81,6 @@ def check_jointime_inference(sampled_n=(5, 5, 5), folded=False, add_n=0, finite_
 
     print((t0, t1))
 
-    #prim_log_lik = momi.likelihood._log_lik_diff
     prim_log_lik = momi.likelihood._raw_log_lik
     prim_log_lik.reset_grad_count()
     assert not prim_log_lik.num_grad_calls()
@@ -128,27 +88,13 @@ def check_jointime_inference(sampled_n=(5, 5, 5), folded=False, add_n=0, finite_
     if not use_theta:
         theta = None
 
-    x0 = np.array([random.uniform(0, t1)])
+    model.set_x(random.uniform(0, t1), "join_time")
 
-    bound_eps = 1e-12
-    if finite_diff_eps:
-        bound_eps += finite_diff_eps
-        jac = False
-    else:
-        jac = True
+    model.set_data(data, theta, folded=folded)
+    res = model.optimize()
 
-    if use_prior:
-        log_prior = lambda t: -t / float(t0)
-    else:
-        log_prior = None
-    res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded, log_prior=log_prior, p_missing=missing_p,
-                               use_pairwise_diffs=True).find_mle(x0, bounds=[(bound_eps, t1 - bound_eps), ], jac=jac)
-    #res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=theta, folded=folded, log_prior=log_prior, use_pairwise_diffs=True).find_mle(x0, bounds=[(bound_eps,t1-bound_eps),], jac=jac)
-
-    #res = SfsLikelihoodSurface(sfs, get_demo, folded=folded).find_mle(x0, bounds=[(0,t1),])
-
-    # make sure autograd is calling the rearranged gradient function
-    assert bool(prim_log_lik.num_grad_calls()) != bool(finite_diff_eps)
+    # make sure autograd is calling the rearranged gradient
+    assert bool(prim_log_lik.num_grad_calls())
 
     print(res.jac)
     assert abs(res.x - t0) / t0 < .05
