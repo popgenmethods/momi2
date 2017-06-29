@@ -323,8 +323,9 @@ class DemographicModel(object):
                          for p in self.parameters])
 
     def _x_from_opt_x(self, opt_x):
-        return [p.opt_trans(ox)
-                for p, ox in zip(self.parameters, opt_x)]
+        return np.array([
+            p.opt_trans(ox)
+            for p, ox in zip(self.parameters, opt_x)])
 
     def _opt_x_from_x(self, x):
         return np.array([

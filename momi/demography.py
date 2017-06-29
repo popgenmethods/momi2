@@ -19,6 +19,8 @@ from functools import partial
 import os
 import itertools
 
+from cached_property import cached_property
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -312,20 +314,27 @@ class Demography(object):
         """
         return np.array(tuple(self._G.node[(l, 0)]['lineages'] for l in self.sampled_pops), dtype=int)
 
+    @cached_property
     def _demo_hist(self):
-        return DemographicHistory(self.events, dict(zip(self.sampled_pops, self.sampled_t)), self.default_N)
+        return DemographicHistory(
+            self.events,
+            dict(zip(self.sampled_pops, self.sampled_t)),
+            self.default_N)
 
     def _get_multipop_moran(self, sampled_pops, sampled_n):
-        if sampled_pops is not None:
-            sampled_pops = tuple(sampled_pops)
-        if sampled_n is not None:
-            sampled_n = tuple(sampled_n)
-        return self._get_multipop_moran_helper(sampled_pops, sampled_n)
+        if sampled_pops is None:
+            sampled_pops = self.sampled_pops
+        if sampled_n is None:
+            sampled_n = self.sampled_n
 
-    @memoize_instance
-    def _get_multipop_moran_helper(self, sampled_pops, sampled_n):
-        if sampled_pops is not None and sampled_n is not None:
-            return self._demo_hist()._get_multipop_moran(sampled_pops, sampled_n)
+        sampled_pops = np.array(sampled_pops)
+        sampled_n = np.array(sampled_n)
+
+        if np.any((sampled_pops != self.sampled_pops) |
+                  (sampled_n != self.sampled_n)):
+            return self._demo_hist._get_multipop_moran(
+                sampled_pops, sampled_n)
+
         return self
 
     def rescaled(self, factor=None):
