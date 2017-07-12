@@ -12,6 +12,8 @@ from .demography import demographic_history
 from .likelihood import SfsLikelihoodSurface
 from .confidence_region import _ConfidenceRegion
 from .compute_sfs import expected_sfs_tensor_prod
+from .events import LeafEvent, SizeEvent, JoinEvent, PulseEvent, GrowthEvent, Parameter
+from .demo_plotter import DemographyPlotter
 
 
 def demographic_model(default_N, gen_time=1):
@@ -34,7 +36,8 @@ def demographic_model(default_N, gen_time=1):
     """
     return DemographicModel(
         N_e=default_N, gen_time=gen_time, parameters=[],
-        event_funs=[], sample_t_funs={}, leafs=[],
+        topology_events=[], size_events=[],
+        leaf_events=[], leafs=[],
         data=None, muts_per_gen=None, folded=None,
         mem_chunk_size=None, use_pairwise_diffs=None,
         non_ascertained_pops=None)
@@ -42,15 +45,17 @@ def demographic_model(default_N, gen_time=1):
 
 class DemographicModel(object):
     def __init__(self, N_e, gen_time, parameters,
-                 event_funs, sample_t_funs, leafs,
+                 topology_events, size_events,
+                 leaf_events, leafs,
                  data, muts_per_gen, folded,
                  mem_chunk_size, use_pairwise_diffs,
                  non_ascertained_pops):
         self.N_e = N_e
         self.gen_time = gen_time
         self.parameters = [p.copy() for p in parameters]
-        self.event_funs = list(event_funs)
-        self.sample_t_funs = dict(sample_t_funs)
+        self.topology_events = list(topology_events)
+        self.size_events = list(size_events)
+        self.leaf_events = list(leaf_events)
         self.leafs = list(leafs)
 
         self._set_data(data=data, muts_per_gen=muts_per_gen,
@@ -61,12 +66,39 @@ class DemographicModel(object):
     def copy(self):
         return DemographicModel(
             N_e=self.N_e, gen_time=self.gen_time,
-            parameters=self.parameters, event_funs=self.event_funs,
-            sample_t_funs=self.sample_t_funs, leafs=self.leafs,
+            parameters=self.parameters,
+            topology_events=self.topology_events,
+            size_events=self.size_events,
+            leaf_events=self.leaf_events, leafs=self.leafs,
             data=self._data, muts_per_gen=self._muts_per_gen,
-            folded=self._folded, mem_chunk_size=self._mem_chunk_size,
+            folded=self._folded,
+            mem_chunk_size=self._mem_chunk_size,
             use_pairwise_diffs=self._use_pairwise_diffs,
             non_ascertained_pops=self._non_ascertained_pops)
+
+
+    def draw(self, additional_times, pop_x_positions):
+        demo_plt = self._demo_plotter(additional_times, pop_x_positions)
+        demo_plt.draw()
+        return demo_plt
+
+    def _demo_plotter(self, additional_times, pop_x_positions):
+        try:
+            pop_x_positions.items()
+        except:
+            pop_x_positions = dict(zip(pop_x_positions,
+                                       range(len(pop_x_positions))))
+
+        params_dict = self.get_params()
+        return DemographyPlotter(
+            params_dict, self.N_e,
+            sorted(list(self.leaf_events) +
+                   list(self.size_events) +
+                   list(self.topology_events),
+                   key=lambda e: e.t(params_dict)),
+            additional_times, pop_x_positions)
+
+        return demo_plotter
 
 
     def add_param(self, name, x0,
@@ -143,7 +175,7 @@ class DemographicModel(object):
             x_bounds=bounds)
         self.parameters.append(param)
 
-    def add_leaf(self, pop, t=0, N=None):
+    def add_leaf(self, pop, t=0, N=None, g=None):
         """
         Add a leaf (sampled) population to the
         model.
@@ -163,14 +195,15 @@ class DemographicModel(object):
         """
         self.leafs.append(pop)
 
-        if t != 0:
-            self.sample_t_funs[pop] = TimeValue(
-                t, self.N_e, self.gen_time)
+        self.leaf_events.append(LeafEvent(
+            t, pop, self.N_e, self.gen_time))
 
         if N is not None:
-            self.set_size(pop, t, N)
+            self.set_size(pop, t, N=N)
+        if g is not None:
+            self.set_size(pop, t, g=g)
 
-    def move_lineages(self, pop1, pop2, t, p=1, N=None):
+    def move_lineages(self, pop1, pop2, t, p=1, N=None, g=None):
         """
         Move each lineage in pop1 to pop2 at time t
         with probability p.
@@ -188,16 +221,17 @@ class DemographicModel(object):
            if non-None, set the size of pop2 to N
         """
         if p == 1:
-            self.event_funs.append((JoinEventFun(
+            self.topology_events.append((JoinEvent(
                 t, pop1, pop2, self.N_e, self.gen_time)))
         else:
-            self.event_funs.append(PulseEventFun(
+            self.topology_events.append(PulseEvent(
                 t, p, pop1, pop2, self.N_e,
                 self.gen_time))
 
         if N is not None:
-            self.event_funs.append((SizeEventFun(
-                t, N, pop2, self.N_e, self.gen_time)))
+            self.set_size(pop2, t, N=N)
+        if g is not None:
+            self.set_size(pop2, t, g=g)
 
     def set_size(self, pop, t, N=None, g=0):
         """
@@ -217,10 +251,10 @@ class DemographicModel(object):
            constant, or parameter name, or function of params
         """
         if N is not None:
-            self.event_funs.append(SizeEventFun(
+            self.size_events.append(SizeEvent(
                 t, N, pop, self.N_e, self.gen_time))
         if g != 0:
-            self.event_funs.append(GrowthEventFun(
+            self.size_events.append(GrowthEvent(
                 t, g, pop, self.N_e, self.gen_time))
 
     def get_params_df(self):
@@ -294,12 +328,14 @@ class DemographicModel(object):
         params_dict = self.get_params()
 
         events = []
-        for f in self.event_funs:
-            events.extend(f(params_dict))
+        for eventlist in (self.size_events,
+                          self.topology_events):
+            for e in eventlist:
+                events.extend(e.oldstyle_event(params_dict))
 
         archaic_times_dict = {}
-        for k, f in self.sample_t_funs.items():
-            archaic_times_dict[k] = f(params_dict)
+        for e in self.leaf_events:
+            archaic_times_dict[e.pop] = e.t(params_dict)
 
         demo = demographic_history(
             events, archaic_times_dict=archaic_times_dict)
@@ -591,107 +627,6 @@ class DemographicModel(object):
         res.x = self._x_from_opt_x(res.x)
         self.set_x(res.x)
         return res
-
-
-class SizeEventFun(object):
-    def __init__(self, t, N, pop, N_e, gen_time):
-        self.t = TimeValue(t, N_e, gen_time)
-        self.N = SizeValue(N, N_e)
-        self.pop = pop
-
-    def __call__(self, prm_dict):
-        return [("-en", self.t(prm_dict), self.pop, self.N(prm_dict))]
-
-class JoinEventFun(object):
-    def __init__(self, t, pop1, pop2, N_e, gen_time):
-        self.t = TimeValue(t, N_e, gen_time)
-        self.pop1 = pop1
-        self.pop2 = pop2
-
-    def __call__(self, prm_dict):
-        return [("-ej", self.t(prm_dict), self.pop1, self.pop2)]
-
-class PulseEventFun(object):
-    def __init__(self, t, p, pop1, pop2, N_e, gen_time):
-        self.t = TimeValue(t, N_e, gen_time)
-        self.p = EventValue(p)
-        self.pop1 = pop1
-        self.pop2 = pop2
-
-    def __call__(self, prm_dict):
-        return [("-ep", self.t(prm_dict), self.pop1,
-                 self.pop2, self.p(prm_dict))]
-
-class GrowthEventFun(object):
-    def __init__(self, t, g, pop, N_e, gen_time):
-        self.t = TimeValue(t, N_e, gen_time)
-        self.pop = pop
-        self.g = RateValue(g, N_e, gen_time)
-
-    def __call__(self, prm_dict):
-        return [("-eg", self.t(prm_dict), self.pop,
-                 self.g(prm_dict))]
-
-class EventValue(object):
-    def __init__(self, x):
-        self.x = x
-        self.scale = 1.0
-
-    def __call__(self, params_dict):
-        if isinstance(self.x, str):
-            x = params_dict[self.x]
-        else:
-            try:
-                x = self.x(**params_dict)
-            except TypeError:
-                x = self.x
-        return x / self.scale
-
-class SizeValue(EventValue):
-    def __init__(self, N, N_e):
-        self.x = N
-        self.scale = N_e
-
-class TimeValue(EventValue):
-    def __init__(self, t, N_e, gen_time):
-        self.x = t
-        self.scale = 4.0 * N_e * gen_time
-
-class RateValue(EventValue):
-    def __init__(self, r, N_e, gen_time):
-        self.x = r
-        self.scale = .25 / N_e / gen_time
-
-class Parameter(object):
-    def __init__(self, name, x0, opt_trans, inv_opt_trans,
-                 transform_x, x_bounds):
-        self.name = name
-        self.x = x0
-        self.opt_trans = opt_trans
-        self.inv_opt_trans = inv_opt_trans
-        self.x_bounds = list(x_bounds)
-        self.transform_x = transform_x
-
-    def copy(self):
-        return Parameter(name=self.name, x0=self.x, opt_trans=self.opt_trans,
-                         inv_opt_trans=self.inv_opt_trans, transform_x=self.transform_x,
-                         x_bounds=self.x_bounds)
-
-    @property
-    def opt_x_bounds(self):
-        opt_x_bounds = []
-        for bnd in self.x_bounds:
-            if bnd is None:
-                opt_x_bounds.append(None)
-            else:
-                opt_x_bounds.append(self.inv_opt_trans(bnd))
-        return opt_x_bounds
-
-    def update_params_dict(self, params_dict, x=None):
-        if x is None:
-            x = self.x
-        params_dict[self.name] = self.transform_x(
-            x, **params_dict)
 
 
 class SfsPairwiseDiffs(object):

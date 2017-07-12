@@ -340,25 +340,25 @@ class LikelihoodTensorList(object):
         return self._get_likelihoods(pop1) is self._get_likelihoods(pop2)
 
     def _merge_pops(self, newpopname, child_pops, n=None):
-        child_liks = [self._get_likelihoods(p)
-                      for p in child_pops]
+       child_liks = [self._get_likelihoods(p)
+                     for p in child_pops]
 
-        for lik, pop in zip(child_liks, child_pops):
-            lik.make_last_axis(pop)
-            lik.mul_trailing_binoms()
+       for lik, pop in zip(child_liks, child_pops):
+           lik.make_last_axis(pop)
+           lik.mul_trailing_binoms()
 
-        pop1, pop2 = child_pops
-        lik1, lik2 = child_liks
-        if lik1 is lik2:
-            lik1.sum_trailing_antidiagonals()
-        else:
-            self.likelihood_list.remove(lik2)
-            lik1.convolve_trailing_axes(lik2)
+       pop1, pop2 = child_pops
+       lik1, lik2 = child_liks
+       if lik1 is lik2:
+           lik1.sum_trailing_antidiagonals()
+       else:
+           self.likelihood_list.remove(lik2)
+           lik1.convolve_trailing_axes(lik2)
 
-        lik1.mul_trailing_binoms(divide=True)
-        lik1.rename_pop(pop1, newpopname)
+       lik1.mul_trailing_binoms(divide=True)
+       lik1.rename_pop(pop1, newpopname)
 
-        if n is not None:
+       if n is not None:
             N = lik1.get_last_axis_n()
             if n < N:
                 lik1.matmul_last_axis(
@@ -437,8 +437,9 @@ class LikelihoodTensor(object):
         self.liks = liks
         self.sfs = sfs
         self.pop_labels = pop_labels
-        # liks has an extra leading dimension as the batch dimension
-        assert len(self.pop_labels) + 1 == len(self.liks.shape)
+        # extra leading dimension for batch
+        assert len(self.pop_labels) + 1 == len(
+            self.liks.shape)
 
     def copy(self):
         return LikelihoodTensor(self.liks, self.sfs, list(self.pop_labels))
