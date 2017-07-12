@@ -1,7 +1,7 @@
-from .parse_data import SnpAlleleCounts
 import argparse
 import sys
 import logging
+from .data.snps import SnpAlleleCounts
 
 
 if __name__ == "__main__":

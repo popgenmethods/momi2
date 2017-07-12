@@ -34,16 +34,8 @@ def check_subsampling(demo, add_n, folded=False, **kwargs):
     ranges = [list(range(n + 1)) for n in demo.n]
 
     demo.demo_hist = demo.demo_hist.rescaled()
-    # demo2 = momi.make_demography(demo.events, demo.sampled_pops,
-    #                        np.array(demo.sampled_n, dtype=int) + add_n,
-    #                        sampled_t = demo.sampled_t)
 
-    # config_list = momi.data_structure._configs_from_derived([np.array(x,dtype=int) for x in itertools.product(*ranges)],
-    #                                                        demo.sampled_n, demo.sampled_pops)
-    # config_list = momi.config_array(demo.sampled_pops,
-    #                                [np.array(x,dtype=int) for x in itertools.product(*ranges)],
-    #                                demo.sampled_n)
-    config_list = momi.data_structure.full_config_array(demo.pops, demo.n)
+    config_list = momi.data.config_array.full_config_array(demo.pops, demo.n)
     if folded:
         config_list = momi.site_freq_spectrum(
             config_list.sampled_pops, [config_list]).fold().configs

@@ -16,12 +16,7 @@ def check_random_tensor(demo, *args, **kwargs):
     leaves = demo.pops
     ranges = [list(range(n + 1)) for n in demo.n]
 
-    # config_list = momi.data_structure._configs_from_derived(list(itertools.product(*ranges)),
-    #                                                        demo.sampled_n, demo.sampled_pops)
-    # config_list = momi.config_array(demo.sampled_pops,
-    #                                list(itertools.product(*ranges)),
-    #                                demo.sampled_n)
-    config_list = momi.data_structure.full_config_array(demo.pops, demo.n)
+    config_list = momi.data.config_array.full_config_array(demo.pops, demo.n)
 
     esfs = expected_sfs(demo.demo_hist, config_list, *args, **kwargs)
 

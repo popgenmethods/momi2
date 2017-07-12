@@ -1,6 +1,5 @@
+from functools import partial
 import networkx as nx
-from .util import memoize_instance, memoize
-from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse, par_einsum, convolve_sum_axes
 import scipy
 import scipy.misc
 from scipy.misc import comb
@@ -9,12 +8,13 @@ import autograd.numpy as np
 import autograd
 from autograd import primitive
 import msprime
-
 from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 from .compute_sfs import expected_total_branch_len
-from .data_structure import CompressedAlleleCounts, _CompressedHashedCounts, seg_site_configs
-from .parse_data import SnpAlleleCounts
-from functools import partial
+from .data.compressed_counts import CompressedAlleleCounts, _CompressedHashedCounts
+from .data.seg_sites import seg_site_configs
+from .data.snps import SnpAlleleCounts
+from .util import memoize_instance, memoize
+from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse, par_einsum, convolve_sum_axes
 
 import os
 import itertools

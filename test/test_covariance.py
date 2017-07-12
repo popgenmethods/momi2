@@ -21,7 +21,7 @@ def check_cov(method, params, demo_func, num_runs, theta, bounds=None, subsample
                             num_loci=num_runs, mut_rate=theta,
                             additional_ms_params="-r %f 1000" % theta)
     if p_missing:
-        seg_sites = momi.data_structure._randomly_drop_alleles(
+        seg_sites = momi.data.seg_sites._randomly_drop_alleles(
             seg_sites, p_missing)
 
     if subsample_inds:

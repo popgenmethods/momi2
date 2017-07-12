@@ -1,7 +1,7 @@
 import autograd.numpy as np
 import pandas as pd
-from .math_functions import symmetric_matrix, log_wishart_pdf, slogdet_pos
-from .compute_sfs import expected_sfs_tensor_prod
+from ..math_functions import symmetric_matrix, log_wishart_pdf, slogdet_pos
+from ..compute_sfs import expected_sfs_tensor_prod
 
 
 def sfs_tensor_prod(sfs, vecs):

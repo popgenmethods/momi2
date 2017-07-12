@@ -1,8 +1,8 @@
-from .parse_data import SnpAlleleCounts
 import gzip
 import sys
 import logging
 import argparse
+from .data.snps import SnpAlleleCounts
 
 
 if __name__ == "__main__":

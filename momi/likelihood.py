@@ -1,19 +1,19 @@
-
-from .util import count_calls, rearrange_tuple_gradients, make_constant
-from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
-import autograd.numpy as np
-from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
-from .demography import DemographyError, Demography
-from .data_structure import _sub_sfs, site_freq_spectrum, ConfigArray, Sfs
-import scipy
-import autograd as ag
-import numdifftools as ndt
 from collections import Counter
 import random
 import functools
 import logging
 import time
 import itertools as it
+import autograd.numpy as np
+import scipy
+import autograd as ag
+import numdifftools as ndt
+from .util import count_calls, rearrange_tuple_gradients, make_constant
+from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
+from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
+from .demography import DemographyError, Demography
+from .data.config_array import ConfigArray
+from .data.sfs import _sub_sfs, site_freq_spectrum, Sfs
 
 logger = logging.getLogger(__name__)
 

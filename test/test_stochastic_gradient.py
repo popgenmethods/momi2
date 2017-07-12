@@ -37,7 +37,7 @@ def test_subconfigs(fold, normalized):
     val1 = momi.expected_sfs(demo.demo_hist, configs,
                              normalized=normalized, folded=fold)[sub_idxs]
 
-    sub_configs = momi.data_structure._ConfigArray_Subset(configs, sub_idxs)
+    sub_configs = momi.data.config_array._ConfigArray_Subset(configs, sub_idxs)
     val2 = momi.expected_sfs(demo.demo_hist, sub_configs,
                              normalized=normalized, folded=fold)
 
@@ -64,7 +64,7 @@ def test_subsfs(fold, use_mut):
     counts = np.zeros(sfs.n_nonzero_entries)
     loc_idxs, loc_counts = sfs.loc_idxs[locus], sfs.loc_counts[locus]
     counts[loc_idxs] = loc_counts
-    subsfs = momi.data_structure._sub_sfs(sfs.configs, counts)
+    subsfs = momi.data.sfs._sub_sfs(sfs.configs, counts)
 
     if not use_mut:
         mut_rate = None

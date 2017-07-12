@@ -1,18 +1,11 @@
-
-import bisect
-import networkx as nx
-
-from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
-from .data_structure import seg_site_configs
-from autograd.numpy import isnan, exp, array, ones
-
 import random
 import subprocess
 import itertools
 from collections import Counter, defaultdict
 from io import StringIO
-
 from operator import itemgetter
+import autograd.numpy as np
+from .data.seg_sites import seg_site_configs
 
 
 def seg_sites_from_ms(ms_file, sampled_pops):
@@ -166,7 +159,7 @@ def to_ms_cmd(demo, cmd_format="ms"):
     sampled_t = demo.sampled_t
     if sampled_t is None:
         sampled_t = 0.0
-    sampled_t = array(sampled_t) * ones(len(demo.sampled_pops))
+    sampled_t = np.array(sampled_t) * np.ones(len(demo.sampled_pops))
 
     if cmd_format == "ms" and not all(sampled_t == 0.0):
         raise Exception(
@@ -190,9 +183,9 @@ def to_ms_cmd(demo, cmd_format="ms"):
             else:
                 assert flag == '-eg'
                 flag, t, i, g = event
-                cur_size = exp((cur_t - t) * cur_growth) * cur_size
+                cur_size = np.exp((cur_t - t) * cur_growth) * cur_size
                 cur_growth, cur_t = g, t
-        cur_size = exp((cur_t - time) * cur_growth) * cur_size
+        cur_size = np.exp((cur_t - time) * cur_growth) * cur_size
         return [('-en', time, pops[pop], cur_size),
                 ('-eg', time, pops[pop], cur_growth)]
 
@@ -200,7 +193,7 @@ def to_ms_cmd(demo, cmd_format="ms"):
     ret = []
     assert min(sampled_t) == 0.0
     for t in sorted(set(sampled_t)):
-        curr = list(array(sampled_n * (sampled_t == t), dtype=int))
+        curr = list(np.array(sampled_n * (sampled_t == t), dtype=int))
         if t == 0.0:
             curr = ["-I", len(sampled_n)] + curr
             ret += [tuple(curr)]
