@@ -400,7 +400,8 @@ def _mut_factor_het(sfs, demo, mut_rate, vector, p_missing):
 
     counts = sfs.avg_pairwise_hets[:, sfs.ascertainment_pop]
     ret = -lambd + counts * np.log(lambd) - scipy.special.gammaln(counts + 1)
-    ret = ret * sfs.sampled_n[sfs.ascertainment_pop] / float(np.sum(sfs.sampled_n[sfs.ascertainment_pop]))
+    ret = ret * sfs.sampled_n[sfs.ascertainment_pop] / float(
+        np.sum(sfs.sampled_n[sfs.ascertainment_pop]))
     if not vector:
         ret = np.sum(ret)
     else:

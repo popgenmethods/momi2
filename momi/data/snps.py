@@ -20,12 +20,15 @@ logger = logging.getLogger(__name__)
 class SnpAlleleCounts(object):
     """
     The allele counts for a list of SNPs.
-    Can be passed as data into SfsLikelihoodSurface to compute site frequency spectrum and likelihoods.
+    Can be passed as data into SfsLikelihoodSurface
+    to compute site frequency spectrum and likelihoods.
 
     Important methods:
     read_vcf(): read allele counts from a single vcf
-    read_vcf_list(): read allele counts from a list of vcf files using multiple parallel cores
-    dump(): save data in a compressed JSON format that can be quickly read by load()
+    read_vcf_list(): read allele counts from a list of vcf files using
+                     multiple parallel cores
+    dump(): save data in a compressed JSON format that can be
+            quickly read by load()
     load(): load data stored by dump(). Much faster than read_vcf_list()
     """
     @classmethod
@@ -52,26 +55,31 @@ class SnpAlleleCounts(object):
 
     @classmethod
     def read_vcf(cls, vcf_file, ind2pop,
-                 ancestral_alleles = None,
-                 non_ascertained_pops = []):
+                 ancestral_alleles=None,
+                 non_ascertained_pops=[]):
         """
         Parameters:
         vcf_file: stream or filename
         ind2pop: dict mapping individual IDs to populations
         ancestral_allele: str or bool or None or function
-           if the name of a population, then treats that population as the outgroup to determine AA
+           if the name of a population, then treats that population as
+              the outgroup to determine AA
            if None/False, uses REF to determine ancestral allele
-           if True, uses AA info field to determine ancestral allele, skipping records missing this field
-           if function, the function should take a vcf._Record (see pyvcf API) and return the ancestral allele
+           if True, uses AA info field to determine ancestral allele,
+              skipping records missing this field
+           if function, the function should take a vcf._Record (see pyvcf API)
+              and return the ancestral allele
               (or return None, if the record should be skipped)
         non_ascertained_pops: list of str
            list of populations to treat as non-ascertained
         """
         if type(vcf_file) is str:
             if vcf_file.endswith(".gz"):
-                openfun = lambda : gzip.open(vcf_file, "rt")
+                def openfun():
+                    return gzip.open(vcf_file, "rt")
             else:
-                openfun = lambda : open(vcf_file)
+                def openfun():
+                    return open(vcf_file)
             with openfun() as f:
                 return cls.read_vcf(
                     vcf_file=f,
@@ -85,9 +93,9 @@ class SnpAlleleCounts(object):
                 columns = line.split()
                 format_idx = columns.index("FORMAT")
                 fixed_columns = columns[:(format_idx+1)]
-                sample_columns = columns[(format_idx+1):]
 
-                if ancestral_alleles and not isinstance(ancestral_alleles, str):
+                if ancestral_alleles and not isinstance(
+                        ancestral_alleles, str):
                     info_aa_re = re.compile(r"AA=(.)")
                     outgroup = None
                 elif ancestral_alleles:
@@ -100,7 +108,8 @@ class SnpAlleleCounts(object):
                 pop2idxs = defaultdict(list)
                 for i, p in ind2pop.items():
                     pop2idxs[p].append(columns.index(i))
-                sampled_pops = [p for p in sorted(pop2idxs.keys()) if p != outgroup]
+                sampled_pops = [p for p in sorted(pop2idxs.keys())
+                                if p != outgroup]
 
                 compressed_hashed = _CompressedHashedCounts(len(sampled_pops))
                 chrom = []
@@ -128,8 +137,9 @@ class SnpAlleleCounts(object):
                         continue
 
                 pop_allele_counts = {
-                    pop: Counter((
-                        a for i in idxs for a in line[i].split(":")[0][::2] if a != "."))
+                    pop: Counter(a for i in idxs
+                                 for a in line[i].split(":")[0][::2]
+                                 if a != ".")
                     for pop, idxs in pop2idxs.items()
                 }
 
@@ -160,34 +170,39 @@ class SnpAlleleCounts(object):
                         chrom[-1], pos[-1]))
 
         compressed_allele_counts = compressed_hashed.compressed_allele_counts()
-        return cls(chrom, pos, compressed_allele_counts, sampled_pops, non_ascertained_pops = non_ascertained_pops)
+        return cls(chrom, pos, compressed_allele_counts, sampled_pops,
+                   non_ascertained_pops=non_ascertained_pops)
 
     @classmethod
     def concatenate(cls, to_concatenate):
         to_concatenate = iter(to_concatenate)
         first = next(to_concatenate)
         populations = list(first.populations)
-        non_ascertained_pops = list(first.non_ascertained_pops)
+        nonascertained = list(first.non_ascertained_pops)
         to_concatenate = it.chain([first], to_concatenate)
 
         chrom_ids = []
         positions = []
 
-        def get_allele_counts(snp_allele_counts):
-            if list(snp_allele_counts.populations) != populations or list(
-                    snp_allele_counts.non_ascertained_pops) != non_ascertained_pops:
+        def get_allele_counts(snp_cnts):
+            if any([list(snp_cnts.populations) != populations,
+                    list(snp_cnts.non_ascertained_pops) != nonascertained]):
                 raise ValueError(
-                    "Datasets must have same populations with same ascertainment to concatenate")
-            chrom_ids.extend(snp_allele_counts.chrom_ids)
-            positions.extend(snp_allele_counts.positions)
-            for c in snp_allele_counts:
+                    "Datasets must have same populations with same"
+                    " ascertainment to concatenate")
+            chrom_ids.extend(snp_cnts.chrom_ids)
+            positions.extend(snp_cnts.positions)
+            for c in snp_cnts:
                 yield c
-            for k, v in Counter(snp_allele_counts.chrom_ids).items():
+            for k, v in Counter(snp_cnts.chrom_ids).items():
                 logger.info("Added {} SNPs from Chromosome {}".format(v, k))
 
-        compressed_counts = CompressedAlleleCounts.from_iter(it.chain.from_iterable((get_allele_counts(cnts)
-                                                                                     for cnts in to_concatenate)), len(populations))
-        ret = cls(chrom_ids, positions, compressed_counts, populations, non_ascertained_pops = non_ascertained_pops)
+        compressed_counts = CompressedAlleleCounts.from_iter(
+            it.chain.from_iterable(get_allele_counts(cnts)
+                                   for cnts in to_concatenate),
+            len(populations))
+        ret = cls(chrom_ids, positions, compressed_counts, populations,
+                  non_ascertained_pops=nonascertained)
         logger.info("Finished concatenating datasets")
         return ret
 
@@ -218,7 +233,8 @@ class SnpAlleleCounts(object):
         del info[chrom_pos_config_key]
 
         compressed_counts = CompressedAlleleCounts(
-            np.array(info["configs"], dtype=int), np.array(config_ids, dtype=int))
+            np.array(info["configs"], dtype=int),
+            np.array(config_ids, dtype=int))
         del info["configs"]
 
         return cls(chrom_ids, positions, compressed_counts,
@@ -257,9 +273,10 @@ class SnpAlleleCounts(object):
         print("\t],", file=f)
         print('\t"(chrom_id,position,config_id)": [', file=f)
         n_positions = len(self)
-        for i, chrom_id, pos, config_id in zip(range(n_positions), self.chrom_ids.tolist(),
-                                               self.positions.tolist(),
-                                               self.compressed_counts.index2uniq.tolist()):
+        for i, chrom_id, pos, config_id in zip(
+                range(n_positions), self.chrom_ids.tolist(),
+                self.positions.tolist(),
+                self.compressed_counts.index2uniq.tolist()):
             if i != n_positions - 1:
                 print("\t\t{},".format(json.dumps(
                     (chrom_id, pos, config_id))), file=f)
@@ -270,8 +287,10 @@ class SnpAlleleCounts(object):
         print("\t]", file=f)
         print("}", file=f)
 
-    def __init__(self, chrom_ids, positions, compressed_counts, populations, non_ascertained_pops=[]):
-        if len(compressed_counts) != len(chrom_ids) or len(chrom_ids) != len(positions):
+    def __init__(self, chrom_ids, positions, compressed_counts, populations,
+                 non_ascertained_pops=[]):
+        if any([len(compressed_counts) != len(chrom_ids),
+                len(chrom_ids) != len(positions)]):
             raise IOError(
                 "chrom_ids, positions, allele_counts should have same length")
 
@@ -282,26 +301,28 @@ class SnpAlleleCounts(object):
         self.non_ascertained_pops = non_ascertained_pops
         self._subset_populations_cache = {}
 
-    def _chunk_data(self, n_chunks):
+    def chunk_data(self, n_chunks):
         chunk_len = len(self.chrom_ids) / float(n_chunks)
         new_pos = list(range(len(self.chrom_ids)))
         new_chrom = [int(np.floor(i / chunk_len)) for i in new_pos]
-        return SnpAlleleCounts(new_chrom, new_pos, self.compressed_counts, self.populations, self.non_ascertained_pops)
-
-    #@cached_property
-    #def _p_missing(self):
-    #    config_arr = self.compressed_counts.config_array
-    #    counts = self.compressed_counts.count_configs()
-    #    weights = counts / float(np.sum(counts))
-    #    sampled_n = self.compressed_counts.n_samples
-    #    n_pops = len(self.populations)
-
-    #    p_miss = (sampled_n - np.sum(config_arr, axis=2)) / sampled_n
-    #    return np.einsum(
-    #        "i, ij->j", weights, p_miss)
+        return SnpAlleleCounts(new_chrom, new_pos, self.compressed_counts,
+                               self.populations, self.non_ascertained_pops)
 
     @cached_property
     def _p_missing(self):
+        """
+        Estimates the probability that a random allele
+        from each population is missing.
+
+        To estimate missingness, first remove random allele;
+        if the resulting config is monomorphic, then ignore.
+        If polymorphic, then count whether the removed allele
+        is missing or not.
+
+        This avoids bias from fact that we don't observe
+        some polymorphic configs that appear monomorphic
+        after removing the missing alleles.
+        """
         counts = self.compressed_counts.count_configs()
         sampled_n = self.compressed_counts.n_samples
         n_pops = len(self.populations)
@@ -316,124 +337,25 @@ class SnpAlleleCounts(object):
         for i in range(n_pops):
             n_valid = []
             for allele in (0, 1, -1):
+                # configs with removed allele
                 removed = np.array(config_arr)
                 removed[:, i, allele] -= 1
+                # is the resulting config polymorphic?
                 valid_removed = (removed[:, i, allele] >= 0) & np.all(
-                    np.sum(removed[:,:,:2], axis=1) > 0, axis=1)
+                    np.sum(removed[:, :, :2], axis=1) > 0, axis=1)
 
-                n_valid.append(np.sum((counts * config_arr[:, i, allele])[valid_removed]))
+                # sum up the valid configs
+                n_valid.append(np.sum(
+                    (counts * config_arr[:, i, allele])[valid_removed]))
+            # fraction of valid configs with missing additional allele
             ret.append(n_valid[-1] / float(sum(n_valid)))
         return np.array(ret)
-
-    @memoize_instance
-    def _jacknife_pairwise_missingness(self, n_jackknife_blocks):
-        config_arr = self.compressed_counts.config_array
-        idxs = self.compressed_counts.index2uniq
-
-        blocklen = len(idxs) / float(n_jackknife_blocks)
-        block = np.array(np.floor(np.arange(len(idxs)) / blocklen),
-                         dtype=int)
-        block = iter(block)
-
-        minlength = int(np.max(idxs))+1
-        block_counts = np.stack([
-            np.bincount(list(block_idxs), minlength=minlength)
-            for grp, block_idxs in it.groupby(
-                    idxs, lambda x: next(block))
-        ])
-        total_counts = np.sum(block_counts, axis=0)
-
-        jackknife_counts = total_counts - block_counts
-        ret = self._est_pairwise_missing(jackknife_counts)
-        #assert np.allclose(np.mean(ret, axis=-1), self._pairwise_missingness)
-        return ret
-
-    @cached_property
-    def _pairwise_missingness(self):
-        return self._est_pairwise_missing()
-
-    def _est_pairwise_missing(self, counts=None):
-        if counts is None:
-            counts = self.compressed_counts.count_configs()
-        sampled_n = self.compressed_counts.n_samples
-        n_pops = len(self.populations)
-
-        config_arr = self.compressed_counts.config_array
-        # augment config_arr to contain the missing counts
-        n_miss = sampled_n - np.sum(config_arr, axis=2)
-        config_arr = np.concatenate((config_arr, np.reshape(
-            n_miss, list(n_miss.shape)+[1])), axis=2)
-
-        ret = []
-        for i in range(n_pops):
-            ret.append([])
-            for j in range(n_pops):
-                n_valid = []
-                n_i = sampled_n[i]
-                n_j = sampled_n[j]
-                if i == j:
-                    n_j -= 1
-                if n_i + n_j < 2:
-                    if len(counts.shape) > 1:
-                        assert len(counts.shape) == 2
-                        assert counts.shape[1] == config_arr.shape[0]
-                        ret[-1].append(np.zeros(counts.shape[0]))
-                    else:
-                        ret[-1].append(0)
-                    continue
-
-                for a_i in (0, 1, -1):
-                    n_valid.append([])
-                    for a_j in (0, 1, -1):
-                        n_ai = config_arr[:, i, a_i]
-                        n_aj = config_arr[:, j, a_j]
-                        if i == j and a_i == a_j:
-                            n_aj = n_aj - 1
-                        removed = np.array(config_arr)
-                        removed[:, i, a_i] -= 1
-                        removed[:, j, a_j] -= 1
-
-                        valid_removed = (n_ai > 0) & (n_aj > 0) & np.all(
-                            np.sum(removed[:,:,:2], axis=1) > 0, axis=1)
-
-                        n_valid[-1].append(np.sum(
-                            (counts * n_ai * n_aj).T[valid_removed,...],
-                            axis=0))
-                n_valid = np.array(n_valid, dtype=float)
-                ret[-1].append(1.0 - np.sum(
-                    n_valid[:2,:,...][:,:2,...], axis=(0,1)) / np.sum(n_valid, axis=(0,1)))
-
-        return np.array(ret)
-
-    #@cached_property
-    #def _pairwise_missingness(self):
-    #    config_arr = self.compressed_counts.config_array
-    #    counts = self.compressed_counts.count_configs()
-    #    weights = counts / float(np.sum(counts))
-    #    sampled_n = self.compressed_counts.n_samples
-    #    n_pops = len(self.populations)
-
-    #    pairwise_missing_probs = np.zeros((
-    #        len(config_arr), n_pops, n_pops))
-    #    n_miss = sampled_n - np.sum(config_arr, axis=2)
-    #    p_miss1 = n_miss / sampled_n
-    #    p_miss2 = n_miss / (sampled_n-1)
-    #    for i, derived_pop in enumerate(self.populations):
-    #        for j, anc_pop in enumerate(self.populations):
-    #            p_imiss = p_miss1[:,i]
-    #            if i == j:
-    #                p_jmiss = p_miss2[:,j]
-    #            else:
-    #                p_jmiss = p_miss1[:,j]
-    #            pairwise_missing_probs[:,i,j] = p_imiss + (1-p_imiss)*p_jmiss
-    #    assert np.allclose(pairwise_missing_probs, np.transpose(pairwise_missing_probs, (0, 2, 1)))
-    #    return np.einsum(
-    #        "i, ijk->jk", weights, pairwise_missing_probs)
 
     def subset_populations(self, populations, non_ascertained_pops=None):
         if non_ascertained_pops is not None:
             non_ascertained_pops = tuple(non_ascertained_pops)
-        return self._subset_populations(tuple(populations), non_ascertained_pops)
+        return self._subset_populations(tuple(populations),
+                                        non_ascertained_pops)
 
     @memoize_instance
     def _subset_populations(self, populations, non_ascertained_pops):
@@ -450,7 +372,8 @@ class SnpAlleleCounts(object):
 
         new_compressed_configs = CompressedAlleleCounts(
             uniq_new_configs.config_array,
-            [uniq_new_configs.index2uniq[i] for i in self.compressed_counts.index2uniq],
+            [uniq_new_configs.index2uniq[i]
+             for i in self.compressed_counts.index2uniq],
             sort=False)
 
         return SnpAlleleCounts(
@@ -469,7 +392,8 @@ class SnpAlleleCounts(object):
         if len(combined_pops) != len(set(combined_pops)):
             raise ValueError("Overlapping populations: {}, {}".format(
                 self.populations, other.populations))
-        if np.any(self.chrom_ids != other.chrom_ids) or np.any(self.positions != other.positions):
+        if np.any((self.chrom_ids != other.chrom_ids)
+                  | (self.positions != other.positions)):
             raise ValueError("Chromosome & SNP IDs must be identical")
         return SnpAlleleCounts.from_iter(self.chrom_ids,
                                          self.positions,
@@ -479,11 +403,15 @@ class SnpAlleleCounts(object):
 
     def filter(self, idxs):
         return SnpAlleleCounts(self.chrom_ids[idxs], self.positions[idxs],
-                               self.compressed_counts.filter(idxs), self.populations)
+                               self.compressed_counts.filter(idxs),
+                               self.populations)
 
     @property
     def is_polymorphic(self):
-        return (self.compressed_counts.config_array[:, self.ascertainment_pop, :].sum(axis=1) != 0).all(axis=1)[self.compressed_counts.index2uniq]
+        configs = self.compressed_counts.config_array
+        ascertained_only = configs[:, self.ascertainment_pop, :]
+        ascertained_is_poly = (ascertained_only.sum(axis=1) != 0).all(axis=1)
+        return ascertained_is_poly[self.compressed_counts.index2uniq]
 
     @property
     def ascertainment_pop(self):
@@ -499,12 +427,13 @@ class SnpAlleleCounts(object):
             idx_list = [
                 np.array([i for chrom, i in grouped_idxs])
                 for key, grouped_idxs in it.groupby(
-                        zip(filtered.chrom_ids, filtered.compressed_counts.index2uniq),
+                        zip(filtered.chrom_ids,
+                            filtered.compressed_counts.index2uniq),
                         key=lambda x: x[0])]
             self._seg_sites = SegSites(ConfigArray(
                 self.populations,
                 filtered.compressed_counts.config_array,
-                ascertainment_pop = self.ascertainment_pop
+                ascertainment_pop=self.ascertainment_pop
             ), idx_list)
         return self._seg_sites
 
@@ -515,4 +444,3 @@ class SnpAlleleCounts(object):
     @property
     def configs(self):
         return self.sfs.configs
-

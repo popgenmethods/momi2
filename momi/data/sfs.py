@@ -6,11 +6,11 @@ from cached_property import cached_property
 import scipy
 import scipy.sparse
 import scipy.misc
-from scipy.misc import comb
 from .compressed_counts import _hashed2config, _config2hashable
 from .compressed_counts import CompressedAlleleCounts
 from .config_array import ConfigArray
 from .config_array import _ConfigArray_Subset
+from ..fstats import EmpiricalFstats
 from ..util import memoize_instance
 
 
@@ -88,7 +88,6 @@ class Sfs(object):
 
     Important methods/attributes:
     """
-
     def __init__(self, loci, configs):
         self.configs = configs
 
@@ -194,6 +193,12 @@ class Sfs(object):
             self.configs.value[:, :, 1] / denoms
 
         return self.freqs_matrix.T.dot(p_het)
+
+    @memoize_instance
+    def get_fstats(self, **sampled_n_dict):
+        if sampled_n_dict == {}:
+            sampled_n_dict = dict(zip(self.sampled_pops, self.sampled_n))
+        return EmpiricalFstats(self, sampled_n_dict)
 
     @cached_property
     def p_missing(self):
@@ -372,7 +377,7 @@ class Sfs(object):
         assert freqs.shape == (weights.shape[0], self.n_loci)
         return site_freq_spectrum(
             self.sampled_pops,
-            [{c: f for c, f in zip(subconfigs, loc_freqs) if f != 0}
+            [{tuple(map(tuple, c)): f for c, f in zip(subconfigs, loc_freqs) if f != 0}
              for loc_freqs in freqs.T])
 
     def _get_pairwise_missing_probs(self):
@@ -396,17 +401,7 @@ def _freq_matrix_from_counters(idxs_by_loc, cnts_by_loc, n_configs):
 
 
 def _get_subsample_counts(configs, n):
-    config_sampled_n = np.sum(configs.value, axis=-1)
-
-    def get_cnt(super_n, sub_n):
-        assert super_n.shape[1:] == sub_n.shape
-        denom = np.prod(
-            comb(config_sampled_n, np.sum(sub_n, axis=-1)), axis=-1)
-        cnt = np.prod(comb(super_n, sub_n), axis=(1, 2)) / denom
-        cnt[denom == 0] = 0
-        return cnt
-
-    ret = {}
+    subconfigs, weights = [], []
     for pop_comb in it.combinations_with_replacement(configs.sampled_pops, n):
         subsample_n = co.Counter(pop_comb)
         subsample_n = np.array([subsample_n[pop]
@@ -422,13 +417,12 @@ def _get_subsample_counts(configs, n):
                 continue
 
             sfs_entry = np.transpose([subsample_n - sfs_entry, sfs_entry])
-            sfs_entry = tuple(map(tuple, sfs_entry))
-            cnt_vec = get_cnt(configs.value, np.array(sfs_entry, dtype=int))
+            cnt_vec = configs.subsample_probs(sfs_entry)
             if not np.all(cnt_vec == 0):
-                ret[sfs_entry] = cnt_vec
+                subconfigs.append(sfs_entry)
+                weights.append(cnt_vec)
 
-    subconfigs, weights = zip(*ret.items())
-    return list(subconfigs), np.array(weights)
+    return np.array(subconfigs), np.array(weights)
 
 
 def _sub_sfs(configs, counts, subidxs=None):

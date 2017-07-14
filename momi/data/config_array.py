@@ -103,6 +103,63 @@ class ConfigArray(object):
         except AttributeError:
             return False
 
+    def count_subsets(self, derived_weights_dict, total_counts_dict):
+        """
+        For each config, count number of subsets with given sample
+        size, weighted according to the number of derived alleles.
+
+        Parameters
+        total_counts_dict: dict mapping pop to n_pop
+        derived_weights_dict: dict mapping pop to list of floats
+           with length n_pop+1, giving the weight for each
+           derived allele count
+
+        Returns
+        numpy.ndarray of weighted counts for each config
+        """
+        assert (set(derived_weights_dict.keys())
+                <= set(total_counts_dict.keys()))
+
+        ret = np.ones(len(self))
+        for p, n in total_counts_dict.items():
+            i = self.sampled_pops.index(p)
+            if p in derived_weights_dict:
+                curr = np.zeros(len(self))
+                assert len(derived_weights_dict[p]) == n+1
+                for d, w in enumerate(derived_weights_dict[p]):
+                    if w == 0:
+                        continue
+                    a = n - d
+                    curr += w * (comb(self.value[:, i, 0], a)
+                                 * comb(self.value[:, i, 1], d))
+                ret *= curr
+            else:
+                ret *= comb(self.value[:, i, :].sum(axis=1), n)
+        return ret
+
+    def subsample_probs(self, subconfig):
+        """
+        Returns the probability of subsampling subconfig
+        from each config.
+        """
+        subconfig = np.array(subconfig)
+        total_counts_dict = {p: n for p, n in zip(self.sampled_pops,
+                                                  subconfig.sum(axis=1))
+                             if n > 0}
+        derived_counts_dict = {p: [0]*(n+1)
+                               for p, n in total_counts_dict.items()}
+        for p, d in zip(self.sampled_pops, subconfig[:, 1]):
+            if p in derived_counts_dict:
+                derived_counts_dict[p][d] = 1
+
+        num = self.count_subsets(derived_counts_dict, total_counts_dict)
+        denom = self.count_subsets({}, total_counts_dict)
+
+        # avoid 0/0
+        assert np.all(num[denom == 0] == 0)
+        denom[denom == 0] = 1
+        return num / denom
+
     # TODO: remove this method (and self.sampled_n attribute)
     def _copy(self, sampled_n=None):
         """

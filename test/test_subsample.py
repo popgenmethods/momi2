@@ -8,6 +8,7 @@ import autograd.numpy as np
 import itertools
 import random
 from collections import Counter
+import scipy
 
 from test_msprime import ms_path, scrm_path
 
@@ -21,6 +22,34 @@ def test_subsample_inds():
                             num_loci=1000, mut_rate=1.0)
     assert data.sfs.n_snps() > 0
     assert data.subsample_inds(4).sfs == data.sfs.subsample_inds(4)
+
+
+def test_count_subsets():
+    demo = simple_admixture_demo(n_lins=(10,10))
+    demo.demo_hist = demo.demo_hist.rescaled()
+    data = momi.simulate_ms(ms_path, demo.demo_hist,
+                            sampled_pops=demo.pops,
+                            sampled_n=demo.n,
+                            num_loci=1000, mut_rate=1.0)
+
+    subconfig = []
+    for n in data.sampled_n:
+        sub_n = random.randrange(n+1)
+        d = random.randrange(sub_n+1)
+        subconfig.append([sub_n-d, d])
+
+    subconfig_probs = np.ones(len(data.configs))
+    for i, (a, d) in enumerate(subconfig):
+        #subconfig_probs *= scipy.misc.comb(
+        #    data.configs.value[:, i, :], [a, d]).prod(axis=1)
+        #subconfig_probs /= scipy.misc.comb(
+        #    data.configs.value[:, i, :].sum(axis=1), a+d)
+        subconfig_probs *= scipy.stats.hypergeom.pmf(
+            d, data.configs.value[:, i, :].sum(axis=1),
+            data.configs.value[:, i, 1], a+d)
+
+    assert np.allclose(subconfig_probs,
+                       data.configs.subsample_probs(subconfig))
 
 
 @pytest.mark.parametrize("folded,n_lins",

@@ -36,7 +36,8 @@ def demographic_history(events, archaic_times_dict=None, default_N=1.0):
     return DemographicHistory(events, archaic_times_dict, default_N)
 
 
-def make_demography(events, sampled_pops, sampled_n, sampled_t=None, default_N=1.0, time_scale='ms'):
+def make_demography(events, sampled_pops, sampled_n,
+                    sampled_t=None, default_N=1.0, time_scale='ms'):
     """
     Depracated. Use momi.demographic_history() instead.
 
