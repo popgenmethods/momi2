@@ -69,7 +69,6 @@ class DemographyPlotter(object):
         self.N_legend_ax = self.fig.add_axes([.8,.5,.2,.5],
                                              frameon=False)
         self.N_legend_ax.axis('off')
-        self.g_ax = self.fig.add_axes([.85,.1,.02,.4])
 
         self.abs_g_max = max([
             abs(p.g) for popline in self.pop_lines.values()
@@ -100,6 +99,7 @@ class DemographyPlotter(object):
         self.draw_N_legend()
 
         if self.abs_g_max:
+            self.g_ax = self.fig.add_axes([.85,.1,.02,.4])
             self.fig.colorbar(
                 self.sm, cax=self.g_ax, format='%.2e')
             self.g_ax.set_xlabel("g")

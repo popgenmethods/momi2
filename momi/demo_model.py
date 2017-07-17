@@ -7,7 +7,7 @@ from .demography import demographic_history
 from .likelihood import SfsLikelihoodSurface
 from .confidence_region import _ConfidenceRegion
 from .events import LeafEvent, SizeEvent, JoinEvent, PulseEvent, GrowthEvent
-from .events import Parameter
+from .events import Parameter, ParamsDict
 from .demo_plotter import DemographyPlotter
 from .fstats import ModelFitFstats
 
@@ -110,15 +110,15 @@ class DemographicModel(object):
         transform_x: function or None
             transformation to obtain the parameter
             as a function of x (the untransformed parameter)
-            and all previously added parameters (passed as keyword
-            arguments).
+            and a second argument p, which contains all
+            the previously added parameters as attributes.
 
             for example, if we are adding parameter t1,
             and want to ensure it is larger than the previously
             added parameter t2, we can use transform_x to add
             on the value of t2:
 
-            model.add_param("t1", ..., transform_x=lambda x, t2, **kw: x+t2)
+            model.add_param("t1", ..., transform_x=lambda x,p: x+p.t2)
 
         Other Arguments
         ---------------
@@ -134,7 +134,7 @@ class DemographicModel(object):
         self._conf_region = None
 
         if transform_x is None:
-            def transform_x(x, **kw):
+            def transform_x(x, p):
                 return x
 
         bounds = (lower_x, upper_x)
@@ -262,7 +262,7 @@ class DemographicModel(object):
         Return a dictionary with the current parameter
         values.
         """
-        params_dict = co.OrderedDict()
+        params_dict = ParamsDict()
         for param in self.parameters:
             param.update_params_dict(params_dict)
         return params_dict
@@ -270,7 +270,7 @@ class DemographicModel(object):
     def _get_params_opt_x_jacobian(self):
         def fun(opt_x):
             x = self._x_from_opt_x(opt_x)
-            params_dict = co.OrderedDict()
+            params_dict = ParamsDict()
             for x_i, param in zip(x, self.parameters):
                 param.update_params_dict(params_dict, x_i)
             return np.array(list(params_dict.values()))

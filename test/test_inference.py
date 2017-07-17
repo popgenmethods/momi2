@@ -23,9 +23,9 @@ def test_archaic_and_pairwisediffs():
     model = momi.demographic_model(N_e)
     model.add_param("sample_t", x0=logit(random.uniform(0.001, join_time-.001) / join_time),
                     lower_x=None, upper_x=None,
-                    transform_x = lambda x, **kw: expit(x)*join_time)
+                    transform_x=lambda x, p: expit(x)*join_time)
     model.add_param("N", x0=0, lower_x=None, upper_x=None,
-                    transform_x = lambda x, **kw: np.exp(x))
+                    transform_x=lambda x, p: np.exp(x))
     model.add_leaf("a", N="N")
     model.add_leaf("b", t="sample_t", N="N")
     model.move_lineages("a", "b", join_time)

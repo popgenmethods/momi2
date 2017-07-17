@@ -2,6 +2,24 @@ import autograd.numpy as np
 from .math_functions import hypergeom_quasi_inverse, binom_coeffs, _apply_error_matrices, convolve_trailing_axes, sum_trailing_antidiagonals
 
 
+class ParamsDict(dict):
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name)
+
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+    def __repr__(self):
+        return self.__class__.__name__ + "({})".format(
+            dict(self))
+
+    def __dir__(self):
+        return list(self.keys())
+
+
 class Parameter(object):
     def __init__(self, name, x0, opt_trans, inv_opt_trans,
                  transform_x, x_bounds):
@@ -34,7 +52,7 @@ class Parameter(object):
         if x is None:
             x = self.x
         params_dict[self.name] = self.transform_x(
-            x, **params_dict)
+            x, params_dict)
 
 
 class LeafEvent(object):
@@ -135,7 +153,7 @@ class EventValue(object):
         if isinstance(self.x, str):
             x = params_dict[self.x]
         elif callable(self.x):
-            x = self.x(**params_dict)
+            x = self.x(params_dict)
         else:
             x = self.x
         if scaled:
