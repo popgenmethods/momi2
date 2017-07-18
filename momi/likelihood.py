@@ -335,8 +335,8 @@ class StochasticSfsLikelihoodSurface(object):
         if i is None:
             return -self.full_surface.log_lik(x) / self.full_surface.sfs.n_snps()
         demo = self.full_surface._get_multipop_moran(x)
-        ret = -self.pieces[i]._get_multinom_loglik(demo) * self.n_minibatches
-        ret = ret - self.full_surface._mut_factor(demo) - self.full_surface._log_prior(x)
+        ret = -self.pieces[i]._get_multinom_loglik(demo, False) * self.n_minibatches
+        ret = ret - self.full_surface._mut_factor(demo, False) - self.full_surface._log_prior(x)
         return ret / self.full_surface.sfs.n_snps()
 
     def find_mle(self, x0, method="adam", bounds=None, rgen=None, callback=None, **kwargs):

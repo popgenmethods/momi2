@@ -559,6 +559,27 @@ class DemographicModel(object):
         """
         return self._get_opt_surface().kl_div(self._get_opt_x())
 
+    def stochastic_optimize(self, n_minibatches=None, snps_per_minibatch=None, rgen=np.random,
+                            *args, **kwargs):
+        def callback(opt_x):
+            self.set_x(self._x_from_opt_x(opt_x))
+
+        bounds = [p.opt_x_bounds for p in self.parameters]
+        if all([b is None for bnd in bounds for b in bnd]):
+            bounds = None
+
+        kwargs = dict(kwargs)
+        kwargs["callback"] = callback
+        kwargs["bounds"] = bounds
+
+        res = self._get_opt_surface().stochastic_surfaces(
+            n_minibatches=n_minibatches, snps_per_minibatch=snps_per_minibatch,
+            rgen=rgen).find_mle(self._get_opt_x(), *args, **kwargs)
+
+        res.x = self._x_from_opt_x(res.x)
+        self.set_x(res.x)
+        return res
+
     def optimize(self, method="tnc", jac=True,
                  hess=False, hessp=False, **kwargs):
         """
