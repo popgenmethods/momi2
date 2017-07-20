@@ -90,7 +90,14 @@ class Fstats(object):
         return (baba - abba) / (baba + abba)
 
     def greens_f(self, A, B, C, *O):
+        # Estimate for the admixture of C into B in tree (((A,B),C),O)
         return self.abba_baba(A, B, C, *O) / self.abba_baba(A, C, C, *O)
+
+    def f4_ratio(self, A, B, C, X, *O):
+        # For tree (((A,B),C),O), and X admixed between B,C
+        # an estimate for the admixture proportion from B
+        # ref: Patterson et al 2012, Ancient Admixture in Human History, eq (4)
+        return self.f4(X, C, A, *O) / self.f4(B, C, A, *O)
 
 
 class EmpiricalFstats(Fstats):
