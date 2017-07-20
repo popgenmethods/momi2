@@ -1,8 +1,9 @@
+import collections as co
 import autograd.numpy as np
 from .math_functions import hypergeom_quasi_inverse, binom_coeffs, _apply_error_matrices, convolve_trailing_axes, sum_trailing_antidiagonals
 
 
-class ParamsDict(dict):
+class ParamsDict(co.OrderedDict):
     def __getattr__(self, name):
         try:
             return self[name]

@@ -560,9 +560,14 @@ class DemographicModel(object):
         return self._get_opt_surface().kl_div(self._get_opt_x())
 
     def stochastic_optimize(self, n_minibatches=None, snps_per_minibatch=None, rgen=np.random,
-                            *args, **kwargs):
+                            printfreq=1, **kwargs):
         def callback(opt_x):
             self.set_x(self._x_from_opt_x(opt_x))
+            if opt_x.iteration % printfreq == 0:
+                msg = [("it", opt_x.iteration), ("LogLikelihood", -opt_x.fun)]
+                msg.extend(list(self.get_params().items()))
+                msg = ", ".join(["{}: {}".format(k, v) for k, v in msg])
+                logging.info("{" + msg + "}")
 
         bounds = [p.opt_x_bounds for p in self.parameters]
         if all([b is None for bnd in bounds for b in bnd]):
@@ -574,14 +579,14 @@ class DemographicModel(object):
 
         res = self._get_opt_surface().stochastic_surfaces(
             n_minibatches=n_minibatches, snps_per_minibatch=snps_per_minibatch,
-            rgen=rgen).find_mle(self._get_opt_x(), *args, **kwargs)
+            rgen=rgen).find_mle(self._get_opt_x(), **kwargs)
 
         res.x = self._x_from_opt_x(res.x)
         self.set_x(res.x)
         return res
 
     def optimize(self, method="tnc", jac=True,
-                 hess=False, hessp=False, **kwargs):
+                 hess=False, hessp=False, printfreq=1, **kwargs):
         """
         Search for the maximum likelihood value of the
         parameters.
@@ -614,6 +619,11 @@ class DemographicModel(object):
 
         def callback(opt_x):
             self.set_x(self._x_from_opt_x(opt_x))
+            if opt_x.iteration % printfreq == 0:
+                msg = [("it", opt_x.iteration), ("KLDivergence", opt_x.fun)]
+                msg.extend(list(self.get_params().items()))
+                msg = ", ".join(["{}: {}".format(k, v) for k, v in msg])
+                logging.info("{" + msg + "}")
 
         res = self._get_opt_surface().find_mle(
             self._get_opt_x(), method=method,
