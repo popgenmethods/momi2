@@ -45,8 +45,11 @@ class _CompressedHashedCounts(object):
     def append(self, config):
         self.compressed_list.append(_config2hashable(config))
 
-    def index2uniq(self):
-        return self.compressed_list.index2uniq
+    def index2uniq(self, i=None):
+        if i is None:
+            return self.compressed_list.index2uniq
+        else:
+            return self.compressed_list.index2uniq[i]
 
     def config_array(self):
         ret = np.zeros((len(self.compressed_list.uniq_values), self.npops, 2),

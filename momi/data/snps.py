@@ -183,24 +183,35 @@ class SnpAlleleCounts(object):
 
         chrom_ids = []
         positions = []
+        index2uniq = []
 
-        def get_allele_counts(snp_cnts):
+        compressed_hashes = _CompressedHashedCounts(len(populations))
+
+        for snp_cnts in to_concatenate:
             if any([list(snp_cnts.populations) != populations,
                     list(snp_cnts.non_ascertained_pops) != nonascertained]):
                 raise ValueError(
                     "Datasets must have same populations with same"
                     " ascertainment to concatenate")
-            chrom_ids.extend(snp_cnts.chrom_ids)
-            positions.extend(snp_cnts.positions)
-            for c in snp_cnts:
-                yield c
+            old2new_uniq = []
+            for config in snp_cnts.compressed_counts.config_array:
+                compressed_hashes.append(config)
+                old2new_uniq.append(compressed_hashes.index2uniq(-1))
+
+            assert len(snp_cnts.chrom_ids) == len(snp_cnts.compressed_counts.index2uniq)
+            assert len(snp_cnts.chrom_ids) == len(snp_cnts.positions)
+            for chrom, pos, old_uniq in zip(snp_cnts.chrom_ids,
+                                            snp_cnts.positions,
+                                            snp_cnts.compressed_counts.index2uniq):
+                chrom_ids.append(chrom)
+                positions.append(pos)
+                index2uniq.append(old2new_uniq[old_uniq])
+
             for k, v in Counter(snp_cnts.chrom_ids).items():
                 logger.info("Added {} SNPs from Chromosome {}".format(v, k))
 
-        compressed_counts = CompressedAlleleCounts.from_iter(
-            it.chain.from_iterable(get_allele_counts(cnts)
-                                   for cnts in to_concatenate),
-            len(populations))
+        compressed_counts = CompressedAlleleCounts(
+            compressed_hashes.config_array(), index2uniq)
         ret = cls(chrom_ids, positions, compressed_counts, populations,
                   non_ascertained_pops=nonascertained)
         logger.info("Finished concatenating datasets")
