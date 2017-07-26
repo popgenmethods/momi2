@@ -287,7 +287,8 @@ class SnpAlleleCounts(object):
         print("\t]", file=f)
         print("}", file=f)
 
-    def __init__(self, chrom_ids, positions, compressed_counts, populations,
+    def __init__(self, chrom_ids, positions,
+                 compressed_counts, populations,
                  non_ascertained_pops=[]):
         if any([len(compressed_counts) != len(chrom_ids),
                 len(chrom_ids) != len(positions)]):
@@ -350,6 +351,9 @@ class SnpAlleleCounts(object):
             # fraction of valid configs with missing additional allele
             ret.append(n_valid[-1] / float(sum(n_valid)))
         return np.array(ret)
+
+    def fstats(self, sampled_n_dict=None):
+        return self.sfs.fstats(sampled_n_dict)
 
     def subset_populations(self, populations, non_ascertained_pops=None):
         if non_ascertained_pops is not None:

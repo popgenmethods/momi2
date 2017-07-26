@@ -194,11 +194,19 @@ class Sfs(object):
 
         return self.freqs_matrix.T.dot(p_het)
 
+    def fstats(self, sampled_n_dict=None):
+        if not sampled_n_dict:
+            sampled_n_dict = dict(zip(
+                self.sampled_pops, self.sampled_n))
+
+        # turn into a tuple so its hashable for memoizing
+        sampled_n_dict = tuple(sorted(sampled_n_dict.items()))
+
+        return self._fstats(sampled_n_dict)
+
     @memoize_instance
-    def get_fstats(self, **sampled_n_dict):
-        if sampled_n_dict == {}:
-            sampled_n_dict = dict(zip(self.sampled_pops, self.sampled_n))
-        return EmpiricalFstats(self, sampled_n_dict)
+    def _fstats(self, sampled_n_dict_items):
+        return EmpiricalFstats(self, dict(sampled_n_dict_items))
 
     @cached_property
     def p_missing(self):
