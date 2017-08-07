@@ -1,4 +1,5 @@
 import collections as co
+import functools as ft
 from cached_property import cached_property
 import autograd.numpy as np
 from .compute_sfs import _expected_sfs_tensor_prod
@@ -120,6 +121,17 @@ class EmpiricalFstats(Fstats):
         return self.sfs.n_loci
 
 
+def jackknife_arr_op(wrapped_op):
+    @ft.wraps(wrapped_op)
+    def wraps_op(self, other):
+        try:
+            other.est, other.jackknife
+        except AttributeError:
+            return wrapped_op(self, JackknifeArray(other, other))
+        else:
+            return wrapped_op(self, other)
+    return wraps_op
+
 class JackknifeArray(object):
     @classmethod
     def from_chunks(cls, x):
@@ -130,21 +142,39 @@ class JackknifeArray(object):
         self.est = est
         self.jackknife = jackknife
 
+    @jackknife_arr_op
     def __add__(self, other):
         return JackknifeArray(self.est + other.est,
                               self.jackknife + other.jackknife)
 
-    def __sub__(self, other):
-        return JackknifeArray(self.est - other.est,
-                              self.jackknife - other.jackknife)
+    def __radd__(self, other):
+        return self + other
 
+    def __neg__(self):
+        return JackknifeArray(-self.est, -self.jackknife)
+
+    @jackknife_arr_op
+    def __sub__(self, other):
+        return self + (-other)
+
+    def __rsub__(self, other):
+        return -self + other
+
+    @jackknife_arr_op
     def __mul__(self, other):
         return JackknifeArray(self.est * other.est,
                               self.jackknife * other.jackknife)
 
+    def __rmul__(self, other):
+        return self * other
+
+    @jackknife_arr_op
     def __truediv__(self, other):
         return JackknifeArray(self.est / other.est,
                               self.jackknife / other.jackknife)
+
+    def __rtruediv__(self, other):
+        return JackknifeArray(other / self.est, other / self.jackknife)
 
     @property
     def resids(self):
@@ -162,9 +192,9 @@ class JackknifeArray(object):
     def z_score(self):
         return self.est / self.sd
 
-    def __str__(self):
-        return "JackknifeArray(est={}, sd={}, z_score={})".format(
-            self.est, self.sd, self.z_score)
+    def __repr__(self):
+        return "JackknifeArray(est={}, sd={}, z_score={}) at {}".format(
+            self.est, self.sd, self.z_score, hex(id(self)))
 
 
 class ExpectedFstats(Fstats):
