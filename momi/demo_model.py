@@ -308,7 +308,7 @@ class DemographicModel(object):
 
     def simulate_data(self, length, recombination_rate,
                       mutation_rate, num_replicates,
-                      sampled_n_dict=None):
+                      sampled_n_dict=None, **kwargs):
         demo = self._get_demo()
         if sampled_n_dict is None:
             if self._data is None:
@@ -320,7 +320,8 @@ class DemographicModel(object):
         return demo.simulate_data(length=length,
                                   recombination_rate=4*self.N_e*recombination_rate,
                                   mutation_rate=4*self.N_e*mutation_rate,
-                                  num_replicates=num_replicates)
+                                  num_replicates=num_replicates,
+                                  **kwargs)
 
     def fstats(self, sampled_n_dict=None):
         sfs = self._get_sfs()
