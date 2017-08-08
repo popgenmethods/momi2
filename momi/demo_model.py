@@ -318,7 +318,7 @@ class DemographicModel(object):
         demo = demo._get_multipop_moran(
             self.leafs, [sampled_n_dict[k] for k in self.leafs])
         return demo.simulate_data(length=length,
-                                  recombination_rate=recombination_rate,
+                                  recombination_rate=4*self.N_e*recombination_rate,
                                   mutation_rate=4*self.N_e*mutation_rate,
                                   num_replicates=num_replicates)
 

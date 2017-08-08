@@ -614,17 +614,14 @@ class Demography(object):
                 _, t, i, alpha = event
                 if i not in pops:
                     pops[i] = len(pops)
-                demographic_events.append(msprime.PopulationParametersChange(t,
-                                                                             growth_rate=alpha,
-                                                                             population_id=pops[i]))
+                demographic_events.append(msprime.PopulationParametersChange(
+                    t, growth_rate=alpha, population_id=pops[i]))
             elif flag == '-en':
                 _, t, i, N = event
                 if i not in pops:
                     pops[i] = len(pops)
-                demographic_events.append(msprime.PopulationParametersChange(t,
-                                                                             initial_size=N / 4,
-                                                                             growth_rate=0,
-                                                                             population_id=pops[i]))
+                demographic_events.append(msprime.PopulationParametersChange(
+                    t, initial_size=N / 4, growth_rate=0, population_id=pops[i]))
             else:
                 assert False
         return msprime.simulate(population_configurations=[msprime.PopulationConfiguration()
