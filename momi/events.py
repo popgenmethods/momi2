@@ -124,7 +124,8 @@ class PulseEvent(object):
     def add_to_plot(self, params_dict, demo_plot):
         demo_plot.move_lineages(self.pop1, self.pop2,
                                 self.t(params_dict, scaled=False),
-                                self.p(params_dict, scaled=False))
+                                self.p(params_dict, scaled=False),
+                                pulse_name=self.p.x)
 
 class GrowthEvent(object):
     def __init__(self, t, g, pop, N_e, gen_time):

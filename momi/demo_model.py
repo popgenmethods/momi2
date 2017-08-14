@@ -72,12 +72,13 @@ class DemographicModel(object):
             use_pairwise_diffs=self._use_pairwise_diffs,
             non_ascertained_pops=self._non_ascertained_pops)
 
-    def draw(self, additional_times, pop_x_positions):
-        demo_plt = self._demo_plotter(additional_times, pop_x_positions)
+    def draw(self, additional_times, pop_x_positions, draw_pulse_below=[]):
+        demo_plt = self._demo_plotter(additional_times, pop_x_positions,
+                                      draw_pulse_below=draw_pulse_below)
         demo_plt.draw()
         return demo_plt
 
-    def _demo_plotter(self, additional_times, pop_x_positions):
+    def _demo_plotter(self, additional_times, pop_x_positions, draw_pulse_below=[]):
         try:
             pop_x_positions.items()
         except:
@@ -91,7 +92,8 @@ class DemographicModel(object):
                    list(self.size_events) +
                    list(self.topology_events),
                    key=lambda e: e.t(params_dict)),
-            additional_times, pop_x_positions)
+            additional_times, pop_x_positions,
+            draw_pulse_below=draw_pulse_below)
 
     def add_param(self, name, x0,
                   lower_x=1e-12, upper_x=None,

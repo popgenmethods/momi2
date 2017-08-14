@@ -7,7 +7,7 @@ PopulationPoint = co.namedtuple(
     "PopulationPoint", ["t", "N", "g", "is_leaf"])
 
 PopulationArrow = co.namedtuple(
-    "PopulationArrow", ["to", "frm", "t", "p"])
+    "PopulationArrow", ["to", "frm", "t", "p", "pulse_name"])
 
 class PopulationLine(object):
     def __init__(self, times, N):
@@ -49,7 +49,9 @@ class PopulationLine(object):
 class DemographyPlotter(object):
     def __init__(self, params_dict,
                  default_N, event_list,
-                 additional_times, x_pos_dict):
+                 additional_times, x_pos_dict,
+                 draw_pulse_below=[]):
+        self.draw_pulse_below = draw_pulse_below
         self.additional_times = list(additional_times)
         self.default_N = default_N
         self.pop_lines = co.defaultdict(
@@ -119,8 +121,8 @@ class DemographyPlotter(object):
     def set_growth(self, pop, t, g):
         self.pop_to_t(pop, t).curr_g = g
 
-    def move_lineages(self, pop1, pop2, t, p):
-        self.pop_arrows.append(PopulationArrow(pop1, pop2, t, p))
+    def move_lineages(self, pop1, pop2, t, p, pulse_name=None):
+        self.pop_arrows.append(PopulationArrow(pop1, pop2, t, p, pulse_name))
         pop1 = self.pop_to_t(pop1, t)
         pop2 = self.pop_to_t(pop2, t)
         pop2.active = True
@@ -168,9 +170,13 @@ class DemographyPlotter(object):
                 fc = 'red'
                 ec = 'red'
                 ls = ":"
+                if arrow.pulse_name in self.draw_pulse_below:
+                    verticalalignment = "top"
+                else:
+                    verticalalignment = "bottom"
                 self.ax.annotate(
                     "{}".format("{:.1e}".format(arrow.p)), xy=(.5*(frm+to), arrow.t),
-                    color="red", horizontalalignment="center")
+                    color="red", horizontalalignment="center", verticalalignment=verticalalignment)
             self.ax.annotate("", xy=(to, arrow.t), xytext=(frm, arrow.t),
                              arrowprops=dict(arrowstyle="->", fc=fc, ec=ec, ls=ls))
             #self.ax.arrow(frm, arrow.t, to-frm, 0,
