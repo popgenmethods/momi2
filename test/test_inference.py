@@ -7,7 +7,7 @@ from autograd import grad
 import logging
 from momi import SfsLikelihoodSurface, demographic_history
 import momi
-from test_msprime import ms_path, scrm_path
+#from test_msprime import ms_path, scrm_path
 
 
 def test_archaic_and_pairwisediffs():
@@ -31,7 +31,8 @@ def test_archaic_and_pairwisediffs():
     model.move_lineages("a", "b", join_time)
 
     n_bases = 1000
-    data = model.simulate_data(length=n_bases, recombination_rate=None,
+    data = model.simulate_data(length=n_bases,
+                               recombination_rate=0,
                                mutation_rate=theta/4./N_e/n_bases,
                                num_replicates=num_runs,
                                sampled_n_dict={"a": 2, "b": 2})

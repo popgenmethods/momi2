@@ -7,10 +7,12 @@ PopulationPoint = co.namedtuple(
     "PopulationPoint", ["t", "N", "g", "is_leaf"])
 
 PopulationArrow = co.namedtuple(
-    "PopulationArrow", ["to", "frm", "t", "p", "pulse_name"])
+    "PopulationArrow", ["to_pop", "from_pop", "t", "p", "pulse_name"])
 
 class PopulationLine(object):
-    def __init__(self, times, N):
+    def __init__(self, name, x, times, N):
+        self.name = name
+        self.x = x
         self.time_stack = list(reversed(sorted(times)))
         self.curr_N = N
         self.curr_g = 0.0
@@ -18,6 +20,11 @@ class PopulationLine(object):
         self.points = []
         self.active = False
         self.next_is_leaf = False
+
+    def __repr__(self):
+        return "{cls}(name={name}, x={x}) at {loc}".format(
+            cls=type(self), name=self.name, x=self.x,
+            loc=hex(id(self)))
 
     def step_time(self, nxt_t, add=True):
         assert self.curr_t <= nxt_t
@@ -40,22 +47,22 @@ class PopulationLine(object):
         else:
             assert t == self.peek_time()
 
-    def goto_time(self, t):
+    def goto_time(self, t, push_time=True):
         while self.time_stack and self.peek_time() < t:
             self.step_time(self.time_stack.pop())
         self.step_time(t, add=False)
-        self.push_time(t)
+        if push_time:
+            self.push_time(t)
 
 class DemographyPlotter(object):
     def __init__(self, params_dict,
                  default_N, event_list,
-                 additional_times, x_pos_dict,
-                 draw_pulse_below=[]):
-        self.draw_pulse_below = draw_pulse_below
+                 additional_times, x_pos_dict):
         self.additional_times = list(additional_times)
         self.default_N = default_N
-        self.pop_lines = co.defaultdict(
-            lambda : PopulationLine(self.additional_times, self.default_N))
+        self.pop_lines = {
+            p: PopulationLine(p, x, self.additional_times, self.default_N)
+            for p, x in x_pos_dict.items()}
         self.pop_arrows = []
         self.x_pos = x_pos_dict
 
@@ -94,9 +101,11 @@ class DemographyPlotter(object):
                       for p in popline.points]
         self.min_N = min(self.all_N)
 
-    def draw(self):
+    def draw(self, tree_only=False, rad=-.1):
         self.draw_pops()
-        self.draw_arrows()
+        self.draw_join_arrows()
+        if not tree_only:
+            self.draw_pulse_arrows(rad=rad)
         self.draw_xticks()
         self.draw_N_legend()
 
@@ -106,9 +115,9 @@ class DemographyPlotter(object):
                 self.sm, cax=self.g_ax, format='%.2e')
             self.g_ax.set_xlabel("g")
 
-    def pop_to_t(self, pop, t):
+    def pop_to_t(self, pop, t, push_time=True):
         pop = self.pop_lines[pop]
-        pop.goto_time(t)
+        pop.goto_time(t, push_time=push_time)
         return pop
 
     def add_leaf(self, pop, t):
@@ -116,19 +125,28 @@ class DemographyPlotter(object):
         self.pop_to_t(pop, t).next_is_leaf = True
 
     def set_size(self, pop, t, N):
-        self.pop_to_t(pop, t).curr_N = N
+        pop = self.pop_to_t(pop, t, push_time=False)
+        if pop.curr_N != N:
+            pop.push_time(t)
+        pop.curr_N = N
 
     def set_growth(self, pop, t, g):
-        self.pop_to_t(pop, t).curr_g = g
+        pop = self.pop_to_t(pop, t, push_time=False)
+        if pop.curr_g != g:
+            pop.push_time(t)
+        pop.curr_g = g
 
     def move_lineages(self, pop1, pop2, t, p, pulse_name=None):
-        self.pop_arrows.append(PopulationArrow(pop1, pop2, t, p, pulse_name))
-        pop1 = self.pop_to_t(pop1, t)
-        pop2 = self.pop_to_t(pop2, t)
+        pop2 = self.pop_lines[pop2]
+        pop2.goto_time(t, push_time=not pop2.active)
         pop2.active = True
+
+        pop1 = self.pop_lines[pop1]
+        pop1.goto_time(t, push_time=(p == 1))
         if p == 1:
             pop1.step_time(pop1.time_stack.pop())
             pop1.active = False
+        self.pop_arrows.append(PopulationArrow(pop1, pop2, t, p, pulse_name))
 
     def N_to_markersize(self, N):
         return 10 * (np.log(N/self.min_N) + 1)**1.5
@@ -148,42 +166,52 @@ class DemographyPlotter(object):
             self.ax.scatter(
                 x, t,
                 [self.N_to_markersize(p.N) for p in popline.points],
-                facecolors=["black" if p.is_leaf else "none"
+                facecolors=["gray" if p.is_leaf else "none"
                             for p in popline.points],
                 edgecolors="black")
 
-    def draw_arrows(self):
-        all_t = [p.t for popline in self.pop_lines.values() for p in popline.points]
-        total_y_height = max(all_t) - min(all_t)
-        #arrow_head_width = .025*(total_y_height)
-        all_x = list(self.x_pos.values())
-        total_x_width = max(all_x) - min(all_x)
-        #arrow_head_len = .025*total_x_width
+    @property
+    def join_arrows(self):
         for arrow in self.pop_arrows:
-            frm = self.x_pos[arrow.frm]
-            to = self.x_pos[arrow.to]
             if arrow.p == 1:
-                fc = 'black'
-                ec = 'black'
-                ls = "-"
+                yield arrow
+
+    @property
+    def pulse_arrows(self):
+        for arrow in self.pop_arrows:
+            if arrow.p != 1:
+                yield arrow
+
+    def draw_join_arrows(self):
+        for arrow in self.join_arrows:
+            self.ax.annotate(
+                "", xy=(arrow.to_pop.x, arrow.t),
+                xytext=(arrow.from_pop.x, arrow.t),
+                arrowprops=dict(arrowstyle="->", fc="black", ec="black",
+                                ls="-", shrinkA=0))
+
+    def draw_pulse_arrows(self, rad=-.1, size=20):
+        for arrow in self.pulse_arrows:
+            frm = arrow.from_pop.x
+            to = arrow.to_pop.x
+            if -rad*(frm - to) > 0:
+                verticalalignment = "top"
             else:
-                fc = 'red'
-                ec = 'red'
-                ls = ":"
-                if arrow.pulse_name in self.draw_pulse_below:
-                    verticalalignment = "top"
-                else:
-                    verticalalignment = "bottom"
-                self.ax.annotate(
-                    "{}".format("{:.1e}".format(arrow.p)), xy=(.5*(frm+to), arrow.t),
-                    color="red", horizontalalignment="center", verticalalignment=verticalalignment)
-            self.ax.annotate("", xy=(to, arrow.t), xytext=(frm, arrow.t),
-                             arrowprops=dict(arrowstyle="->", fc=fc, ec=ec, ls=ls))
-            #self.ax.arrow(frm, arrow.t, to-frm, 0,
-            #              length_includes_head=True,
-            #              head_length=arrow_head_len,
-            #              head_width=arrow_head_width,
-            #              fc=fc, ec=ec, ls=ls)
+                verticalalignment = "bottom"
+
+            self.ax.annotate(
+                "", xy=(to, arrow.t), xytext=(frm, arrow.t),
+                arrowprops=dict(
+                    arrowstyle="-|>,head_width=.3,head_length=.6", fc="gray", ec="gray", ls=":",
+                    shrinkA=0,
+                    connectionstyle="arc3,rad={rad}".format(
+                        rad=rad)))
+
+            self.ax.annotate(
+                "{}".format("{:.1f}%".format(100*arrow.p)),
+                xy=(.5*(frm+to), arrow.t),
+                color="red", horizontalalignment="center",
+                verticalalignment=verticalalignment)
 
     def draw_xticks(self):
         xtick_labs, xticks = zip(*sorted(

@@ -14,10 +14,10 @@ from demo_utils import *
 
 import os
 
-ms_path = shutil.which("ms")
-scrm_path = shutil.which("scrm")
-if not ms_path or not scrm_path:
-    raise Exception("Need to have ms, scrm on PATH for unit tests")
+#ms_path = shutil.which("ms")
+#scrm_path = shutil.which("scrm")
+#if not ms_path or not scrm_path:
+#    raise Exception("Need to have ms, scrm on PATH for unit tests")
 
 demo_funcs = {f.__name__: f for f in [simple_admixture_demo, simple_two_pop_demo,
                                       piecewise_constant_demo, exp_growth_model, simple_admixture_3pop]}

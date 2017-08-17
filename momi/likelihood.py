@@ -108,10 +108,12 @@ class SfsLikelihoodSurface(object):
         return ag.grad(self.log_lik)(x)
 
     def _fisher(self, x):
-        # compute second order derivative numerically to avoid memory problems
-        ret = -ndt.Jacobian(self._score)(x)
-        #ret = -ag.hessian(self.log_lik)(x)
-        return .5 * (ret + np.transpose(ret))
+        if self.sfs_batches:
+            # compute second order derivative numerically to avoid memory problems
+            ret = -ndt.Jacobian(self._score)(x)
+            return .5 * (ret + np.transpose(ret))
+        else:
+            return -ag.hessian(self.log_lik)(x)
 
     def _score_cov(self, params):
         params = np.array(params)
@@ -121,15 +123,17 @@ class SfsLikelihoodSurface(object):
             # centralize
             return ret - np.mean(ret)
 
-        j = ndt.Jacobian(f_vec)(params)
-        return np.einsum('ij, ik', j, j)
-        ## g_out = einsum('ij,ik', jacobian(f_vec)(params), jacobian(f_vec)(params))
-        ## but computed in a roundabout way because jacobian implementation is slow
-        #def _g_out_antihess(x):
-        #    l = f_vec(x)
-        #    lc = make_constant(l)
-        #    return np.sum(0.5 * (l**2 - l * lc - lc * l))
-        #return ag.hessian(_g_out_antihess)(params)
+        if self.sfs_batches:
+            j = ndt.Jacobian(f_vec)(params)
+            return np.einsum('ij, ik', j, j)
+        else:
+            # g_out = einsum('ij,ik', jacobian(f_vec)(params), jacobian(f_vec)(params))
+            # but computed in a roundabout way because jacobian implementation is slow
+            def _g_out_antihess(x):
+                l = f_vec(x)
+                lc = make_constant(l)
+                return np.sum(0.5 * (l**2 - l * lc - lc * l))
+            return ag.hessian(_g_out_antihess)(params)
 
     def _log_lik(self, x, vector):
         demo = self._get_multipop_moran(x)

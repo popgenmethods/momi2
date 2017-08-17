@@ -31,7 +31,7 @@ def demographic_model(default_N, gen_time=1):
             to use years as the time unit)
     """
     return DemographicModel(
-        N_e=default_N, gen_time=gen_time, parameters=[],
+        N_e=default_N, gen_time=gen_time, parameters={},
         topology_events=[], size_events=[],
         leaf_events=[], leafs=[],
         data=None, muts_per_gen=None, folded=None,
@@ -48,7 +48,7 @@ class DemographicModel(object):
                  non_ascertained_pops):
         self.N_e = N_e
         self.gen_time = gen_time
-        self.parameters = [p.copy() for p in parameters]
+        self.parameters = co.OrderedDict((k, p.copy()) for k, p in parameters.items())
         self.topology_events = list(topology_events)
         self.size_events = list(size_events)
         self.leaf_events = list(leaf_events)
@@ -72,13 +72,12 @@ class DemographicModel(object):
             use_pairwise_diffs=self._use_pairwise_diffs,
             non_ascertained_pops=self._non_ascertained_pops)
 
-    def draw(self, additional_times, pop_x_positions, draw_pulse_below=[]):
-        demo_plt = self._demo_plotter(additional_times, pop_x_positions,
-                                      draw_pulse_below=draw_pulse_below)
-        demo_plt.draw()
+    def draw(self, additional_times, pop_x_positions, tree_only=False, rad=-.1):
+        demo_plt = self._demo_plotter(additional_times, pop_x_positions)
+        demo_plt.draw(tree_only=tree_only, rad=rad)
         return demo_plt
 
-    def _demo_plotter(self, additional_times, pop_x_positions, draw_pulse_below=[]):
+    def _demo_plotter(self, additional_times, pop_x_positions):
         try:
             pop_x_positions.items()
         except:
@@ -92,8 +91,7 @@ class DemographicModel(object):
                    list(self.size_events) +
                    list(self.topology_events),
                    key=lambda e: e.t(params_dict)),
-            additional_times, pop_x_positions,
-            draw_pulse_below=draw_pulse_below)
+            additional_times, pop_x_positions)
 
     def add_param(self, name, x0,
                   lower_x=1e-12, upper_x=None,
@@ -171,7 +169,8 @@ class DemographicModel(object):
             name, x0, opt_trans, inv_opt_trans,
             transform_x=transform_x,
             x_bounds=bounds)
-        self.parameters.append(param)
+        assert name not in self.parameters
+        self.parameters[name] = param
 
     def add_leaf(self, pop, t=0, N=None, g=None):
         """
@@ -265,7 +264,7 @@ class DemographicModel(object):
         values.
         """
         params_dict = ParamsDict()
-        for param in self.parameters:
+        for param in self.parameters.values():
             param.update_params_dict(params_dict)
         return params_dict
 
@@ -273,7 +272,8 @@ class DemographicModel(object):
         def fun(opt_x):
             x = self._x_from_opt_x(opt_x)
             params_dict = ParamsDict()
-            for x_i, param in zip(x, self.parameters):
+            for x_i, param in zip(
+                    x, self.parameters.values()):
                 param.update_params_dict(params_dict, x_i)
             return np.array(list(params_dict.values()))
         return ag.jacobian(fun)(self._get_opt_x())
@@ -283,9 +283,10 @@ class DemographicModel(object):
         Return the current value of x (the untransformed parameters).
         """
         if param is None:
-            return np.array([p.x for p in self.parameters])
+            return np.array([
+                p.x for p in self.parameters.values()])
         else:
-            for p in self.parameters:
+            for p in self.parameters.values():
                 if p.name == param:
                     return p.x
             raise ValueError("Unrecognized parameter {}".format(param))
@@ -299,10 +300,10 @@ class DemographicModel(object):
                 raise ValueError(
                     "len(x) != {}".format(len(self.parameters)))
 
-            for p_i, x_i in zip(self.parameters, x):
+            for p_i, x_i in zip(self.parameters.values(), x):
                 p_i.x = x_i
         else:
-            for p in self.parameters:
+            for p in self.parameters.values():
                 if p.name == param:
                     p.x = x
                     return
@@ -376,17 +377,18 @@ class DemographicModel(object):
 
     def _get_opt_x(self):
         return np.array([p.inv_opt_trans(p.x)
-                         for p in self.parameters])
+                         for p in self.parameters.values()])
 
     def _x_from_opt_x(self, opt_x):
         return np.array([
             p.opt_trans(ox)
-            for p, ox in zip(self.parameters, opt_x)])
+            for p, ox in zip(
+                    self.parameters.values(), opt_x)])
 
     def _opt_x_from_x(self, x):
         return np.array([
             p.inv_opt_trans(x_i)
-            for p, x_i in zip(self.parameters, x)
+            for p, x_i in zip(self.parameters.values(), x)
         ])
 
     def _opt_demo_fun(self, *opt_x):
@@ -502,8 +504,10 @@ class DemographicModel(object):
 
     def marginal_wald(self):
         marginal_wald_df = co.OrderedDict()
-        marginal_wald_df["Param"] = [p.name for p in self.parameters]
-        marginal_wald_df["Value"] = list(self.get_params().values())
+        marginal_wald_df["Param"] = [
+            p.name for p in self.parameters.values()]
+        marginal_wald_df["Value"] = list(
+            self.get_params().values())
         marginal_wald_df["StdDev"] = np.sqrt(np.diag(self.mle_cov()))
         return pd.DataFrame(marginal_wald_df)
 
@@ -572,7 +576,8 @@ class DemographicModel(object):
                 msg = ", ".join(["{}: {}".format(k, v) for k, v in msg])
                 logging.info("{" + msg + "}")
 
-        bounds = [p.opt_x_bounds for p in self.parameters]
+        bounds = [p.opt_x_bounds
+                  for p in self.parameters.values()]
         if all([b is None for bnd in bounds for b in bnd]):
             bounds = None
 
@@ -616,7 +621,8 @@ class DemographicModel(object):
         **kwargs: additional arguments passed to
               scipy.optimize.minimize
         """
-        bounds = [p.opt_x_bounds for p in self.parameters]
+        bounds = [p.opt_x_bounds
+                  for p in self.parameters.values()]
         if all([b is None for bnd in bounds for b in bnd]):
             bounds = None
 
