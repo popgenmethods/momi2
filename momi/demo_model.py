@@ -72,17 +72,17 @@ class DemographicModel(object):
             use_pairwise_diffs=self._use_pairwise_diffs,
             non_ascertained_pops=self._non_ascertained_pops)
 
-    def draw(self, additional_times, pop_x_positions, tree_only=False, rad=-.1):
-        demo_plt = self._demo_plotter(additional_times, pop_x_positions)
+    def draw(self, additional_times, pop_x_positions, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30):
+        demo_plt = self._demo_plotter(additional_times, pop_x_positions, legend_kwargs=legend_kwargs, xlab_rotation=xlab_rotation)
         demo_plt.draw(tree_only=tree_only, rad=rad)
         return demo_plt
 
-    def _demo_plotter(self, additional_times, pop_x_positions):
+    def _demo_plotter(self, additional_times, pop_x_positions, **kwargs):
         try:
             pop_x_positions.items()
         except:
-            pop_x_positions = dict(zip(pop_x_positions,
-                                       range(len(pop_x_positions))))
+            pop_x_positions = dict(zip(
+                pop_x_positions, range(len(pop_x_positions))))
 
         params_dict = self.get_params()
         return DemographyPlotter(
@@ -91,7 +91,7 @@ class DemographicModel(object):
                    list(self.size_events) +
                    list(self.topology_events),
                    key=lambda e: e.t(params_dict)),
-            additional_times, pop_x_positions)
+            additional_times, pop_x_positions, **kwargs)
 
     def add_param(self, name, x0,
                   lower_x=1e-12, upper_x=None,

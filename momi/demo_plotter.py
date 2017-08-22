@@ -57,7 +57,11 @@ class PopulationLine(object):
 class DemographyPlotter(object):
     def __init__(self, params_dict,
                  default_N, event_list,
-                 additional_times, x_pos_dict):
+                 additional_times, x_pos_dict,
+                 legend_kwargs,
+                 xlab_rotation=-30):
+        self.xlab_rotation = xlab_rotation
+        self.legend_kwargs = legend_kwargs
         self.additional_times = list(additional_times)
         self.default_N = default_N
         self.pop_lines = {
@@ -74,28 +78,7 @@ class DemographyPlotter(object):
 
         self.fig = plt.gcf()
         self.fig.clf()
-        self.ax = self.fig.add_axes([.2,.1,.6,.8])
-        self.N_legend_ax = self.fig.add_axes([.8,.5,.2,.5],
-                                             frameon=False)
-        self.N_legend_ax.axis('off')
-
-        self.abs_g_max = max([
-            abs(p.g) for popline in self.pop_lines.values()
-            for p in popline.points])
-        if self.abs_g_max:
-            if any([p.g < 0 for popline in self.pop_lines.values()
-                    for p in popline.points]):
-                self.cmap = mpl.colors.LinearSegmentedColormap.from_list(
-                    "gMap", ["cyan", "black", "orange"])
-                self.norm = plt.Normalize(vmin=-self.abs_g_max,
-                                          vmax=self.abs_g_max)
-            else:
-                self.cmap = mpl.colors.LinearSegmentedColormap.from_list(
-                    "gMap", ["black", "orange"])
-                self.norm = plt.Normalize(vmin=0, vmax=self.abs_g_max)
-            self.sm = plt.cm.ScalarMappable(
-                cmap=self.cmap, norm=self.norm)
-            self.sm.set_array([])
+        self.ax = self.fig.gca()
 
         self.all_N = [p.N for popline in self.pop_lines.values()
                       for p in popline.points]
@@ -108,12 +91,6 @@ class DemographyPlotter(object):
             self.draw_pulse_arrows(rad=rad)
         self.draw_xticks()
         self.draw_N_legend()
-
-        if self.abs_g_max:
-            self.g_ax = self.fig.add_axes([.85,.1,.02,.4])
-            self.fig.colorbar(
-                self.sm, cax=self.g_ax, format='%.2e')
-            self.g_ax.set_xlabel("g")
 
     def pop_to_t(self, pop, t, push_time=True):
         pop = self.pop_lines[pop]
@@ -131,10 +108,9 @@ class DemographyPlotter(object):
         pop.curr_N = N
 
     def set_growth(self, pop, t, g):
-        pop = self.pop_to_t(pop, t, push_time=False)
-        if pop.curr_g != g:
-            pop.push_time(t)
-        pop.curr_g = g
+        raise NotImplementedError(
+            "plotting exponential growth"
+            " not implemented")
 
     def move_lineages(self, pop1, pop2, t, p, pulse_name=None):
         pop2 = self.pop_lines[pop2]
@@ -146,29 +122,25 @@ class DemographyPlotter(object):
         if p == 1:
             pop1.step_time(pop1.time_stack.pop())
             pop1.active = False
-        self.pop_arrows.append(PopulationArrow(pop1, pop2, t, p, pulse_name))
+        self.pop_arrows.append(PopulationArrow(
+            pop1, pop2, t, p, pulse_name))
 
-    def N_to_markersize(self, N):
-        return 10 * (np.log(N/self.min_N) + 1)**1.5
+    def N_to_linewidth(self, N):
+        return np.log(N/self.min_N) + 2
 
     def draw_pops(self):
         for popname, popline in self.pop_lines.items():
             x = [self.x_pos[popname]]*len(popline.points)
             t = [p.t for p in popline.points]
             xt = list(zip(x, t))
-            for bottom, top, g in zip(xt[:-1], xt[1:], [p.g for p in popline.points[:-1]]):
+            for bottom, top, N in zip(
+                    xt[:-1], xt[1:],
+                    [p.N for p in popline.points[:-1]]):
                 curr_x, curr_t = zip(bottom, top)
-                if self.abs_g_max:
-                    self.ax.plot(curr_x, curr_t,
-                                 color=self.cmap(self.norm(g)))
-                else:
-                    self.ax.plot(curr_x, curr_t, color="black")
-            self.ax.scatter(
-                x, t,
-                [self.N_to_markersize(p.N) for p in popline.points],
-                facecolors=["gray" if p.is_leaf else "none"
-                            for p in popline.points],
-                edgecolors="black")
+
+                self.ax.plot(
+                    curr_x, curr_t, color="C0",
+                    linewidth=self.N_to_linewidth(N))
 
     @property
     def join_arrows(self):
@@ -184,11 +156,10 @@ class DemographyPlotter(object):
 
     def draw_join_arrows(self):
         for arrow in self.join_arrows:
-            self.ax.annotate(
-                "", xy=(arrow.to_pop.x, arrow.t),
-                xytext=(arrow.from_pop.x, arrow.t),
-                arrowprops=dict(arrowstyle="->", fc="black", ec="black",
-                                ls="-", shrinkA=0))
+            self.ax.plot(
+                (arrow.from_pop.x, arrow.to_pop.x),
+                (arrow.t, arrow.t), color="C0",
+                linewidth=1)
 
     def draw_pulse_arrows(self, rad=-.1, size=20):
         for arrow in self.pulse_arrows:
@@ -217,29 +188,30 @@ class DemographyPlotter(object):
         xtick_labs, xticks = zip(*sorted(
             self.x_pos.items(), key=lambda itm: itm[1]))
         self.ax.set_xticks(xticks)
-        self.ax.set_xticklabels(xtick_labs, rotation=-30)
+        self.ax.set_xticklabels(xtick_labs,
+                                rotation=self.xlab_rotation)
 
     def get_N_legend(self):
-        base = 10.0
+        curr_N = 10**np.floor(
+            np.log(min(self.all_N)) / np.log(10))
+        N_legend_keys = [curr_N]
+        while curr_N < max(self.all_N):
+            curr_N *= 4
+            N_legend_keys.append(curr_N)
 
-        log_N = np.log(self.all_N) / np.log(base)
-        N_legend_keys = list(base**(np.arange(
-            np.floor(min(log_N)), np.ceil(max(log_N))+1)))[1:-1]
-        N_legend_keys.extend([min(self.all_N), max(self.all_N)])
-        N_legend_keys = sorted(set(N_legend_keys))
         N_legend_values = []
-
         for N in N_legend_keys:
-            N_legend_values.append(self.ax.scatter(
-                [], [], [self.N_to_markersize(N)],
-                edgecolors="black", facecolors="none"))
+            N_legend_values.append(
+                mpl.lines.Line2D(
+                    [], [], linewidth=self.N_to_linewidth(N)))
 
-        N_legend_keys = ["{:.2e}".format(N) for N in N_legend_keys]
+        N_legend_keys = ["{:.1e}".format(N)
+                         for N in N_legend_keys]
         return co.OrderedDict(zip(N_legend_keys, N_legend_values))
 
     def draw_N_legend(self):
         N_legend = self.get_N_legend()
-        lgd = self.N_legend_ax.legend(
+        lgd = self.ax.legend(
             N_legend.values(), N_legend.keys(),
-            loc='center', title="N")
+            title="N", **self.legend_kwargs)
 
