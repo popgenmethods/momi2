@@ -421,6 +421,26 @@ class SnpAlleleCounts(object):
                                self.compressed_counts.filter(idxs),
                                self.populations)
 
+    def down_sample(self, sampled_n_dict):
+        pops, sub_n = zip(*sampled_n_dict.items())
+        pop_idxs = [self.populations.index(p) for p in pops]
+        def sub_counts():
+            for config in self:
+                config = list(config)
+                for i, n in zip(pop_idxs, sub_n):
+                    curr_n = sum(config[i])
+                    if curr_n > n:
+                        old_anc, old_der = config[i]
+                        new_anc = np.random.hypergeometric(
+                            old_anc, old_der, n)
+                        new_der = n - new_anc
+                        config[i] = (new_anc, new_der)
+                yield config
+
+        return type(self).from_iter(self.chrom_ids, self.positions,
+                                    sub_counts(), self.populations)
+
+
     @property
     def is_polymorphic(self):
         configs = self.compressed_counts.config_array
