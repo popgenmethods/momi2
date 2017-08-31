@@ -93,6 +93,46 @@ class DemographicModel(object):
                    key=lambda e: e.t(params_dict)),
             additional_times, pop_x_positions, **kwargs)
 
+    def add_bounded_param(self, param_name,
+                          lower=[0], upper=[1],
+                          x0=lambda : np.random.uniform(.25, .75),
+                          lower_x=1e-6, upper_x=1-1e-6):
+        if callable(x0):
+            x0 = x0()
+
+        def transform_x(x, params):
+            def value(p):
+                if isinstance(p, str):
+                    return params[p]
+                elif callable(p):
+                    return p(params)
+                else:
+                    return p
+
+            assert lower
+            lower_bnd = np.max(np.array(
+                [value(p) for p in lower]))
+            assert not np.isnan(lower_bnd)
+
+            if upper:
+                upper_bnd = np.min(np.array(
+                    [value(p) for p in upper]))
+                assert upper_bnd >= lower_bnd, param_name
+            else:
+                return x + lower_bnd
+
+            return x * upper_bnd + (1-x) * lower_bnd
+
+        if x0 is None:
+            x0 = np.random.uniform(.25, .75)
+        if not upper:
+            upper_x = None
+
+        self.add_param(
+            param_name, x0=x0,
+            lower_x=lower_x, upper_x=upper_x,
+            transform_x=transform_x)
+
     def add_param(self, name, x0,
                   lower_x=1e-12, upper_x=None,
                   transform_x=None,
