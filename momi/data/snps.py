@@ -313,12 +313,14 @@ class SnpAlleleCounts(object):
         self.non_ascertained_pops = non_ascertained_pops
         self._subset_populations_cache = {}
 
+    @memoize_instance
     def chunk_data(self, n_chunks):
         chunk_len = len(self.chrom_ids) / float(n_chunks)
         new_pos = list(range(len(self.chrom_ids)))
         new_chrom = [int(np.floor(i / chunk_len)) for i in new_pos]
-        return SnpAlleleCounts(new_chrom, new_pos, self.compressed_counts,
-                               self.populations, self.non_ascertained_pops)
+        return SnpAlleleCounts(
+            new_chrom, new_pos, self.compressed_counts,
+            self.populations, self.non_ascertained_pops)
 
     @cached_property
     def _p_missing(self):
