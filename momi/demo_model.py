@@ -1,3 +1,4 @@
+import json
 import autograd as ag
 import autograd.numpy as np
 import logging
@@ -606,8 +607,10 @@ class DemographicModel(object):
         """
         return self._get_opt_surface().kl_div(self._get_opt_x())
 
-    def stochastic_optimize(self, n_minibatches=None, snps_per_minibatch=None, rgen=np.random,
-                            printfreq=1, **kwargs):
+    def stochastic_optimize(
+            self, n_minibatches=None, snps_per_minibatch=None,
+            rgen=np.random, printfreq=1, start_from_checkpoint=None,
+            **kwargs):
         def callback(opt_x):
             self.set_x(self._x_from_opt_x(opt_x))
             if opt_x.iteration % printfreq == 0:
@@ -625,9 +628,17 @@ class DemographicModel(object):
         kwargs["callback"] = callback
         kwargs["bounds"] = bounds
 
+
+        if start_from_checkpoint:
+            with open(start_from_checkpoint) as f:
+                kwargs.update(json.load(f))
+        else:
+            kwargs["x0"] = self._get_opt_x()
+
         res = self._get_opt_surface().stochastic_surfaces(
-            n_minibatches=n_minibatches, snps_per_minibatch=snps_per_minibatch,
-            rgen=rgen).find_mle(self._get_opt_x(), **kwargs)
+            n_minibatches=n_minibatches,
+            snps_per_minibatch=snps_per_minibatch,
+            rgen=rgen).find_mle(**kwargs)
 
         res.x = self._x_from_opt_x(res.x)
         self.set_x(res.x)

@@ -142,6 +142,12 @@ class DemographyPlotter(object):
                     curr_x, curr_t, color="C0",
                     linewidth=self.N_to_linewidth(N))
 
+            for p in popline.points:
+                if p.is_leaf:
+                    self.ax.scatter([self.x_pos[popname]], [p.t],
+                                    facecolors="none",
+                                    edgecolors="black")
+
     @property
     def join_arrows(self):
         for arrow in self.pop_arrows:

@@ -1,3 +1,4 @@
+import json
 import autograd
 import autograd.numpy as np
 import numdifftools
@@ -140,7 +141,7 @@ def sgd(fun, x0, fun_and_jac, pieces, stepsize, num_iters, bounds=None, callback
 
 
 @is_stoch_opt
-def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999, eps=10**-8, svrg_epoch=-1, bounds=None, callback=None, rgen=np.random, xtol=1e-6, w=None, fbar=None, gbar=None):
+def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999, eps=10**-8, svrg_epoch=-1, bounds=None, callback=None, rgen=np.random, xtol=1e-6, w=None, fbar=None, gbar=None, checkpoint_file=None, checkpoint_iter=10, start_iter=0, m=None, v=None):
     x0 = np.array(x0)
 
     if callback is None:
@@ -158,11 +159,23 @@ def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999,
         return np.maximum(np.minimum(x, upper), lower)
 
     x = x0
-    m = np.zeros(len(x))
-    v = np.zeros(len(x))
+    if m is None:
+        m = np.zeros(len(x))
+    else:
+        m = np.array(m)
+    if v is None:
+        v = np.zeros(len(x))
+    else:
+        v = np.array(v)
+
+    if w is not None:
+        w = np.array(w)
+    if gbar is not None:
+        gbar = np.array(gbar)
+
     prev_close = False
     success = False
-    for nit in range(num_iters):
+    for nit in range(start_iter, num_iters):
         i = rgen.randint(pieces)
         f_x, g_x = fun_and_jac(x, i)
 
@@ -197,6 +210,24 @@ def adam(fun, x0, fun_and_jac, pieces, num_iters, stepsize=.1, b1=0.9, b2=0.999,
             break
         else:
             prev_close = True
+
+        if checkpoint_file is not None and nit % checkpoint_iter == 0:
+            def to_list(y):
+                if y is None:
+                    return None
+                else:
+                    return list(y)
+
+            with open(checkpoint_file, "w") as f:
+                json.dump({
+                    "start_iter": nit+1,
+                    "fbar": fbar,
+                    "gbar": to_list(gbar),
+                    "w": to_list(w),
+                    "m": to_list(m),
+                    "v": to_list(v),
+                    "x0": to_list(x)}, f)
+
 
     if success:
         message = "|x[k]-x[k-1]|~=0"
