@@ -1,3 +1,4 @@
+import ast
 import itertools as it
 import numpy as np
 from cached_property import cached_property
@@ -226,30 +227,103 @@ class SnpAlleleCounts(object):
                        allele_counts, len(populations)),
                    populations)
 
+    #@classmethod
+    #def load(cls, f):
+    #    """
+    #    Reads the compressed JSON produced
+    #    by SnpAlleleCounts.dump().
+
+    #    Parameters:
+    #    f: a file-like object
+    #    """
+    #    info = json.load(f)
+    #    logger.debug("Read allele counts from file")
+
+    #    chrom_pos_config_key = "(chrom_id,position,config_id)"
+    #    chrom_ids, positions, config_ids = zip(
+    #        *info[chrom_pos_config_key])
+    #    del info[chrom_pos_config_key]
+
+    #    compressed_counts = CompressedAlleleCounts(
+    #        np.array(info["configs"], dtype=int),
+    #        np.array(config_ids, dtype=int))
+    #    del info["configs"]
+
+    #    return cls(chrom_ids, positions, compressed_counts,
+    #               **info)
+
     @classmethod
     def load(cls, f):
-        """
-        Reads the compressed JSON produced
-        by SnpAlleleCounts.dump().
-
-        Parameters:
-        f: a file-like object
-        """
-        info = json.load(f)
-        logger.debug("Read allele counts from file")
-
-        chrom_pos_config_key = "(chrom_id,position,config_id)"
-        chrom_ids, positions, config_ids = zip(
-            *info[chrom_pos_config_key])
-        del info[chrom_pos_config_key]
+        items = {}
+        items_re = re.compile(r'\s*"(.*)":\s*(.*),\s*\n')
+        config_re = re.compile(r'\s*"configs":\s*\[\s*\n')
+        chrom_pos_idx_re = re.compile(
+            r'(\s*)"\(chrom_id,position,config_id\)":(\s*)\[(\s*)\n')
+        for line in f:
+            items_matched = items_re.match(line)
+            config_matched = config_re.match(line)
+            chrom_pos_idx_matched = chrom_pos_idx_re.match(line)
+            if chrom_pos_idx_matched:
+                logger.info("Reading SNPs")
+                line_re = re.compile(r'\s*\[(.*)\],?\s*\n')
+                chrom_ids = []
+                positions = []
+                config_ids = []
+                for i, line in enumerate(f):
+                    if i % 100000 == 0 and i > 0:
+                        logger.info(i)
+                    try:
+                        curr = line_re.match(line).group(1)
+                    except AttributeError:
+                        assert line == "\t]\n"
+                        break
+                    else:
+                        chrom, pos, idx = curr.split(",")
+                        chrom = chrom.strip()
+                        assert chrom[0] == chrom[-1] == '"'
+                        chrom_ids.append(chrom)
+                        positions.append(int(pos))
+                        config_ids.append(int(idx))
+                logger.info("Finished reading SNPs")
+            elif config_matched:
+                line_re = re.compile(r'\s*\[(.*)\],?\s*\n')
+                configs = []
+                logger.info("Reading unique configs")
+                for i, line in enumerate(f):
+                    if i % 100000 == 0:
+                        if i > 0:
+                            logger.info(i)
+                            configs[-1] = np.array(configs[-1],
+                                                   dtype=int)
+                        configs.append([])
+                    try:
+                        conf = line_re.match(line).group(1)
+                    except AttributeError:
+                        assert line == "\t],\n"
+                        break
+                    else:
+                        #configs[-1].append(ast.literal_eval(conf))
+                        # ast.literal_eval is slow
+                        conf = conf.replace("[", " ")
+                        conf = conf.replace(",", " ")
+                        conf = [[int(x_i) for x_i in x.split()]
+                                for x in conf.split("]")[:-1]]
+                        configs[-1].append(conf)
+                configs[-1] = np.array(configs[-1], dtype=int)
+                configs = np.concatenate(configs)
+                logger.info("Finished reading configs")
+            elif items_matched:
+                items[items_matched.group(1)] = ast.literal_eval(
+                    items_matched.group(2))
 
         compressed_counts = CompressedAlleleCounts(
-            np.array(info["configs"], dtype=int),
-            np.array(config_ids, dtype=int))
-        del info["configs"]
+            configs, config_ids,
+            sort=False)
 
         return cls(chrom_ids, positions, compressed_counts,
-                   **info)
+                   **items)
+
+
 
     def dump(self, f):
         """
