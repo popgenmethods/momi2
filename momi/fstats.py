@@ -107,10 +107,34 @@ class EmpiricalFstats(Fstats):
         super(EmpiricalFstats, self).__init__(sampled_n_dict)
 
     def tensor_prod(self, derived_weights_dict):
+        weighted_counts = self.sfs.configs.count_subsets(derived_weights_dict,
+                                                         self.sampled_n_dict)
+
+        # subtract out weights of monomorphic
+        mono_anc = {}
+        mono_der = {}
+        for pop, asc in zip(self.sfs.sampled_pops, self.sfs.ascertainment_pop):
+            try:
+                v = derived_weights_dict[pop]
+            except KeyError:
+                try:
+                    v = [1] * (self.sampled_n_dict[pop]+1)
+                except KeyError:
+                    continue
+            if asc:
+                mono_anc[pop] = [v[0]] + [0]*(len(v)-1)
+                mono_der[pop] = [0]*(len(v)-1) + [v[-1]]
+            else:
+                mono_anc[pop] = v
+                mono_der[pop] = v
+        mono_anc = self.sfs.configs.count_subsets(
+            mono_anc, self.sampled_n_dict)
+        mono_der = self.sfs.configs.count_subsets(
+            mono_der, self.sampled_n_dict)
+
         return JackknifeArray.from_chunks(
             self.sfs.freqs_matrix.T.dot(
-                self.sfs.configs.count_subsets(derived_weights_dict,
-                                               self.sampled_n_dict)))
+                weighted_counts - mono_anc - mono_der))
 
     @property
     def n_subsets(self):
