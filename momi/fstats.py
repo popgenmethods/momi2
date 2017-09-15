@@ -103,6 +103,10 @@ class Fstats(object):
 
 class EmpiricalFstats(Fstats):
     def __init__(self, sfs, sampled_n_dict):
+        is_ascertained = dict(zip(sfs.sampled_pops, sfs.ascertainment_pop))
+        if sum(n for p, n in sampled_n_dict.items()
+               if is_ascertained[p]) < 2:
+            raise ValueError("sampled_n_dict must contain at least 2 ascertained alleles")
         self.sfs = sfs
         super(EmpiricalFstats, self).__init__(sampled_n_dict)
 
