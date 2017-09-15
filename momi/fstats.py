@@ -196,13 +196,21 @@ class JackknifeArray(object):
     def __rmul__(self, other):
         return self * other
 
-    @jackknife_arr_op
     def __truediv__(self, other):
-        return JackknifeArray(self.est / other.est,
-                              self.jackknife / other.jackknife)
+        return self * (other**-1)
 
     def __rtruediv__(self, other):
-        return JackknifeArray(other / self.est, other / self.jackknife)
+        return (self**-1) * other
+
+    @jackknife_arr_op
+    def __pow__(self, other):
+        return JackknifeArray(self.est ** other.est,
+                              self.jackknife ** other.jackknife)
+
+    @jackknife_arr_op
+    def __rpow__(self, other):
+        return JackknifeArray(other.est ** self.est,
+                              other.jackknife ** self.jackknife)
 
     @property
     def resids(self):
@@ -277,6 +285,13 @@ class ModelFitFstats(Fstats):
     def n_jackknife_blocks(self):
         return self.empirical.n_jackknife_blocks
 
+def get_theoretical_jackknifeArr(other):
+    # Helper function for ModelFitArray binary operations
+    try:
+        return (other.theoretical, other.jackknife_arr)
+    except AttributeError:
+        return (other, other)
+
 
 class ModelFitArray(object):
     def __init__(self, theoretical, jackknife_arr):
@@ -284,20 +299,43 @@ class ModelFitArray(object):
         self.jackknife_arr = jackknife_arr
 
     def __add__(self, other):
-        return ModelFitArray(self.theoretical + other.theoretical,
-                             self.jackknife_arr + other.jackknife_arr)
+        o_th, o_ja = get_theoretical_jackknifeArr(other)
+        return ModelFitArray(self.theoretical + o_th,
+                             self.jackknife_arr + o_ja)
+
+    def __radd__(self, other):
+        return self + other
 
     def __sub__(self, other):
-        return ModelFitArray(self.theoretical - other.theoretical,
-                             self.jackknife_arr - other.jackknife_arr)
+        return self + (-1)*other
+
+    def __rsub__(self, other):
+        return (self * (-1)) + other
 
     def __mul__(self, other):
-        return ModelFitArray(self.theoretical * other.theoretical,
-                             self.jackknife_arr * other.jackknife_arr)
+        o_th, o_ja = get_theoretical_jackknifeArr(other)
+        return ModelFitArray(self.theoretical * o_th,
+                             self.jackknife_arr * o_ja)
+
+    def __rmul__(self, other):
+        return self * other
+
+    def __pow__(self, other):
+        o_th, o_ja = get_theoretical_jackknifeArr(other)
+        return ModelFitArray(self.theoretical ** o_th,
+                             self.jackknife_arr ** o_ja)
+
+    def __rpow__(self, other):
+        o_th, o_ja = get_theoretical_jackknifeArr(other)
+        return ModelFitArray(o_th ** self.theoretical,
+                             o_ja ** self.jackknife_arr)
+
 
     def __truediv__(self, other):
-        return ModelFitArray(self.theoretical / other.theoretical,
-                             self.jackknife_arr / other.jackknife_arr)
+        return self * (other**-1)
+
+    def __rtruediv__(self, other):
+        return (self**-1) * other
 
     @property
     def expected(self):
