@@ -170,6 +170,10 @@ class JackknifeArray(object):
         self.est = est
         self.jackknife = jackknife
 
+    def apply(self, fun):
+        return JackknifeArray(fun(self.est),
+                              fun(self.jackknife))
+
     @jackknife_arr_op
     def __add__(self, other):
         return JackknifeArray(self.est + other.est,
@@ -297,6 +301,10 @@ class ModelFitArray(object):
     def __init__(self, theoretical, jackknife_arr):
         self.theoretical = theoretical
         self.jackknife_arr = jackknife_arr
+
+    def apply(self, fun):
+        return ModelFitArray(fun(self.theoretical),
+                             self.jackknife_arr.apply(fun))
 
     def __add__(self, other):
         o_th, o_ja = get_theoretical_jackknifeArr(other)
