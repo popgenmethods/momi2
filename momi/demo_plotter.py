@@ -59,7 +59,11 @@ class DemographyPlotter(object):
                  default_N, event_list,
                  additional_times, x_pos_dict,
                  legend_kwargs,
-                 xlab_rotation=-30):
+                 xlab_rotation=-30,
+                 exclude_xlabs=[],
+                 pop_marker_kwargs=None):
+        self.pop_marker_kwargs = pop_marker_kwargs
+        self.exclude_xlabs = exclude_xlabs
         self.xlab_rotation = xlab_rotation
         self.legend_kwargs = legend_kwargs
         self.additional_times = list(additional_times)
@@ -144,9 +148,15 @@ class DemographyPlotter(object):
 
             for p in popline.points:
                 if p.is_leaf:
-                    self.ax.scatter([self.x_pos[popname]], [p.t],
-                                    facecolors="none",
-                                    edgecolors="black")
+                    if not self.pop_marker_kwargs:
+                        self.ax.scatter([self.x_pos[popname]], [p.t],
+                                        facecolors="none",
+                                        edgecolors="black")
+                    else:
+                        self.ax.scatter(
+                            [self.x_pos[popname]], [p.t],
+                            **self.pop_marker_kwargs[popname])
+
 
     @property
     def join_arrows(self):
@@ -191,8 +201,10 @@ class DemographyPlotter(object):
                 verticalalignment=verticalalignment)
 
     def draw_xticks(self):
+        x_pos = {p: x for p, x in self.x_pos.items()
+                 if p not in self.exclude_xlabs}
         xtick_labs, xticks = zip(*sorted(
-            self.x_pos.items(), key=lambda itm: itm[1]))
+            x_pos.items(), key=lambda itm: itm[1]))
         self.ax.set_xticks(xticks)
         self.ax.set_xticklabels(xtick_labs,
                                 rotation=self.xlab_rotation)
