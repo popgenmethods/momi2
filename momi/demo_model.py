@@ -540,15 +540,16 @@ class DemographicModel(object):
 
     def _get_conf_region(self):
         opt_surface = self._get_opt_surface()
+        opt_x = self._get_opt_x()
         if self._conf_region is None or not np.allclose(
-                self.get_x(), self._conf_region.point):
-            opt_x = self._get_opt_x()
+                opt_x, self._conf_region.point):
             opt_score = opt_surface._score(opt_x)
             opt_score_cov = opt_surface._score_cov(opt_x)
             opt_fisher = opt_surface._fisher(opt_x)
 
             self._conf_region = _ConfidenceRegion(
                 opt_x, opt_score, opt_score_cov, opt_fisher,
+                lik_fun=opt_surface.log_lik,
                 psd_rtol=1e-4)
         return self._conf_region
 
@@ -574,7 +575,7 @@ class DemographicModel(object):
         null_point = self._opt_x_from_x(null_point)
         if alt_point is not None:
             alt_point = self._opt_x_from_x(alt_point)
-        return self._get_conf_region.test(
+        return self._get_conf_region().test(
             null_point=null_point, sims=sims,
             test_type=test_type, alt_point=alt_point, *args, **kwargs)
 

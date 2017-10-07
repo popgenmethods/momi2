@@ -11,11 +11,12 @@ import autograd.numpy as np
 
 
 class _ConfidenceRegion(object):
-    def __init__(self, point, score, score_cov, fisher, psd_rtol=1e-8):
+    def __init__(self, point, score, score_cov, fisher, lik_fun, psd_rtol=1e-8):
         self.point = point
         self.score = score
         self.score_cov = check_psd(score_cov, tol=psd_rtol)
         self.fisher = fisher
+        self.lik_fun = lik_fun
         self.psd_rtol = psd_rtol
 
     @memoize_instance
@@ -32,6 +33,15 @@ class _ConfidenceRegion(object):
         if not inverse:
             ret = inv_psd(ret, tol=self.psd_rtol)
         return ret
+
+    def wald_intervals(self, lower=.025, upper=.975):
+        """
+        Marginal wald-type confidence intervals.
+        """
+        conf_lower, conf_upper = scipy.stats.norm.interval(.95,
+                                                           loc=self.point,
+                                                           scale=np.sqrt(np.diag(self.godambe(inverse=True))))
+        return np.array([conf_lower, conf_upper]).T
 
     def test(self, null_point, sims=int(1e3), test_type="ratio", alt_point=None, null_cone=None, alt_cone=None, p_only=True):
         """
@@ -154,15 +164,6 @@ class _ConfidenceRegion(object):
         if len(in_shape) == 1:
             ret = np.squeeze(ret)
         return ret
-
-    def wald_intervals(self, lower=.025, upper=.975):
-        """
-        Marginal wald-type confidence intervals.
-        """
-        conf_lower, conf_upper = scipy.stats.norm.interval(.95,
-                                                           loc=self.point,
-                                                           scale=np.sqrt(np.diag(self.godambe(inverse=True))))
-        return np.array([conf_lower, conf_upper]).T
 
 
 class ConfidenceRegion(_ConfidenceRegion):
