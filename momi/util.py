@@ -84,7 +84,8 @@ def set0(x, indices):
     y = np.array(x)
     y[indices] = 0
     return y
-set0.defgrad(lambda ans, x, indices: lambda g: set0(g, indices))
+#set0.defgrad(lambda ans, x, indices: lambda g: set0(g, indices))
+set0.defvjp(lambda g, ans, vs, gvs, x, indices: set0(g, indices))
 
 
 def closeleq(x, y):
@@ -98,8 +99,9 @@ def closegeq(x, y):
 @primitive
 def make_constant(x):
     return x
-make_constant.defgrad(
-    lambda ans, x: lambda g: np.zeros(x.shape, dtype=x.dtype))
+#make_constant.defgrad(lambda ans, x: lambda g: np.zeros(x.shape, dtype=x.dtype))
+make_constant.defvjp(lambda g, ans, vs, gvs, x: np.zeros(
+    x.shape, dtype=x.dtype))
 
 
 def memoize(obj):
@@ -207,7 +209,9 @@ class rearrange_gradients(object):
                     df_dy_container.append(df_dy)
                     return fy
 
-                def make_dF_dy_chainrule(fy, y, df_dy_container):
+                def dF_dy_chainrule(dF_df, fy, vs, gvs, y,
+                                         df_dy_container):
+                #def make_dF_dy_chainrule(fy, y, df_dy_container):
                     df_dy, = df_dy_container
                     # needs to be primitive, so we can properly obtain the
                     # gradient of df_dy
@@ -216,13 +220,16 @@ class rearrange_gradients(object):
                     # use z as dummy variable for y
                     def dF_dz_primitive(z, dF_df):
                         return get_dF_dx(dF_df, df_dy)
-                    make_dG_dz_chainrule = lambda dF_dz, z, dF_df: lambda dGdz_d2F: get_dG_dx(
-                        fun, dF_df, dGdz_d2F)(z, *args, **kwargs)
-                    dF_dz_primitive.defgrad(make_dG_dz_chainrule)
+                    #make_dG_dz_chainrule = lambda dF_dz, z, dF_df: lambda dGdz_d2F: get_dG_dx(fun, dF_df, dGdz_d2F)(z, *args, **kwargs)
+                    def dG_dz_chainrule(
+                            dGdz_d2F, dF_dz, vs, gvs, z, dF_df):
+                        return get_dG_dx(fun, dF_df, dGdz_d2F)(
+                            z, *args, **kwargs)
+                    dF_dz_primitive.defvjp(dG_dz_chainrule)
 
-                    dF_dy_chainrule = lambda dF_df: dF_dz_primitive(y, dF_df)
-                    return dF_dy_chainrule
-                f_primitive.defgrad(make_dF_dy_chainrule)
+                    return dF_dz_primitive(y, dF_df)
+                #f_primitive.defgrad(make_dF_dy_chainrule)
+                f_primitive.defvjp(dF_dy_chainrule)
                 return f_primitive(x, [])
             else:
                 return fun(x, *args, **kwargs)

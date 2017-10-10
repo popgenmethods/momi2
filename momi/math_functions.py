@@ -18,17 +18,23 @@ def convolve_trailing_axes(A, B):
 convolve_sum_axes = primitive(convolve_sum_axes)
 transposed_convolve_sum_axes = primitive(transposed_convolve_sum_axes)
 
-convolve_sum_axes.defgrad(
-    lambda ans, A, B: lambda g: transposed_convolve_sum_axes(g, B))
-convolve_sum_axes.defgrad(
-    lambda ans, A, B: lambda g: transposed_convolve_sum_axes(
-        np.transpose(g, (0, 2, 1, 3)), A), argnum=1)
+#convolve_sum_axes.defgrad(lambda ans, A, B: lambda g: transposed_convolve_sum_axes(g, B))
+convolve_sum_axes.defvjp(
+    lambda g, ans, vs, gvs, A, B: transposed_convolve_sum_axes(g, B))
+#convolve_sum_axes.defgrad(lambda ans, A, B: lambda g: transposed_convolve_sum_axes(np.transpose(g, (0, 2, 1, 3)), A), argnum=1)
+convolve_sum_axes.defvjp(
+    lambda g, ans, vs, gvs, A, B: transposed_convolve_sum_axes(
+        np.transpose(g, (0, 2, 1, 3)), A),
+    argnum=1)
 
-transposed_convolve_sum_axes.defgrad(
-    lambda ans, C, B: lambda g: convolve_sum_axes(g, B))
-transposed_convolve_sum_axes.defgrad(
-    lambda ans, C, B: lambda g: transposed_convolve_sum_axes(
-        np.transpose(C, (0, 2, 1, 3)), g), argnum=1)
+#transposed_convolve_sum_axes.defgrad(lambda ans, C, B: lambda g: convolve_sum_axes(g, B))
+transposed_convolve_sum_axes.defvjp(
+    lambda g, ans, vs, gvs, C, B: convolve_sum_axes(g, B))
+#transposed_convolve_sum_axes.defgrad(lambda ans, C, B: lambda g: transposed_convolve_sum_axes(np.transpose(C, (0, 2, 1, 3)), g), argnum=1)
+transposed_convolve_sum_axes.defvjp(
+    lambda g, ans, vs, gvs, C, B: transposed_convolve_sum_axes(
+        np.transpose(C, (0, 2, 1, 3)), g),
+    argnum=1)
 
 
 def convolve_axes(arr0, arr1, labs, axes, out_axis):
@@ -46,10 +52,10 @@ def convolve_axes(arr0, arr1, labs, axes, out_axis):
 sum_trailing_antidiagonals = primitive(sum_trailing_antidiagonals)
 add_trailing_axis = primitive(add_trailing_axis)
 
-sum_trailing_antidiagonals.defgrad(
-    lambda ans, A: lambda g: add_trailing_axis(g, A.shape[2]))
-add_trailing_axis.defgrad(
-    lambda ans, A, trailing_dim: lambda g: sum_trailing_antidiagonals(g))
+#sum_trailing_antidiagonals.defgrad(lambda ans, A: lambda g: add_trailing_axis(g, A.shape[2]))
+sum_trailing_antidiagonals.defvjp(lambda g, ans, vs, gvs, A: add_trailing_axis(g, A.shape[2]))
+#add_trailing_axis.defgrad(lambda ans, A, trailing_dim: lambda g: sum_trailing_antidiagonals(g))
+add_trailing_axis.defvjp(lambda g, ans, vs, gvs, A, trailing_dim: sum_trailing_antidiagonals(g))
 
 
 def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
@@ -65,8 +71,10 @@ def sum_antidiagonals(arr, labels, axis0, axis1, out_axis):
 roll_trailing_axes = primitive(roll_trailing_axes)
 unroll_trailing_axes = primitive(unroll_trailing_axes)
 
-roll_trailing_axes.defgrad(lambda ans, A: lambda g: unroll_trailing_axes(g))
-unroll_trailing_axes.defgrad(lambda ans, A: lambda g: roll_trailing_axes(g))
+#roll_trailing_axes.defgrad(lambda ans, A: lambda g: unroll_trailing_axes(g))
+roll_trailing_axes.defvjp(lambda g, ans, vs, gvs, A: unroll_trailing_axes(g))
+#unroll_trailing_axes.defgrad(lambda ans, A: lambda g: roll_trailing_axes(g))
+unroll_trailing_axes.defvjp(lambda g, ans, vs, gvs, A: roll_trailing_axes(g))
 
 
 def roll_axes(arr, labels, axis0, axis1):
@@ -118,7 +126,8 @@ def transformed_expi_naive(x):
 @primitive
 def expi(x):
     return scipy.special.expi(x)
-expi.defgrad(lambda ans, x: lambda g: g * np.exp(x) / x)
+#expi.defgrad(lambda ans, x: lambda g: g * np.exp(x) / x)
+expi.defvjp(lambda g, ans, vs, gvs, x: g * np.exp(x) / x)
 
 '''
 returns (e^x-1)/x, for scalar x. works for x=0.
@@ -182,7 +191,8 @@ def symmetric_matrix(arr, n):
 
     assert np.all(ret == ret.T)
     return ret
-symmetric_matrix.defgrad(lambda ans, arr, n: lambda g: g[np.triu_indices(n)])
+#symmetric_matrix.defgrad(lambda ans, arr, n: lambda g: g[np.triu_indices(n)])
+symmetric_matrix.defvjp(lambda g, ans, vs, gvs, arr, n: g[np.triu_indices(n)])
 
 
 def slogdet_pos(X):
@@ -210,4 +220,5 @@ def _apply_error_matrices(vecs, error_matrices):
 def inv_psd(x, **tol_kwargs):
     x = check_psd(x, **tol_kwargs)
     return check_psd(scipy.linalg.pinvh(x), **tol_kwargs)
-inv_psd.defgrad(lambda ans, x: lambda g: -np.dot(np.dot(ans, g), ans))
+#inv_psd.defgrad(lambda ans, x: lambda g: -np.dot(np.dot(ans, g), ans))
+inv_psd.defvjp(lambda g, ans, vs, gvs, x: -np.dot(np.dot(ans, g), ans))
