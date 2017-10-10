@@ -207,6 +207,11 @@ class DemographicHistory(object):
             sampled_pops, sampled_n
         ).simulate_data(**kwargs)
 
+    def simulate_vcf(self, sampled_pops, sampled_n, *args, **kwargs):
+        return self._get_multipop_moran(
+            sampled_pops, sampled_n
+        ).simulate_vcf(*args, **kwargs)
+
     @memoize_instance
     def _get_multipop_moran_helper(self, sampled_pops, sampled_n):
         return _make_multipop_moran(self.events, sampled_pops, sampled_n,
@@ -583,6 +588,36 @@ class Demography(object):
 
         return SnpAlleleCounts(chrom, pos, compressed_counts.compressed_allele_counts(),
                                self.sampled_pops)
+
+    def simulate_vcf(self, outfile, mutation_rate, recombination_rate,
+                     length, chrom_names=[1], ploidy=1, random_seed=None):
+        if np.any(self.sampled_n % ploidy != 0):
+            raise ValueError("Sampled alleles per population must be integer multiple of ploidy")
+
+        treeseq = self.simulate_trees(
+            mutation_rate=mutation_rate, recombination_rate=recombination_rate,
+            length=length, num_replicates=len(chrom_names), random_seed=random_seed)
+
+        outfile.write("##fileformat=VCFv4.2\n")
+        outfile.write('##source="VCF simulated by momi2 using msprime backend"' + "\n")
+        for chrom in chrom_names:
+            outfile.write("##contig=<ID={0},length={1}>\n".format(chrom, length))
+
+        n_samples = int(np.sum(self.sampled_n) / ploidy)
+        fields = ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT"]
+        for pop, n in zip(self.sampled_pops, self.sampled_n):
+            for i in range(int(n / ploidy)):
+                fields.append("{}_{}".format(pop, i))
+        outfile.write("\t".join(fields) + "\n")
+        for chrom, locus in zip(chrom_names, treeseq):
+            for v in locus.variants():
+                gt = np.reshape(v.genotypes, (n_samples, ploidy))
+                row = [str(chrom), str(int(np.floor(v.position))), ".", "A", "T", ".", ".", ".", "GT"] + [
+                    "|".join(map(str, sample)) for sample in gt]
+                outfile.write("\t".join(row) + "\n")
+
+
+
 
     def simulate_trees(self, **kwargs):
         sampled_t = self.sampled_t

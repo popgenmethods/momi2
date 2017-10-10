@@ -68,9 +68,6 @@ class SnpAlleleCounts(object):
            if None/False, uses REF to determine ancestral allele
            if True, uses AA info field to determine ancestral allele,
               skipping records missing this field
-           if function, the function should take a vcf._Record (see pyvcf API)
-              and return the ancestral allele
-              (or return None, if the record should be skipped)
         non_ascertained_pops: list of str
            list of populations to treat as non-ascertained
         """
@@ -281,7 +278,7 @@ class SnpAlleleCounts(object):
                         chrom, pos, idx = curr.split(",")
                         chrom = chrom.strip()
                         assert chrom[0] == chrom[-1] == '"'
-                        chrom_ids.append(chrom)
+                        chrom_ids.append(chrom[1:-1])
                         positions.append(int(pos))
                         config_ids.append(int(idx))
                 logger.info("Finished reading SNPs")
@@ -380,12 +377,20 @@ class SnpAlleleCounts(object):
             raise IOError(
                 "chrom_ids, positions, allele_counts should have same length")
 
-        self.chrom_ids = np.array(chrom_ids)
+        self.chrom_ids = np.array(chrom_ids, dtype=str)
         self.positions = np.array(positions)
         self.compressed_counts = compressed_counts
         self.populations = populations
         self.non_ascertained_pops = non_ascertained_pops
         self._subset_populations_cache = {}
+
+    def __eq__(self, other):
+        try:
+            return (self.seg_sites == other.seg_sites and
+                    np.all(self.chrom_ids == other.chrom_ids) and
+                    np.all(self.positions == other.positions))
+        except AttributeError:
+            return False
 
     @memoize_instance
     def chunk_data(self, n_chunks):
