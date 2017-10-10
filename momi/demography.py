@@ -330,11 +330,13 @@ class Demography(object):
         if sampled_n is None:
             sampled_n = self.sampled_n
 
-        sampled_pops = np.array(sampled_pops)
+        ## converting sampled_pops to array breaks if pops are labeled as ints
+        #sampled_pops = np.array(sampled_pops)
         sampled_n = np.array(sampled_n)
 
-        if np.any((sampled_pops != self.sampled_pops) |
-                  (sampled_n != self.sampled_n)):
+        if (any([p1 != p2 for p1, p2 in zip(sampled_pops,
+                                            self.sampled_pops)])
+            or np.any(self.sampled_n != sampled_n)):
             return self._demo_hist._get_multipop_moran(
                 sampled_pops, sampled_n)
 

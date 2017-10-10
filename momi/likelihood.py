@@ -401,6 +401,7 @@ def _mut_factor_het(sfs, demo, mut_rate, vector, p_missing):
         sfs.ascertainment_pop]
     if p_missing is None:
         p_missing = sfs.p_missing
+    p_missing = p_missing * np.ones(len(sfs.ascertainment_pop))
     p_missing = p_missing[sfs.ascertainment_pop]
     lambd = np.einsum("i,j->ij", mut_rate, E_het * (1.0 - p_missing))
 
