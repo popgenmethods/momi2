@@ -162,7 +162,7 @@ def test_stochastic_inference(folded, use_pairwise_diffs):
     optimize_res = momi.SfsLikelihoodSurface(
         sfs, demo_func=get_demo, mut_rate=mu, folded=folded,
         log_prior=log_prior, use_pairwise_diffs=use_pairwise_diffs
-    ).stochastic_surfaces(n_minibatches=10).find_mle(
+    )._stochastic_surfaces(n_minibatches=10).find_mle(
         np.array([.1, .9]), bounds=[(1e-100, None), (1e-100, None)],
         method="adam", svrg_epoch=10, num_iters=1000, callback=callback)
     print(optimize_res)
@@ -230,8 +230,8 @@ def test_stochastic_inference(folded, use_pairwise_diffs):
 # try:
 # optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="tnc", maxiter=500, callback=callback)
 # optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).find_mle(start_params, bounds=bounds, method="L-BFGS-B", callback=callback)
-# optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="svrg", stepsize=.1, iter_per_epoch=10, max_epochs=100, callback=callback)
-##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None).stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="adam", svrg_epoch=10, num_iters=1000, callback=callback)
+# optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None)._stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="svrg", stepsize=.1, iter_per_epoch=10, max_epochs=100, callback=callback)
+##         optimize_res = momi.SfsLikelihoodSurface(sfs, demo_func=demo_func, mut_rate=None)._stochastic_surfaces(n_minibatches=100, exact=50).find_mle(start_params, bounds=bounds, method="adam", svrg_epoch=10, num_iters=1000, callback=callback)
 # except:
 # print("SEED",seed)
 # raise

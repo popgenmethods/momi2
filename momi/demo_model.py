@@ -645,7 +645,7 @@ class DemographicModel(object):
         else:
             kwargs["x0"] = self._get_opt_x()
 
-        res = self._get_opt_surface().stochastic_surfaces(
+        res = self._get_opt_surface()._stochastic_surfaces(
             n_minibatches=n_minibatches,
             snps_per_minibatch=snps_per_minibatch,
             rgen=rgen).find_mle(**kwargs)

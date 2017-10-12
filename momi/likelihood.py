@@ -1,5 +1,6 @@
 from collections import Counter
 import random
+import json
 import functools
 import logging
 import time
@@ -19,11 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class SfsLikelihoodSurface(object):
-    def __init__(self, data, demo_func=None, mut_rate=None, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=1000, p_missing=None, use_pairwise_diffs=False):
+    def __init__(self, data, demo_func=None, mut_rate=None, length=1, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=1000, p_missing=None, use_pairwise_diffs=False):
         """
-        Depracated. Use momi.DemographicModel instead.
-
-
         Object for computing composite likelihoods, and searching for the maximum composite likelihood.
 
         Parameters
@@ -33,9 +31,12 @@ class SfsLikelihoodSurface(object):
             function that creates momi.Demography object from a vector of input parameters
             if None, this is the identity function (so the "input parameter" is the Demography object itself)
         mut_rate: float or list or None
-            The per-locus mutation rate.
+            The mutation rate.
             If an array, the length should be the total number of loci.
             If None, use a multinomial model instead of Poisson model (so the numger of segregating sites is fixed)
+        length: float or array
+            The length of each locus.
+            The per-locus mutation rate is mut_rate * length.
         folded, error_matrices:
             see help(momi.expected_sfs)
         log_prior:
@@ -71,6 +72,8 @@ class SfsLikelihoodSurface(object):
         self.demo_func = demo_func
 
         self.mut_rate = mut_rate
+        if self.mut_rate is not None:
+            self.mut_rate = self.mut_rate * np.array(length)
         self.folded = folded
         if self.folded:
             self.sfs = self.sfs.fold()  # required for entropy term to be correct
@@ -285,6 +288,74 @@ class SfsLikelihoodSurface(object):
                              bounds=bounds, callback=callback,
                              opt_kwargs=opt_kwargs, gradmakers=gradmakers, replacefun=replacefun)
 
+
+    def stochastic_find_mle(
+            self, x0, snps_per_minibatch, stepsize, num_iters,
+            bounds=None, callback=None,
+            checkpoint_file=None, checkpoint_iter=10,
+            svrg_epoch=-1, b1=0.9, b2=0.999, eps=10**-8,
+            rgen=np.random):
+        """
+        Search for maximum likelihood using ADAM-style
+        stochastic gradient descent.
+
+        Parameters
+        ==========
+        x0: numpy.array or str
+            The starting point for the optimization.
+            If a string, a path to the checkpoint file of
+            a previous run.
+        snps_per_minibatch: int
+            The number of SNPs per minibatch
+        stepsize: float
+            The stepsize for each step
+        bounds: None or list of (lower, upper) pairs
+            Bounds for the parameter space
+        callback: function
+            function to call at every step
+        checkpoint_file: None or str
+            File to save intermediate progress
+        checkpoint_iter: int
+            Number of iterations between saving intermediate progress
+        logging_freq: int
+            Frequency to output current iteration to logging
+        svrg_epoch: int
+            If positive, use SVRG with given epoch length
+
+            SVRG computes the full likelihood every epoch and uses
+            this to improve the accuracy of the stochastic gradient
+        b1, b2, eps: float
+            Parameters for ADAM algorithm. See ADAM paper.
+            Recommended to leave these at the default values.
+        rgen: random generator
+            By default the numpy random generator, which
+            can be set with numpy.random.seed().
+
+            Alternatively, use numpy.random.RandomState to create
+            a separate random generator and pass it in here.
+        """
+        kwargs = {}
+        kwargs["stepsize"] = stepsize
+        kwargs["num_iters"] = num_iters
+        kwargs["b1"] = b1
+        kwargs["b2"] = b2
+        kwargs["eps"] = eps
+        kwargs["svrg_epoch"] = svrg_epoch
+        kwargs["checkpoint_file"] = checkpoint_file
+        kwargs["checkpoint_iter"] = checkpoint_iter
+        kwargs["callback"] = callback
+        kwargs["bounds"] = bounds
+
+        if isinstance(x0, str):
+            with open(x0) as f:
+                kwargs.update(json.load(f))
+        else:
+            kwargs["x0"] = x0
+
+        return self._stochastic_surfaces(
+            snps_per_minibatch=snps_per_minibatch,
+            rgen=rgen).find_mle(**kwargs)
+
     def _get_stochastic_pieces(self, pieces, rgen):
         sfs_pieces = _subsfs_list(self.sfs, pieces, rgen)
         if self.mut_rate is None:
@@ -298,7 +369,7 @@ class SfsLikelihoodSurface(object):
                                      truncate_probs=self.truncate_probs, batch_size=self.batch_size)
                 for sfs in sfs_pieces]
 
-    def stochastic_surfaces(self, n_minibatches=None, snps_per_minibatch=None, rgen=np.random):
+    def _stochastic_surfaces(self, n_minibatches=None, snps_per_minibatch=None, rgen=np.random):
         """
         Partitions the data into n_minibatches random subsets ("minibatches") of roughly equal size. It returns a StochasticSfsLikelihoodSurface object, which can be used for stochastic gradient descent.
 
@@ -358,7 +429,6 @@ class StochasticSfsLikelihoodSurface(object):
         return _find_minimum(self.avg_neg_log_lik, x0, optimizer=stochastic_opts[method],
                              bounds=bounds, callback=callback, opt_kwargs=opt_kwargs,
                              gradmakers={'fun_and_jac': ag.value_and_grad})
-
 
 def _make_likelihood_fun(sampled_pops, conf_arr, sampled_n, counts_arr, *args, **kwargs):
     configs = ConfigArray(sampled_pops, conf_arr, sampled_n, None)

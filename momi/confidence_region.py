@@ -172,7 +172,7 @@ class ConfidenceRegion(_ConfidenceRegion):
     using the Limit of Experiments theory.
     """
 
-    def __init__(self, point_estimate, demo_func, data, regime="long", psd_rtol=1e-8, **kwargs):
+    def __init__(self, point_estimate, demo_func, data, mut_rate=None, length=1, regime="long", psd_rtol=1e-8, **kwargs):
         """
         Parameters
         ----------
@@ -197,6 +197,14 @@ class ConfidenceRegion(_ConfidenceRegion):
         if regime not in ("long", "many"):
             raise ValueError("Unrecognized regime '%s'" % regime)
 
+        try:
+            data = data.seg_sites
+        except AttributeError:
+            data = data
+
+        if mut_rate is not None:
+            mut_rate = mut_rate * length
+
         self.point = np.array(point_estimate)
         self.demo_func = demo_func
         self.data = data
@@ -205,10 +213,14 @@ class ConfidenceRegion(_ConfidenceRegion):
         self.psd_rtol = psd_rtol
 
         self.score = autograd.grad(self.lik_fun)(self.point)
-        self.score_cov = _observed_score_covariance(self.regime, self.point, self.data,
-                                                    self.demo_func, psd_rtol=self.psd_rtol, **self.kwargs)
-        self.fisher = _observed_fisher_information(self.point, self.data, self.demo_func, psd_rtol=self.psd_rtol,
-                                                   assert_psd=False, **self.kwargs)
+        self.score_cov = _observed_score_covariance(
+            self.regime, self.point, self.data,
+            self.demo_func, psd_rtol=self.psd_rtol, mut_rate=mut_rate,
+            **self.kwargs)
+        self.fisher = _observed_fisher_information(
+            self.point, self.data, self.demo_func,
+            psd_rtol=self.psd_rtol, assert_psd=False,
+            mut_rate=mut_rate, **self.kwargs)
 
     def lik_fun(self, params, vector=False):
         """Returns composite log likelihood from params"""
