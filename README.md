@@ -24,7 +24,7 @@ email [Jack Kamm](jackkamm@gmail.com) about any bugs/issues.
 
 Prerequisites:
 
-* C compiler that is OpenMP compatible
+* C compiler with OpenMP support
 * Scientific distribution of Python3, e.g. [Anaconda](http://continuum.io/downloads), [Enthought Canopy](https://www.enthought.com/products/canopy/)
   * Alternatively, custom installation of pip, cython, the SciPy stack
   * Note: momi should also work with Python2, but this is less well tested, and it is strongly recommended to use Python3.
