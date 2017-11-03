@@ -73,18 +73,29 @@ class DemographicModel(object):
             use_pairwise_diffs=self._use_pairwise_diffs,
             non_ascertained_pops=self._non_ascertained_pops)
 
-    def draw(self, additional_times, pop_x_positions, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None):
+    def draw(self, additional_times, pop_x_positions, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0):
         if x_leafs_only:
             exclude_xlabs = [p for p in pop_x_positions
                              if p not in self.leafs]
         else:
             exclude_xlabs = []
+        if add_to_existing is None:
+            ax = None
+            min_N = None
+            no_ticks_legend=False
+        else:
+            ax = add_to_existing.ax
+            min_N = add_to_existing.min_N
+            no_ticks_legend=True
+
         demo_plt = self._demo_plotter(
             additional_times, pop_x_positions,
             legend_kwargs=legend_kwargs, xlab_rotation=xlab_rotation,
             exclude_xlabs=exclude_xlabs,
-            pop_marker_kwargs=pop_marker_kwargs)
-        demo_plt.draw(tree_only=tree_only, rad=rad)
+            pop_marker_kwargs=pop_marker_kwargs,
+            adjust_pulse_labels=adjust_pulse_labels,
+            ax=ax, min_N=min_N, cm_scalar_mappable=cm_scalar_mappable, alpha=alpha)
+        demo_plt.draw(tree_only=tree_only, rad=rad, no_ticks_legend=no_ticks_legend)
         return demo_plt
 
     def _demo_plotter(self, additional_times, pop_x_positions, **kwargs):

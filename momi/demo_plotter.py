@@ -61,9 +61,14 @@ class DemographyPlotter(object):
                  legend_kwargs,
                  xlab_rotation=-30,
                  exclude_xlabs=[],
-                 pop_marker_kwargs=None):
+                 pop_marker_kwargs=None,
+                 adjust_pulse_labels={},
+                 min_N=None, ax=None,
+                 cm_scalar_mappable=None, colornorm=None,
+                 alpha=1.0):
         self.pop_marker_kwargs = pop_marker_kwargs
-        self.exclude_xlabs = exclude_xlabs
+        self.exclude_xlabs = list(exclude_xlabs)
+        self.adjust_pulse_labels = dict(adjust_pulse_labels)
         self.xlab_rotation = xlab_rotation
         self.legend_kwargs = legend_kwargs
         self.additional_times = list(additional_times)
@@ -80,21 +85,34 @@ class DemographyPlotter(object):
         for pop in self.pop_lines.values():
             pop.goto_time(float('inf'))
 
-        self.fig = plt.gcf()
-        self.fig.clf()
-        self.ax = self.fig.gca()
+        if ax is None:
+            self.fig = plt.gcf()
+            self.fig.clf()
+            self.ax = self.fig.gca()
+        else:
+            self.ax = ax
+            self.fig = ax.get_figure()
 
         self.all_N = [p.N for popline in self.pop_lines.values()
                       for p in popline.points]
-        self.min_N = min(self.all_N)
+        if min_N is None:
+            self.min_N = min(self.all_N)
+        else:
+            self.min_N = min_N
 
-    def draw(self, tree_only=False, rad=-.1):
+        self.cm_scalar_mappable = cm_scalar_mappable
+        self.alpha=alpha
+
+    def draw(self, tree_only=False, rad=-.1, no_ticks_legend=False):
         self.draw_pops()
         self.draw_join_arrows()
         if not tree_only:
             self.draw_pulse_arrows(rad=rad)
-        self.draw_xticks()
-        self.draw_N_legend()
+        if not no_ticks_legend:
+            self.draw_xticks()
+            self.draw_N_legend()
+            if self.cm_scalar_mappable:
+                self.draw_colorbar()
 
     def pop_to_t(self, pop, t, push_time=True):
         pop = self.pop_lines[pop]
@@ -137,25 +155,39 @@ class DemographyPlotter(object):
             x = [self.x_pos[popname]]*len(popline.points)
             t = [p.t for p in popline.points]
             xt = list(zip(x, t))
-            for bottom, top, N in zip(
+
+            is_ghost = [False for _ in popline.points]
+            for i, p in enumerate(popline.points):
+                if p.is_leaf:
+                    for j in range(i):
+                        is_ghost[j] = True
+            for bottom, top, N, ghost in zip(
                     xt[:-1], xt[1:],
-                    [p.N for p in popline.points[:-1]]):
+                    [p.N for p in popline.points[:-1]],
+                    is_ghost):
                 curr_x, curr_t = zip(bottom, top)
 
+                if ghost:
+                    linestyle=":"
+                else:
+                    linestyle="-"
                 self.ax.plot(
                     curr_x, curr_t, color="C0",
-                    linewidth=self.N_to_linewidth(N))
+                    linewidth=self.N_to_linewidth(N),
+                    linestyle=linestyle,
+                    alpha=self.alpha)
 
             for p in popline.points:
                 if p.is_leaf:
                     if not self.pop_marker_kwargs:
                         self.ax.scatter([self.x_pos[popname]], [p.t],
                                         facecolors="none",
-                                        edgecolors="black")
+                                        edgecolors="black",
+                                        alpha=self.alpha)
                     else:
                         self.ax.scatter(
                             [self.x_pos[popname]], [p.t],
-                            **self.pop_marker_kwargs[popname])
+                            **self.pop_marker_kwargs[popname], alpha=self.alpha)
 
 
     @property
@@ -175,7 +207,7 @@ class DemographyPlotter(object):
             self.ax.plot(
                 (arrow.from_pop.x, arrow.to_pop.x),
                 (arrow.t, arrow.t), color="C0",
-                linewidth=1)
+                linewidth=1, alpha=self.alpha)
 
     def draw_pulse_arrows(self, rad=-.1, size=20):
         for arrow in self.pulse_arrows:
@@ -186,19 +218,36 @@ class DemographyPlotter(object):
             else:
                 verticalalignment = "bottom"
 
-            self.ax.annotate(
-                "", xy=(to, arrow.t), xytext=(frm, arrow.t),
-                arrowprops=dict(
-                    arrowstyle="-|>,head_width=.3,head_length=.6", fc="gray", ec="gray", ls=":",
-                    shrinkA=0,
-                    connectionstyle="arc3,rad={rad}".format(
-                        rad=rad)))
+            if not self.cm_scalar_mappable:
+                self.ax.annotate(
+                    "", xy=(to, arrow.t), xytext=(frm, arrow.t),
+                    arrowprops=dict(
+                        arrowstyle="-|>,head_width=.3,head_length=.6", fc="gray", ec="gray", ls=":",
+                        shrinkA=0,
+                        connectionstyle="arc3,rad={rad}".format(
+                            rad=rad)))
 
-            self.ax.annotate(
-                "{}".format("{:.1f}%".format(100*arrow.p)),
-                xy=(.5*(frm+to), arrow.t),
-                color="red", horizontalalignment="center",
-                verticalalignment=verticalalignment)
+                key = (arrow.from_pop.name, arrow.to_pop.name)
+                try:
+                    adj_x, adj_y = self.adjust_pulse_labels[(arrow.from_pop.name, arrow.to_pop.name)]
+                except KeyError:
+                    adj_x, adj_y = 0, 0
+                self.ax.annotate(
+                    "{}".format("{:.1f}%".format(100*arrow.p)),
+                    xy=(.5*(frm+to) + adj_x, arrow.t + adj_y),
+                    color="red", horizontalalignment="center",
+                    verticalalignment=verticalalignment)
+            else:
+                col = self.cm_scalar_mappable.to_rgba(arrow.p)
+                self.ax.annotate(
+                    "", xy=(to, arrow.t), xytext=(frm, arrow.t),
+                    arrowprops=dict(
+                        arrowstyle="-|>,head_width=.3,head_length=.6", fc=col, ec=col, ls=":",
+                        shrinkA=0,
+                        alpha=self.alpha,
+                        connectionstyle="arc3,rad={rad}".format(
+                            rad=rad)))
+
 
     def draw_xticks(self):
         x_pos = {p: x for p, x in self.x_pos.items()
@@ -232,4 +281,8 @@ class DemographyPlotter(object):
         lgd = self.ax.legend(
             N_legend.values(), N_legend.keys(),
             title="N", **self.legend_kwargs)
+
+    def draw_colorbar(self):
+        self.cm_scalar_mappable.set_array([])
+        self.fig.colorbar(self.cm_scalar_mappable, fraction=0.046, pad=0.04)
 
