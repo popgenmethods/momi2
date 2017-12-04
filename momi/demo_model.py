@@ -73,7 +73,7 @@ class DemographicModel(object):
             use_pairwise_diffs=self._use_pairwise_diffs,
             non_ascertained_pops=self._non_ascertained_pops)
 
-    def draw(self, additional_times, pop_x_positions, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0):
+    def draw(self, additional_times, pop_x_positions, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0, **kwargs):
         if x_leafs_only:
             exclude_xlabs = [p for p in pop_x_positions
                              if p not in self.leafs]
@@ -94,7 +94,7 @@ class DemographicModel(object):
             exclude_xlabs=exclude_xlabs,
             pop_marker_kwargs=pop_marker_kwargs,
             adjust_pulse_labels=adjust_pulse_labels,
-            ax=ax, min_N=min_N, cm_scalar_mappable=cm_scalar_mappable, alpha=alpha)
+            ax=ax, min_N=min_N, cm_scalar_mappable=cm_scalar_mappable, alpha=alpha, **kwargs)
         demo_plt.draw(tree_only=tree_only, rad=rad, no_ticks_legend=no_ticks_legend)
         return demo_plt
 
