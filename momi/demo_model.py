@@ -4,6 +4,8 @@ import autograd.numpy as np
 import logging
 import collections as co
 import pandas as pd
+import matplotlib as mpl
+from matplotlib import pyplot as plt
 from .demography import demographic_history
 from .likelihood import SfsLikelihoodSurface
 from .confidence_region import _ConfidenceRegion
@@ -37,7 +39,7 @@ def demographic_model(default_N, gen_time=1):
         leaf_events=[], leafs=[],
         data=None, muts_per_gen=None, folded=None,
         mem_chunk_size=None, use_pairwise_diffs=None,
-        non_ascertained_pops=None)
+        non_ascertained_pops=None, godambe_step_size=1e-6)
 
 
 class DemographicModel(object):
@@ -46,7 +48,7 @@ class DemographicModel(object):
                  leaf_events, leafs,
                  data, muts_per_gen, folded,
                  mem_chunk_size, use_pairwise_diffs,
-                 non_ascertained_pops):
+                 non_ascertained_pops, godambe_step_size):
         self.N_e = N_e
         self.gen_time = gen_time
         self.parameters = co.OrderedDict((k, p.copy()) for k, p in parameters.items())
@@ -55,6 +57,7 @@ class DemographicModel(object):
         self.leaf_events = list(leaf_events)
         self.leafs = list(leafs)
 
+        self._godambe_step_size = godambe_step_size
         self._set_data(data=data, muts_per_gen=muts_per_gen,
                        folded=folded, mem_chunk_size=mem_chunk_size,
                        use_pairwise_diffs=use_pairwise_diffs,
@@ -71,7 +74,8 @@ class DemographicModel(object):
             folded=self._folded,
             mem_chunk_size=self._mem_chunk_size,
             use_pairwise_diffs=self._use_pairwise_diffs,
-            non_ascertained_pops=self._non_ascertained_pops)
+            non_ascertained_pops=self._non_ascertained_pops,
+            godambe_step_size=self._godambe_step_size)
 
     def draw(self, additional_times, pop_x_positions, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0, **kwargs):
         if x_leafs_only:
@@ -97,6 +101,54 @@ class DemographicModel(object):
             ax=ax, min_N=min_N, cm_scalar_mappable=cm_scalar_mappable, alpha=alpha, **kwargs)
         demo_plt.draw(tree_only=tree_only, rad=rad, no_ticks_legend=no_ticks_legend)
         return demo_plt
+
+    def draw_with_bootstraps(self, bootstrap_x, pop_x_positions,
+                             linthreshy=None, minor_yticks=None, major_yticks=None,
+                             p_min=0, p_max=1, p_cmap=plt.cm.hot,
+                             p_rad=.2, p_rad_rand=True,
+                             additional_times=[], factr=8):
+        cm_scalar_mappable = plt.cm.ScalarMappable(
+            norm=mpl.colors.Normalize(vmin=p_min,vmax=p_max), cmap=p_cmap)
+
+        demo_plt = self.draw(additional_times, pop_x_positions,
+                             x_leafs_only=True, tree_only=True, alpha=0,
+                             cm_scalar_mappable=cm_scalar_mappable)
+
+        if linthreshy:
+            demo_plt.ax.set_yscale('symlog', linthreshy=linthreshy)
+        if minor_yticks:
+            demo_plt.ax.set_yticks(minor_yticks, minor=True)
+        if major_yticks:
+            demo_plt.ax.set_yticks(major_yticks)
+        if linthreshy:
+            demo_plt.ax.get_yaxis().set_major_formatter(
+                mpl.ticker.LogFormatterSciNotation(labelOnlyBase=False,
+                                                   minor_thresholds=(float("inf"),float("inf")),
+                                                   linthresh=linthreshy))
+
+        curr_x = self.get_x()
+        try:
+            for i, x in enumerate(bootstrap_x):
+                logging.info("Adding {}-th bootstrap to plot".format(i))
+                self.set_x(x)
+                rad = p_rad
+                if p_rad_rand:
+                    rad *= np.random.uniform()
+                self.draw(additional_times, pop_x_positions,
+                          add_to_existing=demo_plt,
+                          cm_scalar_mappable=cm_scalar_mappable,
+                          rad=rad*2*np.random.uniform(),
+                          alpha=factr/len(bootstrap_x),
+                          pop_line_color="gray", plot_leafs=False)
+        except:
+            self.set_x(curr_x)
+            raise
+        self.set_x(curr_x)
+        self.draw(additional_times, pop_x_positions,
+                  add_to_existing=demo_plt,
+                  pulse_line_color='black',
+                  cm_scalar_mappable=cm_scalar_mappable,
+                  plot_pulse_nums=True, rad=rad)
 
     def _demo_plotter(self, additional_times, pop_x_positions, **kwargs):
         try:
@@ -555,13 +607,13 @@ class DemographicModel(object):
         if self._conf_region is None or not np.allclose(
                 opt_x, self._conf_region.point):
             opt_score = opt_surface._score(opt_x)
-            opt_score_cov = opt_surface._score_cov(opt_x)
-            opt_fisher = opt_surface._fisher(opt_x)
+            opt_score_cov = opt_surface._score_cov(opt_x, step_size=self._godambe_step_size)
+            opt_fisher = opt_surface._fisher(opt_x, step_size=self._godambe_step_size)
 
             self._conf_region = _ConfidenceRegion(
                 opt_x, opt_score, opt_score_cov, opt_fisher,
                 lik_fun=opt_surface.log_lik,
-                psd_rtol=1e-4)
+                psd_rtol=1e-4, step_size=1e-6)
         return self._conf_region
 
     def marginal_wald(self):

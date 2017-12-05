@@ -110,15 +110,15 @@ class SfsLikelihoodSurface(object):
     def _score(self, x):
         return ag.grad(self.log_lik)(x)
 
-    def _fisher(self, x):
+    def _fisher(self, x, step_size=1e-6):
         if self.sfs_batches:
             # compute second order derivative numerically to avoid memory problems
-            ret = -ndt.Jacobian(self._score)(x)
+            ret = -ndt.Jacobian(self._score, step=step_size)(x)
             return .5 * (ret + np.transpose(ret))
         else:
             return -ag.hessian(self.log_lik)(x)
 
-    def _score_cov(self, params):
+    def _score_cov(self, params, step_size=1e-6):
         params = np.array(params)
 
         def f_vec(x):
@@ -127,7 +127,7 @@ class SfsLikelihoodSurface(object):
             return ret - np.mean(ret)
 
         if self.sfs_batches:
-            j = ndt.Jacobian(f_vec)(params)
+            j = ndt.Jacobian(f_vec, step=step_size)(params)
             return np.einsum('ij, ik', j, j)
         else:
             # g_out = einsum('ij,ik', jacobian(f_vec)(params), jacobian(f_vec)(params))
