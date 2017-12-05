@@ -31,6 +31,24 @@ def test_batches():
                       momi.likelihood._composite_log_likelihood(sfs, demo.demo_hist))
 
 
+def test_batches_vector():
+    demo = simple_five_pop_demo(n_lins=(10, 10, 10, 10, 10))
+    demo.demo_hist = demo.demo_hist.rescaled()
+
+    sfs = momi.simulate_ms(scrm_path, demo.demo_hist,
+                           sampled_pops=demo.pops, sampled_n=demo.n,
+                           num_loci=1000, mut_rate=.1).sfs
+
+    sfs_len = sfs.n_nonzero_entries
+
+    print("total entries", sfs_len)
+    print("total snps", sfs.n_snps())
+
+    assert sfs_len > 30
+
+    assert np.allclose(SfsLikelihoodSurface(sfs, batch_size=5).log_lik(demo.demo_hist, vector=True),
+                       momi.likelihood._composite_log_likelihood(sfs, demo.demo_hist, vector=True))
+
 def test_batches_grad():
     x0 = np.random.normal(size=30)
     pre_demo_func = lambda *x: simple_five_pop_demo(

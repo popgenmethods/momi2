@@ -13,7 +13,7 @@ from .util import count_calls, rearrange_tuple_gradients, make_constant
 from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
 from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
 from .demography import DemographyError, Demography
-from .data.config_array import ConfigArray
+from .data.config_array import ConfigArray, _ConfigArray_Subset
 from .data.sfs import _sub_sfs, site_freq_spectrum, Sfs
 
 logger = logging.getLogger(__name__)
@@ -99,11 +99,11 @@ class SfsLikelihoodSurface(object):
             raise ValueError(
                 "Expected total branch length not implemented for missing data; set use_pairwise_diffs=True to scale total mutations by the pairwise differences instead.")
 
-    def log_lik(self, x):
+    def log_lik(self, x, vector=False):
         """
         Returns the composite log-likelihood of the data at the point x.
         """
-        ret = self._log_lik(x, vector=False)
+        ret = self._log_lik(x, vector=vector)
         logger.debug("log-likelihood = {0}".format(ret))
         return ret
 
@@ -512,26 +512,59 @@ def _raw_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_ma
     return _composite_log_likelihood(data, demo, truncate_probs=truncate_probs, folded=folded, error_matrices=error_matrices, vector=vector)
 
 
-def _build_sfs_batches(sfs, batch_size):
-    counts = sfs._total_freqs
-    sfs_len = len(counts)
+#def _build_sfs_batches(sfs, batch_size):
+#    counts = sfs._total_freqs
+#    sfs_len = len(counts)
+#
+#    if sfs_len <= batch_size:
+#        return [sfs]
+#
+#    batch_size = int(batch_size)
+#    slices = []
+#    prev_idx, next_idx = 0, batch_size
+#    while prev_idx < sfs_len:
+#        slices.append(slice(prev_idx, next_idx))
+#        prev_idx = next_idx
+#        next_idx += batch_size
+#
+#    assert len(slices) == int(np.ceil(sfs_len / float(batch_size)))
+#
+#    idxs = np.arange(sfs_len, dtype=int)
+#    idx_list = [idxs[s] for s in slices]
+#    return [_sub_sfs(sfs.configs, counts[idx], subidxs=idx) for idx in idx_list]
 
+def _build_sfs_batches(sfs, batch_size):
+    csr_freq_mat = sfs.freqs_matrix.tocsr()
+    sfs_len = csr_freq_mat.shape[0]
     if sfs_len <= batch_size:
         return [sfs]
 
+    ret = []
     batch_size = int(batch_size)
-    slices = []
-    prev_idx, next_idx = 0, batch_size
-    while prev_idx < sfs_len:
-        slices.append(slice(prev_idx, next_idx))
-        prev_idx = next_idx
-        next_idx = prev_idx + batch_size
+    idx = 0
+    for batch_start in range(0, sfs_len, batch_size):
+        next_start = min(batch_start + batch_size, sfs_len)
 
-    assert len(slices) == int(np.ceil(sfs_len / float(batch_size)))
+        indptr = csr_freq_mat.indptr[batch_start:(next_start+1)]
+        counts = csr_freq_mat.data[indptr[0]:indptr[-1]]
+        col_indices = csr_freq_mat.indices[indptr[0]:indptr[-1]]
 
-    idxs = np.arange(sfs_len, dtype=int)
-    idx_list = [idxs[s] for s in slices]
-    return [_sub_sfs(sfs.configs, counts[idx], subidxs=idx) for idx in idx_list]
+        indptr = indptr - indptr[0]
+        sub_freq_mat = scipy.sparse.csr_matrix((counts, col_indices, indptr),
+                                               shape=(len(indptr)-1, sfs.n_loci))
+
+        # convert to csc
+        sub_freq_mat = sub_freq_mat.tocsc()
+        indptr = sub_freq_mat.indptr
+        loci = []
+        for i in range(sub_freq_mat.shape[1]):
+            loci.append(np.array([sub_freq_mat.indices[indptr[i]:indptr[i+1]],
+                                  sub_freq_mat.data[indptr[i]:indptr[i+1]]]))
+
+        configs = _ConfigArray_Subset(sfs.configs, np.arange(batch_start, next_start))
+        ret.append(Sfs(loci, configs))
+
+    return ret
 
 
 def _subsfs_list(sfs, n_chunks, rnd):
