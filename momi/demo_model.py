@@ -613,7 +613,7 @@ class DemographicModel(object):
             self._conf_region = _ConfidenceRegion(
                 opt_x, opt_score, opt_score_cov, opt_fisher,
                 lik_fun=opt_surface.log_lik,
-                psd_rtol=1e-4, step_size=1e-6)
+                psd_rtol=1e-4)
         return self._conf_region
 
     def marginal_wald(self):
@@ -625,11 +625,14 @@ class DemographicModel(object):
         marginal_wald_df["StdDev"] = np.sqrt(np.diag(self.mle_cov()))
         return pd.DataFrame(marginal_wald_df)
 
-    def mle_cov(self):
+    def mle_cov(self, x_scale=False):
         # use delta method
         G = self._get_conf_region().godambe(inverse=True)
-        dp_do = self._get_params_opt_x_jacobian()
-        return np.dot(dp_do, np.dot(G, dp_do.T))
+        if x_scale:
+            return G
+        else:
+            dp_do = self._get_params_opt_x_jacobian()
+            return np.dot(dp_do, np.dot(G, dp_do.T))
 
     def test(self, null_point=None, sims=int(1e3), test_type="ratio",
              alt_point=None, *args, **kwargs):
