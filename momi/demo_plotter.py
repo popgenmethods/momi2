@@ -67,7 +67,7 @@ class DemographyPlotter(object):
                  min_N=None, ax=None,
                  cm_scalar_mappable=None, colornorm=None,
                  alpha=1.0, pop_line_color="C0", pulse_line_color="gray",
-                 plot_pulse_nums=True, plot_leafs=True):
+                 plot_pulse_nums=None, plot_leafs=True):
         self.plot_leafs = plot_leafs
         self.pop_marker_kwargs = pop_marker_kwargs
         self.exclude_xlabs = list(exclude_xlabs)
@@ -84,6 +84,8 @@ class DemographyPlotter(object):
         self.x_pos = x_pos_dict
         self.pop_line_color = pop_line_color
         self.pulse_line_color = pulse_line_color
+        if plot_pulse_nums is None:
+            plot_pulse_nums = not cm_scalar_mappable
         self.plot_pulse_nums = plot_pulse_nums
 
         for e in event_list:
@@ -216,7 +218,7 @@ class DemographyPlotter(object):
                 (arrow.t, arrow.t), color=self.pop_line_color,
                 linewidth=self.N_to_linewidth(arrow.from_N), alpha=self.alpha)
 
-    def draw_pulse_arrows(self, rad=-.1, size=20):
+    def draw_pulse_arrows(self, rad=-.1):
         for arrow in self.pulse_arrows:
             frm = arrow.from_pop.x
             to = arrow.to_pop.x
@@ -225,37 +227,30 @@ class DemographyPlotter(object):
             else:
                 verticalalignment = "bottom"
 
-            if not self.cm_scalar_mappable:
-                self.ax.annotate(
-                    "", xy=(to, arrow.t), xytext=(frm, arrow.t),
-                    arrowprops=dict(
-                        arrowstyle="-|>,head_width=.3,head_length=.6",
-                        fc=self.pulse_line_color, ec=self.pulse_line_color, ls=":",
-                        shrinkA=0,
-                        connectionstyle="arc3,rad={rad}".format(
-                            rad=rad)))
+            if self.cm_scalar_mappable:
+                col = self.cm_scalar_mappable.to_rgba(arrow.p)
+            else:
+                col = self.pulse_line_color
 
-                key = (arrow.from_pop.name, arrow.to_pop.name)
+            self.ax.annotate(
+                "", xy=(to, arrow.t), xytext=(frm, arrow.t),
+                arrowprops=dict(
+                    arrowstyle="-|>,head_width=.3,head_length=.6",
+                    fc=col, ec=col, ls=":", shrinkA=0,
+                    alpha=self.alpha,
+                    connectionstyle="arc3,rad={rad}".format(
+                        rad=rad)))
+
+            if self.plot_pulse_nums:
                 try:
                     adj_x, adj_y = self.adjust_pulse_labels[(arrow.from_pop.name, arrow.to_pop.name)]
                 except KeyError:
                     adj_x, adj_y = 0, 0
-                if self.plot_pulse_nums:
-                    self.ax.annotate(
-                        "{}".format("{:.1f}%".format(100*arrow.p)),
-                        xy=(.5*(frm+to) + adj_x, arrow.t + adj_y),
-                        color="red", horizontalalignment="center",
-                        verticalalignment=verticalalignment)
-            else:
-                col = self.cm_scalar_mappable.to_rgba(arrow.p)
                 self.ax.annotate(
-                    "", xy=(to, arrow.t), xytext=(frm, arrow.t),
-                    arrowprops=dict(
-                        arrowstyle="-|>,head_width=.3,head_length=.6", fc=col, ec=col, ls=":",
-                        shrinkA=0,
-                        alpha=self.alpha,
-                        connectionstyle="arc3,rad={rad}".format(
-                            rad=rad)))
+                    "{}".format("{:.1f}%".format(100*arrow.p)),
+                    xy=(.5*(frm+to) + adj_x, arrow.t + adj_y),
+                    color="black", weight="bold", horizontalalignment="center",
+                    verticalalignment=verticalalignment)
 
 
     def draw_xticks(self):
