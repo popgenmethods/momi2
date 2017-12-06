@@ -497,6 +497,8 @@ def rearrange_dict_grad(fun):
     """
     @primitive
     def wrapped_fun_helper(xdict, dummy):
+        ## ag.value_and_grad() to avoid second forward pass
+        ## ag.checkpoint() ensures hessian gets properly checkpointed
         val, grad = ag.checkpoint(ag.value_and_grad(fun))(xdict)
         assert len(val.shape) == 0
         dummy.cache = grad
