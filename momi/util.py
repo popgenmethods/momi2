@@ -3,7 +3,8 @@ from future.utils import raise_with_traceback
 import autograd.numpy as np
 import numdifftools
 from functools import partial, wraps
-from autograd.core import primitive, Node
+#from autograd.core import primitive, Node
+from autograd.extend import primitive, defvjp
 from autograd import hessian, grad, hessian_vector_product, jacobian, value_and_grad, vector_jacobian_product
 import autograd
 import itertools
@@ -84,8 +85,9 @@ def set0(x, indices):
     y = np.array(x)
     y[indices] = 0
     return y
+defvjp(set0, lambda ans, x, indices: lambda g: set0(g, indices))
 #set0.defgrad(lambda ans, x, indices: lambda g: set0(g, indices))
-set0.defvjp(lambda g, ans, vs, gvs, x, indices: set0(g, indices))
+#set0.defvjp(lambda g, ans, vs, gvs, x, indices: set0(g, indices))
 
 
 def closeleq(x, y):
@@ -100,8 +102,9 @@ def closegeq(x, y):
 def make_constant(x):
     return x
 #make_constant.defgrad(lambda ans, x: lambda g: np.zeros(x.shape, dtype=x.dtype))
-make_constant.defvjp(lambda g, ans, vs, gvs, x: np.zeros(
-    x.shape, dtype=x.dtype))
+#make_constant.defvjp(lambda g, ans, vs, gvs, x: np.zeros(
+#    x.shape, dtype=x.dtype))
+defvjp(make_constant, lambda ans, x: lambda g: np.zeros(x.shape, dtype=x.dtype))
 
 
 def memoize(obj):
@@ -155,127 +158,3 @@ class memoize_instance(object):
         except KeyError:
             res = cache[key] = self.func(*args, **kw)
         return res
-
-
-class rearrange_gradients(object):
-    """
-    rearrange_gradients()(fun) returns a function that uses a
-    wrapped version of fun, except it is primitive, so that we
-    don't store its gradient computations in memory.
-
-    fun is assumed to return a scalar, and the signature of fun
-    is assumed to be
-           fun(x, *args, **kwargs)
-    where x is a numpy.array, and derivative is ONLY taken with
-    respect to x (not wrt any other args).
-
-    to avoid doing the forward-pass twice, we precompute
-    gradient and cache it on the forward-pass, thus saving
-    us from having to do it again on the backward pass.
-
-    second-order gradients remain well-defined, but use an
-    extra forward-pass.
-    """
-
-    def __call__(self, fun):
-        # Notation:
-        # f(x) = fun(x, *args, **kwargs)
-        # F is the mapping, F: f(x) -> final_result
-        # G = scalar function of dF/dx
-        # use y,z as dummy variables for x when needed
-
-        get_dF_dx = count_calls(self.get_dF_dx)
-        get_dG_dx = count_calls(self.get_dG_dx)
-
-        @wraps(fun)
-        def fun_wrapped(x, *args, **kwargs):
-            for a in list(args) + list(kwargs.values()):
-                if isinstance(a, Node):
-                    raise NotImplementedError
-
-            if isinstance(x, Node):
-                # use y as a dummy variable for x
-                #f = lambda y: fun(y, *args, **kwargs)
-                # a primitive version of f, to avoid storing its gradient in
-                # memory
-                @primitive
-                def f_primitive(y, df_dy_container):
-                    # use value_and_grad to precompute df_dy
-                    fy, df_dy = self.get_value_and_grad(
-                        fun)(y, *args, **kwargs)
-                    # TODO: remove this after autograd issue #103 resolved (https://github.com/HIPS/autograd/issues/103)
-                    # gc.collect()
-                    # store df_dy for the backward pass
-                    df_dy_container.append(df_dy)
-                    return fy
-
-                def dF_dy_chainrule(dF_df, fy, vs, gvs, y,
-                                         df_dy_container):
-                #def make_dF_dy_chainrule(fy, y, df_dy_container):
-                    df_dy, = df_dy_container
-                    # needs to be primitive, so we can properly obtain the
-                    # gradient of df_dy
-
-                    @primitive
-                    # use z as dummy variable for y
-                    def dF_dz_primitive(z, dF_df):
-                        return get_dF_dx(dF_df, df_dy)
-                    #make_dG_dz_chainrule = lambda dF_dz, z, dF_df: lambda dGdz_d2F: get_dG_dx(fun, dF_df, dGdz_d2F)(z, *args, **kwargs)
-                    def dG_dz_chainrule(
-                            dGdz_d2F, dF_dz, vs, gvs, z, dF_df):
-                        return get_dG_dx(fun, dF_df, dGdz_d2F)(
-                            z, *args, **kwargs)
-                    dF_dz_primitive.defvjp(dG_dz_chainrule)
-
-                    return dF_dz_primitive(y, dF_df)
-                #f_primitive.defgrad(make_dF_dy_chainrule)
-                f_primitive.defvjp(dF_dy_chainrule)
-                return f_primitive(x, [])
-            else:
-                return fun(x, *args, **kwargs)
-        # for unit tests associated with @count_calls
-
-        def reset_grad_count():
-            get_dF_dx.reset_count()
-            get_dG_dx.reset_count()
-        fun_wrapped.reset_grad_count = reset_grad_count
-        fun_wrapped.num_grad_calls = get_dF_dx.num_calls
-        fun_wrapped.num_hess_calls = get_dG_dx.num_calls
-        fun_wrapped.wrapped_fun = fun
-        return fun_wrapped
-
-    def get_value_and_grad(self, fun):
-        return value_and_grad(fun)
-
-    def get_dF_dx(self, dF_df, df_dx):
-        return dF_df * df_dx
-
-    def get_dG_dx(self, f, dF_df, dGdx_d2F):
-        dF_dx_fun = vec_jac_prod_fun(f, dF_df)
-        return vec_jac_prod_fun(dF_dx_fun, dGdx_d2F)
-
-
-class rearrange_tuple_gradients(rearrange_gradients):
-    """
-    similar to rearrange_gradients, except fun is assumed to have
-    signature
-    fun(x_tuple, *args, **kwargs)
-    where x_tuple is a tuple of numpy arrays.
-
-    also, second-order gradients are disabled.
-    """
-
-    def get_dF_dx(self, dF_df, df_dx_tuple):
-        return tuple(dF_df * df_dx for df_dx in df_dx_tuple)
-
-    def get_dG_dx(self, *args, **kwargs):
-        raise HessianDisabledError(
-            "Autograd hessians disabled to allow for computational improvements to memory usage. To disable these memory savings and allow Hessian usage, use SfsLikelihoodSurface(..., batch_size=-1).")
-
-
-class HessianDisabledError(NotImplementedError):
-    pass
-
-
-def vec_jac_prod_fun(fun, vec):
-    return lambda x: vector_jacobian_product(fun)(x, vec)

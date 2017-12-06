@@ -69,11 +69,8 @@ def test_batches_grad():
 
     assert sfs_len > 30
 
-    momi.likelihood._raw_log_lik.reset_grad_count()
-    assert not momi.likelihood._raw_log_lik.num_grad_calls()
     assert np.allclose(-sfs.n_snps() * grad(SfsLikelihoodSurface(sfs, batch_size=5, demo_func=demo_func, mut_rate=mu).kl_div)(x0),
                        grad(lambda x: momi.likelihood._composite_log_likelihood(sfs, demo_func(*x), mut_rate=mu))(x0))
-    assert momi.likelihood._raw_log_lik.num_grad_calls()
 
 
 def test_batches_hess():
@@ -97,13 +94,7 @@ def test_batches_hess():
     assert sfs_len > 30
 
     v = np.random.normal(size=len(x0))
-    try:
-        hessian_vector_product(SfsLikelihoodSurface(
-            sfs, batch_size=5, demo_func=demo_func, mut_rate=mu).log_lik)(x0, v)
-    except momi.util.HessianDisabledError:
-        pass
-    else:
-        assert False
+
     hess1 = hessian_vector_product(SfsLikelihoodSurface(
         sfs, batch_size=-1, demo_func=demo_func, mut_rate=mu).log_lik)(x0, v)
     hess2 = hessian_vector_product(lambda x: momi.likelihood._composite_log_likelihood(

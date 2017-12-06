@@ -1,8 +1,9 @@
 import autograd
 import autograd.numpy as np
+from autograd.extend import primitive, defvjp
 from .parallel_matmul import _par_matmul
 
-@autograd.primitive
+@primitive
 def batched_dot(a, b):
     if len(a.shape) != 3 or len(b.shape) != 3 or a.shape[0] != b.shape[0]:
         raise ValueError("a,b must be 3-dimensional arrays, with a.shape[0]==b.shape[0] and a.shape[2]==b.shape[1]")
@@ -34,14 +35,20 @@ def batched_dot(a, b):
         ## parallel batched matrix multiply
         return _par_matmul(a, b)
 
+defvjp(
+    batched_dot,
+    lambda ans, a, b: lambda g: batched_dot(g,
+                                            np.transpose(b, (0,2,1))),
+    lambda ans, a, b: lambda g: batched_dot(np.transpose(a, (0,2,1)),
+                                            g))
 #batched_dot.defgrad(lambda ans, a, b: lambda g: batched_dot(g, np.transpose(b, (0,2,1))))
-batched_dot.defvjp(lambda g, ans, vs, gvs, a, b: batched_dot(
-    g, np.transpose(b, (0,2,1))))
 #batched_dot.defgrad(lambda ans, a, b: lambda g: batched_dot(np.transpose(a, (0,2,1)), g), argnum=1)
-batched_dot.defvjp(
-    lambda g, ans, vs, gvs, a, b: batched_dot(
-        np.transpose(a, (0,2,1)), g),
-    argnum=1)
+#batched_dot.defvjp(lambda g, ans, vs, gvs, a, b: batched_dot(
+#    g, np.transpose(b, (0,2,1))))
+#batched_dot.defvjp(
+#    lambda g, ans, vs, gvs, a, b: batched_dot(
+#        np.transpose(a, (0,2,1)), g),
+#    argnum=1)
 
 def einsum2(*args, **kwargs):
     """

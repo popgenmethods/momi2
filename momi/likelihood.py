@@ -9,7 +9,8 @@ import autograd.numpy as np
 import scipy
 import autograd as ag
 import numdifftools as ndt
-from .util import count_calls, rearrange_tuple_gradients, make_constant
+from autograd import checkpoint
+from .util import count_calls, make_constant
 from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
 from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
 from .demography import DemographyError, Demography
@@ -160,17 +161,19 @@ class SfsLikelihoodSurface(object):
     def _get_multinom_loglik(self, demo, vector):
         if self.sfs_batches:
             G = demo._get_graph_structure()
-            diff_keys, diff_vals = demo._get_differentiable_part()
+            cache = demo._get_differentiable_part()
             ret = 0.0
             for batch in self.sfs_batches:
                 ret = ret + _raw_log_lik(
-                    diff_vals, diff_keys, G, batch,
-                    self.truncate_probs, self.folded, self.error_matrices,
+                    cache, G, batch,
+                    self.truncate_probs, self.folded,
+                    self.error_matrices,
                     vector=vector)
         else:
             ret = _composite_log_likelihood(
-                self.data, demo, truncate_probs=self.truncate_probs, folded=self.folded,
-                error_matrices=self.error_matrices, use_pairwise_diffs=self.use_pairwise_diffs,
+                self.data, demo, truncate_probs=self.truncate_probs,
+                folded=self.folded, error_matrices=self.error_matrices,
+                use_pairwise_diffs=self.use_pairwise_diffs,
                 vector=vector)
         return ret
 
@@ -503,12 +506,12 @@ def _mut_factor_total(sfs, demo, mut_rate, vector):
     return ret
 
 
-@rearrange_tuple_gradients()
-def _raw_log_lik(diff_vals, diff_keys, G, data, truncate_probs, folded, error_matrices, vector=False):
+@checkpoint
+def _raw_log_lik(cache, G, data, truncate_probs, folded, error_matrices, vector=False):
     # computes log likelihood from the "raw" arrays and graph objects comprising the Demography,
     # allowing us to compute gradients directly w.r.t. these values,
     # and thus apply util.precompute_gradients to save memory
-    demo = Demography(G, diff_keys, diff_vals)
+    demo = Demography(G, cache=cache)
     return _composite_log_likelihood(data, demo, truncate_probs=truncate_probs, folded=folded, error_matrices=error_matrices, vector=vector)
 
 

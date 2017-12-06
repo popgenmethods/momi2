@@ -151,35 +151,6 @@ def _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t=None, defaul
     return Demography(_G)
 
 
-class differentiable_method(object):
-    """
-    a descriptor for cacheing all the differentiable objects in the demography
-    this is used to reorganize some of the computations during automatic differentiation,
-    which can be very resource intensive
-
-    based on memoize_instance in util.py, which is itself based on http://code.activestate.com/recipes/577452-a-memoize-decorator-for-instance-methods/
-    """
-
-    def __init__(self, func):
-        self.func = func
-
-    def __get__(self, obj, objtype=None):
-        if obj is None:
-            return self.func
-        return partial(self, obj)
-
-    def __call__(self, *args, **kw):
-        obj = args[0]
-        cache = obj._diff_cache
-
-        key = (self.func, args[1:], frozenset(list(kw.items())))
-        try:
-            res = cache[key]
-        except KeyError:
-            res = cache[key] = self.func(*args, **kw)
-        return res
-
-
 class DemographicHistory(object):
 
     def __init__(self, events, archaic_times_dict, default_N):
@@ -241,8 +212,7 @@ class Demography(object):
     """
     The demographic history relating a sample of individuals.
     """
-
-    def __init__(self, G, diff_cache_keys=[], diff_cache_vals=[]):
+    def __init__(self, G, cache=None):
         """
         For internal use only.
         Use make_demography() to create a Demography.
@@ -250,24 +220,16 @@ class Demography(object):
         self._G = G
         self._event_tree = _build_event_tree(self._G)
 
-        # a hack that allows us reorganize some computations during auto differentiation
-        # methods decorated by @differentiable_method will first look if result
-        # is in diff_cache before computing it
-        assert len(diff_cache_keys) == len(diff_cache_vals)
-        self._diff_cache = dict(list(zip(diff_cache_keys, diff_cache_vals)))
+        if cache is not None:
+            # restore values for memoize_instance
+            self._memoize_instance__cache = cache
 
     def _get_differentiable_part(self):
-        # use this with _get_graph_structure()
-        # to re-organize certain computations during automatic differentiation
+        # used with self._get_graph_structure() and autograd.checkpoint
+        # returns a dict of the memoized values so we can
+        # compute their derivatives easily
         expected_total_branch_len(self)
-        assert self._diff_cache
-
-        keys, vals = list(zip(*list(self._diff_cache.items())))
-        # convert vals to autograd.TupleNode (as opposed to a tuple of
-        # autograd.Node)
-        vals = autograd.container_types.make_tuple(*vals)
-
-        return keys, vals
+        return self._memoize_instance__cache
 
     def _get_graph_structure(self):
         # returns just the graph structure, i.e. the "non-differentiable" part of the Demography
@@ -434,12 +396,20 @@ class Demography(object):
         return recipient, non_recipient, donor, non_donor
 
     """
-    ALL methods returning floats BELOW HERE
-    They should be decorated by @differentiable_method to ensure cacheing of differentiable objects!!!!
+    ALL differentiable methods used by compute_sfs
+    should be decorated by memoize_instance!!!
+
+    This is so that we can extract the memoized values with
+    _get_differentiable_part(), which can be used in conjunction with
+    autograd.checkpoint() to reduce memory usage by computing
+    in batches of SNPs
+
+    TODO refactor so that we don't need to decorate, it is very
+    error-prone!!!
     """
 
     @property
-    @differentiable_method
+    @memoize_instance
     def sampled_t(self):
         """
         An array of times at which each population was sampled
@@ -447,18 +417,18 @@ class Demography(object):
         return np.array(tuple(self._G.node[(l, 0)]['sizes'][0]['t'] for l in self.sampled_pops))
 
     @property
-    @differentiable_method
+    @memoize_instance
     def default_N(self):
         """
         The scaled size N of all populations, unless changed by -en or -eg
         """
         return self._G.graph['default_N']
 
-    @differentiable_method
+    @memoize_instance
     def _truncated_sfs(self, node):
         return self._G.node[node]['model'].sfs(self._n_at_node(node))
 
-    @differentiable_method
+    @memoize_instance
     def _scaled_time(self, node):
         return self._G.node[node]['model'].scaled_time
 
@@ -470,7 +440,7 @@ class Demography(object):
         admixture_idxs = self._admixture_prob_idxs(recipient)
         return admixture_idxs + [non_recipient]
 
-    @differentiable_method
+    @memoize_instance
     def _pulse_prob_helper(self, event):
         # returns 4-tensor
         # running time is O(n^5), because of pseudo-inverse
@@ -521,7 +491,7 @@ class Demography(object):
         parent1, parent2 = [e[0] for e in (edge1, edge2)]
         return [admixture_node, parent1, parent2]
 
-    @differentiable_method
+    @memoize_instance
     def _admixture_prob_helper(self, admixture_node):
         '''
         Array with dim [n_admixture_node+1, n_parent1_node+1, n_parent2_node+1],

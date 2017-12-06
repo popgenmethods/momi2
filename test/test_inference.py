@@ -82,9 +82,9 @@ def check_jointime_inference(
 
     print((t0, t1))
 
-    prim_log_lik = momi.likelihood._raw_log_lik
-    prim_log_lik.reset_grad_count()
-    assert not prim_log_lik.num_grad_calls()
+    #prim_log_lik = momi.likelihood._raw_log_lik
+    #prim_log_lik.reset_grad_count()
+    #assert not prim_log_lik.num_grad_calls()
 
     if not use_theta:
         theta = None
@@ -95,7 +95,7 @@ def check_jointime_inference(
     res = model.optimize()
 
     # make sure autograd is calling the rearranged gradient
-    assert bool(prim_log_lik.num_grad_calls())
+    #assert bool(prim_log_lik.num_grad_calls())
 
     print(res.jac)
     assert abs(res.x - t0) / t0 < .05
