@@ -503,6 +503,7 @@ def rearrange_dict_grad(fun):
     @primitive
     def wrapped_fun_helper(xdict, dummy):
         val, grad = ag.checkpoint(ag.value_and_grad(fun))(xdict)
+        assert len(val.shape) == 0
         dummy.cache = grad
         return val
 
@@ -519,11 +520,13 @@ def rearrange_dict_grad(fun):
     return wrapped_fun
 
 def _raw_log_lik(cache, G, data, truncate_probs, folded, error_matrices, vector=False):
-    @rearrange_dict_grad
     def wrapped_fun(cache):
         demo = Demography(G, cache=cache)
         return _composite_log_likelihood(data, demo, truncate_probs=truncate_probs, folded=folded, error_matrices=error_matrices, vector=vector)
-    return wrapped_fun(cache)
+    if vector:
+        return ag.checkpoint(wrapped_fun)(cache)
+    else:
+        return rearrange_dict_grad(wrapped_fun)(cache)
 
 
 #def _build_sfs_batches(sfs, batch_size):
