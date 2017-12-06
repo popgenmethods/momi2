@@ -9,7 +9,7 @@ import autograd.numpy as np
 import scipy
 import autograd as ag
 import numdifftools as ndt
-from autograd import checkpoint
+from autograd.extend import primitive, defvjp
 from .util import count_calls, make_constant
 from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
 from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
@@ -505,8 +505,28 @@ def _mut_factor_total(sfs, demo, mut_rate, vector):
         ret = np.sum(ret)
     return ret
 
+class rearrange_gradients:
+    """
+    Decorator that allows us to save memory on the forward pass,
+    by precomputing the gradient
+    """
+    def __init__(self, fun):
+        self.raw_fun = fun
+        # checkpoint so that second-order derivatives are also batched
+        self.val_and_grad_fun = ag.checkpoint(ag.value_and_grad(
+            self.raw_fun))
 
-@checkpoint
+    def __call__(self, arg0, *rest, **kwargs):
+        val, grad = self.val_and_grad_fun(arg0, *rest, **kwargs)
+
+        # voodoo that allows us to cache the gradient for later,
+        # and still compute 2nd order derivatives!
+        tmpfun = primitive(lambda x: val)
+        defvjp(tmpfun, lambda ans, x: lambda g: grad)
+        return tmpfun(arg0)
+
+
+@rearrange_gradients
 def _raw_log_lik(cache, G, data, truncate_probs, folded, error_matrices, vector=False):
     # computes log likelihood from the "raw" arrays and graph objects comprising the Demography,
     # allowing us to compute gradients directly w.r.t. these values,
