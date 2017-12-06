@@ -69,8 +69,10 @@ def test_batches_grad():
 
     assert sfs_len > 30
 
-    assert np.allclose(-sfs.n_snps() * grad(SfsLikelihoodSurface(sfs, batch_size=5, demo_func=demo_func, mut_rate=mu).kl_div)(x0),
-                       grad(lambda x: momi.likelihood._composite_log_likelihood(sfs, demo_func(*x), mut_rate=mu))(x0))
+    jac1 = -sfs.n_snps() * grad(SfsLikelihoodSurface(sfs, batch_size=5, demo_func=demo_func, mut_rate=mu).kl_div)(x0)
+    jac2 = grad(lambda x: momi.likelihood._composite_log_likelihood(sfs, demo_func(*x), mut_rate=mu))(x0)
+    assert np.allclose(jac1, jac2)
+    print(jac1)
 
 
 def test_batches_hess():

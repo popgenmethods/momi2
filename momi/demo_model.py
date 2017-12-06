@@ -39,7 +39,7 @@ def demographic_model(default_N, gen_time=1):
         leaf_events=[], leafs=[],
         data=None, muts_per_gen=None, folded=None,
         mem_chunk_size=None, use_pairwise_diffs=None,
-        non_ascertained_pops=None, godambe_step_size=1e-6)
+        non_ascertained_pops=None)
 
 
 class DemographicModel(object):
@@ -48,7 +48,7 @@ class DemographicModel(object):
                  leaf_events, leafs,
                  data, muts_per_gen, folded,
                  mem_chunk_size, use_pairwise_diffs,
-                 non_ascertained_pops, godambe_step_size):
+                 non_ascertained_pops):
         self.N_e = N_e
         self.gen_time = gen_time
         self.parameters = co.OrderedDict((k, p.copy()) for k, p in parameters.items())
@@ -57,7 +57,6 @@ class DemographicModel(object):
         self.leaf_events = list(leaf_events)
         self.leafs = list(leafs)
 
-        self._godambe_step_size = godambe_step_size
         self._set_data(data=data, muts_per_gen=muts_per_gen,
                        folded=folded, mem_chunk_size=mem_chunk_size,
                        use_pairwise_diffs=use_pairwise_diffs,
@@ -74,8 +73,7 @@ class DemographicModel(object):
             folded=self._folded,
             mem_chunk_size=self._mem_chunk_size,
             use_pairwise_diffs=self._use_pairwise_diffs,
-            non_ascertained_pops=self._non_ascertained_pops,
-            godambe_step_size=self._godambe_step_size)
+            non_ascertained_pops=self._non_ascertained_pops)
 
     def draw(self, additional_times, pop_x_positions, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0, **kwargs):
         if x_leafs_only:
@@ -607,8 +605,8 @@ class DemographicModel(object):
         if self._conf_region is None or not np.allclose(
                 opt_x, self._conf_region.point):
             opt_score = opt_surface._score(opt_x)
-            opt_score_cov = opt_surface._score_cov(opt_x, step_size=self._godambe_step_size)
-            opt_fisher = opt_surface._fisher(opt_x, step_size=self._godambe_step_size)
+            opt_score_cov = opt_surface._score_cov(opt_x)
+            opt_fisher = opt_surface._fisher(opt_x)
 
             self._conf_region = _ConfidenceRegion(
                 opt_x, opt_score, opt_score_cov, opt_fisher,

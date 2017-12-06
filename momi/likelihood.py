@@ -9,7 +9,7 @@ import autograd.numpy as np
 import scipy
 import autograd as ag
 import numdifftools as ndt
-from autograd.extend import primitive, defvjp
+from autograd.extend import primitive, defvjp, defvjp_argnum
 from .util import count_calls, make_constant
 from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
 from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
@@ -111,15 +111,10 @@ class SfsLikelihoodSurface(object):
     def _score(self, x):
         return ag.grad(self.log_lik)(x)
 
-    def _fisher(self, x, step_size=1e-6):
-        if self.sfs_batches:
-            # compute second order derivative numerically to avoid memory problems
-            ret = -ndt.Jacobian(self._score, step=step_size)(x)
-            return .5 * (ret + np.transpose(ret))
-        else:
-            return -ag.hessian(self.log_lik)(x)
+    def _fisher(self, x):
+        return -ag.hessian(self.log_lik)(x)
 
-    def _score_cov(self, params, step_size=1e-6):
+    def _score_cov(self, params):
         params = np.array(params)
 
         def f_vec(x):
@@ -127,17 +122,13 @@ class SfsLikelihoodSurface(object):
             # centralize
             return ret - np.mean(ret)
 
-        if self.sfs_batches:
-            j = ndt.Jacobian(f_vec, step=step_size)(params)
-            return np.einsum('ij, ik', j, j)
-        else:
-            # g_out = einsum('ij,ik', jacobian(f_vec)(params), jacobian(f_vec)(params))
-            # but computed in a roundabout way because jacobian implementation is slow
-            def _g_out_antihess(x):
-                l = f_vec(x)
-                lc = make_constant(l)
-                return np.sum(0.5 * (l**2 - l * lc - lc * l))
-            return ag.hessian(_g_out_antihess)(params)
+        # g_out = einsum('ij,ik', jacobian(f_vec)(params), jacobian(f_vec)(params))
+        # but computed in a roundabout way because jacobian implementation is slow
+        def _g_out_antihess(x):
+            l = f_vec(x)
+            lc = make_constant(l)
+            return np.sum(0.5 * (l**2 - l * lc - lc * l))
+        return ag.hessian(_g_out_antihess)(params)
 
     def _log_lik(self, x, vector):
         demo = self._get_multipop_moran(x)
@@ -167,8 +158,7 @@ class SfsLikelihoodSurface(object):
                 ret = ret + _raw_log_lik(
                     cache, G, batch,
                     self.truncate_probs, self.folded,
-                    self.error_matrices,
-                    vector=vector)
+                    self.error_matrices, vector)
         else:
             ret = _composite_log_likelihood(
                 self.data, demo, truncate_probs=self.truncate_probs,
@@ -505,34 +495,35 @@ def _mut_factor_total(sfs, demo, mut_rate, vector):
         ret = np.sum(ret)
     return ret
 
-class rearrange_gradients:
+def rearrange_dict_grad(fun):
     """
     Decorator that allows us to save memory on the forward pass,
     by precomputing the gradient
     """
-    def __init__(self, fun):
-        self.raw_fun = fun
-        # checkpoint so that second-order derivatives are also batched
-        self.val_and_grad_fun = ag.checkpoint(ag.value_and_grad(
-            self.raw_fun))
+    @primitive
+    def wrapped_fun_helper(xdict, dummy):
+        val, grad = ag.checkpoint(ag.value_and_grad(fun))(xdict)
+        dummy.cache = grad
+        return val
 
-    def __call__(self, arg0, *rest, **kwargs):
-        val, grad = self.val_and_grad_fun(arg0, *rest, **kwargs)
+    def wrapped_fun_helper_grad(ans, xdict, dummy):
+        def grad(g):
+            #print("foo")
+            return {k:g*v for k,v in dummy.cache.items()}
+        return grad
+    defvjp(wrapped_fun_helper, wrapped_fun_helper_grad, None)
 
-        # voodoo that allows us to cache the gradient for later,
-        # and still compute 2nd order derivatives!
-        tmpfun = primitive(lambda x: val)
-        defvjp(tmpfun, lambda ans, x: lambda g: grad)
-        return tmpfun(arg0)
+    @functools.wraps(fun)
+    def wrapped_fun(xdict):
+        return wrapped_fun_helper(ag.dict(xdict), lambda:None)
+    return wrapped_fun
 
-
-@rearrange_gradients
 def _raw_log_lik(cache, G, data, truncate_probs, folded, error_matrices, vector=False):
-    # computes log likelihood from the "raw" arrays and graph objects comprising the Demography,
-    # allowing us to compute gradients directly w.r.t. these values,
-    # and thus apply util.precompute_gradients to save memory
-    demo = Demography(G, cache=cache)
-    return _composite_log_likelihood(data, demo, truncate_probs=truncate_probs, folded=folded, error_matrices=error_matrices, vector=vector)
+    @rearrange_dict_grad
+    def wrapped_fun(cache):
+        demo = Demography(G, cache=cache)
+        return _composite_log_likelihood(data, demo, truncate_probs=truncate_probs, folded=folded, error_matrices=error_matrices, vector=vector)
+    return wrapped_fun(cache)
 
 
 #def _build_sfs_batches(sfs, batch_size):
