@@ -122,13 +122,8 @@ class SfsLikelihoodSurface(object):
             # centralize
             return ret - np.mean(ret)
 
-        # g_out = einsum('ij,ik', jacobian(f_vec)(params), jacobian(f_vec)(params))
-        # but computed in a roundabout way because jacobian implementation is slow
-        def _g_out_antihess(x):
-            l = f_vec(x)
-            lc = make_constant(l)
-            return np.sum(0.5 * (l**2 - l * lc - lc * l))
-        return ag.hessian(_g_out_antihess)(params)
+        j = ag.jacobian(f_vec)(params)
+        return np.einsum('ij, ik', j, j)
 
     def _log_lik(self, x, vector):
         demo = self._get_multipop_moran(x)
@@ -526,6 +521,9 @@ def _raw_log_lik(cache, G, data, truncate_probs, folded, error_matrices, vector=
     if vector:
         return ag.checkpoint(wrapped_fun)(cache)
     else:
+        ## avoids second forward pass, and has proper
+        ## checkpointing for hessian,
+        ## but doesn't work for vectorized output
         return rearrange_dict_grad(wrapped_fun)(cache)
 
 
