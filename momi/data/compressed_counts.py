@@ -122,7 +122,7 @@ class CompressedAlleleCounts(object):
         self.index2uniq = unsorted_idxs[self.index2uniq]
 
     def count_configs(self):
-        return np.bincount(self.index2uniq)
+        return np.bincount(self.index2uniq, minlength=len(self.config_array))
 
     @cached_property
     def n_samples(self):
