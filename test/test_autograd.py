@@ -49,25 +49,26 @@ def test_simple_3():
     check_gradient(f, np.random.normal(size=10))
 
 
-def sfs_func(demo_func, n_lins, normalized=True):
+def sfs_func(demo_func, n_lins, normalized=True, states=None):
     # get random sfs entry
-    n = np.sum([x for x in n_lins])
-    total_der = 0
-    while total_der == 0 or total_der == n:
+    if states is None:
+        n = np.sum([x for x in n_lins])
         total_der = 0
-        #states = {}
-        states = []
-        for pop, n_pop in enumerate(n_lins):
-            n_der = random.randint(0, n_pop)
-            assert n_der >= 0 and n_der <= n_pop
-            total_der += n_der
-            #states[pop] = {'ancestral' : n_pop - n_der, 'derived' : n_der}
-            states.append(n_der)
+        while total_der == 0 or total_der == n:
+            total_der = 0
+            #states = {}
+            states = []
+            for pop, n_pop in enumerate(n_lins):
+                n_der = random.randint(0, n_pop)
+                assert n_der >= 0 and n_der <= n_pop
+                total_der += n_der
+                #states[pop] = {'ancestral' : n_pop - n_der, 'derived' : n_der}
+                states.append(n_der)
 
     def f(x):
         demo = demo_func(x, n_lins)
         configs = momi.config_array(demo.pops, tuple(states), n_lins)
-        print(configs)
+        #print(configs)
         # print demo.graph['cmd']
         sfs, branch_len = expected_sfs(demo.demo_hist, configs), expected_total_branch_len(
             demo.demo_hist, sampled_pops=demo.pops, sampled_n=demo.n)
@@ -79,8 +80,8 @@ def sfs_func(demo_func, n_lins, normalized=True):
 
 def test_admixture():
     n_lins = (2, 2)
-    f = sfs_func(simple_admixture_demo, n_lins, normalized=True)
-    #f = sfs_func(simple_admixture_demo, n_lins, normalized=False)
+    #f = sfs_func(simple_admixture_demo, n_lins, normalized=True)
+    f = sfs_func(simple_admixture_demo, n_lins, normalized=False)
     x = np.random.normal(size=7)
     check_gradient(f, x)
 
@@ -129,7 +130,8 @@ def test_simple_five_pop(n1, n2, n3, n4, n5, normalized):
     x = np.random.normal(size=30)
 
     def demo_func(y, n_lins):
-        return simple_five_pop_demo(x, n_lins)
-    f = sfs_func(demo_func, n_lins, normalized=normalized)
+        return simple_five_pop_demo(y, n_lins)
+    f = sfs_func(demo_func, n_lins, normalized=normalized,
+                 states=[0,0,1,0,0])
 
     check_gradient(f, x)
