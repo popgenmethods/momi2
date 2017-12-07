@@ -401,6 +401,44 @@ class SnpAlleleCounts(object):
             new_chrom, new_pos, self.compressed_counts,
             self.populations, self.non_ascertained_pops)
 
+    def resample_chunks(self):
+        uniq = np.unique(self.chrom_ids)
+        new_chrom = []
+        new_pos = []
+        index2uniq = []
+        for i, chnk in enumerate(np.random.choice(uniq, size=len(uniq),
+                                                  replace=True)):
+            idx = (self.chrom_ids == chnk)
+            chnk_len = np.sum(idx)
+            new_chrom.extend([i]*chnk_len)
+            new_pos.extend(1+np.arange(chnk_len))
+            index2uniq.extend(self.compressed_counts.index2uniq[idx])
+
+        return SnpAlleleCounts(
+            new_chrom, new_pos,
+            CompressedAlleleCounts(
+                self.compressed_counts.config_array,
+                index2uniq, sort=False),
+            self.populations, self.non_ascertained_pops)
+
+    def subset_snps(self, idx):
+        new_chrom = self.chrom_ids[idx]
+        new_pos = self.positions[idx]
+        index2uniq = self.compressed_counts.index2uniq[idx]
+
+        present_uniq, uniq_inv = np.unique(index2uniq,
+                                           return_inverse=True)
+
+        config_array = self.compressed_counts.config_array[
+            present_uniq,:,:]
+        index2uniq = uniq_inv
+
+        return SnpAlleleCounts(
+            new_chrom, new_pos,
+            CompressedAlleleCounts(
+                config_array, index2uniq, sort=False),
+            self.populations, self.non_ascertained_pops)
+
     @cached_property
     def _p_missing(self):
         """
