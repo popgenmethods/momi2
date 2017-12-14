@@ -1,7 +1,9 @@
+import heapq as hq
 import collections as co
 import autograd.numpy as np
 import matplotlib as mpl
 from matplotlib import pyplot as plt
+from matplotlib.ticker import LogFormatterSciNotation
 
 PopulationPoint = co.namedtuple(
     "PopulationPoint", ["t", "N", "g", "is_leaf"])
@@ -13,7 +15,8 @@ class PopulationLine(object):
     def __init__(self, name, x, times, N):
         self.name = name
         self.x = x
-        self.time_stack = list(reversed(sorted(times)))
+        self.time_stack = list(times)
+        hq.heapify(self.time_stack)
         self.curr_N = N
         self.curr_g = 0.0
         self.curr_t = 0.0
@@ -37,22 +40,28 @@ class PopulationLine(object):
                 self.curr_t, self.curr_N, self.curr_g, self.next_is_leaf))
             self.next_is_leaf = False
 
-    def peek_time(self):
-        return self.time_stack[-1]
-
-    def push_time(self, t):
+    def _push_time(self, t):
         assert t >= self.curr_t
-        if (not self.time_stack) or t < self.peek_time():
-            self.time_stack.append(t)
-        else:
-            assert t == self.peek_time()
+        if t not in self.time_stack:
+            hq.heappush(self.time_stack, t)
 
-    def goto_time(self, t, push_time=True):
-        while self.time_stack and self.peek_time() < t:
-            self.step_time(self.time_stack.pop())
+    def goto_time(self, t, add_time=True):
+        # if exponentially growing, add extra time points whenever
+        # the population size doubles
+        if self.curr_g != 0 and t < float('inf'):
+            halflife = np.abs(np.log(.5) / self.curr_g)
+            add_t = self.curr_t + halflife
+            while add_t < t:
+                self._push_time(add_t)
+                add_t += halflife
+
+        while self.time_stack and self.time_stack[0] < t:
+            self.step_time(hq.heappop(self.time_stack))
         self.step_time(t, add=False)
-        if push_time:
-            self.push_time(t)
+        if add_time:
+            # put t on queue to be added when processing next event
+            # (allows further events to change population size before plotting)
+            self._push_time(t)
 
 class DemographyPlotter(object):
     def __init__(self, params_dict,
@@ -67,7 +76,7 @@ class DemographyPlotter(object):
                  min_N=None, ax=None,
                  cm_scalar_mappable=None, colornorm=None,
                  alpha=1.0, pop_line_color="C0", pulse_line_color="gray",
-                 plot_pulse_nums=None, plot_leafs=True):
+                 plot_pulse_nums=None, plot_leafs=True, linthreshy=None):
         self.plot_leafs = plot_leafs
         self.pop_marker_kwargs = pop_marker_kwargs
         self.exclude_xlabs = list(exclude_xlabs)
@@ -112,6 +121,13 @@ class DemographyPlotter(object):
         self.cm_scalar_mappable = cm_scalar_mappable
         self.alpha=alpha
 
+        if linthreshy:
+            self.ax.set_yscale('symlog', linthreshy=linthreshy)
+            self.ax.get_yaxis().set_major_formatter(
+                LogFormatterSciNotation(labelOnlyBase=False,
+                                        minor_thresholds=(100,100),
+                                        linthresh=5e4))
+
     def draw(self, tree_only=False, rad=-.1, no_ticks_legend=False):
         self.draw_pops()
         self.draw_join_arrows()
@@ -123,9 +139,9 @@ class DemographyPlotter(object):
             if self.cm_scalar_mappable:
                 self.draw_colorbar()
 
-    def pop_to_t(self, pop, t, push_time=True):
+    def pop_to_t(self, pop, t, add_time=True):
         pop = self.pop_lines[pop]
-        pop.goto_time(t, push_time=push_time)
+        pop.goto_time(t, add_time=add_time)
         return pop
 
     def add_leaf(self, pop, t):
@@ -133,25 +149,26 @@ class DemographyPlotter(object):
         self.pop_to_t(pop, t).next_is_leaf = True
 
     def set_size(self, pop, t, N):
-        pop = self.pop_to_t(pop, t, push_time=False)
+        pop = self.pop_to_t(pop, t, add_time=False)
         if pop.curr_N != N:
-            pop.push_time(t)
+            pop.goto_time(t, add_time=True)
         pop.curr_N = N
 
     def set_growth(self, pop, t, g):
-        raise NotImplementedError(
-            "plotting exponential growth"
-            " not implemented")
+        pop = self.pop_to_t(pop, t, add_time=True)
+        pop.curr_g = g
 
     def move_lineages(self, pop1, pop2, t, p, pulse_name=None):
         pop2 = self.pop_lines[pop2]
-        pop2.goto_time(t, push_time=not pop2.active)
+        #pop2.goto_time(t, add_time=not pop2.active)
+        pop2.goto_time(t)
         pop2.active = True
 
         pop1 = self.pop_lines[pop1]
-        pop1.goto_time(t, push_time=(p == 1))
+        #pop1.goto_time(t, add_time=(p == 1))
+        pop1.goto_time(t)
         if p == 1:
-            pop1.step_time(pop1.time_stack.pop())
+            pop1.step_time(hq.heappop(pop1.time_stack))
             pop1.active = False
         self.pop_arrows.append(PopulationArrow(
             pop1, pop2, t, p, pop1.curr_N, pop2.curr_N, pulse_name))
@@ -184,7 +201,7 @@ class DemographyPlotter(object):
                     curr_x, curr_t, color=self.pop_line_color,
                     linewidth=self.N_to_linewidth(N),
                     linestyle=linestyle,
-                    alpha=self.alpha)
+                    alpha=self.alpha, zorder=1)
 
             for p in popline.points:
                 if p.is_leaf and self.plot_leafs:
@@ -192,7 +209,8 @@ class DemographyPlotter(object):
                         self.ax.scatter([self.x_pos[popname]], [p.t],
                                         facecolors="none",
                                         edgecolors="black",
-                                        alpha=self.alpha)
+                                        s=100,
+                                        alpha=self.alpha, zorder=2)
                     else:
                         self.ax.scatter(
                             [self.x_pos[popname]], [p.t],

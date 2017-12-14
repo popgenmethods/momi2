@@ -75,7 +75,7 @@ class DemographicModel(object):
             use_pairwise_diffs=self._use_pairwise_diffs,
             non_ascertained_pops=self._non_ascertained_pops)
 
-    def draw(self, additional_times, pop_x_positions, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0, **kwargs):
+    def draw(self, pop_x_positions, additional_times=None, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0, **kwargs):
         if x_leafs_only:
             exclude_xlabs = [p for p in pop_x_positions
                              if p not in self.leafs]
@@ -89,6 +89,9 @@ class DemographicModel(object):
             ax = add_to_existing.ax
             min_N = add_to_existing.min_N
             no_ticks_legend=True
+
+        if additional_times is None:
+            additional_times = []
 
         demo_plt = self._demo_plotter(
             additional_times, pop_x_positions,
@@ -104,11 +107,11 @@ class DemographicModel(object):
                              linthreshy=None, minor_yticks=None, major_yticks=None,
                              p_min=0, p_max=1, p_cmap=plt.cm.hot,
                              p_rad=.2, p_rad_rand=True,
-                             additional_times=[], factr=8):
+                             additional_times=[], factr=2):
         cm_scalar_mappable = plt.cm.ScalarMappable(
             norm=mpl.colors.Normalize(vmin=p_min,vmax=p_max), cmap=p_cmap)
 
-        demo_plt = self.draw(additional_times, pop_x_positions,
+        demo_plt = self.draw(pop_x_positions, additional_times=additional_times,
                              x_leafs_only=True, tree_only=True, alpha=0,
                              cm_scalar_mappable=cm_scalar_mappable)
 
@@ -132,17 +135,17 @@ class DemographicModel(object):
                 rad = p_rad
                 if p_rad_rand:
                     rad *= np.random.uniform()
-                self.draw(additional_times, pop_x_positions,
+                self.draw(pop_x_positions, additional_times=additional_times,
                           add_to_existing=demo_plt,
                           cm_scalar_mappable=cm_scalar_mappable,
                           rad=rad*2*np.random.uniform(),
-                          alpha=factr/len(bootstrap_x),
+                          alpha=np.min([1.0, factr/len(bootstrap_x)]),
                           pop_line_color="gray", plot_leafs=False)
         except:
             self.set_x(curr_x)
             raise
         self.set_x(curr_x)
-        self.draw(additional_times, pop_x_positions,
+        self.draw(pop_x_positions, additional_times=additional_times,
                   add_to_existing=demo_plt,
                   pulse_line_color='black',
                   cm_scalar_mappable=cm_scalar_mappable,
@@ -361,9 +364,8 @@ class DemographicModel(object):
         if N is not None:
             self.size_events.append(SizeEvent(
                 t, N, pop, self.N_e, self.gen_time))
-        if g != 0:
-            self.size_events.append(GrowthEvent(
-                t, g, pop, self.N_e, self.gen_time))
+        self.size_events.append(GrowthEvent(
+            t, g, pop, self.N_e, self.gen_time))
 
     def get_params_df(self):
         return pd.DataFrame(list(self.get_params().items()),
@@ -436,6 +438,24 @@ class DemographicModel(object):
                                   mutation_rate=4*self.N_e*mutation_rate,
                                   num_replicates=num_replicates,
                                   **kwargs)
+
+    def simulate_vcf(self, outfile, mutation_rate, recombination_rate,
+                     length, chrom_names=[1], ploidy=1, random_seed=None,
+                     sampled_n_dict=None, **kwargs):
+        demo = self._get_demo()
+        if sampled_n_dict is None:
+            if self._data is None:
+                raise ValueError("Need to set data or supply sample sizes")
+            sampled_n_dict = dict(zip(self._data.configs.sampled_pops,
+                                      self._data.configs.sampled_n))
+        demo = demo._get_multipop_moran(
+            self.leafs, [sampled_n_dict[k] for k in self.leafs])
+        return demo.simulate_vcf(outfile=outfile,
+                                 mutation_rate=4*self.N_e*mutation_rate,
+                                 recombination_rate=4*self.N_e*recombination_rate,
+                                 length=length, chrom_names=chrom_names,
+                                 ploidy=ploidy, random_seed=random_seed,
+                                 **kwargs)
 
     def fstats(self, sampled_n_dict=None):
         sfs = self._get_sfs()
@@ -519,7 +539,7 @@ class DemographicModel(object):
     def set_data(
             self, data, muts_per_gen=None, folded=False,
             mem_chunk_size=1000, use_pairwise_diffs=None,
-            n_blocks_jackknife=100, non_ascertained_pops=None):
+            n_blocks_jackknife=None, non_ascertained_pops=None):
         """
         Sets data, and optionally the mutation rate,
         in order to compute likelihoods and fit parameters
@@ -556,8 +576,10 @@ class DemographicModel(object):
             if None, uses the pairwise heterozygosity if there is missing data;
             else, if there is no missing data, use total number of mutations
         """
+        if n_blocks_jackknife:
+            data = data.chunk_data(n_blocks_jackknife)
         self._set_data(
-            data=data.chunk_data(n_blocks_jackknife),
+            data=data,
             muts_per_gen=muts_per_gen, folded=folded,
             mem_chunk_size=mem_chunk_size,
             use_pairwise_diffs=use_pairwise_diffs,
