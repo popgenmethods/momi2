@@ -100,6 +100,20 @@ class Fstats(object):
         # ref: Patterson et al 2012, Ancient Admixture in Human History, eq (4)
         return self.f4(X, C, A, *O) / self.f4(B, C, A, *O)
 
+    def singleton_probs(self, pops):
+        denom = None
+        probs = {}
+        for pop in pops:
+            prob = self.ordered_prob(dict([
+                (p, [1]) if p == pop else (p, [0])
+                for p in pops]), fold=True)
+            probs[pop] = prob
+            if denom is None:
+                denom = prob
+            else:
+                denom = denom + prob
+        return {"probs": probs, "denom": 1-denom}
+
 
 class EmpiricalFstats(Fstats):
     def __init__(self, sfs, sampled_n_dict):
