@@ -6,6 +6,7 @@ import collections as co
 import pandas as pd
 import matplotlib as mpl
 from matplotlib import pyplot as plt
+import seaborn
 from .demography import demographic_history
 from .likelihood import SfsLikelihoodSurface
 from .confidence_region import _ConfidenceRegion
@@ -702,6 +703,46 @@ class DemographicModel(object):
         The KL-divergence at the current parameter values
         """
         return self._get_opt_surface().kl_div(self._get_opt_x())
+
+    def pairwise_diffs(self, exclude_pops=[],
+                       exclude_singletons=False, plot=True):
+        pops = [p for p in self.leafs if p not in exclude_pops]
+        fstats = self.fstats(sampled_n_dict={
+            p: 1 for p in pops})
+
+        if exclude_singletons:
+            s_probs = fstats.singleton_probs(pops)
+
+        df = []
+        for pop1 in pops:
+            for pop2 in pops:
+                if pop1 < pop2:
+                    prob = fstats.ordered_prob({
+                        pop1: [1], pop2: [0]}, fold=True)
+                    if exclude_singletons:
+                        prob = (
+                            prob - s_probs["probs"][pop1] -
+                            s_probs["probs"][pop2]) / s_probs[
+                                "denom"]
+
+                    z = prob.z_score
+                    penalty = np.log(prob.observed / prob.expected)
+                    line = [pop1, pop2, penalty, prob.z_score]
+                    print(*line)
+                    df.append(line)
+        ret = pd.DataFrame(sorted(df, key=lambda x: abs(x[-1]),
+                                   reverse=True),
+                            columns=["Pop1", "Pop2", "Penalty", "Z"])
+        if plot:
+            pivoted = ret.pivot(index="Pop1", columns="Pop2",
+                                values="Z")
+            plt.gcf().clear()
+            seaborn.heatmap(pivoted, annot=True, center=0)
+            plt.title("Residual (Observed-Expected) Z-scores")
+            pass
+        return ret
+
+
 
     def stochastic_optimize(
             self, n_minibatches=None, snps_per_minibatch=None,
