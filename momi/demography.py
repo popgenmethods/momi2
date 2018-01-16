@@ -718,8 +718,8 @@ def admixture_operator(n_node, p):
     upper = np.min((n_node, np.ceil(mu + n_sd*sigma))) + 1
     lower, upper = int(lower), int(upper)
 
-    x1 = x1[:,:,:upper,lower:upper]
-    x2 = x2[:,:,:(n_node-lower+1),lower:upper]
+    ##x1 = x1[:,:,:upper,lower:upper]
+    ##x2 = x2[:,:,:(n_node-lower+1),lower:upper]
 
     ret = convolve_sum_axes(x1, x2)
     # axis0=der_in_parent1, axis1=der_in_parent2, axis2=der_in_child
