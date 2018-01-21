@@ -279,7 +279,7 @@ class SnpAlleleCounts(object):
                         chrom = chrom.strip()
                         assert chrom[0] == chrom[-1] == '"'
                         chrom_ids.append(chrom[1:-1])
-                        positions.append(int(pos))
+                        positions.append(float(pos))
                         config_ids.append(int(idx))
                 logger.info("Finished reading SNPs")
             elif config_matched:
