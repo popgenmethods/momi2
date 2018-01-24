@@ -413,11 +413,11 @@ class Demography(object):
         assert len(child_pops_events) == 2
         child_pops, child_events = list(zip(*list(child_pops_events.items())))
 
-        child_in = self._G.in_degree(child_pops)
+        child_in = dict(self._G.in_degree(child_pops))
         recipient, = [k for k, v in list(child_in.items()) if v == 2]
         non_recipient, = [k for k, v in list(child_in.items()) if v == 1]
 
-        parent_out = self._G.out_degree(parent_pops)
+        parent_out = dict(self._G.out_degree(parent_pops))
         donor, = [k for k, v in list(parent_out.items()) if v == 2]
         non_donor, = [k for k, v in list(parent_out.items()) if v == 1]
 
@@ -756,7 +756,7 @@ def _build_event_tree(G):
     #     return G.node[v]['sizes'][0]['t']
 
     eventEdgeList = []
-    currEvents = {k: (k,) for k, v in list(G.out_degree().items()) if v == 0}
+    currEvents = {k: (k,) for k, v in list(dict(G.out_degree()).items()) if v == 0}
     eventDict = {e: {'subpops': (v,), 'parent_pops': (
         v,), 'child_pops': {}} for v, e in list(currEvents.items())}
     for e in G.graph['events_as_edges']:
