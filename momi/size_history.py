@@ -56,8 +56,9 @@ class ConstantHistory(SizeHistory):
             return 1.0 / denom
 
         scaled_time = denom * self.tau
-        num = -expm1(-scaled_time)  # equals 1 - exp(-scaled_time)
-        ret = num / denom
+        #num = -expm1(-scaled_time)
+        #ret = num / denom
+        ret = expm1d(-scaled_time) * self.tau
         return ret
 
     def ms_cmd(self, pop_id, start_time, rescale=1.0):

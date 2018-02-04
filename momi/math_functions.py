@@ -156,14 +156,23 @@ Taylor series is 1 + x/2! + x^2/3! + ...
 '''
 
 
-def expm1d(x):
-    if x == 0.0:
+def expm1d(x, eps=1e-6):
+    x = np.array(x)
+    abs_x = np.abs(x)
+    if x.shape:
+        # FIXME: don't require abs_x to be increasing
+        assert np.all(abs_x[1:] >= abs_x[:-1])
+        small = abs_x < eps
+        big = ~small
+        return np.concatenate([expm1d_taylor(x[small]),
+                               expm1d_naive(x[big])])
+    elif abs_x < eps:
         return expm1d_taylor(x)
-    elif x == float('inf'):
-        return float('inf')
-    return np.expm1(x) / x
-# used for higher order derivatives at x=0 and x=inf
+    else:
+        return expm1d_naive(x)
 
+def expm1d_naive(x):
+    return np.expm1(x) / x
 
 def expm1d_taylor(x):
     c_n, ret = 1., 1.
