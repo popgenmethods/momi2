@@ -21,23 +21,34 @@ class ParamsDict(co.OrderedDict):
         return list(self.keys())
 
 
+# TODO rename to ScaledParameter
 class Parameter(object):
-    def __init__(self, name, x0, opt_trans, inv_opt_trans,
-                 transform_x, x_bounds):
+    def __init__(self, name, x0, transform_x,
+                 inv_transform_x, x_bounds, rgen):
         self.name = name
         self.x = x0
-        self.opt_trans = opt_trans
-        self.inv_opt_trans = inv_opt_trans
         self.x_bounds = list(x_bounds)
         self.transform_x = transform_x
+        self.inv_transform_x = inv_transform_x
+        self.rgen = rgen
+
+        # TODO remove opt_x stuff
+        self.opt_trans = lambda x: x
+        self.inv_opt_trans = lambda x: x
+
+        # TODO some sort of test that inv_transform_x is actually the inverse of transform_x
 
     def copy(self):
         return Parameter(
             name=self.name, x0=self.x,
-            opt_trans=self.opt_trans,
-            inv_opt_trans=self.inv_opt_trans,
             transform_x=self.transform_x,
-            x_bounds=self.x_bounds)
+            inv_transform_x=self.inv_transform_x,
+            x_bounds=self.x_bounds,
+            rgen=self.rgen)
+
+    def resample(self, params):
+        self.x = self.inv_transform_x(self.rgen(params),
+                                      params)
 
     @property
     def opt_x_bounds(self):

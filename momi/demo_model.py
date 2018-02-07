@@ -1,6 +1,7 @@
 import json
 import autograd as ag
 import autograd.numpy as np
+import scipy, scipy.stats
 import logging
 import collections as co
 import pandas as pd
@@ -208,84 +209,161 @@ class DemographicModel(object):
             lower_x=lower_x, upper_x=upper_x,
             transform_x=transform_x)
 
-    def add_param(self, name, x0,
-                  lower_x=1e-12, upper_x=None,
-                  transform_x=None,
-                  opt_scale=None):
-        """
-        Add a parameter to the demographic model.
 
-        Arguments
-        ---------
-        name: str, should be unique for each parameter
-        x0: float, starting value
-        lower_x: float or None
-        upper_x: float or None
-             lower, upper boundaries. None means no boundary in that direction
-        transform_x: function or None
-            transformation to obtain the parameter
-            as a function of x (the untransformed parameter)
-            and a second argument p, which contains all
-            the previously added parameters as attributes.
+    def get_parameter(self, name=None, scaled=False):
+        pass
 
-            for example, if we are adding parameter t1,
-            and want to ensure it is larger than the previously
-            added parameter t2, we can use transform_x to add
-            on the value of t2:
+    def set_parameter(self, x, name=None, scaled=False):
+        pass
 
-            model.add_param("t1", ..., transform_x=lambda x,p: x+p.t2)
-
-        Other Arguments
-        ---------------
-        opt_scale: one of None,"linear","log","logit"
-            scaling that the optimizer internally uses
-            during optimization. If None, determines
-            the scaling as follows:
-
-            if lower_x > 0 and upper_x < 1: "logit"
-            elif lower_x > 0: "log"
-            else: "linear"
-        """
+    def add_parameter(self, name, start_value=None,
+                      scaled_lower=None,
+                      scaled_upper=None,
+                      scale_transform=None,
+                      unscale_transform=None,
+                      rgen=None):
         self._conf_region = None
 
-        if transform_x is None:
-            def transform_x(x, p):
-                return x
+        assert (scale_transform is None) == (unscale_transform is None)
+        if scale_transform is None:
+            unscale_transform = scale_transform = lambda x, p: x
 
-        bounds = (lower_x, upper_x)
-        if opt_scale is None:
-            if lower_x is None:
-                lower_x = -float("inf")
-            if upper_x is None:
-                upper_x = float("inf")
+        curr_params = self.get_params()
+        x_lower = scaled_lower
+        x_upper = scaled_upper
 
-            if lower_x > 0 and upper_x < 1:
-                opt_scale = "logit"
-            elif lower_x > 0:
-                opt_scale = "log"
-            else:
-                opt_scale = "linear"
+        if rgen is None and start_value is None:
+            raise ValueError("At least one of rgen, start_value must be specified")
+        elif rgen is None:
+            def rgen(params):
+                return start_value
+        elif start_value is None:
+            start_value = rgen(curr_params)
 
-        if opt_scale == "logit":
-            def opt_trans(x):
-                return 1./(1.+np.exp(-x))
-
-            def inv_opt_trans(p):
-                return np.log(p/(1.-p))
-        elif opt_scale == "log":
-            opt_trans = np.exp
-            inv_opt_trans = np.log
-        elif opt_scale == "linear":
-            opt_trans = inv_opt_trans = lambda x: x
-        else:
-            raise ValueError("Unrecognized opt_scale")
+        x0 = scale_transform(start_value, curr_params)
 
         param = Parameter(
-            name, x0, opt_trans, inv_opt_trans,
-            transform_x=transform_x,
-            x_bounds=bounds)
+            name, x0,
+            transform_x=unscale_transform,
+            inv_transform_x=scale_transform,
+            x_bounds=(x_lower, x_upper),
+            rgen=rgen)
         assert name not in self.parameters
         self.parameters[name] = param
+
+    def add_size_param(self, name, N0=None, lower=1, upper=1e10, rgen=None):
+        if rgen is None:
+            scale = self.N_e
+            truncexpon = scipy.stats.truncexpon(b=(upper-lower)/scale,
+                                                loc=lower, scale=scale)
+            def rgen(params):
+                return truncexpon.rvs()
+
+        def scale_transform(x, p):
+            return np.log(x)
+
+        self.add_parameter(name, N0,
+                           scaled_lower=scale_transform(lower, None),
+                           scaled_upper=scale_transform(upper, None),
+                           scale_transform=scale_transform,
+                           unscale_transform=lambda x, p: np.exp(x),
+                           rgen=rgen)
+
+    def add_time_param(self, name, t0=None,
+                       lower=0.0, upper=None,
+                       lower_constraints=[], upper_constraints=[],
+                       rgen=None):
+        def lower_bound(params):
+            constraints = [params[k] for k in lower_constraints]
+            constraints.append(lower)
+            return np.max(np.array(constraints))
+
+        def upper_bound(params):
+            constraints = [params[k] for k in upper_constraints]
+            if upper is not None:
+                constraints.append(upper)
+            return np.min(np.array(constraints))
+
+        has_upper = (len(upper_constraints) > 0) or (upper is not None)
+
+        def scale_transform(t, params):
+            l = lower_bound(params)
+            if t < l:
+                raise ValueError(
+                    "t = {} < {} = max({})".format(
+                        t, l, [lower] + list(lower_constraints)))
+            if has_upper:
+                u = upper_bound(params)
+                if t > u:
+                    raise ValueError(
+                        "t = {} > {} = min({})".format(
+                            t, u, [upper] + list(upper_constraints)))
+
+                x = (t - l) / (u - l)
+                x = np.log(x/(1.-x))
+                return x
+            else:
+                x = t - l
+                return x
+
+        def unscale_transform(x, params):
+            l = lower_bound(params)
+            if has_upper:
+                x = 1./(1.+np.exp(-x))
+                u = upper_bound(params)
+                return (1-x)*l + x*u
+            else:
+                return l + x
+
+        if rgen is None:
+            scale = self.N_e * self.gen_time  # average time to coalescence
+
+            def rgen(params):
+                l = lower_bound(params)
+                if has_upper:
+                    u = upper_bound(params)
+                    b = (u-l)/scale
+                else:
+                    b = float("inf")
+                truncexpon = scipy.stats.truncexpon(b=b, loc=l, scale=scale)
+                return truncexpon.rvs()
+
+        if has_upper:
+            self.add_parameter(
+                name, t0,
+                scale_transform=scale_transform,
+                unscale_transform=unscale_transform,
+                rgen=rgen)
+        else:
+            self.add_parameter(
+                name, t0,
+                scaled_lower=1e-16,  # prevent optimizer from having a slightly negative number
+                scale_transform=scale_transform,
+                unscale_transform=unscale_transform,
+                rgen=rgen)
+
+    def add_pulse_param(self, name, p0=None, lower=0.0, upper=1.0, rgen=None):
+        if rgen is None:
+            def rgen(params):
+                return np.random.uniform(lower, upper)
+
+        def scale_transform(x, params):
+            # FIXME gives divide by 0 warning when x=0
+            return np.log(x/np.array(1-x))
+
+        self.add_parameter(name, p0,
+                           scaled_lower=scale_transform(lower, None),
+                           scaled_upper=scale_transform(upper, None),
+                           scale_transform=scale_transform,
+                           unscale_transform=lambda x, params: 1/(1+np.exp(-x)),
+                           rgen=rgen)
+
+    def add_growth_param(self, name, g0=None, lower=-.001, upper=.001, rgen=None):
+        if rgen is None:
+            def rgen(params):
+                return np.random.uniform(lower, upper)
+        self.add_parameter(name, g0, scaled_lower=lower, scaled_upper=upper,
+                           rgen=rgen)
 
     def add_leaf(self, pop, t=0, N=None, g=None):
         """
@@ -404,6 +482,12 @@ class DemographicModel(object):
                 if p.name == param:
                     return p.x
             raise ValueError("Unrecognized parameter {}".format(param))
+
+    def set_random_parameters(self):
+        params_dict = ParamsDict()
+        for param in self.parameters.values():
+            param.resample(params_dict)
+            param.update_params_dict(params_dict)
 
     def set_x(self, x, param=None):
         """
