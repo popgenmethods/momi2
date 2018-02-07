@@ -497,10 +497,7 @@ class DemographicModel(object):
 
         def printable_params():
             for k, v in demo.params.items():
-                try:
-                    v = v.value
-                except:
-                    pass
+                v = str(v).replace('\n', '')
                 yield (k, v)
         logging.debug("Demographic parameters = {}".format(
             co.OrderedDict(printable_params())))
@@ -524,7 +521,10 @@ class DemographicModel(object):
         ])
 
     def _opt_demo_fun(self, *opt_x):
+        opt_x = np.array(opt_x)
+        logging.debug("opt_x = {}".format(str(opt_x)))
         x = self._x_from_opt_x(opt_x)
+        logging.debug("x = {}".format(str(x)))
         return self._demo_fun(*x)
 
     def _demo_fun(self, *x):
