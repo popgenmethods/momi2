@@ -252,17 +252,19 @@ class JackknifeArray(object):
 
 
 class ExpectedFstats(Fstats):
-    def __init__(self, demo, ascertainment_pops, sampled_n_dict):
+    def __init__(self, demo, ascertainment_pops):
         self.demo = demo
         self.ascertainment_pops = ascertainment_pops
-        super(ExpectedFstats, self).__init__(sampled_n_dict)
+        super(ExpectedFstats, self).__init__(dict(zip(demo.sampled_pops,
+                                                      demo.sampled_n)))
 
     def tensor_prod(self, derived_weights_dict):
-        sampled_pops, sampled_n = zip(*sorted(self.sampled_n_dict.items()))
-        demo = self.demo._get_multipop_moran(sampled_pops, sampled_n)
+        #sampled_pops, sampled_n = zip(*sorted(self.sampled_n_dict.items()))
+        #demo = self.demo._get_multipop_moran(sampled_pops, sampled_n)
+        demo = self.demo
 
         vecs = []
-        for p, n in zip(sampled_pops, sampled_n):
+        for p, n in zip(demo.sampled_pops, demo.sampled_n):
             v = []
             try:
                 row = derived_weights_dict[p]
@@ -285,11 +287,11 @@ class ExpectedFstats(Fstats):
 
 
 class ModelFitFstats(Fstats):
-    def __init__(self, sfs, demo, ascertainment_pop, sampled_n_dict):
+    def __init__(self, sfs, demo, ascertainment_pop):
+        sampled_n_dict = dict(zip(demo.sampled_pops, demo.sampled_n))
         self.empirical = EmpiricalFstats(sfs, sampled_n_dict)
         self.sampled_n_dict = self.empirical.sampled_n_dict
-        self.expected = ExpectedFstats(demo, ascertainment_pop,
-                                       self.sampled_n_dict)
+        self.expected = ExpectedFstats(demo, ascertainment_pop)
 
     def tensor_prod(self, derived_weights_dict):
         return ModelFitArray(self.expected.tensor_prod(derived_weights_dict),

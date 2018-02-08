@@ -1,8 +1,37 @@
 import collections as co
 import autograd.numpy as np
+import networkx as nx
+import msprime
 from .math_functions import hypergeom_quasi_inverse, binom_coeffs, _apply_error_matrices, convolve_trailing_axes, sum_trailing_antidiagonals
 from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 
+
+def _build_demo_graph(events, sample_sizes, params_dict, default_N):
+    _G = nx.DiGraph()
+    #_G.graph['event_cmds'] = tuple(events)
+    _G.graph['default_N'] = default_N
+    _G.graph['events_as_edges'] = []
+    # the nodes currently at the root of the graph, as we build it up from the
+    # leafs
+    _G.graph['roots'] = {}
+
+    for e in events:
+        e.add_to_graph(_G, sample_sizes, params_dict)
+
+    assert _G.node
+    _G.graph['roots'] = [r for _, r in list(
+        _G.graph['roots'].items()) if r is not None]
+
+    if len(_G.graph['roots']) != 1:
+        raise DemographyError("Must have a single root population")
+
+    node, = _G.graph['roots']
+    _set_sizes(_G.node[node], float('inf'))
+
+    _G.graph['sampled_pops'] = tuple(sample_sizes.keys())
+    _G.graph["events"] = tuple(events)
+    _G.graph["params"] = co.OrderedDict(params_dict)
+    return _G
 
 class ParamsDict(co.OrderedDict):
     def __getattr__(self, name):
@@ -110,7 +139,7 @@ class LeafEvent(object):
         if i in G.graph['roots']:
             if G.graph['roots'][i] is None:
                 raise DemographyError(
-                    "Invalid events: pop {0} removed by -ej before sample time".format(i))
+                    "Invalid events: pop {0} removed by move_lineages before sampling time".format(i))
 
             #G.node[(i,0)]['model'] = _TrivialHistory()
             G.node[(i, 0)]['sizes'] = [
@@ -129,6 +158,13 @@ class LeafEvent(object):
                 {'t': t, 'N': G.graph['default_N'], 'growth_rate':None}]
         G.graph['roots'][i] = newpop
 
+    def get_msprime_event(self, params_dict, pop_ids_dict):
+        return None
+
+def _get_pop_id(pop, pop_ids_dict):
+    if pop not in pop_ids_dict:
+        pop_ids_dict[pop] = len(pop_ids_dict)
+    return pop_ids_dict[pop]
 
 class SizeEvent(object):
     def __init__(self, t, N, pop, N_e, gen_time):
@@ -154,6 +190,14 @@ class SizeEvent(object):
         _check_en_eg_pops(G, '-en', t, i, N)
         G.node[G.graph['roots'][i]]['sizes'].append(
             {'t': t, 'N': N, 'growth_rate': None})
+
+    def get_msprime_event(self, params_dict, pop_ids_dict):
+        t = self.t(params_dict)
+        i = _get_pop_id(self.pop, pop_ids_dict)
+        N = self.N(params_dict)
+        return msprime.PopulationParametersChange(
+            t, initial_size=N / 4, growth_rate=0, population_id=i)
+
 
 class JoinEvent(object):
     def __init__(self, t, pop1, pop2, N_e, gen_time):
@@ -195,6 +239,11 @@ class JoinEvent(object):
         G.graph['roots'][j] = j1
         G.graph['roots'][i] = None
 
+    def get_msprime_event(self, params_dict, pop_ids_dict):
+        t = self.t(params_dict)
+        i = _get_pop_id(self.pop1, pop_ids_dict)
+        j = _get_pop_id(self.pop2, pop_ids_dict)
+        return msprime.MassMigration(t, i, j)
 
 class PulseEvent(object):
     def __init__(self, t, p, pop1, pop2, N_e, gen_time):
@@ -224,8 +273,7 @@ class PulseEvent(object):
         j=self.pop2
         pij=self.p(params_dict)
         if pij < 0. or pij > 1.:
-            raise DemographyError("Invalid event {0}: pulse probability must be between 0,1".format(
-                tuple(getval(v) for v in ('-ep', t, i, j, pij))))
+            raise DemographyError("Invalid pulse {0} from {1} to {2} at {3}: pulse probability must be between 0,1".format(pij, j, i, t))
 
         if i not in G.graph['roots']:
             # don't need to do anything
@@ -257,6 +305,14 @@ class PulseEvent(object):
         for k, v in list(parents.items()):
             G.graph['roots'][k] = v
 
+    def get_msprime_event(self, params_dict, pop_ids_dict):
+        t = self.t(params_dict)
+        i = _get_pop_id(self.pop1, pop_ids_dict)
+        j = _get_pop_id(self.pop2, pop_ids_dict)
+        pij=self.p(params_dict)
+
+        return msprime.MassMigration(
+            t, i, j, proportion=pij)
 
 class GrowthEvent(object):
     def __init__(self, t, g, pop, N_e, gen_time):
@@ -284,6 +340,12 @@ class GrowthEvent(object):
         G.node[G.graph['roots'][i]]['sizes'].append(
             {'t': t, 'growth_rate': growth_rate})
 
+    def get_msprime_event(self, params_dict, pop_ids_dict):
+        t = self.t(params_dict)
+        i = _get_pop_id(self.pop, pop_ids_dict)
+        g = self.g(params_dict)
+        return msprime.PopulationParametersChange(
+            t, growth_rate=g, population_id=i)
 
 ## helper functions for building demo.
 ## TODO remove/rename these!!
@@ -302,7 +364,7 @@ def _check_en_eg_pops(G, *event):
     flag, t, i = event[:3]
     if i in G.graph['roots'] and G.graph['roots'][i] is None:
         raise DemographyError(
-            "Invalid event {0}: pop {1} was already removed by previous -ej".format(tuple(getval(e) for e in event), i))
+            "Invalid set_size event at time {0}: pop {1} was already removed by previous move_lineages".format(t, i))
 
     if i not in G.graph['roots']:
         G.graph['roots'][i] = (i, 1)
@@ -316,7 +378,7 @@ def _check_ej_ep_pops(G, *event):
     for k in (i, j):
         if k in G.graph['roots'] and G.graph['roots'][k] is None:
             raise DemographyError(
-                "Invalid event {0}: pop {1} was already removed by previous -ej".format(tuple(getval(e) for e in event), k))
+                "Invalid move_lineages event at time {0}: pop {1} was already removed by previous move_lineages".format(t, k))
 
     if j not in G.graph['roots']:
         G.graph['roots'][j] = (j, 1)
@@ -359,7 +421,7 @@ def _set_sizes(node_data, end_time):
 
         if not all([sizes[i][x] >= 0.0 for x in ('tau', 'N', 'N_top')]):
             raise DemographyError("Negative time or population size in {sizes}".format(
-                sizes=[{k: getval(v) for k, v in s.items()} for s in sizes]))
+                sizes=[{k: v for k, v in s.items()} for s in sizes]))
     sizes.pop()  # remove the final dummy epoch
 
     assert len(pieces) > 0

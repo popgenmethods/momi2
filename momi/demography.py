@@ -1,4 +1,5 @@
 from functools import partial
+from collections import OrderedDict
 import networkx as nx
 import scipy
 import scipy.misc
@@ -14,7 +15,7 @@ from .data.seg_sites import seg_site_configs
 from .data.snps import SnpAlleleCounts
 from .util import memoize_instance, memoize
 from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse, par_einsum, convolve_sum_axes
-from .events import get_event_from_old, DemographyError, _set_sizes
+from .events import get_event_from_old, DemographyError, _set_sizes, _build_demo_graph
 
 import os
 import itertools
@@ -24,12 +25,6 @@ from cached_property import cached_property
 import logging
 logger = logging.getLogger(__name__)
 
-
-def getval(x):
-    try:
-        return x.value
-    except AttributeError:
-        return x
 
 
 def demographic_history(events, archaic_times_dict=None, default_N=1.0):
@@ -89,15 +84,6 @@ def _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t=None, defaul
     if sampled_t is None:
         sampled_t = (0.0,) * len(sampled_n)
 
-    #logger.debug("Making demography, {0}".format({
-    #    'events': [tuple(getval(x) for x in ev)
-    #               for ev in events],
-    #    'sampled_t': [getval(x) for x in sampled_t],
-    #    'sampled_pops': list(sampled_pops),
-    #    'sampled_n': list(sampled_n),
-    #    'default_N': getval(default_N),
-    #    'time_scale': getval(time_scale)}))
-
     if time_scale == 'ms':
         time_scale = 1.0
     elif time_scale == 'standard':
@@ -105,7 +91,6 @@ def _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t=None, defaul
     elif isinstance(time_scale, str):
         raise DemographyError("time_scale must be float, 'ms', or 'standard'")
 
-    old_default_N = default_N
     default_N = default_N * time_scale
     old_events, events = events, []
     for e in old_events:
@@ -113,15 +98,6 @@ def _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t=None, defaul
             flag, t, i, N = e
             e = flag, t, i, N * time_scale
         events += [e]
-
-    # process all events
-    _G = nx.DiGraph()
-    _G.graph['event_cmds'] = tuple(events)
-    _G.graph['default_N'] = default_N
-    _G.graph['events_as_edges'] = []
-    # the nodes currently at the root of the graph, as we build it up from the
-    # leafs
-    _G.graph['roots'] = {}
 
     # create sampling events
     sampling_events = [('-eSample', t, i, n)
@@ -132,26 +108,9 @@ def _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t=None, defaul
     events = sorted(events, key=lambda x: x[1])
 
     events = [get_event_from_old(e) for e in events]
-    sample_sizes=dict(zip(sampled_pops, sampled_n))
-    for e in events:
-        e.add_to_graph(_G,sample_sizes,{})
-    #event_funs = {
-    #    "-" + f.__name__[1:]: f for f in [_ep, _eg, _en, _ej, _es, _eSample]}
-    #for event in events:
-    #    flag, args = event[0], event[1:]
-    #    event_funs[flag](_G, *args)
+    sample_sizes = OrderedDict(zip(sampled_pops, sampled_n))
 
-    assert _G.node
-    _G.graph['roots'] = [r for _, r in list(
-        _G.graph['roots'].items()) if r is not None]
-
-    if len(_G.graph['roots']) != 1:
-        raise DemographyError("Must have a single root population")
-
-    node, = _G.graph['roots']
-    _set_sizes(_G.node[node], float('inf'))
-
-    _G.graph['sampled_pops'] = tuple(sampled_pops)
+    _G = _build_demo_graph(events, sample_sizes, {}, default_N)
     return Demography(_G)
 
 
@@ -293,12 +252,12 @@ class Demography(object):
             sampled_n = self.sampled_n
         return _make_multipop_moran(self.events, self.sampled_pops, sampled_n, self.sampled_t, self.default_N)
 
-    @property
-    def events(self):
-        """
-        The list of events (tuples) making up the demographic history
-        """
-        return self._G.graph['event_cmds']
+    #@property
+    #def events(self):
+    #    """
+    #    The list of events (tuples) making up the demographic history
+    #    """
+    #    return self._G.graph['event_cmds']
 
     @property
     def sampled_pops(self):
@@ -628,39 +587,46 @@ class Demography(object):
         pops = {p: i for i, p in enumerate(self.sampled_pops)}
         sampled_n = self.sampled_n
 
-        events = sorted(self.events, key=lambda x: x[1])
+        #events = sorted(self.events, key=lambda x: x[1])
+        #demographic_events = []
+        #for event in events:
+        #    flag = event[0]
+        #    if flag == '-ep':
+        #        _, t, i, j, pij = event
+        #        for k in (i, j):
+        #            if k not in pops:
+        #                pops[k] = len(pops)
+        #        demographic_events.append(msprime.MassMigration(
+        #            t, pops[i], pops[j], proportion=pij))
+        #        continue
+        #    elif flag == '-ej':
+        #        _, t, i, j = event
+        #        for k in (i, j):
+        #            if k not in pops:
+        #                pops[k] = len(pops)
+        #        demographic_events.append(
+        #            msprime.MassMigration(t, pops[i], pops[j]))
+        #    elif flag == '-eg':
+        #        _, t, i, alpha = event
+        #        if i not in pops:
+        #            pops[i] = len(pops)
+        #        demographic_events.append(msprime.PopulationParametersChange(
+        #            t, growth_rate=alpha, population_id=pops[i]))
+        #    elif flag == '-en':
+        #        _, t, i, N = event
+        #        if i not in pops:
+        #            pops[i] = len(pops)
+        #        demographic_events.append(msprime.PopulationParametersChange(
+        #            t, initial_size=N / 4, growth_rate=0, population_id=pops[i]))
+        #    else:
+        #        assert False
+
         demographic_events = []
-        for event in events:
-            flag = event[0]
-            if flag == '-ep':
-                _, t, i, j, pij = event
-                for k in (i, j):
-                    if k not in pops:
-                        pops[k] = len(pops)
-                demographic_events.append(msprime.MassMigration(
-                    t, pops[i], pops[j], proportion=pij))
-                continue
-            elif flag == '-ej':
-                _, t, i, j = event
-                for k in (i, j):
-                    if k not in pops:
-                        pops[k] = len(pops)
-                demographic_events.append(
-                    msprime.MassMigration(t, pops[i], pops[j]))
-            elif flag == '-eg':
-                _, t, i, alpha = event
-                if i not in pops:
-                    pops[i] = len(pops)
-                demographic_events.append(msprime.PopulationParametersChange(
-                    t, growth_rate=alpha, population_id=pops[i]))
-            elif flag == '-en':
-                _, t, i, N = event
-                if i not in pops:
-                    pops[i] = len(pops)
-                demographic_events.append(msprime.PopulationParametersChange(
-                    t, initial_size=N / 4, growth_rate=0, population_id=pops[i]))
-            else:
-                assert False
+        for e in self._G.graph["events"]:
+            e = e.get_msprime_event(self._G.graph["params"], pops)
+            if e is not None:
+                demographic_events.append(e)
+
         return msprime.simulate(population_configurations=[msprime.PopulationConfiguration()
                                                            for _ in range(len(pops))],
                                 Ne=self.default_N / 4,

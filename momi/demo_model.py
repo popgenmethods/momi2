@@ -8,11 +8,12 @@ import pandas as pd
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 import seaborn
-from .demography import demographic_history
+from .demography import demographic_history, Demography
 from .likelihood import SfsLikelihoodSurface
 from .confidence_region import _ConfidenceRegion
 from .events import LeafEvent, SizeEvent, JoinEvent, PulseEvent, GrowthEvent
 from .events import Parameter, ParamsDict
+from .events import _build_demo_graph
 from .demo_plotter import DemographyPlotter
 from .fstats import ModelFitFstats
 
@@ -168,47 +169,6 @@ class DemographicModel(object):
                    list(self.topology_events),
                    key=lambda e: e.t(params_dict)),
             additional_times, pop_x_positions, **kwargs)
-
-    def add_bounded_param(self, param_name,
-                          lower=[0], upper=[1],
-                          x0=lambda : np.random.uniform(.25, .75),
-                          lower_x=1e-6, upper_x=1-1e-6):
-        if callable(x0):
-            x0 = x0()
-
-        def transform_x(x, params):
-            def value(p):
-                if isinstance(p, str):
-                    return params[p]
-                elif callable(p):
-                    return p(params)
-                else:
-                    return p
-
-            assert lower
-            lower_bnd = np.max(np.array(
-                [value(p) for p in lower]))
-            assert not np.isnan(lower_bnd)
-
-            if upper:
-                upper_bnd = np.min(np.array(
-                    [value(p) for p in upper]))
-                assert upper_bnd >= lower_bnd, param_name
-            else:
-                return x + lower_bnd
-
-            return x * upper_bnd + (1-x) * lower_bnd
-
-        if x0 is None:
-            x0 = np.random.uniform(.25, .75)
-        if not upper:
-            upper_x = None
-
-        self.add_param(
-            param_name, x0=x0,
-            lower_x=lower_x, upper_x=upper_x,
-            transform_x=transform_x)
-
 
     def get_parameter(self, name=None, scaled=False):
         pass
@@ -458,6 +418,7 @@ class DemographicModel(object):
         params_dict = ParamsDict()
         for param in self.parameters.values():
             param.update_params_dict(params_dict)
+        # TODO return a pd.Series?
         return params_dict
 
     def _get_params_opt_x_jacobian(self):
@@ -510,14 +471,16 @@ class DemographicModel(object):
     def simulate_data(self, length, recombination_rate,
                       mutation_rate, num_replicates,
                       sampled_n_dict=None, **kwargs):
-        demo = self._get_demo()
         if sampled_n_dict is None:
             if self._data is None:
                 raise ValueError("Need to set data or supply sample sizes")
             sampled_n_dict = dict(zip(self._data.configs.sampled_pops,
                                       self._data.configs.sampled_n))
-        demo = demo._get_multipop_moran(
-            self.leafs, [sampled_n_dict[k] for k in self.leafs])
+        #demo = self._get_demo()
+        #demo = demo._get_multipop_moran(
+        #    self.leafs, [sampled_n_dict[k] for k in self.leafs])
+        sampled_n_dict = co.OrderedDict((k, sampled_n_dict[k]) for k in self.leafs)
+        demo = self._get_demo(sampled_n_dict)
         return demo.simulate_data(length=length,
                                   recombination_rate=4*self.N_e*recombination_rate,
                                   mutation_rate=4*self.N_e*mutation_rate,
@@ -527,14 +490,16 @@ class DemographicModel(object):
     def simulate_vcf(self, outfile, mutation_rate, recombination_rate,
                      length, chrom_names=[1], ploidy=1, random_seed=None,
                      sampled_n_dict=None, **kwargs):
-        demo = self._get_demo()
         if sampled_n_dict is None:
             if self._data is None:
                 raise ValueError("Need to set data or supply sample sizes")
             sampled_n_dict = dict(zip(self._data.configs.sampled_pops,
                                       self._data.configs.sampled_n))
-        demo = demo._get_multipop_moran(
-            self.leafs, [sampled_n_dict[k] for k in self.leafs])
+        #demo = self._get_demo()
+        #demo = demo._get_multipop_moran(
+        #    self.leafs, [sampled_n_dict[k] for k in self.leafs])
+        sampled_n_dict = co.OrderedDict((k, sampled_n_dict[k]) for k in self.leafs)
+        demo = self._get_demo(sampled_n_dict)
         return demo.simulate_vcf(outfile=outfile,
                                  mutation_rate=4*self.N_e*mutation_rate,
                                  recombination_rate=4*self.N_e*recombination_rate,
@@ -552,35 +517,35 @@ class DemographicModel(object):
             raise ValueError("{} not in leaf populations".format(
                 set(sampled_n_dict.keys()) - set(sfs.sampled_pops)))
 
+        #demo = self._get_demo()
+        sampled_n_dict = co.OrderedDict((k, sampled_n_dict[k]) for k in self.leafs)
+        demo = self._get_demo(sampled_n_dict)
+
         ascertainment_pops = [
             pop for pop, is_asc in zip(
                 sfs.sampled_pops, sfs.ascertainment_pop)
             if is_asc]
 
         return ModelFitFstats(
-            sfs, self._get_demo(),
-            ascertainment_pops, sampled_n_dict)
+            sfs, demo,
+            ascertainment_pops)
 
-    def _get_demo(self):
+    def _get_demo(self, sampled_n_dict):
         params_dict = self.get_params()
 
         events = []
-        for eventlist in (self.size_events,
-                          self.topology_events):
-            for e in eventlist:
-                events.extend(e.oldstyle_event(params_dict))
+        for sub_events in (self.leaf_events,
+                           self.size_events,
+                           self.topology_events):
+            for e in sub_events:
+                events.append(e)
 
-        archaic_times_dict = {}
-        for e in self.leaf_events:
-            archaic_times_dict[e.pop] = e.t(params_dict)
-
-        demo = demographic_history(
-            events, archaic_times_dict=archaic_times_dict)
-        demo.params = co.OrderedDict(sorted(
-            params_dict.items()))
+        events = sorted(events, key=lambda e: e.t(params_dict))
+        G = _build_demo_graph(events, sampled_n_dict, params_dict, default_N=1.0)
+        demo = Demography(G)
 
         def printable_params():
-            for k, v in demo.params.items():
+            for k, v in params_dict.items():
                 v = str(v).replace('\n', '')
                 yield (k, v)
         logging.debug("Demographic parameters = {}".format(
@@ -612,10 +577,11 @@ class DemographicModel(object):
         return self._demo_fun(*x)
 
     def _demo_fun(self, *x):
+        sfs = self._get_sfs()
         prev_x = self.get_x()
         try:
             self.set_x(x)
-            return self._get_demo()
+            return self._get_demo(co.OrderedDict(zip(sfs.sampled_pops, sfs.sampled_n)))
         except:
             raise
         finally:
@@ -914,4 +880,5 @@ class DemographicModel(object):
 
         res.x = self._x_from_opt_x(res.x)
         self.set_x(res.x)
+        res["parameters"] = pd.Series(self.get_params())
         return res

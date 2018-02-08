@@ -21,11 +21,10 @@ def test_archaic_and_pairwisediffs():
     expit = lambda x: 1. / (1. + np.exp(-x))
 
     model = momi.demographic_model(N_e)
-    model.add_param("sample_t", x0=logit(random.uniform(0.001, join_time-.001) / join_time),
-                    lower_x=None, upper_x=None,
-                    transform_x=lambda x, p: expit(x)*join_time)
-    model.add_param("N", x0=0, lower_x=None, upper_x=None,
-                    transform_x=lambda x, p: np.exp(x))
+    model.add_time_param(
+        "sample_t", random.uniform(0.001, join_time-.001) / join_time,
+        upper=join_time)
+    model.add_size_param("N", 1.0)
     model.add_leaf("a", N="N")
     model.add_leaf("b", t="sample_t", N="N")
     model.move_lineages("a", "b", join_time)
@@ -65,7 +64,9 @@ def check_jointime_inference(
     model.add_leaf(1)
     model.add_leaf(2)
     model.add_leaf(3)
-    model.add_param("join_time", x0=t0, upper_x=t1)
+    #model.add_parameter("join_time", t0, scaled_lower=0.0, scaled_upper=t1)
+    #model.add_param("join_time", x0=t0, upper_x=t1)
+    model.add_time_param("join_time", t0, upper=t1)
     model.move_lineages(1, 2, t="join_time")
     model.move_lineages(2, 3, t=t1)
 
@@ -98,7 +99,9 @@ def check_jointime_inference(
     #assert bool(prim_log_lik.num_grad_calls())
 
     print(res.jac)
-    assert abs(res.x - t0) / t0 < .05
+    #assert abs(res.x - t0) / t0 < .05
+    #assert (model.get_params()["join_time"] - t0) / t0 < .05
+    assert (res.parameters["join_time"] - t0) / t0 < .05
 
 
 @pytest.mark.parametrize("folded", (True, False))
