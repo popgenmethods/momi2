@@ -8,13 +8,13 @@ import autograd.numpy as np
 import autograd
 from autograd import primitive
 import msprime
-from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 from .compute_sfs import expected_total_branch_len
 from .data.compressed_counts import CompressedAlleleCounts, _CompressedHashedCounts
 from .data.seg_sites import seg_site_configs
 from .data.snps import SnpAlleleCounts
 from .util import memoize_instance, memoize
 from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse, par_einsum, convolve_sum_axes
+from .events import get_event_from_old, DemographyError, _set_sizes
 
 import os
 import itertools
@@ -131,11 +131,15 @@ def _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t=None, defaul
     # sort events by time
     events = sorted(events, key=lambda x: x[1])
 
-    event_funs = {
-        "-" + f.__name__[1:]: f for f in [_ep, _eg, _en, _ej, _es, _eSample]}
-    for event in events:
-        flag, args = event[0], event[1:]
-        event_funs[flag](_G, *args)
+    events = [get_event_from_old(e) for e in events]
+    sample_sizes=dict(zip(sampled_pops, sampled_n))
+    for e in events:
+        e.add_to_graph(_G,sample_sizes,{})
+    #event_funs = {
+    #    "-" + f.__name__[1:]: f for f in [_ep, _eg, _en, _ej, _es, _eSample]}
+    #for event in events:
+    #    flag, args = event[0], event[1:]
+    #    event_funs[flag](_G, *args)
 
     assert _G.node
     _G.graph['roots'] = [r for _, r in list(
@@ -795,190 +799,6 @@ def _build_event_tree(G):
 # methods for constructing demography from string
 
 
-def _es(G, t, i, p):
-    raise DemographyError(
-        "Flag -es not implemented, use -ep instead. See help(demography).")
-
-
-def _ej(G, t, i, j):
-    if i not in G.graph['roots']:
-        G.graph['roots'][i] = None
-        # don't need to do anything else
-        return
-    _check_ej_ep_pops(G, '-ej', t, i, j)
-
-    i0, j0 = (G.graph['roots'][k] for k in (i, j))
-    j1 = (j, j0[1] + 1)
-    assert j1 not in G.nodes()
-
-    for k in i0, j0:
-        # sets the TruncatedSizeHistory, and N_top and growth_rate for all
-        # epochs
-        _set_sizes(G.node[k], t)
-    _ej_helper(G, t, i0, j0, j1)
-
-    G.graph['roots'][j] = j1
-    G.graph['roots'][i] = None
-
-
-def _ej_helper(G, t, i0, j0, j1):
-    prev = G.node[j0]['sizes'][-1]
-    G.add_node(j1, sizes=[{'t': t, 'N': prev['N_top'],
-                           'growth_rate':prev['growth_rate']}])
-
-    new_edges = ((j1, i0), (j1, j0))
-    G.graph['events_as_edges'].append(new_edges)
-    G.add_edges_from(new_edges)
-
-
-def _en(G, t, i, N):
-    _check_en_eg_pops(G, '-en', t, i, N)
-    G.node[G.graph['roots'][i]]['sizes'].append(
-        {'t': t, 'N': N, 'growth_rate': None})
-
-
-def _eg(G, t, i, growth_rate):
-    _check_en_eg_pops(G, '-eg', t, i, growth_rate)
-    G.node[G.graph['roots'][i]]['sizes'].append(
-        {'t': t, 'growth_rate': growth_rate})
-
-
-def _ep(G, t, i, j, pij):
-    if pij < 0. or pij > 1.:
-        raise DemographyError("Invalid event {0}: pulse probability must be between 0,1".format(
-            tuple(getval(v) for v in ('-ep', t, i, j, pij))))
-
-    if i not in G.graph['roots']:
-        # don't need to do anything
-        return
-
-    _check_ej_ep_pops(G, '-ep', t, i, j, pij)
-
-    children = {k: G.graph['roots'][k] for k in (i, j)}
-    for v in list(children.values()):
-        _set_sizes(G.node[v], t)
-
-    parents = {k: (v[0], v[1] + 1) for k, v in list(children.items())}
-    assert all([par not in G.node for par in list(parents.values())])
-
-    prev_sizes = {k: G.node[c]['sizes'][-1] for k, c in list(children.items())}
-    for k, s in list(prev_sizes.items()):
-        G.add_node(parents[k], sizes=[
-                   {'t': t, 'N': s['N_top'], 'growth_rate':s['growth_rate']}])
-
-    G.add_edge(parents[i], children[i], prob=1. - pij)
-    G.add_edge(parents[j], children[i], prob=pij)
-    G.add_edge(parents[j], children[j])
-
-    new_event = tuple((parents[u], children[v])
-                      for u, v in ((i, i), (j, i), (j, j))
-                      )
-    G.graph['events_as_edges'] += [new_event]
-
-    for k, v in list(parents.items()):
-        G.graph['roots'][k] = v
-
-
-def _eSample(G, t, i, n):
-    G.add_node((i, 0),
-               lineages=n)
-
-    if i in G.graph['roots']:
-        if G.graph['roots'][i] is None:
-            raise DemographyError(
-                "Invalid events: pop {0} removed by -ej before sample time".format(i))
-
-        #G.node[(i,0)]['model'] = _TrivialHistory()
-        G.node[(i, 0)]['sizes'] = [
-            {'t': t, 'N': G.graph['default_N'], 'growth_rate':None}]
-        _set_sizes(G.node[(i, 0)], t)
-
-        prev = G.graph['roots'][i]
-        _set_sizes(G.node[prev], t)
-
-        assert prev[0] == i and prev[1] != 0
-        newpop = (i, prev[1] + 1)
-        _ej_helper(G, t, (i, 0), prev, newpop)
-    else:
-        newpop = (i, 0)
-        G.node[newpop]['sizes'] = [
-            {'t': t, 'N': G.graph['default_N'], 'growth_rate':None}]
-    G.graph['roots'][i] = newpop
-
-
-def _check_en_eg_pops(G, *event):
-    flag, t, i = event[:3]
-    if i in G.graph['roots'] and G.graph['roots'][i] is None:
-        raise DemographyError(
-            "Invalid event {0}: pop {1} was already removed by previous -ej".format(tuple(getval(e) for e in event), i))
-
-    if i not in G.graph['roots']:
-        G.graph['roots'][i] = (i, 1)
-        G.add_node(G.graph['roots'][i],
-                   sizes=[{'t': t, 'N': G.graph['default_N'], 'growth_rate':None}],
-                   )
-
-
-def _check_ej_ep_pops(G, *event):
-    flag, t, i, j = event[:4]
-    for k in (i, j):
-        if k in G.graph['roots'] and G.graph['roots'][k] is None:
-            raise DemographyError(
-                "Invalid event {0}: pop {1} was already removed by previous -ej".format(tuple(getval(e) for e in event), k))
-
-    if j not in G.graph['roots']:
-        G.graph['roots'][j] = (j, 1)
-        G.add_node(G.graph['roots'][j],
-                   sizes=[{'t': t, 'N': G.graph['default_N'], 'growth_rate':None}],
-                   )
-
-
-def _set_sizes(node_data, end_time):
-    assert 'model' not in node_data
-
-    # add 'model_func' to node_data, add information to node_data['sizes']
-    sizes = node_data['sizes']
-    # add a dummy epoch with the end time
-    sizes.append({'t': end_time})
-
-    # do some processing
-    N, growth_rate = sizes[0]['N'], sizes[0]['growth_rate']
-    pieces = []
-    for i in range(len(sizes) - 1):
-        sizes[i]['tau'] = tau = (sizes[i + 1]['t'] - sizes[i]['t'])
-
-        if 'N' not in sizes[i]:
-            sizes[i]['N'] = N
-        if 'growth_rate' not in sizes[i]:
-            sizes[i]['growth_rate'] = growth_rate
-        growth_rate = sizes[i]['growth_rate']
-        N = sizes[i]['N']
-
-        if growth_rate is not None and tau != float('inf'):
-            pieces.append(ExponentialHistory(
-                tau=tau, growth_rate=growth_rate, N_bottom=N))
-            N = pieces[-1].N_top
-        else:
-            if growth_rate != 0. and growth_rate is not None and tau == float('inf'):
-                raise DemographyError("Final epoch must have 0 growth rate")
-            pieces.append(ConstantHistory(tau=tau, N=N))
-
-        sizes[i]['N_top'] = N
-
-        if not all([sizes[i][x] >= 0.0 for x in ('tau', 'N', 'N_top')]):
-            raise DemographyError("Negative time or population size in {sizes}".format(
-                sizes=[{k: getval(v) for k, v in s.items()} for s in sizes]))
-    sizes.pop()  # remove the final dummy epoch
-
-    assert len(pieces) > 0
-    if len(pieces) == 0:
-        node_data['model'] = pieces[0]
-    else:
-        node_data['model'] = PiecewiseHistory(pieces)
-
-
-class DemographyError(Exception):
-    pass
 
 def get_treeseq_configs(treeseq, sampled_n):
     mat = np.zeros((len(sampled_n), sum(sampled_n)), dtype=int)
