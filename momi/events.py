@@ -7,6 +7,7 @@ from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 
 
 # FIXME: we always assume default_N=1.0 for now
+# NOTE sample_sizes should be an OrderedDict?
 def _build_demo_graph(events, sample_sizes, params_dict, default_N):
     _G = nx.DiGraph()
     #_G.graph['event_cmds'] = tuple(events)

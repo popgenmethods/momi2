@@ -53,7 +53,6 @@ class ConfigArray(object):
                         used to construct the likelihood vectors for
                         junction tree algorithm.
     """
-
     def __init__(self, sampled_pops, conf_arr, sampled_n=None,
                  ascertainment_pop=None):
         """Use config_array() instead of calling this constructor directly"""
@@ -102,6 +101,14 @@ class ConfigArray(object):
             return np.all(conf_arr == other.value)
         except AttributeError:
             return False
+
+    @memoize_instance
+    def as_tuple(self):
+        ret = []
+        for c in self:
+            c = tuple(map(tuple, c))
+            ret.append(c)
+        return tuple(ret)
 
     def count_subsets(self, derived_weights_dict, total_counts_dict):
         """

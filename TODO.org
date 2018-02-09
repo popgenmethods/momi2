@@ -17,3 +17,8 @@
 
 * rename Demography to MultipopMoran
 * method to compute tensor product, other stats
+* use per-base mutation rate
+  require user to supply total number of bases
+* improve drawing api
+* allow Sfs object to be passed to set_data()
+  partially implemented for some unit tests, but will crash if Sfs has wrong set of populations, etc.

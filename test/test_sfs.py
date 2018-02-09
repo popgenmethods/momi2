@@ -1,7 +1,8 @@
 
 import pytest
 import momi
-from momi import expected_sfs, expected_total_branch_len
+from momi.demo_model import DemographicModel
+from momi.events import get_event_from_old, LeafEvent, SizeEvent, JoinEvent, PulseEvent, GrowthEvent
 
 from demo_utils import simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model, exp_growth_0_model
 
@@ -45,12 +46,24 @@ def test_generated_cases(m_name, v, demo, sampled_sfs):
 
 
 def compute_stats(demo, sampled_sfs, true_sfs=None, true_branch_len=None):
-    sampled_sfs = momi.site_freq_spectrum(demo.pops, to_dict(sampled_sfs))
-    config_list = momi.config_array(demo.pops, sorted(
-        [tuple(map(tuple, c)) for c in sampled_sfs.configs]))
+    events = [get_event_from_old(e) for e in demo.demo_hist.events]
+    demo = DemographicModel(1.0, .25, {},
+                            topology_events = [e for e in events if type(e) in (PulseEvent, JoinEvent)],
+                            size_events = [e for e in events if type(e) in (SizeEvent, GrowthEvent)],
+                            leaf_events = [LeafEvent(0.0, p, 1.0, .25) for p in demo.pops],
+                            leafs = demo.pops,
+                            muts_per_gen=None, folded=False, mem_chunk_size=None, use_pairwise_diffs=None,
+                            non_ascertained_pops=[],
+                            data=None)
+    sampled_sfs = momi.site_freq_spectrum(demo.leafs, to_dict(sampled_sfs))
+    demo.set_data(sampled_sfs)
 
-    exp_sfs = expected_sfs(demo.demo_hist, config_list)
-    exp_branch_len = expected_total_branch_len(demo.demo_hist, sampled_pops=demo.pops, sampled_n=demo.n)
+    exp_branch_len = demo.expected_branchlen()
+    exp_sfs = demo.expected_sfs()
+
+    configs = sorted([tuple(map(tuple, c)) for c in sampled_sfs.configs])
+    exp_sfs = np.array([exp_sfs[c] for c in configs])
+
     if true_sfs is not None:
         assert np.allclose(true_sfs, exp_sfs, rtol=1e-4)
     if true_branch_len is not None:

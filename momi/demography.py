@@ -115,7 +115,6 @@ def _make_multipop_moran(events, sampled_pops, sampled_n, sampled_t=None, defaul
 
 
 class DemographicHistory(object):
-
     def __init__(self, events, archaic_times_dict, default_N):
         self.events = events
         self.archaic_times_dict = archaic_times_dict
@@ -169,6 +168,7 @@ class DemographicHistory(object):
         else:
             archaic_times_dict = None
         return DemographicHistory(rescaled_events, archaic_times_dict, default_N)
+
 
 class differentiable_method(object):
     """

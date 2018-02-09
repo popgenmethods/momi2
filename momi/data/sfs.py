@@ -388,6 +388,20 @@ class Sfs(object):
             [{tuple(map(tuple, c)): f for c, f in zip(subconfigs, loc_freqs) if f != 0}
              for loc_freqs in freqs.T])
 
+    def subset_populations(self, populations, non_ascertained_pops):
+        if non_ascertained_pops is None:
+            non_ascertained_pops = []
+        asc_pops = [p not in non_ascertained_pops for p in populations]
+        if list(populations) == list(self.sampled_pops) and asc_pops == list(self.ascertainment_pop):
+            return self
+        else:
+            # TODO
+            assert False
+
+    @property
+    def sfs(self):
+        return self
+
     def _get_pairwise_missing_probs(self):
         return np.dot(self._total_freqs,
                       self.configs._get_pairwise_missing_probs())

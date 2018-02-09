@@ -8,8 +8,10 @@ import pandas as pd
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 import seaborn
+from .data.config_array import config_array
 from .demography import demographic_history, Demography
 from .likelihood import SfsLikelihoodSurface
+from .compute_sfs import expected_total_branch_len, expected_sfs
 from .confidence_region import _ConfidenceRegion
 from .events import LeafEvent, SizeEvent, JoinEvent, PulseEvent, GrowthEvent
 from .events import Parameter, ParamsDict
@@ -471,15 +473,6 @@ class DemographicModel(object):
     def simulate_data(self, length, recombination_rate,
                       mutation_rate, num_replicates,
                       sampled_n_dict=None, **kwargs):
-        if sampled_n_dict is None:
-            if self._data is None:
-                raise ValueError("Need to set data or supply sample sizes")
-            sampled_n_dict = dict(zip(self._data.configs.sampled_pops,
-                                      self._data.configs.sampled_n))
-        #demo = self._get_demo()
-        #demo = demo._get_multipop_moran(
-        #    self.leafs, [sampled_n_dict[k] for k in self.leafs])
-        sampled_n_dict = co.OrderedDict((k, sampled_n_dict[k]) for k in self.leafs)
         demo = self._get_demo(sampled_n_dict)
         return demo.simulate_data(length=length,
                                   recombination_rate=4*self.N_e*recombination_rate,
@@ -490,15 +483,6 @@ class DemographicModel(object):
     def simulate_vcf(self, outfile, mutation_rate, recombination_rate,
                      length, chrom_names=[1], ploidy=1, random_seed=None,
                      sampled_n_dict=None, **kwargs):
-        if sampled_n_dict is None:
-            if self._data is None:
-                raise ValueError("Need to set data or supply sample sizes")
-            sampled_n_dict = dict(zip(self._data.configs.sampled_pops,
-                                      self._data.configs.sampled_n))
-        #demo = self._get_demo()
-        #demo = demo._get_multipop_moran(
-        #    self.leafs, [sampled_n_dict[k] for k in self.leafs])
-        sampled_n_dict = co.OrderedDict((k, sampled_n_dict[k]) for k in self.leafs)
         demo = self._get_demo(sampled_n_dict)
         return demo.simulate_vcf(outfile=outfile,
                                  mutation_rate=4*self.N_e*mutation_rate,
@@ -508,18 +492,8 @@ class DemographicModel(object):
                                  **kwargs)
 
     def fstats(self, sampled_n_dict=None):
-        sfs = self._get_sfs()
-
-        if not sampled_n_dict:
-            sampled_n_dict = dict(zip(sfs.sampled_pops,
-                                      sfs.sampled_n))
-        if not (set(sampled_n_dict.keys()) <= set(sfs.sampled_pops)):
-            raise ValueError("{} not in leaf populations".format(
-                set(sampled_n_dict.keys()) - set(sfs.sampled_pops)))
-
-        #demo = self._get_demo()
-        sampled_n_dict = co.OrderedDict((k, sampled_n_dict[k]) for k in self.leafs)
         demo = self._get_demo(sampled_n_dict)
+        sfs = self._get_sfs()
 
         ascertainment_pops = [
             pop for pop, is_asc in zip(
@@ -531,6 +505,8 @@ class DemographicModel(object):
             ascertainment_pops)
 
     def _get_demo(self, sampled_n_dict):
+        sampled_n_dict = self._get_sample_sizes(sampled_n_dict)
+
         params_dict = self.get_params()
 
         events = []
@@ -577,11 +553,10 @@ class DemographicModel(object):
         return self._demo_fun(*x)
 
     def _demo_fun(self, *x):
-        sfs = self._get_sfs()
         prev_x = self.get_x()
         try:
             self.set_x(x)
-            return self._get_demo(co.OrderedDict(zip(sfs.sampled_pops, sfs.sampled_n)))
+            return self._get_demo()
         except:
             raise
         finally:
@@ -741,6 +716,44 @@ class DemographicModel(object):
             folded=self._folded, batch_size=self._mem_chunk_size,
             use_pairwise_diffs=use_pairwise_diffs,
             p_missing=p_miss)
+
+    def expected_sfs(self, configs=None, normalized=False):
+        configs = self._get_configs(configs)
+        demo = self._get_demo(dict(zip(configs.sampled_pops,
+                                       configs.sampled_n)))
+        ret = expected_sfs(demo, configs, normalized=normalized)
+        return co.OrderedDict(zip(configs.as_tuple(), ret))
+
+    def _get_configs(self, configs):
+        if configs is not None:
+            return config_array(self.leafs, configs)
+
+        if self._data is None:
+            raise ValueError(
+                "Need to call set_data() or provide configs")
+
+        sfs = self._get_sfs()
+        return sfs.configs
+
+    def expected_branchlen(self, sampled_n_dict=None):
+        demo = self._get_demo(sampled_n_dict)
+        return expected_total_branch_len(demo)
+
+    def _get_sample_sizes(self, sampled_n_dict):
+        if sampled_n_dict is not None:
+            sampled_pops_set = set(sampled_n_dict.keys())
+            leaf_set = set(self.leafs)
+            if not sampled_pops_set <= leaf_set:
+                raise ValueError("{} not in leaf populations".format(
+                    sampled_pops_set - leaf_set))
+            # make sure it is sorted in correct order
+            return co.OrderedDict((k, sampled_n_dict[k]) for k in self.leafs
+                                  if k in sampled_pops_set)
+        if self._data is None:
+            raise ValueError(
+                "Need to call set_data() or provide dict of sample sizes.")
+        sfs = self._get_sfs()
+        return co.OrderedDict(zip(sfs.sampled_pops, sfs.sampled_n))
 
     def log_likelihood(self):
         """
