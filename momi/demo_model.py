@@ -557,7 +557,7 @@ class DemographicModel(object):
         prev_x = self.get_x()
         try:
             self.set_x(x)
-            return self._get_demo()
+            return self._get_demo(None)
         except:
             raise
         finally:
