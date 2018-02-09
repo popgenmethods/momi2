@@ -22,3 +22,7 @@
 * improve drawing api
 * allow Sfs object to be passed to set_data()
   partially implemented for some unit tests, but will crash if Sfs has wrong set of populations, etc.
+
+* add test for inferring mutation rate
+  both with hets, and with total branch len
+  (also check if I am scaling mutation rate correctly internally!)
