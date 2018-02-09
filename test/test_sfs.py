@@ -11,6 +11,8 @@ import sys
 import os
 import pickle as pickle
 
+# TODO add a test with archaic leafs
+
 MODELS = [{'demo': simple_admixture_demo, 'nlins': (5, 5), 'params': 7},
           {'demo': simple_two_pop_demo, 'nlins': (5, 8), 'params': 4},
           {'demo': piecewise_constant_demo, 'nlins': (10,), 'params': 9},
@@ -36,7 +38,6 @@ def generate_sfs():
 
             n_lin = MODELS[m_name]['nlins']
             demo = MODELS[m_name]['demo'](np.array(params), n_lin)
-            demo.demo_hist = demo.demo_hist.rescaled()
             yield m_name, v, demo, sampled_sfs
 
 
@@ -46,15 +47,6 @@ def test_generated_cases(m_name, v, demo, sampled_sfs):
 
 
 def compute_stats(demo, sampled_sfs, true_sfs=None, true_branch_len=None):
-    events = [get_event_from_old(e) for e in demo.demo_hist.events]
-    demo = DemographicModel(1.0, .25, {},
-                            topology_events = [e for e in events if type(e) in (PulseEvent, JoinEvent)],
-                            size_events = [e for e in events if type(e) in (SizeEvent, GrowthEvent)],
-                            leaf_events = [LeafEvent(0.0, p, 1.0, .25) for p in demo.pops],
-                            leafs = demo.pops,
-                            muts_per_gen=None, folded=False, mem_chunk_size=None, use_pairwise_diffs=None,
-                            non_ascertained_pops=[],
-                            data=None)
     sampled_sfs = momi.site_freq_spectrum(demo.leafs, to_dict(sampled_sfs))
     demo.set_data(sampled_sfs)
 
@@ -94,6 +86,8 @@ if __name__ == "__main__":
 
             #seg_sites = simulate_ms(
             #    ms_path, demo.demo_hist._get_multipop_moran(demo.pops, demo.n), num_loci=100, mut_rate=1.0)
+
+            # TODO fix this simulation code!!!
             num_bases = 1000
             mu = 1.
             n_loci = 100
