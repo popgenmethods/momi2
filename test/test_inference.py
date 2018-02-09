@@ -9,7 +9,6 @@ from momi import SfsLikelihoodSurface, demographic_history
 import momi
 #from test_msprime import ms_path, scrm_path
 
-
 def test_archaic_and_pairwisediffs():
     #logging.basicConfig(level=logging.DEBUG)
     theta = 1

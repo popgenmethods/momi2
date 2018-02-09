@@ -56,6 +56,10 @@ def compute_stats(demo, sampled_sfs, true_sfs=None, true_branch_len=None):
     configs = sorted([tuple(map(tuple, c)) for c in sampled_sfs.configs])
     exp_sfs = np.array([exp_sfs[c] for c in configs])
 
+    # use ms units
+    exp_branch_len = exp_branch_len / 4.0 / demo.N_e
+    exp_sfs = exp_sfs / 4.0 / demo.N_e
+
     if true_sfs is not None:
         assert np.allclose(true_sfs, exp_sfs, rtol=1e-4)
     if true_branch_len is not None:

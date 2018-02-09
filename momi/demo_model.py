@@ -470,6 +470,7 @@ class DemographicModel(object):
                     return
             raise ValueError("Unrecognized parameter {}".format(param))
 
+    # TODO: note these are PER-GENERATION mutation/recombination rates...
     def simulate_data(self, length, recombination_rate,
                       mutation_rate, num_replicates,
                       sampled_n_dict=None, **kwargs):
@@ -717,11 +718,13 @@ class DemographicModel(object):
             use_pairwise_diffs=use_pairwise_diffs,
             p_missing=p_miss)
 
+    # TODO note these are in PER-GENERATION units
+    # TODO allow to pass folded parameter (if passing separate configs?)
     def expected_sfs(self, configs=None, normalized=False):
         configs = self._get_configs(configs)
         demo = self._get_demo(dict(zip(configs.sampled_pops,
                                        configs.sampled_n)))
-        ret = expected_sfs(demo, configs, normalized=normalized)
+        ret = expected_sfs(demo, configs, normalized=normalized, folded=self._folded) * self.N_e * 4.0
         return co.OrderedDict(zip(configs.as_tuple(), ret))
 
     def _get_configs(self, configs):
@@ -735,9 +738,10 @@ class DemographicModel(object):
         sfs = self._get_sfs()
         return sfs.configs
 
+    # TODO note these are in PER-GENERATION units
     def expected_branchlen(self, sampled_n_dict=None):
         demo = self._get_demo(sampled_n_dict)
-        return expected_total_branch_len(demo)
+        return expected_total_branch_len(demo) * self.N_e * 4.0
 
     def _get_sample_sizes(self, sampled_n_dict):
         if sampled_n_dict is not None:

@@ -14,30 +14,42 @@ from demo_utils import *
 
 import os
 
-demo_funcs = {f.__name__: f for f in [simple_admixture_demo, simple_two_pop_demo,
-                                      piecewise_constant_demo, exp_growth_model, simple_admixture_3pop]}
+#demo_funcs = {f.__name__: f for f in [simple_admixture_demo, simple_two_pop_demo,
+#                                      piecewise_constant_demo, exp_growth_model, simple_admixture_3pop]}
+
+n_lineages = {simple_admixture_demo: (2, 3),
+              simple_two_pop_demo: (5, 6),
+              piecewise_constant_demo: (10,),
+              exp_growth_model: (10,),
+              simple_admixture_3pop: (4, 4, 4)}
 
 
 @pytest.mark.parametrize("k,folded",
-                         ((fname, bool(b))
-                          for fname, b in itertools.product(list(demo_funcs.keys()),
+                         ((f.__name__, bool(b))
+                          for f, b in itertools.product(list(n_lineages.keys()),
                                                             [True, False])))
 def test_sfs_counts(k, folded):
     """Test to make sure converting momi demography to ms cmd works"""
-    demo = demo_funcs[k]()
-    demo.demo_hist = demo.demo_hist.rescaled()
-    check_sfs_counts(demo.demo_hist, demo.pops, demo.n, folded=folded)
+    #demo = demo_funcs[k]()
+    f = globals()[k]
+    demo = f()
+    n = n_lineages[f]
+    check_sfs_counts(demo, demo.leafs, n, folded=folded)
 
 
-def check_sfs_counts(demo, sampled_pops, sampled_n, theta=10., rho=10.0, num_loci=1000, num_bases=1e5, folded=False):
-    seg_sites = demo.simulate_data(
-        sampled_pops, sampled_n,
-        mutation_rate=theta / num_bases,
-        recombination_rate=rho / num_bases,
-        length=num_bases,
-        num_replicates=num_loci,
-    )
-    sfs_list = seg_sites.sfs
+def check_sfs_counts(demo, sampled_pops, sampled_n, theta=2.5, rho=2.5, num_loci=1000, num_bases=1e5, folded=False):
+    #seg_sites = demo.simulate_data(
+    #    sampled_pops, sampled_n,
+    #    mutation_rate=theta / num_bases,
+    #    recombination_rate=rho / num_bases,
+    #    length=num_bases,
+    #    num_replicates=num_loci,
+    #)
+    #sfs_list = seg_sites.sfs
+    data = demo.simulate_data(length=num_bases, recombination_rate=rho / num_bases,
+                              mutation_rate=theta / num_bases, num_replicates=num_loci,
+                              sampled_n_dict=dict(zip(sampled_pops, sampled_n)))
+    sfs_list = data.sfs
 
     if folded:
         # pass
@@ -45,8 +57,10 @@ def check_sfs_counts(demo, sampled_pops, sampled_n, theta=10., rho=10.0, num_loc
 
     #config_list = sorted(set(sum([sfs.keys() for sfs in sfs_list.loci],[])))
 
-    sfs_vals, branch_len = expected_sfs(demo, sfs_list.configs, folded=folded), expected_total_branch_len(
-        demo, sampled_pops=sfs_list.sampled_pops, sampled_n=sfs_list.sampled_n)
+    #sfs_vals, branch_len = expected_sfs(demo, sfs_list.configs, folded=folded), expected_total_branch_len(
+    #    demo, sampled_pops=sfs_list.sampled_pops, sampled_n=sfs_list.sampled_n)
+    demo.set_data(sfs_list, folded=folded)
+    sfs_vals = np.array(list(demo.expected_sfs().values()))
     theoretical = sfs_vals * theta
 
     # observed = np.zeros((len(sfs_list.configs), len(sfs_list.loci)))
