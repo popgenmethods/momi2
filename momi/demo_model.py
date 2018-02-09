@@ -9,7 +9,7 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 import seaborn
 from .data.config_array import config_array
-from .demography import demographic_history, Demography
+from .demography import Demography
 from .likelihood import SfsLikelihoodSurface
 from .compute_sfs import expected_total_branch_len, expected_sfs
 from .confidence_region import _ConfidenceRegion
@@ -172,11 +172,34 @@ class DemographicModel(object):
                    key=lambda e: e.t(params_dict)),
             additional_times, pop_x_positions, **kwargs)
 
-    def get_parameter(self, name=None, scaled=False):
-        pass
+    def set_params(self, new_params, scaled=False):
+        try:
+            new_params.items()
+        except AttributeError:
+            if len(new_params) != len(self.parameters):
+                raise ValueError("New parameters should either be a dict, or be a list with length current number of parameters")
+            new_params = dict(zip(self.parameters.keys(), new_params))
 
-    def set_parameter(self, x, name=None, scaled=False):
-        pass
+        old_params = self.get_params(scaled=scaled)
+        new_params = dict(new_params)
+        curr_params = None
+        for name, param in self.parameters.items():
+            try:
+                val = new_params.pop(name)
+            except KeyError:
+                val = old_params[name]
+
+            if scaled:
+                param.x = val
+            else:
+                if curr_params is None:
+                    curr_params = ParamsDict()
+                param.x = param.inv_transform_x(val, curr_params)
+                param.update_params_dict(curr_params)
+
+        if new_params:
+            raise ValueError("Unrecognized parameters: {}".format(
+                list(new_params.keys())))
 
     def add_parameter(self, name, start_value=None,
                       scaled_lower=None,
@@ -412,16 +435,19 @@ class DemographicModel(object):
         return pd.DataFrame(list(self.get_params().items()),
                             columns=["Param", "Value"])
 
-    def get_params(self):
+    def get_params(self, scaled=False):
         """
         Return a dictionary with the current parameter
         values.
         """
         params_dict = ParamsDict()
         for param in self.parameters.values():
-            param.update_params_dict(params_dict)
-        # TODO return a pd.Series?
+            if scaled:
+                params_dict[param.name] = param.x
+            else:
+                param.update_params_dict(params_dict)
         return params_dict
+
 
     def _get_params_opt_x_jacobian(self):
         def fun(opt_x):

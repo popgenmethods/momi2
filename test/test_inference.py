@@ -1,13 +1,8 @@
 import pytest
-import os
 import random
-import sys
 import autograd.numpy as np
-from autograd import grad
-import logging
-from momi import SfsLikelihoodSurface, demographic_history
+from momi import SfsLikelihoodSurface
 import momi
-#from test_msprime import ms_path, scrm_path
 
 def test_archaic_and_pairwisediffs():
     #logging.basicConfig(level=logging.DEBUG)
@@ -16,8 +11,11 @@ def test_archaic_and_pairwisediffs():
     join_time = 1.0
     num_runs = 1000
 
-    logit = lambda p: np.log(p / (1. - p))
-    expit = lambda x: 1. / (1. + np.exp(-x))
+    def logit(p):
+        return np.log(p / (1. - p))
+
+    def expit(x):
+        return 1. / (1. + np.exp(-x))
 
     model = momi.demographic_model(N_e)
     model.add_time_param(
@@ -106,38 +104,38 @@ def check_jointime_inference(
 @pytest.mark.parametrize("folded", (True, False))
 def test_underflow_robustness(folded):
     num_runs = 1000
-    mu = 1e-3
     sampled_pops = (1, 2, 3)
     sampled_n = (5, 5, 5)
 
-    def get_demo(t0, t1):
-        return demographic_history([('-ej', np.exp(t0), 1, 2), ('-ej', np.exp(t0) + np.exp(t1), 2, 3)]).rescaled(1e4)
-    true_x = np.array([np.log(.5), np.log(.2)])
-    true_demo = get_demo(*true_x)
+    demo = momi.demographic_model(1.0, .25)
+    for p in sampled_pops:
+        demo.add_leaf(p)
+    demo.add_time_param("t0")
+    demo.add_time_param("t1", lower_constraints=["t0"])
+    demo.move_lineages(1, 2, "t0")
+    demo.move_lineages(2, 3, "t1")
 
-    # sfs = simulate_ms(ms_path, true_demo.rescaled(),
-    #                  sampled_pops = sampled_pops, sampled_n = sampled_n,
-    #                  num_loci=num_runs, mut_rate=mu*true_demo.default_N).sfs
-    num_bases = 1e3
-    sfs = true_demo.rescaled().simulate_data(
-        sampled_pops, sampled_n,
-        mutation_rate=mu * true_demo.default_N / num_bases,
-        length=num_bases,
+    true_params = np.array([0.5, 0.7])
+    demo.set_params(true_params)
+
+    n_bases = int(1e3)
+    data = demo.simulate_data(
+        length=n_bases,
+        recombination_rate=0.0,
+        mutation_rate=2.5 / n_bases,
         num_replicates=num_runs,
-    ).sfs
-    if folded:
-        sfs = sfs.fold()
+        sampled_n_dict=dict(zip(sampled_pops, sampled_n)))
 
-    # logging.basicConfig(level=logging.INFO)
-    optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_mle(
-        np.array([np.log(0.1), np.log(100.0)]))
-    #optimize_res = SfsLikelihoodSurface(sfs, get_demo, mut_rate=mu, folded=folded).find_mle(np.array([np.log(0.1),np.log(0.1)]))
+    demo.set_data(data, folded=folded)
+    demo.set_params({"t0": 0.1, "t1": 100.0})
+    optimize_res = demo.optimize()
+
     print(optimize_res)
+    inferred_params = np.array(list(demo.get_params().values()))
 
-    inferred_x = optimize_res.x
-    error = (true_x - inferred_x) / true_x
-    print("# Truth:\n", true_x)
-    print("# Inferred:\n", inferred_x)
+    error = (true_params - inferred_params) / true_params
+    print("# Truth:\n", true_params)
+    print("# Inferred:\n", inferred_params)
     print("# Max Relative Error: %f" % max(abs(error)))
     print("# Relative Error:", "\n", error)
 

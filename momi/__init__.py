@@ -4,7 +4,6 @@ a summary statistic commonly used in population genetics, and using it to infer 
 
 Please refer to examples/tutorial.ipynb for usage & introduction.
 """
-from .demography import demographic_history, make_demography
 from .compute_sfs import expected_sfs, expected_total_branch_len, expected_sfs_tensor_prod, expected_tmrca, expected_deme_tmrca
 from .likelihood import SfsLikelihoodSurface
 from .confidence_region import ConfidenceRegion

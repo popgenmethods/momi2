@@ -1,6 +1,4 @@
-#from momi import make_demography
 import momi
-from momi import demographic_history
 import autograd.numpy as np
 import random
 
