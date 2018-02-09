@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 import momi
-from momi import expected_sfs_tensor_prod, expected_total_branch_len, make_demography
+from momi import expected_sfs_tensor_prod, expected_total_branch_len
 from demo_utils import simple_admixture_demo
 from momi.math_functions import hypergeom_quasi_inverse
 
@@ -13,7 +13,7 @@ import autograd
 
 def test_constructor():
     pre_demo = simple_admixture_demo()
-    demo = pre_demo.demo_hist._get_multipop_moran(pre_demo.pops, pre_demo.n)
+    demo = pre_demo._get_demo({"b":2,"a":3})
     demo2 = momi.demography.Demography(
         demo._get_graph_structure(), demo._get_differentiable_part())
 
@@ -29,39 +29,9 @@ def test_constructor():
     assert False
 
 
-#### fix this test?
-##def test_constructor_grad():
-##    def fun1(x):
-##        pre_demo = simple_admixture_demo(x)
-##        return expected_total_branch_len(pre_demo.demo_hist, sampled_n=pre_demo.n, sampled_pops=pre_demo.pops)
-##
-##    fun2_helper = lambda diff_vals, diff_keys, G: expected_total_branch_len(
-##        momi.demography.Demography(G, diff_keys, diff_vals))
-##
-##    helper_grad = momi.util.count_calls(autograd.grad(fun2_helper))
-##
-##    fun2_helper = autograd.primitive(fun2_helper)
-##    #fun2_helper.defgrad(lambda ans, diff_vals, diff_keys, G: lambda g: tuple(g*y for y in helper_grad(diff_vals.value, diff_keys, G)))
-##    fun2_helper.defgrad(lambda ans, diff_vals, diff_keys, G: lambda g: tuple(
-##        g * y for y in helper_grad(diff_vals, diff_keys, G)))
-##
-##    def fun2(x):
-##        pre_demo = simple_admixture_demo(x)
-##        demo = pre_demo.demo_hist._get_multipop_moran(
-##            pre_demo.pops, pre_demo.n)
-##        return fun2_helper(*reversed([demo._get_graph_structure()] + list(demo._get_differentiable_part())))
-##
-##    x_val = np.random.normal(size=7)
-##
-##    assert not helper_grad.num_calls()
-##    assert np.allclose(autograd.grad(fun1)(x_val), autograd.grad(fun2)(x_val))
-##    assert helper_grad.num_calls()
-
-
-class TestDemography(momi.demography.Demography):
-
+class NoLookdownDemography(momi.demography.Demography):
     def __init__(self, demo):
-        super(TestDemography, self).__init__(demo._G)
+        super(NoLookdownDemography, self).__init__(demo._G)
 
     def _n_at_node(self, node):
         if node[0] in self.sampled_pops and node[1] == 0:
@@ -70,13 +40,8 @@ class TestDemography(momi.demography.Demography):
 
 
 def test_pseudoinverse():
-    demo = simple_admixture_demo()
-    demo = demo.demo_hist._get_multipop_moran(demo.pops, demo.n)
-
-    # construct from same event_list so that nodes have same labels
-    demo0 = make_demography(demo.events, demo.sampled_pops,
-                            demo.sampled_n, demo.sampled_t, demo.default_N)
-    demo1 = TestDemography(demo)
+    demo0 = simple_admixture_demo()._get_demo({"b":2,"a":3})
+    demo1 = NoLookdownDemography(demo0)
 
     p = 20
     vecs = [np.random.normal(size=(p, n + 1)) for n in demo0.sampled_n]
@@ -98,11 +63,6 @@ def test_hypergeom_pinv_eye():
                        np.eye(i + 1, i + 1))
 
 
-def test_copy():
-    demo = make_demography([("-ej", 1., "a", "b")], ["a", "b"], (3, 2))
-    demo.copy(sampled_n=(5, 6))
-
-
 def test_P():
     t1 = np.random.exponential(.25)
     t2 = np.random.exponential(.25) + t1
@@ -113,16 +73,34 @@ def test_P():
     i = np.random.choice([0, 1])
     j = 1 - i
 
-    root_event = ('-ej', t3, 0, 1)
-    pulse_events0 = [('-ep', t1, 0, 1, p1),
-                     ('-ep', t2, i, j, p2)]
-    pulse_events1 = [('-ep', t1, 0, 'x', p1), ('-ej', t1, 'x', 1),
-                     ('-ep', t2, i, 'y', p2), ('-ej', t2, 'y', j)]
+    demo0 = momi.demographic_model(1.0, .25)
+    demo1 = momi.demographic_model(1.0, .25)
 
-    demo0 = make_demography(pulse_events0 + [root_event],
-                            (0, 1), (5, 6))
-    demo1 = make_demography(pulse_events1 + [root_event],
-                            (0, 1), (5, 6))
+    for d in (demo0, demo1):
+        d.add_leaf(0)
+        d.add_leaf(1)
+        d.move_lineages(0, 1, t3)
+    demo0.move_lineages(0, 1, t=t1, p=p1)
+    demo0.move_lineages(i, j, t=t2, p=p2)
+
+    demo1.move_lineages(0, 'x', t=t1, p=p1)
+    demo1.move_lineages('x', 1, t=t1)
+    demo1.move_lineages(i, 'y', t=t2, p=p2)
+    demo1.move_lineages('y', j, t=t2)
+
+    demo0 = demo0._get_demo({0:5,1:6})
+    demo1 = demo1._get_demo({0:5,1:6})
+
+    #root_event = ('-ej', t3, 0, 1)
+    #pulse_events0 = [('-ep', t1, 0, 1, p1),
+    #                 ('-ep', t2, i, j, p2)]
+    #pulse_events1 = [('-ep', t1, 0, 'x', p1), ('-ej', t1, 'x', 1),
+    #                 ('-ep', t2, i, 'y', p2), ('-ej', t2, 'y', j)]
+
+    #demo0 = make_demography(pulse_events0 + [root_event],
+    #                        (0, 1), (5, 6))
+    #demo1 = make_demography(pulse_events1 + [root_event],
+    #                        (0, 1), (5, 6))
 
     p = 20
     vecs = [np.random.normal(size=(p, n + 1)) for n in demo0.sampled_n]
@@ -140,47 +118,37 @@ def test_events_before_sample():
         t += [np.random.exponential(1. / float(n_events)) + t[-1]]
     t = t[1:]
 
-    events = [('-ep', t[0], 'a', 'b', np.random.uniform(0, 1))]
 
-    demo0 = make_demography(events + [('-en', 0.0, 'c', 10.0), ('-eg', 0.0, 'c', 1.0),
-                                      ('-ej', t[1], 'a', 'c'),
-                                      ('-ej', t[2], 'c', 'b')],
-                            sampled_pops=('a', 'b'), sampled_n=(7, 5),
-                            sampled_t=(0., t[3]))
+    demo0 = momi.demographic_model(1.0, .25)
+    demo1 = momi.demographic_model(1.0, .25)
+    p = np.random.uniform(0, 1)
+    for d in (demo0, demo1):
+        d.add_leaf("a")
+        d.add_leaf("b", t=t[3])
+        d.move_lineages("a", "b", t=t[0], p=p)
 
-    demo1 = make_demography(events + [('-en', t[1], 'a', 10.0 * np.exp(-t[1])), ('-eg', t[1], 'a', 1.0),
-                                      ('-ej', t[2], 'a', 'b')],
-                            sampled_pops=('a', 'b'), sampled_n=(7, 5),
-                            sampled_t=(0., t[3]))
+    demo0.set_size("c", t=0, N=10, g=1)
+    demo0.move_lineages("a", "c", t=t[1])
+    demo0.move_lineages("c", "b", t=t[2])
+
+    demo1.set_size("a", t=t[1], N=10*np.exp(-t[1]), g=1.0)
+    demo1.move_lineages("a", "b", t=t[2])
+
+    demo0, demo1 = [d._get_demo({"a":7,"b":5}) for d in (demo0, demo1)]
+
+    #events = [('-ep', t[0], 'a', 'b', np.random.uniform(0, 1))]
+    #demo0 = make_demography(events + [('-en', 0.0, 'c', 10.0), ('-eg', 0.0, 'c', 1.0),
+    #                                  ('-ej', t[1], 'a', 'c'),
+    #                                  ('-ej', t[2], 'c', 'b')],
+    #                        sampled_pops=('a', 'b'), sampled_n=(7, 5),
+    #                        sampled_t=(0., t[3]))
+
+    #demo1 = make_demography(events + [('-en', t[1], 'a', 10.0 * np.exp(-t[1])), ('-eg', t[1], 'a', 1.0),
+    #                                  ('-ej', t[2], 'a', 'b')],
+    #                        sampled_pops=('a', 'b'), sampled_n=(7, 5),
+    #                        sampled_t=(0., t[3]))
 
     vecs = [np.random.normal(size=(10, n + 1)) for n in demo0.sampled_n]
     val0, val1 = [expected_sfs_tensor_prod(vecs, d) for d in (demo0, demo1)]
 
     assert np.allclose(val0, val1)
-
-
-def test_time_scale():
-    n_events = 3
-    t = [0.0]
-    for i in range(n_events):
-        t += [np.random.exponential(1. / float(n_events)) + t[-1]]
-    t = t[1:]
-
-    demo0 = make_demography([('-en', t[0], 'a', .3),
-                             ('-eg', t[0], 'a', 0.5),
-                             ('-ej', t[2], 'a', 'b')],
-                            sampled_pops=('a', 'b'), sampled_n=(7, 5),
-                            sampled_t=(0., t[1]),
-                            time_scale='ms')
-
-    demo1 = make_demography([('-en', 4.0 * t[0], 'a', .3),
-                             ('-eg', 4.0 * t[0], 'a', 0.5 / 4.0),
-                             ('-ej', 4.0 * t[2], 'a', 'b')],
-                            sampled_pops=('a', 'b'), sampled_n=(7, 5),
-                            sampled_t=(0., 4.0 * t[1]),
-                            time_scale='standard')
-
-    vecs = [np.random.normal(size=(10, n + 1)) for n in demo0.sampled_n]
-    val0, val1 = [expected_sfs_tensor_prod(vecs, d) for d in (demo0, demo1)]
-
-    assert np.allclose(val0, val1 / 4)

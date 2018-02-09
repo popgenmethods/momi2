@@ -1,5 +1,4 @@
 * get rid of SegSites object
-* get rid of DemographicHistory object
 * get rid of all opt_x, inv_opt_x code in demo_model
 * get all unit tests working
 * get rid of old demography format in unit tests
@@ -26,3 +25,5 @@
 * add test for inferring mutation rate
   both with hets, and with total branch len
   (also check if I am scaling mutation rate correctly internally!)
+* nuke SfsLikelihoodSurface
+  or at least don't make it accessible to the user
