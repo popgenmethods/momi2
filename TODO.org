@@ -1,3 +1,5 @@
+* get rid of SegSites object
+* get rid of DemographicHistory object
 * get rid of all opt_x, inv_opt_x code in demo_model
 * get all unit tests working
 * get rid of old demography format in unit tests
@@ -5,7 +7,6 @@
 * documentation
 * clean up tutorial
 * do some of the data parsing in C?
-* get rid of DemographicHistory object everywhere
 * Fix demo_plotter RuntimeWarning
   /nfs/team118/jk21/miniconda3/lib/python3.6/site-packages/momi/demo_plotter
 .py:35: RuntimeWarning: invalid value encountered in double_scalars
@@ -14,3 +15,5 @@
 * sometimes have sfs/denom be 0/0 in multinomial likelihood
   only in extreme cases when N is tiny or huge. should we try to fix this?
 
+* rename Demography to MultipopMoran
+* method to compute tensor product, other stats
