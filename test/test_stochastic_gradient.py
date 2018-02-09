@@ -10,7 +10,6 @@ import random
 import sys
 from collections import Counter
 import logging
-from test_msprime import ms_path, scrm_path
 
 # test subsampling of SNPs
 
@@ -21,9 +20,18 @@ def test_subconfigs(fold, normalized):
     demo = simple_admixture_demo()
     demo.demo_hist = demo.demo_hist.rescaled()
 
-    configs = momi.simulate_ms(scrm_path, demo.demo_hist,
-                               sampled_pops=demo.pops, sampled_n=demo.n,
-                               num_loci=1000, mut_rate=1.).sfs.configs
+    #configs = momi.simulate_ms(scrm_path, demo.demo_hist,
+    #                           sampled_pops=demo.pops, sampled_n=demo.n,
+    #                           num_loci=1000, mut_rate=1.).sfs.configs
+    num_bases = 1000
+    mu = 1.
+    n_loci = 1000
+    configs = demo.demo_hist.simulate_data(
+        demo.pops, demo.n,
+        mutation_rate=mu/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=n_loci).sfs.configs
 
     if fold:
         configs = momi.site_freq_spectrum(
@@ -51,10 +59,18 @@ def test_subsfs(fold, use_mut):
     demo.demo_hist = demo.demo_hist.rescaled()
 
     n_loci = 10
-    mut_rate = 100.
-    sfs = momi.simulate_ms(scrm_path, demo.demo_hist,
-                           sampled_pops=demo.pops, sampled_n=demo.n,
-                           num_loci=n_loci, mut_rate=mut_rate).sfs
+    #mut_rate = 100.
+    #sfs = momi.simulate_ms(scrm_path, demo.demo_hist,
+    #                       sampled_pops=demo.pops, sampled_n=demo.n,
+    #                       num_loci=n_loci, mut_rate=mut_rate).sfs
+    num_bases = 1000
+    mu = 100.
+    sfs = demo.demo_hist.simulate_data(
+        demo.pops, demo.n,
+        mutation_rate=mu/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=n_loci).sfs
 
     if fold:
         sfs = sfs.fold()
@@ -85,10 +101,18 @@ def test_subsfs2(fold):
     demo.demo_hist = demo.demo_hist.rescaled()
 
     n_loci = 10
-    mut_rate = 100.
-    sfs = momi.simulate_ms(scrm_path, demo.demo_hist,
-                           sampled_pops=demo.pops, sampled_n=demo.n,
-                           num_loci=n_loci, mut_rate=mut_rate).sfs
+    #mut_rate = 100.
+    #sfs = momi.simulate_ms(scrm_path, demo.demo_hist,
+    #                       sampled_pops=demo.pops, sampled_n=demo.n,
+    #                       num_loci=n_loci, mut_rate=mut_rate).sfs
+    num_bases = 1000
+    mu = 100.
+    sfs = demo.demo_hist.simulate_data(
+        demo.pops, demo.n,
+        mutation_rate=mu/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=n_loci).sfs
 
     if fold:
         sfs = sfs.fold()
@@ -114,10 +138,18 @@ def test_subliks(fold):
     demo = pre_demo_func(*x0)
 
     n_loci = 100
-    mut_rate = 10.
-    sfs = momi.simulate_ms(scrm_path, demo.demo_hist.rescaled(),
-                           sampled_pops=demo.pops, sampled_n=demo.n,
-                           num_loci=n_loci, mut_rate=mut_rate).sfs
+    #mut_rate = 10.
+    #sfs = momi.simulate_ms(scrm_path, demo.demo_hist.rescaled(),
+    #                       sampled_pops=demo.pops, sampled_n=demo.n,
+    #                       num_loci=n_loci, mut_rate=mut_rate).sfs
+    num_bases = 1000
+    mu = 10.
+    sfs = demo.demo_hist.rescaled().simulate_data(
+        demo.pops, demo.n,
+        mutation_rate=mu/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=n_loci).sfs
 
     if fold:
         sfs = sfs.fold()
@@ -148,9 +180,17 @@ def test_stochastic_inference(folded, use_pairwise_diffs):
     true_x = np.array([.5, .2])
     true_demo = get_demo(*true_x)
 
-    sfs = momi.simulate_ms(ms_path, true_demo,
-                           sampled_pops=sampled_pops, sampled_n=sampled_n,
-                           num_loci=num_runs, mut_rate=mu).sfs
+    #sfs = momi.simulate_ms(ms_path, true_demo,
+    #                       sampled_pops=sampled_pops, sampled_n=sampled_n,
+    #                       num_loci=num_runs, mut_rate=mu).sfs
+    num_bases = 1000
+    sfs = true_demo.simulate_data(
+        sampled_pops, sampled_n,
+        mutation_rate=mu/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=num_runs).sfs
+
     if folded:
         sfs = sfs.fold()
 

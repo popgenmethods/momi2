@@ -11,7 +11,6 @@ import scipy
 import scipy.stats
 
 from demo_utils import simple_admixture_demo, random_tree_demo, simple_admixture_3pop
-from test_msprime import ms_path
 
 
 def check_num_snps(demo, num_loci, mut_rate, ascertainment_pop=None, error_matrices=None):
@@ -24,9 +23,17 @@ def check_num_snps(demo, num_loci, mut_rate, ascertainment_pop=None, error_matri
     if ascertainment_pop is None:
         ascertainment_pop = np.array([True] * len(demo.sampled_n))
 
-    seg_sites = momi.simulate_ms(
-        ms_path, demo, num_loci=num_loci, mut_rate=mut_rate)
-    sfs = seg_sites.sfs
+    #seg_sites = momi.simulate_ms(
+    #    ms_path, demo, num_loci=num_loci, mut_rate=mut_rate)
+    #sfs = seg_sites.sfs
+
+    num_bases = 1000
+    sfs = demo.simulate_data(
+        mutation_rate=mut_rate/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=num_loci).sfs
+
     n_sites = sfs.n_snps(vector=True)
 
     n_sites_mean = np.mean(n_sites)

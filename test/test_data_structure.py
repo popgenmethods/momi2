@@ -1,10 +1,7 @@
 import json
 import os
-import pytest
-from momi import simulate_ms
 import momi
 from momi.data.compressed_counts import CompressedAlleleCounts
-from test_msprime import ms_path, scrm_path
 from io import StringIO
 
 from demo_utils import simple_five_pop_demo
@@ -19,14 +16,24 @@ def test_combine_loci():
 
     # data = momi.simulate_ms(scrm_path, demo,
     #                        num_loci=n_loci, mut_rate=.1)
-    raw_ms = momi.simulate_ms(scrm_path, demo.demo_hist,
-                              sampled_pops=demo.pops, sampled_n=demo.n,
-                              num_loci=n_loci, mut_rate=.1,
-                              raw_output=True)
-    data = momi.parse_ms.seg_sites_from_ms(raw_ms, demo.pops)
+    #raw_ms = momi.simulate_ms(scrm_path, demo.demo_hist,
+    #                          sampled_pops=demo.pops, sampled_n=demo.n,
+    #                          num_loci=n_loci, mut_rate=.1,
+    #                          raw_output=True)
+    num_bases = 1000
+    mu = .1
+    data = demo.demo_hist.simulate_data(
+        demo.pops, demo.n,
+        mutation_rate=mu/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=n_loci)
+
+    #data = momi.parse_ms.seg_sites_from_ms(raw_ms, demo.pops)
     assert data.n_loci == n_loci
 
     data.sfs.combine_loci()
+    # TODO check the combined SFS is correct?
 
 
 def test_readwrite_segsites_parse_ms_equal():
@@ -34,13 +41,16 @@ def test_readwrite_segsites_parse_ms_equal():
     demo.demo_hist = demo.demo_hist.rescaled()
     n_loci = 1000
 
-    # data = momi.simulate_ms(scrm_path, demo,
-    #                        num_loci=n_loci, mut_rate=.1)
-    raw_ms = momi.simulate_ms(scrm_path, demo.demo_hist,
-                              sampled_pops=demo.pops, sampled_n=demo.n,
-                              num_loci=n_loci, mut_rate=.1,
-                              raw_output=True)
+    assert False
+    # TODO this test is heavily dependent on reading ms?
+
+    #raw_ms = momi.simulate_ms(scrm_path, demo.demo_hist,
+    #                          sampled_pops=demo.pops, sampled_n=demo.n,
+    #                          num_loci=n_loci, mut_rate=.1,
+    #                          raw_output=True)
     data = momi.parse_ms.seg_sites_from_ms(raw_ms, demo.pops)
+
+
     assert data.n_loci == n_loci
 
     check_readwrite_data(data)

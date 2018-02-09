@@ -9,16 +9,18 @@ import autograd.numpy as np
 from autograd import grad, hessian, hessian_vector_product, jacobian
 import autograd
 
-from test_msprime import ms_path, scrm_path
-
-
 def test_batches():
     demo = simple_five_pop_demo(n_lins=(10, 10, 10, 10, 10))
     demo.demo_hist = demo.demo_hist.rescaled()
 
-    sfs = momi.simulate_ms(scrm_path, demo.demo_hist,
-                           sampled_pops=demo.pops, sampled_n=demo.n,
-                           num_loci=1000, mut_rate=.1).sfs
+    num_bases=1000
+    sfs = demo.demo_hist.simulate_data(
+        demo.pops, demo.n,
+        mutation_rate=.1/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=1000).sfs
+
 
     sfs_len = sfs.n_nonzero_entries
 
@@ -35,9 +37,13 @@ def test_batches_vector():
     demo = simple_five_pop_demo(n_lins=(10, 10, 10, 10, 10))
     demo.demo_hist = demo.demo_hist.rescaled()
 
-    sfs = momi.simulate_ms(scrm_path, demo.demo_hist,
-                           sampled_pops=demo.pops, sampled_n=demo.n,
-                           num_loci=1000, mut_rate=.1).sfs
+    num_bases = 1000
+    sfs = demo.demo_hist.simulate_data(
+        demo.pops, demo.n,
+        mutation_rate=.1/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=1000).sfs
 
     sfs_len = sfs.n_nonzero_entries
 
@@ -57,10 +63,13 @@ def test_batches_grad():
     pre_demo = pre_demo_func(*x0)
 
     mu = .05
-    sfs = momi.simulate_ms(scrm_path, pre_demo.demo_hist,
-                           sampled_pops=pre_demo.pops,
-                           sampled_n=pre_demo.n,
-                           num_loci=2000, mut_rate=mu).sfs
+    num_bases = 1000
+    sfs = pre_demo.demo_hist.simulate_data(
+        pre_demo.pops, pre_demo.n,
+        mutation_rate=mu/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=2000).sfs
 
     sfs_len = sfs.n_nonzero_entries
 
@@ -82,10 +91,14 @@ def test_batches_jac():
     pre_demo = pre_demo_func(*x0)
 
     mu = 10
-    sfs = momi.simulate_ms(scrm_path, pre_demo.demo_hist,
-                           sampled_pops=pre_demo.pops,
-                           sampled_n=pre_demo.n,
-                           num_loci=10, mut_rate=mu).sfs
+    num_bases = 1000
+    sfs = pre_demo.demo_hist.simulate_data(
+        pre_demo.pops, pre_demo.n,
+        mutation_rate=mu/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=10).sfs
+
 
     sfs_len = sfs.n_nonzero_entries
 
@@ -109,10 +122,13 @@ def test_batches_hess():
     pre_demo = pre_demo_func(*x0)
 
     mu = .05
-    sfs = momi.simulate_ms(scrm_path, pre_demo.demo_hist,
-                           sampled_pops=pre_demo.pops,
-                           sampled_n=pre_demo.n,
-                           num_loci=2000, mut_rate=mu).sfs
+    num_bases = 1000
+    sfs = pre_demo.demo_hist.simulate_data(
+        pre_demo.pops, pre_demo.n,
+        mutation_rate=mu/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=2000).sfs
 
     sfs_len = sfs.n_nonzero_entries
 

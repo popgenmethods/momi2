@@ -1,7 +1,7 @@
 
 import pytest
 import momi
-from momi import expected_sfs, expected_total_branch_len, simulate_ms
+from momi import expected_sfs, expected_total_branch_len
 
 from demo_utils import simple_admixture_demo, simple_two_pop_demo, piecewise_constant_demo, simple_five_pop_demo, simple_five_pop_demo, exp_growth_model, exp_growth_0_model
 
@@ -69,8 +69,7 @@ def to_dict(sampled_sfs):
     return [dict(locus) for locus in sampled_sfs]
 
 if __name__ == "__main__":
-    from test_msprime import ms_path
-
+    # TODO check this simulation code still works!
     results = {}
     for m_name, m_val in MODELS.items():
         print("# GENERATING %s" % m_name)
@@ -79,9 +78,20 @@ if __name__ == "__main__":
             demo = m_val['demo'](x, m_val['nlins'])
 
             demo.demo_hist = demo.demo_hist.rescaled()
-            seg_sites = simulate_ms(
-                ms_path, demo.demo_hist._get_multipop_moran(demo.pops, demo.n), num_loci=100, mut_rate=1.0)
-            sampled_sfs = from_dict(seg_sites.sfs.to_dict(vector=True))
+
+            #seg_sites = simulate_ms(
+            #    ms_path, demo.demo_hist._get_multipop_moran(demo.pops, demo.n), num_loci=100, mut_rate=1.0)
+            num_bases = 1000
+            mu = 1.
+            n_loci = 100
+            sfs = demo.demo_hist.simulate_data(
+                demo.pops, demo.n,
+                mutation_rate=mu/num_bases,
+                recombination_rate=0,
+                length=num_bases,
+                num_replicates=n_loci).sfs
+
+            sampled_sfs = from_dict(sfs.to_dict(vector=True))
             results[(m_name, tuple(x), sampled_sfs)
                     ] = compute_stats(demo, sampled_sfs)
     if len(sys.argv) == 2 and sys.argv[1] == "generate":

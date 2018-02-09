@@ -10,16 +10,22 @@ import random
 from collections import Counter
 import scipy
 
-from test_msprime import ms_path, scrm_path
-
-
 def test_subsample_inds():
     demo = simple_admixture_demo()
     demo.demo_hist = demo.demo_hist.rescaled()
-    data = momi.simulate_ms(ms_path, demo.demo_hist,
-                            sampled_pops=demo.pops,
-                            sampled_n=demo.n,
-                            num_loci=1000, mut_rate=1.0)
+    #data = momi.simulate_ms(ms_path, demo.demo_hist,
+    #                        sampled_pops=demo.pops,
+    #                        sampled_n=demo.n,
+    #                        num_loci=1000, mut_rate=1.0)
+    num_bases = 1000
+    mu = 1.0
+    num_replicates = 1000
+    data = demo.demo_hist.simulate_data(
+        demo.pops, demo.n,
+        mutation_rate=mu/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=num_replicates)
     assert data.sfs.n_snps() > 0
     assert data.subsample_inds(4).sfs == data.sfs.subsample_inds(4)
 
@@ -27,10 +33,19 @@ def test_subsample_inds():
 def test_count_subsets():
     demo = simple_admixture_demo(n_lins=(10,10))
     demo.demo_hist = demo.demo_hist.rescaled()
-    data = momi.simulate_ms(ms_path, demo.demo_hist,
-                            sampled_pops=demo.pops,
-                            sampled_n=demo.n,
-                            num_loci=1000, mut_rate=1.0)
+    #data = momi.simulate_ms(ms_path, demo.demo_hist,
+    #                        sampled_pops=demo.pops,
+    #                        sampled_n=demo.n,
+    #                        num_loci=1000, mut_rate=1.0)
+    num_bases = 1000
+    mu = 1.0
+    num_replicates = 1000
+    data = demo.demo_hist.simulate_data(
+        demo.pops, demo.n,
+        mutation_rate=mu/num_bases,
+        recombination_rate=0,
+        length=num_bases,
+        num_replicates=num_replicates).sfs
 
     subconfig = []
     for n in data.sampled_n:

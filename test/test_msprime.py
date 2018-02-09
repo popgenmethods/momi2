@@ -1,4 +1,4 @@
-from momi import expected_sfs, expected_total_branch_len, simulate_ms, run_ms
+from momi import expected_sfs, expected_total_branch_len
 import momi
 import pytest
 import random
@@ -13,11 +13,6 @@ from collections import Counter
 from demo_utils import *
 
 import os
-
-ms_path = shutil.which("ms")
-scrm_path = shutil.which("scrm")
-if not ms_path or not scrm_path:
-    raise Exception("Need to have ms, scrm on PATH for unit tests")
 
 demo_funcs = {f.__name__: f for f in [simple_admixture_demo, simple_two_pop_demo,
                                       piecewise_constant_demo, exp_growth_model, simple_admixture_3pop]}
@@ -35,7 +30,6 @@ def test_sfs_counts(k, folded):
 
 
 def check_sfs_counts(demo, sampled_pops, sampled_n, theta=10., rho=10.0, num_loci=1000, num_bases=1e5, folded=False):
-    #seg_sites = simulate_ms(ms_path, demo, num_loci=num_loci, mut_rate=theta, additional_ms_params='-r %f %d' % (rho, num_loci), sampled_n=sampled_n, sampled_pops=sampled_pops)
     seg_sites = demo.simulate_data(
         sampled_pops, sampled_n,
         mutation_rate=theta / num_bases,

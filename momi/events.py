@@ -6,6 +6,7 @@ from .math_functions import hypergeom_quasi_inverse, binom_coeffs, _apply_error_
 from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 
 
+# FIXME: we always assume default_N=1.0 for now
 def _build_demo_graph(events, sample_sizes, params_dict, default_N):
     _G = nx.DiGraph()
     #_G.graph['event_cmds'] = tuple(events)
