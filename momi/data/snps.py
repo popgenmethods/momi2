@@ -11,7 +11,7 @@ import gzip
 import logging
 from .compressed_counts import CompressedAlleleCounts, _CompressedHashedCounts
 from .config_array import ConfigArray
-from .seg_sites import SegSites
+from .sfs import Sfs
 from ..util import memoize_instance
 
 
@@ -386,7 +386,7 @@ class SnpAlleleCounts(object):
 
     def __eq__(self, other):
         try:
-            return (self.seg_sites == other.seg_sites and
+            return (self.compressed_counts == other.compressed_counts and
                     np.all(self.chrom_ids == other.chrom_ids) and
                     np.all(self.positions == other.positions))
         except AttributeError:
@@ -572,29 +572,41 @@ class SnpAlleleCounts(object):
         return np.array([(pop not in self.non_ascertained_pops)
                          for pop in self.populations])
 
-    @property
-    def seg_sites(self):
-        try:
-            self._seg_sites
-        except:
-            filtered = self.filter(self.is_polymorphic)
-            idx_list = [
-                np.array([i for chrom, i in grouped_idxs])
-                for key, grouped_idxs in it.groupby(
-                        zip(filtered.chrom_ids,
-                            filtered.compressed_counts.index2uniq),
-                        key=lambda x: x[0])]
-            self._seg_sites = SegSites(ConfigArray(
-                self.populations,
-                filtered.compressed_counts.config_array,
-                ascertainment_pop=self.ascertainment_pop
-            ), idx_list)
-        return self._seg_sites
+    #@property
+    #def seg_sites(self):
+    #    try:
+    #        self._seg_sites
+    #    except:
+    #        filtered = self.filter(self.is_polymorphic)
+    #        idx_list = [
+    #            np.array([i for chrom, i in grouped_idxs])
+    #            for key, grouped_idxs in it.groupby(
+    #                    zip(filtered.chrom_ids,
+    #                        filtered.compressed_counts.index2uniq),
+    #                    key=lambda x: x[0])]
+    #        self._seg_sites = SegSites(ConfigArray(
+    #            self.populations,
+    #            filtered.compressed_counts.config_array,
+    #            ascertainment_pop=self.ascertainment_pop
+    #        ), idx_list)
+    #    return self._seg_sites
 
-    @property
+    @cached_property
     def sfs(self):
-        return self.seg_sites.sfs
+        filtered = self.filter(self.is_polymorphic)
+        idx_list = [
+            np.array([i for chrom, i in grouped_idxs])
+            for key, grouped_idxs in it.groupby(
+                    zip(filtered.chrom_ids,
+                        filtered.compressed_counts.index2uniq),
+                    key=lambda x: x[0])]
+        configs = ConfigArray(
+            self.populations,
+            filtered.compressed_counts.config_array,
+            ascertainment_pop=self.ascertainment_pop)
+        return Sfs(idx_list, configs)
 
     @property
     def configs(self):
         return self.sfs.configs
+

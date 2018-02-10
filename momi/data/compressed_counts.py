@@ -83,6 +83,13 @@ class CompressedAlleleCounts(object):
     def __getitem__(self, i):
         return self.config_array[self.index2uniq[i], :, :]
 
+    def __eq__(self, other):
+        try:
+            return (np.all(self.config_array == other.config_array)
+                    and np.all(self.index2uniq == other.index2uniq))
+        except AttributeError:
+            return False
+
     def __len__(self):
         return len(self.index2uniq)
 

@@ -10,7 +10,5 @@ from .confidence_region import ConfidenceRegion
 from .data.config_array import config_array
 from .data.sfs import site_freq_spectrum
 from .data.tensor import sfs_tensor_prod
-from .data.seg_sites import write_seg_sites, read_seg_sites, seg_site_configs
-from .data.plink import read_plink_frq_strat
 from .data.snps import SnpAlleleCounts
 from .demo_model import demographic_model

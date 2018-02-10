@@ -1,5 +1,7 @@
 * get rid of SegSites object
 * get rid of all opt_x, inv_opt_x code in demo_model
+* clean up, or delete, confidence region stuff?
+* clean up, rename fstats
 * get all unit tests working
 * get rid of old demography format in unit tests
 * allow to set submodel in set_random_parameters
@@ -16,7 +18,7 @@
 
 * rename Demography to MultipopMoran
 * method to compute tensor product, other stats
-* use per-base mutation rate
+* use per-base mutation rate?
   require user to supply total number of bases
 * improve drawing api
 * allow Sfs object to be passed to set_data()
