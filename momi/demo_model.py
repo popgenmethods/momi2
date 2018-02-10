@@ -431,6 +431,7 @@ class DemographicModel(object):
         self.size_events.append(GrowthEvent(
             t, g, pop, self.N_e, self.gen_time))
 
+    # TODO delete this method
     def get_params_df(self):
         return pd.DataFrame(list(self.get_params().items()),
                             columns=["Param", "Value"])
@@ -448,17 +449,7 @@ class DemographicModel(object):
                 param.update_params_dict(params_dict)
         return params_dict
 
-
-    def _get_params_opt_x_jacobian(self):
-        def fun(opt_x):
-            x = self._x_from_opt_x(opt_x)
-            params_dict = ParamsDict()
-            for x_i, param in zip(
-                    x, self.parameters.values()):
-                param.update_params_dict(params_dict, x_i)
-            return np.array(list(params_dict.values()))
-        return ag.jacobian(fun)(self._get_opt_x())
-
+    # TODO use get_params() instead
     def get_x(self, param=None):
         """
         Return the current value of x (the untransformed parameters).
@@ -472,29 +463,18 @@ class DemographicModel(object):
                     return p.x
             raise ValueError("Unrecognized parameter {}".format(param))
 
+    # TODO get rid of this; add a randomize flag to set_params()
     def set_random_parameters(self):
         params_dict = ParamsDict()
         for param in self.parameters.values():
             param.resample(params_dict)
             param.update_params_dict(params_dict)
 
+    # TODO delete this method (just call set_params directly)
     def set_x(self, x, param=None):
-        """
-        Set the value of x (the untransformed parameters).
-        """
-        if param is None:
-            if len(x) != len(self.parameters):
-                raise ValueError(
-                    "len(x) != {}".format(len(self.parameters)))
-
-            for p_i, x_i in zip(self.parameters.values(), x):
-                p_i.x = x_i
-        else:
-            for p in self.parameters.values():
-                if p.name == param:
-                    p.x = x
-                    return
-            raise ValueError("Unrecognized parameter {}".format(param))
+        if param:
+            x = {param: x}
+        self.set_params(x, scaled=True)
 
     # TODO: note these are PER-GENERATION mutation/recombination rates...
     def simulate_data(self, length, recombination_rate,
@@ -518,6 +498,7 @@ class DemographicModel(object):
                                  ploidy=ploidy, random_seed=random_seed,
                                  **kwargs)
 
+    # TODO rename to model_fit_stats or somesuch
     def fstats(self, sampled_n_dict=None):
         demo = self._get_demo(sampled_n_dict)
         sfs = self._get_sfs()
@@ -531,6 +512,7 @@ class DemographicModel(object):
             sfs, demo,
             ascertainment_pops)
 
+    # TODO rename to get_multipop_moran?
     def _get_demo(self, sampled_n_dict):
         sampled_n_dict = self._get_sample_sizes(sampled_n_dict)
 
@@ -556,30 +538,8 @@ class DemographicModel(object):
 
         return demo
 
-    def _get_opt_x(self):
-        return np.array([p.inv_opt_trans(p.x)
-                         for p in self.parameters.values()])
-
-    def _x_from_opt_x(self, opt_x):
-        return np.array([
-            p.opt_trans(ox)
-            for p, ox in zip(
-                    self.parameters.values(), opt_x)])
-
-    def _opt_x_from_x(self, x):
-        return np.array([
-            p.inv_opt_trans(x_i)
-            for p, x_i in zip(self.parameters.values(), x)
-        ])
-
-    def _opt_demo_fun(self, *opt_x):
-        opt_x = np.array(opt_x)
-        logging.debug("opt_x = {}".format(str(opt_x)))
-        x = self._x_from_opt_x(opt_x)
-        logging.debug("x = {}".format(str(x)))
-        return self._demo_fun(*x)
-
     def _demo_fun(self, *x):
+        logging.debug("x = {}".format(str(x)))
         prev_x = self.get_x()
         try:
             self.set_x(x)
@@ -640,7 +600,7 @@ class DemographicModel(object):
 
     def _set_data(self, data, muts_per_gen, folded,
                   mem_chunk_size, use_pairwise_diffs, non_ascertained_pops):
-        self._opt_surface = None
+        self._lik_surface = None
         self._conf_region = None
         self._sfs = None
         self._data = data
@@ -658,67 +618,63 @@ class DemographicModel(object):
                 non_ascertained_pops=self._non_ascertained_pops).sfs
         return self._sfs
 
-    def _get_opt_surface(self):
-        if self._opt_surface is None or list(
-                self._opt_surface.data.sampled_pops) != list(self.leafs):
-            self._conf_region = None
-            if self._data is None:
-                raise ValueError("Need to call DemographicModel.set_data()")
-            logging.info("Constructing likelihood surface...")
+    #def _get_conf_region(self):
+    #    opt_surface = self._get_surface()
+    #    opt_x = self._get_opt_x()
+    #    if self._conf_region is None or not np.allclose(
+    #            opt_x, self._conf_region.point):
+    #        opt_score = opt_surface._score(opt_x)
+    #        opt_score_cov = opt_surface._score_cov(opt_x)
+    #        opt_fisher = opt_surface._fisher(opt_x)
 
-            sfs = self._get_sfs()
-            self._opt_surface = self._make_surface(
-                sfs, opt_surface=True)
+    #        self._conf_region = _ConfidenceRegion(
+    #            opt_x, opt_score, opt_score_cov, opt_fisher,
+    #            lik_fun=opt_surface.log_lik,
+    #            psd_rtol=1e-4)
+    #    return self._conf_region
 
-            logging.info("Finished constructing likelihood surface")
+    #def marginal_wald(self):
+    #    marginal_wald_df = co.OrderedDict()
+    #    marginal_wald_df["Param"] = [
+    #        p.name for p in self.parameters.values()]
+    #    marginal_wald_df["Value"] = list(
+    #        self.get_params().values())
+    #    marginal_wald_df["StdDev"] = np.sqrt(np.diag(self.mle_cov()))
+    #    return pd.DataFrame(marginal_wald_df)
 
-        return self._opt_surface
+    #def mle_cov(self, x_scale=False):
+    #    # use delta method
+    #    G = self._get_conf_region().godambe(inverse=True)
+    #    if x_scale:
+    #        return G
+    #    else:
+    #        dp_do = self._get_params_opt_x_jacobian()
+    #        return np.dot(dp_do, np.dot(G, dp_do.T))
 
-    def _get_conf_region(self):
-        opt_surface = self._get_opt_surface()
-        opt_x = self._get_opt_x()
-        if self._conf_region is None or not np.allclose(
-                opt_x, self._conf_region.point):
-            opt_score = opt_surface._score(opt_x)
-            opt_score_cov = opt_surface._score_cov(opt_x)
-            opt_fisher = opt_surface._fisher(opt_x)
+    #def test(self, null_point=None, sims=int(1e3), test_type="ratio",
+    #         alt_point=None, *args, **kwargs):
+    #    if null_point is None:
+    #        null_point = self.get_x()
+    #    null_point = self._opt_x_from_x(null_point)
+    #    if alt_point is not None:
+    #        alt_point = self._opt_x_from_x(alt_point)
+    #    return self._get_conf_region().test(
+    #        null_point=null_point, sims=sims,
+    #        test_type=test_type, alt_point=alt_point, *args, **kwargs)
 
-            self._conf_region = _ConfidenceRegion(
-                opt_x, opt_score, opt_score_cov, opt_fisher,
-                lik_fun=opt_surface.log_lik,
-                psd_rtol=1e-4)
-        return self._conf_region
+    def _get_surface(self):
+        if self._lik_surface is not None and (
+                list(self._lik_surface.data.sampled_pops) ==
+                list(self.leafs)):
+            return self._lik_surface
 
-    def marginal_wald(self):
-        marginal_wald_df = co.OrderedDict()
-        marginal_wald_df["Param"] = [
-            p.name for p in self.parameters.values()]
-        marginal_wald_df["Value"] = list(
-            self.get_params().values())
-        marginal_wald_df["StdDev"] = np.sqrt(np.diag(self.mle_cov()))
-        return pd.DataFrame(marginal_wald_df)
+        self._conf_region = None
+        if self._data is None:
+            raise ValueError("Need to call DemographicModel.set_data()")
+        # TODO better message (e.g. "Building SFS...")
+        logging.info("Constructing likelihood surface...")
 
-    def mle_cov(self, x_scale=False):
-        # use delta method
-        G = self._get_conf_region().godambe(inverse=True)
-        if x_scale:
-            return G
-        else:
-            dp_do = self._get_params_opt_x_jacobian()
-            return np.dot(dp_do, np.dot(G, dp_do.T))
-
-    def test(self, null_point=None, sims=int(1e3), test_type="ratio",
-             alt_point=None, *args, **kwargs):
-        if null_point is None:
-            null_point = self.get_x()
-        null_point = self._opt_x_from_x(null_point)
-        if alt_point is not None:
-            alt_point = self._opt_x_from_x(alt_point)
-        return self._get_conf_region().test(
-            null_point=null_point, sims=sims,
-            test_type=test_type, alt_point=alt_point, *args, **kwargs)
-
-    def _make_surface(self, sfs, opt_surface):
+        sfs = self._get_sfs()
         use_pairwise_diffs = self._use_pairwise_diffs
         if use_pairwise_diffs is None:
             use_pairwise_diffs = True
@@ -729,20 +685,22 @@ class DemographicModel(object):
         else:
             mut_rate = 4 * self.N_e * muts_per_gen / sfs.n_loci
 
-        if opt_surface:
-            demo_fun = self._opt_demo_fun
-        else:
-            demo_fun = self._demo_fun
+        demo_fun = self._demo_fun
 
         p_miss = self._data._p_missing
         p_miss = {pop: pm for pop, pm in zip(
             self._data.populations, p_miss)}
         p_miss = np.array([p_miss[pop] for pop in sfs.sampled_pops])
-        return SfsLikelihoodSurface(
+
+        self._lik_surface = SfsLikelihoodSurface(
             sfs, demo_fun, mut_rate=mut_rate,
             folded=self._folded, batch_size=self._mem_chunk_size,
             use_pairwise_diffs=use_pairwise_diffs,
             p_missing=p_miss)
+
+        logging.info("Finished constructing likelihood surface")
+
+        return self._lik_surface
 
     # TODO note these are in PER-GENERATION units
     # TODO allow to pass folded parameter (if passing separate configs?)
@@ -789,13 +747,13 @@ class DemographicModel(object):
         """
         The log likelihood at the current parameter values
         """
-        return self._get_opt_surface().log_lik(self._get_opt_x())
+        return self._get_surface().log_lik(self.get_x())
 
     def kl_div(self):
         """
         The KL-divergence at the current parameter values
         """
-        return self._get_opt_surface().kl_div(self._get_opt_x())
+        return self._get_surface().kl_div(self.get_x())
 
     def pairwise_diffs(self, exclude_pops=[],
                        exclude_singletons=False, plot=True):
@@ -841,15 +799,15 @@ class DemographicModel(object):
             self, n_minibatches=None, snps_per_minibatch=None,
             rgen=np.random, printfreq=1, start_from_checkpoint=None,
             **kwargs):
-        def callback(opt_x):
-            self.set_x(self._x_from_opt_x(opt_x))
-            if opt_x.iteration % printfreq == 0:
-                msg = [("it", opt_x.iteration), ("LogLikelihood", -opt_x.fun)]
+        def callback(x):
+            self.set_x(x)
+            if x.iteration % printfreq == 0:
+                msg = [("it", x.iteration), ("LogLikelihood", -x.fun)]
                 msg.extend(list(self.get_params().items()))
                 msg = ", ".join(["{}: {}".format(k, v) for k, v in msg])
                 logging.info("{" + msg + "}")
 
-        bounds = [p.opt_x_bounds
+        bounds = [p.x_bounds
                   for p in self.parameters.values()]
         if all([b is None for bnd in bounds for b in bnd]):
             bounds = None
@@ -858,19 +816,17 @@ class DemographicModel(object):
         kwargs["callback"] = callback
         kwargs["bounds"] = bounds
 
-
         if start_from_checkpoint:
             with open(start_from_checkpoint) as f:
                 kwargs.update(json.load(f))
         else:
-            kwargs["x0"] = self._get_opt_x()
+            kwargs["x0"] = self.get_x()
 
-        res = self._get_opt_surface()._stochastic_surfaces(
+        res = self._get_surface()._stochastic_surfaces(
             n_minibatches=n_minibatches,
             snps_per_minibatch=snps_per_minibatch,
             rgen=rgen).find_mle(**kwargs)
 
-        res.x = self._x_from_opt_x(res.x)
         self.set_x(res.x)
         return res
 
@@ -902,26 +858,25 @@ class DemographicModel(object):
         **kwargs: additional arguments passed to
               scipy.optimize.minimize
         """
-        bounds = [p.opt_x_bounds
+        bounds = [p.x_bounds
                   for p in self.parameters.values()]
         if all([b is None for bnd in bounds for b in bnd]):
             bounds = None
 
-        def callback(opt_x):
-            self.set_x(self._x_from_opt_x(opt_x))
-            if opt_x.iteration % printfreq == 0:
-                msg = [("it", opt_x.iteration), ("KLDivergence", opt_x.fun)]
+        def callback(x):
+            self.set_x(x)
+            if x.iteration % printfreq == 0:
+                msg = [("it", x.iteration), ("KLDivergence", x.fun)]
                 msg.extend(list(self.get_params().items()))
                 msg = ", ".join(["{}: {}".format(k, v) for k, v in msg])
                 logging.info("{" + msg + "}")
 
-        res = self._get_opt_surface().find_mle(
-            self._get_opt_x(), method=method,
+        res = self._get_surface().find_mle(
+            self.get_x(), method=method,
             jac=jac, hess=hess, hessp=hessp,
             bounds=bounds, callback=callback,
             **kwargs)
 
-        res.x = self._x_from_opt_x(res.x)
         self.set_x(res.x)
-        res["parameters"] = pd.Series(self.get_params())
+        res["parameters"] = self.get_params()
         return res

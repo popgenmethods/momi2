@@ -1,12 +1,19 @@
-* get rid of SegSites object
-* get rid of all opt_x, inv_opt_x code in demo_model
-* clean up, or delete, confidence region stuff?
 * clean up, rename fstats
+* clean up confidence region stuff?
+  Options:
+  1) Delete it entirely
+  2) DemoModel has method for testing/CI
+  3) DemoModel returns a GodambeConfRegion object which contains all the user-facing methods
+  
+     Leaning towards option (3).
+     
+     Don't have any of the delta method scaling business though. Just create a scaled/unscaled Godambe object by passing in a scaled/unscaled demo function directly
+  
 * get all unit tests working
 * get rid of old demography format in unit tests
 * allow to set submodel in set_random_parameters
-* documentation
 * clean up tutorial
+* documentation
 * do some of the data parsing in C?
 * Fix demo_plotter RuntimeWarning
   /nfs/team118/jk21/miniconda3/lib/python3.6/site-packages/momi/demo_plotter

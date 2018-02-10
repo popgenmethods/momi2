@@ -64,10 +64,6 @@ class Parameter(object):
         self.inv_transform_x = inv_transform_x
         self.rgen = rgen
 
-        # TODO remove opt_x stuff
-        self.opt_trans = lambda x: x
-        self.inv_opt_trans = lambda x: x
-
         # TODO some sort of test that inv_transform_x is actually the inverse of transform_x
 
     def copy(self):
@@ -81,16 +77,6 @@ class Parameter(object):
     def resample(self, params):
         self.x = self.inv_transform_x(self.rgen(params),
                                       params)
-
-    @property
-    def opt_x_bounds(self):
-        opt_x_bounds = []
-        for bnd in self.x_bounds:
-            if bnd is None:
-                opt_x_bounds.append(None)
-            else:
-                opt_x_bounds.append(self.inv_opt_trans(bnd))
-        return opt_x_bounds
 
     def update_params_dict(self, params_dict, x=None):
         if x is None:
