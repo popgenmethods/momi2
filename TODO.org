@@ -1,5 +1,17 @@
+* documentation
+* polish tutorial
+** add a randomize flag to set_params in order to iteratively fit submodels
+** add pairwise distances cell
 * clean up, rename fstats
-* clean up confidence region stuff?
+  rename to model_fit_Stats or somesuch?
+* decide how to create SFS/SnpAlleleCounts from scratch
+  try to KISS
+** fully allow Sfs object to be passed to set_data()
+   partially implemented for some unit tests, but will crash if Sfs has wrong set of populations, etc.
+
+* link Demography graph to DemoPlotter more directly
+  so that DemoPlotter can easily show if there is a bug or not
+* clean up confidence region stuff
   Options:
   1) Delete it entirely
   2) DemoModel has method for testing/CI
@@ -9,12 +21,16 @@
      
      Don't have any of the delta method scaling business though. Just create a scaled/unscaled Godambe object by passing in a scaled/unscaled demo function directly
   
+     Currently leaning towards cleaning it up and documenting it, but not illustrating it in the tutorial.
+
+* make SfsLikelihoodSurface not accessible to user
 * get all unit tests working
-* get rid of old demography format in unit tests
-* allow to set submodel in set_random_parameters
-* clean up tutorial
-* documentation
-* do some of the data parsing in C?
+* make foldedness a property of the data structure?
+* add AA property to simulated vcf; remove option to use ref as ancestral allele
+* method to compute tensor product, other stats
+  and document it
+  
+  this should be united with fstats somehow
 * Fix demo_plotter RuntimeWarning
   /nfs/team118/jk21/miniconda3/lib/python3.6/site-packages/momi/demo_plotter
 .py:35: RuntimeWarning: invalid value encountered in double_scalars
@@ -24,15 +40,10 @@
   only in extreme cases when N is tiny or huge. should we try to fix this?
 
 * rename Demography to MultipopMoran
-* method to compute tensor product, other stats
 * use per-base mutation rate?
   require user to supply total number of bases
 * improve drawing api
-* allow Sfs object to be passed to set_data()
-  partially implemented for some unit tests, but will crash if Sfs has wrong set of populations, etc.
-
 * add test for inferring mutation rate
   both with hets, and with total branch len
   (also check if I am scaling mutation rate correctly internally!)
-* nuke SfsLikelihoodSurface
-  or at least don't make it accessible to the user
+* do some of the data parsing in C?

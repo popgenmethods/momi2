@@ -7,7 +7,7 @@ def simple_admixture_demo(x=np.random.normal(size=7), n_lins=(2, 3)):
     t = np.cumsum(np.exp(x[:5]))
     p = 1.0 / (1.0 + np.exp(x[5:]))
 
-    ret = momi.demographic_model(1., .25)
+    ret = momi.DemographicModel(1., .25)
     ret.add_leaf("b")
     ret.add_leaf("a")
     ret.move_lineages("a", 2, t[1], p=1.-p[1])
@@ -24,7 +24,7 @@ def simple_admixture_3pop(x=None, n_lins=(4, 4, 4)):
     t = np.cumsum(np.exp(x[:5]))
     p = 1.0 / (1.0 + np.exp(x[5:]))
 
-    model = momi.demographic_model(1., .25)
+    model = momi.DemographicModel(1., .25)
     model.add_leaf("b")
     model.add_leaf("a")
     model.add_leaf("c")
@@ -38,7 +38,7 @@ def simple_admixture_3pop(x=None, n_lins=(4, 4, 4)):
 
 def simple_two_pop_demo(x=np.random.normal(size=4), n_lins=(5, 6)):
     x = [np.exp(xi) for xi in x]
-    model = momi.demographic_model(1., .25)
+    model = momi.DemographicModel(1., .25)
     model.add_leaf(1)
     model.add_leaf(0)
     model.set_size(1, t=0.0, N=x[1])
@@ -49,7 +49,7 @@ def simple_two_pop_demo(x=np.random.normal(size=4), n_lins=(5, 6)):
 
 
 def simple_three_pop_demo(t0, t1, n_lins=(1,1,1)):
-    model = momi.demographic_model(1., .25)
+    model = momi.DemographicModel(1., .25)
     model.add_leaf(1)
     model.add_leaf(2)
     model.add_leaf(3)
@@ -64,7 +64,7 @@ def simple_nea_admixture_demo(N_chb_bottom, N_chb_top, pulse_t, pulse_p, ej_chb,
 
     G_chb = -np.log(N_chb_top / N_chb_bottom) / ej_chb
 
-    model = momi.demographic_model(1., .25)
+    model = momi.DemographicModel(1., .25)
     model.add_leaf("yri")
     model.add_leaf("chb")
     model.set_size("chb", 0., N=N_chb_bottom, g=G_chb)
@@ -94,7 +94,7 @@ def piecewise_constant_demo(x=np.random.normal(size=15), n_lins=(10,)):
     assert x.shape[0] % 2 == 1
     n, = n_lins
 
-    model = momi.demographic_model(1.0, .25)
+    model = momi.DemographicModel(1.0, .25)
     model.add_leaf(0, N=np.exp(x[0]))
     #events_list = [('-en', 0., 0, 1e4 * np.exp(x[0]))]
     prev_time = 0.0
@@ -112,7 +112,7 @@ def piecewise_constant_demo(x=np.random.normal(size=15), n_lins=(10,)):
 def exp_growth_model(x=np.random.normal(size=3), n_lins=(10,)):
     t, g, g2 = x
     t, g2 = np.exp(t), np.exp(g2)
-    model = momi.demographic_model(1.0, .25)
+    model = momi.DemographicModel(1.0, .25)
     model.add_leaf(0, g=g)
     model.set_size(0, t=t, g=g2)
     model.set_size(0, t=3*t, g=0)
@@ -146,7 +146,7 @@ def simple_five_pop_demo(x=np.random.normal(size=30), n_lins=(1, 2, 3, 4, 5)):
     # allow negative growth rates
     g = np.log(x[15:20])
 
-    model = momi.demographic_model(1.0, .25)
+    model = momi.DemographicModel(1.0, .25)
     for pop in range(1, 6):
         model.add_leaf(pop)
     model.set_size(5, t[0], g=g[0])
@@ -191,7 +191,7 @@ def simple_five_pop_demo(x=np.random.normal(size=30), n_lins=(1, 2, 3, 4, 5)):
 def random_tree_demo(num_leaf_pops, lins_per_pop):
     #events_list = []
     sampled_pops = list(range(1, num_leaf_pops + 1))
-    model = momi.demographic_model(1.0, .25)
+    model = momi.DemographicModel(1.0, .25)
     for p in sampled_pops:
         model.add_leaf(p, N=random.expovariate(1.0))
     roots = list(sampled_pops)

@@ -11,4 +11,4 @@ from .data.config_array import config_array
 from .data.sfs import site_freq_spectrum
 from .data.tensor import sfs_tensor_prod
 from .data.snps import SnpAlleleCounts
-from .demo_model import demographic_model
+from .demo_model import DemographicModel

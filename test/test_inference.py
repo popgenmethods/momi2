@@ -17,7 +17,7 @@ def test_archaic_and_pairwisediffs():
     def expit(x):
         return 1. / (1. + np.exp(-x))
 
-    model = momi.demographic_model(N_e)
+    model = momi.DemographicModel(N_e)
     model.add_time_param(
         "sample_t", random.uniform(0.001, join_time-.001) / join_time,
         upper=join_time)
@@ -57,7 +57,7 @@ def check_jointime_inference(
     t0 = random.uniform(.25, 2.5)
     t1 = t0 + random.uniform(.5, 5.0)
 
-    model = momi.demographic_model(1)
+    model = momi.DemographicModel(1)
     model.add_leaf(1)
     model.add_leaf(2)
     model.add_leaf(3)
@@ -107,7 +107,7 @@ def test_underflow_robustness(folded):
     sampled_pops = (1, 2, 3)
     sampled_n = (5, 5, 5)
 
-    demo = momi.demographic_model(1.0, .25)
+    demo = momi.DemographicModel(1.0, .25)
     for p in sampled_pops:
         demo.add_leaf(p)
     demo.add_time_param("t0")

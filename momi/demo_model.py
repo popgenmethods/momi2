@@ -20,67 +20,46 @@ from .demo_plotter import DemographyPlotter
 from .fstats import ModelFitFstats
 
 
-def demographic_model(default_N, gen_time=1):
-    """
-    Arguments
-    ---------
-    default_N: the default population size
-        every population is assumed to have its size
-        as default_N, unless manually changed by
-        set_size().
-
-        the optimizer also internally uses this value
-        to rescale the problem. for best optimizer
-        performance, default_N should be on the same
-        order magnitude as the "typical" effective size
-        (e.g. 1e4 in humans)
-    gen_time: units of time per generation
-        (e.g. if generation is 29 years, set gen_time=29
-            to use years as the time unit)
-    """
-    return DemographicModel(
-        N_e=default_N, gen_time=gen_time, parameters={},
-        topology_events=[], size_events=[],
-        leaf_events=[], leafs=[],
-        data=None, muts_per_gen=None, folded=None,
-        mem_chunk_size=None, use_pairwise_diffs=None,
-        non_ascertained_pops=None)
-
-
 class DemographicModel(object):
-    def __init__(self, N_e, gen_time, parameters,
-                 topology_events, size_events,
-                 leaf_events, leafs,
-                 data, muts_per_gen, folded,
-                 mem_chunk_size, use_pairwise_diffs,
-                 non_ascertained_pops):
+    """Object for representing and inferring a demographic history.
+
+    :param N_e: the effective population size, unless manually changed by \
+    :meth:`momi.DemographicModel.set_size()`
+    :param gen_time: units of time per generation. For example, if you wish to \
+    specify time in years, and a generation is 29 years, set this to 29. \
+    Default value is 1.
+    """
+    def __init__(self, N_e, gen_time=1):
         self.N_e = N_e
         self.gen_time = gen_time
-        self.parameters = co.OrderedDict((k, p.copy()) for k, p in parameters.items())
-        self.topology_events = list(topology_events)
-        self.size_events = list(size_events)
-        self.leaf_events = list(leaf_events)
-        self.leafs = list(leafs)
+        self.parameters = co.OrderedDict()
+        self.topology_events = []
+        self.size_events = []
+        self.leaf_events = []
+        self.leafs = []
 
-        self._set_data(data=data, muts_per_gen=muts_per_gen,
-                       folded=folded, mem_chunk_size=mem_chunk_size,
-                       use_pairwise_diffs=use_pairwise_diffs,
-                       non_ascertained_pops=non_ascertained_pops)
+        self._set_data(data=None, muts_per_gen=None,
+                       folded=None, mem_chunk_size=None,
+                       use_pairwise_diffs=None,
+                       non_ascertained_pops=None)
 
     def copy(self):
-        return DemographicModel(
-            N_e=self.N_e, gen_time=self.gen_time,
-            parameters=self.parameters,
-            topology_events=self.topology_events,
-            size_events=self.size_events,
-            leaf_events=self.leaf_events, leafs=self.leafs,
-            data=self._data, muts_per_gen=self._muts_per_gen,
-            folded=self._folded,
-            mem_chunk_size=self._mem_chunk_size,
-            use_pairwise_diffs=self._use_pairwise_diffs,
-            non_ascertained_pops=self._non_ascertained_pops)
+        ret = DemographicModel(self.N_e, self.gen_time)
+        for k, v in self.parameters.items():
+            ret.parameters[k] = v.copy()
+        ret.topology_events.extend(self.topology_events)
+        ret.size_events.extend(self.size_events)
+        ret.leaf_events.extend(self.leaf_events)
+        ret.leafs.extend(self.leafs)
+        ret._set_data(data=self._data, muts_per_gen=self._muts_per_gen,
+                      folded=self._folded, mem_chunk_size=self._mem_chunk_size,
+                      use_pairwise_diffs=self._use_pairwise_diffs,
+                      non_ascertained_pops=self._non_ascertained_pops)
 
-    def draw(self, pop_x_positions, additional_times=None, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0, **kwargs):
+    def draw(self, pop_x_positions, figsize=None, yticks=None, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0, **kwargs):
+        if figsize:
+            plt.figure(figsize=(6,8))
+
         if x_leafs_only:
             exclude_xlabs = [p for p in pop_x_positions
                              if p not in self.leafs]
@@ -95,18 +74,20 @@ class DemographicModel(object):
             min_N = add_to_existing.min_N
             no_ticks_legend=True
 
-        if additional_times is None:
-            additional_times = []
+        if yticks is None:
+            yticks = []
 
         demo_plt = self._demo_plotter(
-            additional_times, pop_x_positions,
+            yticks, pop_x_positions,
             legend_kwargs=legend_kwargs, xlab_rotation=xlab_rotation,
             exclude_xlabs=exclude_xlabs,
             pop_marker_kwargs=pop_marker_kwargs,
             adjust_pulse_labels=adjust_pulse_labels,
             ax=ax, min_N=min_N, cm_scalar_mappable=cm_scalar_mappable, alpha=alpha, **kwargs)
         demo_plt.draw(tree_only=tree_only, rad=rad, no_ticks_legend=no_ticks_legend)
-        return demo_plt
+
+        if yticks:
+            plt.gca().set_yticks(yticks)
 
     def draw_with_bootstraps(self, bootstrap_x, pop_x_positions,
                              linthreshy=None, minor_yticks=None, major_yticks=None,
@@ -135,7 +116,7 @@ class DemographicModel(object):
         curr_x = self.get_x()
         try:
             for i, x in enumerate(bootstrap_x):
-                logging.info("Adding {}-th bootstrap to plot".format(i))
+                logging.getLogger(__name__).info("Adding {}-th bootstrap to plot".format(i))
                 self.set_x(x)
                 rad = p_rad
                 if p_rad_rand:
@@ -350,33 +331,40 @@ class DemographicModel(object):
         self.add_parameter(name, g0, scaled_lower=lower, scaled_upper=upper,
                            rgen=rgen)
 
-    def add_leaf(self, pop, t=0, N=None, g=None):
-        """
-        Add a leaf (sampled) population to the
-        model.
+    def add_leaf(self, pop_name, t=0, N=None, g=None):
+        """Add a sampled leaf population to the model.
 
-        Arguments
-        ---------
-        pops: str, the name of the population
-        t: float or str or function
-           the time the population was sampled.
-           can be a constant, the name of a parameter,
-           or a function of the parameters
-        N: None or float or str or function
-           the population size.
-           If None, the starting size is N_e.
-           Otherwise, this is a constant, or the name
-           of a parameter, or a function of the parameters
+        The parameters t, N, g are for the height, size, and growth
+        rate of the population, respectively. These can be floats or parameter
+        names (strings).
+
+        Note that ``demo_model.add_leaf(pop_name, t, N=N, g=g)`` is equivalent to::
+
+            demo_model.add_leaf(pop_name, t)
+            demo_model.set_size(pop_name, t, N=N, g=g)
+
+        that is, if N or g are specified, then they are set at the sample time
+        t. Below this time the population will have the default size -- this
+        matters if lineages are moved in via
+        :meth:`momi.DemographicModel.move_lineages` beneath t. Call
+        :meth:`momi.DemographicModel.set_size()` directly to set the population
+        size and growth rate below t.
+
+        :param str pop_name: Name of the population
+        :param float/str t: The time the population was sampled.
+        :param float/str N: The population size
+        :param float/str g: The population growth rate per unit time
+
         """
-        self.leafs.append(pop)
+        self.leafs.append(pop_name)
 
         self.leaf_events.append(LeafEvent(
-            t, pop, self.N_e, self.gen_time))
+            t, pop_name, self.N_e, self.gen_time))
 
         if N is not None:
-            self.set_size(pop, t, N=N)
+            self.set_size(pop_name, t, N=N)
         if g is not None:
-            self.set_size(pop, t, g=g)
+            self.set_size(pop_name, t, g=g)
 
     def move_lineages(self, pop1, pop2, t, p=1, N=None, g=None):
         """
@@ -533,13 +521,13 @@ class DemographicModel(object):
             for k, v in params_dict.items():
                 v = str(v).replace('\n', '')
                 yield (k, v)
-        logging.debug("Demographic parameters = {}".format(
+        logging.getLogger(__name__).debug("Demographic parameters = {}".format(
             co.OrderedDict(printable_params())))
 
         return demo
 
     def _demo_fun(self, *x):
-        logging.debug("x = {}".format(str(x)))
+        logging.getLogger(__name__).debug("x = {}".format(str(x)))
         prev_x = self.get_x()
         try:
             self.set_x(x)
@@ -672,7 +660,7 @@ class DemographicModel(object):
         if self._data is None:
             raise ValueError("Need to call DemographicModel.set_data()")
         # TODO better message (e.g. "Building SFS...")
-        logging.info("Constructing likelihood surface...")
+        logging.getLogger(__name__).info("Constructing likelihood surface...")
 
         sfs = self._get_sfs()
         use_pairwise_diffs = self._use_pairwise_diffs
@@ -698,7 +686,7 @@ class DemographicModel(object):
             use_pairwise_diffs=use_pairwise_diffs,
             p_missing=p_miss)
 
-        logging.info("Finished constructing likelihood surface")
+        logging.getLogger(__name__).info("Finished constructing likelihood surface")
 
         return self._lik_surface
 
@@ -805,7 +793,7 @@ class DemographicModel(object):
                 msg = [("it", x.iteration), ("LogLikelihood", -x.fun)]
                 msg.extend(list(self.get_params().items()))
                 msg = ", ".join(["{}: {}".format(k, v) for k, v in msg])
-                logging.info("{" + msg + "}")
+                logging.getLogger(__name__).info("{" + msg + "}")
 
         bounds = [p.x_bounds
                   for p in self.parameters.values()]
@@ -869,7 +857,7 @@ class DemographicModel(object):
                 msg = [("it", x.iteration), ("KLDivergence", x.fun)]
                 msg.extend(list(self.get_params().items()))
                 msg = ", ".join(["{}: {}".format(k, v) for k, v in msg])
-                logging.info("{" + msg + "}")
+                logging.getLogger(__name__).info("{" + msg + "}")
 
         res = self._get_surface().find_mle(
             self.get_x(), method=method,
