@@ -249,9 +249,6 @@ class Demography(object):
     _get_differentiable_part(), which can be used in conjunction with
     autograd.checkpoint() to reduce memory usage by computing
     in batches of SNPs
-
-    TODO refactor so that we don't need to decorate, it has high
-    congnitive load!!!
     """
 
     @property

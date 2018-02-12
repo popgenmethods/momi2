@@ -23,7 +23,7 @@ from .fstats import ModelFitFstats
 class DemographicModel(object):
     """Object for representing and inferring a demographic history.
 
-    :param N_e: the effective population size, unless manually changed by \
+    :param N_e: the population size, unless manually changed by \
     :meth:`momi.DemographicModel.set_size()`
     :param gen_time: units of time per generation. For example, if you wish to \
     specify time in years, and a generation is 29 years, set this to 29. \
@@ -55,6 +55,7 @@ class DemographicModel(object):
                       folded=self._folded, mem_chunk_size=self._mem_chunk_size,
                       use_pairwise_diffs=self._use_pairwise_diffs,
                       non_ascertained_pops=self._non_ascertained_pops)
+        return ret
 
     def draw(self, pop_x_positions, figsize=None, yticks=None, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0, **kwargs):
         if figsize:
@@ -90,14 +91,14 @@ class DemographicModel(object):
             plt.gca().set_yticks(yticks)
 
     def draw_with_bootstraps(self, bootstrap_x, pop_x_positions,
+                             figsize=None, yticks=None,
                              linthreshy=None, minor_yticks=None, major_yticks=None,
                              p_min=0, p_max=1, p_cmap=plt.cm.hot,
-                             p_rad=.2, p_rad_rand=True,
-                             additional_times=[], factr=2):
+                             p_rad=.2, p_rad_rand=True, factr=2):
         cm_scalar_mappable = plt.cm.ScalarMappable(
             norm=mpl.colors.Normalize(vmin=p_min,vmax=p_max), cmap=p_cmap)
 
-        demo_plt = self.draw(pop_x_positions, additional_times=additional_times,
+        demo_plt = self.draw(pop_x_positions, figsize=figsize, yticks=yticks,
                              x_leafs_only=True, tree_only=True, alpha=0,
                              cm_scalar_mappable=cm_scalar_mappable)
 
@@ -121,7 +122,7 @@ class DemographicModel(object):
                 rad = p_rad
                 if p_rad_rand:
                     rad *= np.random.uniform()
-                self.draw(pop_x_positions, additional_times=additional_times,
+                self.draw(pop_x_positions,
                           add_to_existing=demo_plt,
                           cm_scalar_mappable=cm_scalar_mappable,
                           rad=rad*2*np.random.uniform(),
@@ -131,7 +132,7 @@ class DemographicModel(object):
             self.set_x(curr_x)
             raise
         self.set_x(curr_x)
-        self.draw(pop_x_positions, additional_times=additional_times,
+        self.draw(pop_x_positions,
                   add_to_existing=demo_plt,
                   pulse_line_color='black',
                   cm_scalar_mappable=cm_scalar_mappable,
@@ -153,7 +154,16 @@ class DemographicModel(object):
                    key=lambda e: e.t(params_dict)),
             additional_times, pop_x_positions, **kwargs)
 
-    def set_params(self, new_params, scaled=False):
+    def set_params(self, new_params=None, randomize=False, scaled=False):
+        """Set the current parameter values
+
+        :param dict/list new_params: dict mapping parameter names to new values, or list of new values whose length is the current number of parameters
+        :param bool randomize: if True, parameters not in ``new_params`` get randomly sampled new values
+        :param bool scaled: if True, values in ``new_params`` are scaled to the internal representation used during optimization (see also: :meth:`momi.DemographicModel.add_parameter`)
+        """
+        if new_params is None:
+            new_params = {}
+
         try:
             new_params.items()
         except AttributeError:
@@ -161,33 +171,50 @@ class DemographicModel(object):
                 raise ValueError("New parameters should either be a dict, or be a list with length current number of parameters")
             new_params = dict(zip(self.parameters.keys(), new_params))
 
-        old_params = self.get_params(scaled=scaled)
         new_params = dict(new_params)
-        curr_params = None
+        curr_params = ParamsDict()
         for name, param in self.parameters.items():
             try:
                 val = new_params.pop(name)
             except KeyError:
-                val = old_params[name]
-
-            if scaled:
-                param.x = val
+                if randomize:
+                    param.resample(curr_params)
             else:
-                if curr_params is None:
-                    curr_params = ParamsDict()
-                param.x = param.inv_transform_x(val, curr_params)
-                param.update_params_dict(curr_params)
+                if scaled:
+                    param.x = val
+                else:
+                    param.x = param.inv_transform_x(val, curr_params)
+
+            param.update_params_dict(curr_params)
 
         if new_params:
             raise ValueError("Unrecognized parameters: {}".format(
                 list(new_params.keys())))
 
     def add_parameter(self, name, start_value=None,
-                      scaled_lower=None,
-                      scaled_upper=None,
+                      rgen=None,
                       scale_transform=None,
                       unscale_transform=None,
-                      rgen=None):
+                      scaled_lower=None,
+                      scaled_upper=None):
+        """Low-level method to add a new parameter. Most users should instead call
+        :meth:`momi.DemographicModel.add_size_param`,
+        :meth:`momi.DemographicModel.add_pulse_param`,
+        :meth:`momi.DemographicModel.add_time_param`, or
+        :meth:`momi.DemographicModel.add_growth_param`.
+
+        In order for internal gradients to be correct, ``scale_transform`` and ``unscale_transform`` should be constructed using the ``autograd`` package (see `tutorial <https://github.com/HIPS/autograd/blob/master/docs/tutorial.md>`_).
+
+        :param str name: Name of the parameter.
+        :param float start_value: Starting value. If None, use ``rgen`` to sample a \
+        random starting value.
+        :param function rgen: Function to get a random starting value.
+        :param function scale_transform: Function for internally transforming and \
+        rescaling the parameter during optimization.
+        :param function unscale_transform: Inverse function of ``scale_transform``
+        :param float scaled_lower: Lower bound after scaling by ``scale_transform``
+        :param float scaled_upper: Upper bound after scaling by ``scale_transform``
+        """
         self._conf_region = None
 
         assert (scale_transform is None) == (unscale_transform is None)
@@ -218,6 +245,14 @@ class DemographicModel(object):
         self.parameters[name] = param
 
     def add_size_param(self, name, N0=None, lower=1, upper=1e10, rgen=None):
+        """Add a size parameter to the demographic model.
+
+        :param str name: Parameter name
+        :param float N0: Starting value. If None, use ``rgen`` to randomly sample
+        :param float lower: Lower bound
+        :param float upper: Upper bound
+        :param function rgen: Function to sample a random starting value. If None, a truncated exponential with rate ``1 / N_e``
+        """
         if rgen is None:
             scale = self.N_e
             truncexpon = scipy.stats.truncexpon(b=(upper-lower)/scale,
@@ -239,6 +274,16 @@ class DemographicModel(object):
                        lower=0.0, upper=None,
                        lower_constraints=[], upper_constraints=[],
                        rgen=None):
+        """Add a time parameter to the demographic model.
+
+        :param str name: Parameter name
+        :param float t0: Starting value. If None, use ``rgen`` to randomly sample
+        :param float lower: Lower bound
+        :param float upper: Upper bound
+        :param list lower_constraints: List of parameter names that are lower bounds
+        :param list upper_constraints: List of parameter names that are upper bounds
+        :param rgen: Function to sample a random starting value. If None, a truncated exponential with rate ``1 / (N_e * gen_time)`` constrained to satisfy the bounds and constraints.
+        """
         def lower_bound(params):
             constraints = [params[k] for k in lower_constraints]
             constraints.append(lower)
@@ -309,6 +354,14 @@ class DemographicModel(object):
                 rgen=rgen)
 
     def add_pulse_param(self, name, p0=None, lower=0.0, upper=1.0, rgen=None):
+        """Add a pulse parameter to the demographic model.
+
+        :param str name: Parameter name.
+        :param float p0: Starting value. If None, randomly sample with ``rgen``
+        :param float lower: Lower bound
+        :param float upper: Upper bound
+        :param function rgen: Function to sample random value. If None, use a uniform distribution.
+        """
         if rgen is None:
             def rgen(params):
                 return np.random.uniform(lower, upper)
@@ -325,6 +378,14 @@ class DemographicModel(object):
                            rgen=rgen)
 
     def add_growth_param(self, name, g0=None, lower=-.001, upper=.001, rgen=None):
+        """Add growth rate parameter to the demographic model.
+
+        :param str name: Parameter name
+        :param float g0: Starting value. If None, randomly sample with ``rgen``
+        :param float lower: Lower bound
+        :param float upper: Upper bound
+        :param function rgen: Function to sample random value. If None, use uniform distribution
+        """
         if rgen is None:
             def rgen(params):
                 return np.random.uniform(lower, upper)
@@ -334,26 +395,21 @@ class DemographicModel(object):
     def add_leaf(self, pop_name, t=0, N=None, g=None):
         """Add a sampled leaf population to the model.
 
-        The parameters t, N, g are for the height, size, and growth
-        rate of the population, respectively. These can be floats or parameter
-        names (strings).
+        The arguments t, N, g can be floats or parameter names (strings).
 
-        Note that ``demo_model.add_leaf(pop_name, t, N=N, g=g)`` is equivalent to::
+        If N or g are specified, then the size or growth rate are also set at
+        the sampling time t. Otherwise they remain at their previous (default)
+        values.
 
-            demo_model.add_leaf(pop_name, t)
-            demo_model.set_size(pop_name, t, N=N, g=g)
-
-        that is, if N or g are specified, then they are set at the sample time
-        t. Below this time the population will have the default size -- this
-        matters if lineages are moved in via
-        :meth:`momi.DemographicModel.move_lineages` beneath t. Call
-        :meth:`momi.DemographicModel.set_size()` directly to set the population
-        size and growth rate below t.
+        Note that this does not affect the population size and growth below
+        time t, which may be an issue if lineages are moved in from other
+        populations below t. If you need to set the size or growth below t, use
+        :meth:`momi.DemographicModel.set_size()`.
 
         :param str pop_name: Name of the population
-        :param float/str t: The time the population was sampled.
-        :param float/str N: The population size
-        :param float/str g: The population growth rate per unit time
+        :param float/str t: Time the population was sampled
+        :param float/str/None N: Population size
+        :param float/str/None g: Population growth rate
 
         """
         self.leafs.append(pop_name)
@@ -366,58 +422,57 @@ class DemographicModel(object):
         if g is not None:
             self.set_size(pop_name, t, g=g)
 
-    def move_lineages(self, pop1, pop2, t, p=1, N=None, g=None):
-        """
-        Move each lineage in pop1 to pop2 at time t
-        with probability p.
+    def move_lineages(self, pop_from, pop_to, t, p=1, N=None, g=None):
+        """Move each lineage in pop_from to pop_to at time t with probability p.
 
-        Arguments
-        ---------
-        pop1, pop2: str
-        t: float or str or function
-           either a constant, or the name of a parameter,
-           or a function of the parameters
-        p: float or str or function
-           either a constant, or the name of a parameter,
-           or a function of the parameters
-        N: None or float or str or function
-           if non-None, set the size of pop2 to N
+        The arguments t, p, N, g can be floats or parameter names (strings).
+
+        If N or g are specified, then the size or growth rate of pop_to is also
+        set at this time, otherwise these parameters remain at their previous
+        values.
+
+        :param str pop_from: Population lineages are moved from (backwards in time)
+        :param str pop_to: Population lineages are moved to (backwards in time)
+        :param float/str t: Time of the event
+        :param float/str p: Probability that lineage in pop_from moves to pop_to
+        :param float/str/None N: Population size of pop_to
+        :param float/str/None g: Growth rate of pop_to
+
         """
         if p == 1:
             self.topology_events.append((JoinEvent(
-                t, pop1, pop2, self.N_e, self.gen_time)))
+                t, pop_from, pop_to, self.N_e, self.gen_time)))
         else:
             self.topology_events.append(PulseEvent(
-                t, p, pop1, pop2, self.N_e,
+                t, p, pop_from, pop_to, self.N_e,
                 self.gen_time))
 
         if N is not None:
-            self.set_size(pop2, t, N=N)
+            self.set_size(pop_to, t, N=N)
         if g is not None:
-            self.set_size(pop2, t, g=g)
+            self.set_size(pop_to, t, g=g)
 
-    def set_size(self, pop, t, N=None, g=0):
-        """
-        Set the size of pop at t to N,
-        and the population size to be exponentially
-        growing before t, at rate g per unit time
+    def set_size(self, pop_name, t, N=None, g=0):
+        """Set population size and/or growth rate at time t.
 
-        Arguments
-        ---------
-        pop: str
-        t: float or str or function
-           constant, or parameter name, or function of params
-        N: None or float or str or function
-           constant, or parameter name, or function of params
-           if None, leaves the size unchanged
-        g: float or str or function
-           constant, or parameter name, or function of params
+        The arguments t, N, g can be floats or parameter names (strings).
+
+        If N is not specified then only the growth rate is changed.
+
+        If N is specified and g is not then the growth rate is reset to 0.
+        Currently it is not possible to change the size without also setting
+        the growth rate.
+
+        :param str pop_name: Population name
+        :param float/str t: Time of event
+        :param float/str/None N: Population size
+        :param float/str g: Growth rate
         """
         if N is not None:
             self.size_events.append(SizeEvent(
-                t, N, pop, self.N_e, self.gen_time))
+                t, N, pop_name, self.N_e, self.gen_time))
         self.size_events.append(GrowthEvent(
-            t, g, pop, self.N_e, self.gen_time))
+            t, g, pop_name, self.N_e, self.gen_time))
 
     # TODO delete this method
     def get_params_df(self):
@@ -425,9 +480,12 @@ class DemographicModel(object):
                             columns=["Param", "Value"])
 
     def get_params(self, scaled=False):
-        """
-        Return a dictionary with the current parameter
+        """Return an ordered dictionary with the current parameter
         values.
+
+        If ``scaled=True``, returns the parameters scaled in the internal
+        representation used during optimization (see also:
+        :meth:`momi.DemographicModel.add_parameter`)
         """
         params_dict = ParamsDict()
         for param in self.parameters.values():
@@ -439,9 +497,6 @@ class DemographicModel(object):
 
     # TODO use get_params() instead
     def get_x(self, param=None):
-        """
-        Return the current value of x (the untransformed parameters).
-        """
         if param is None:
             return np.array([
                 p.x for p in self.parameters.values()])
