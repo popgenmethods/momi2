@@ -28,6 +28,8 @@ class DemographicModel(object):
     :param gen_time: units of time per generation. For example, if you wish to \
     specify time in years, and a generation is 29 years, set this to 29. \
     Default value is 1.
+    :type N_e: float
+    :type gen_time: float
     """
     def __init__(self, N_e, gen_time=1):
         self.N_e = N_e
@@ -56,103 +58,6 @@ class DemographicModel(object):
                       use_pairwise_diffs=self._use_pairwise_diffs,
                       non_ascertained_pops=self._non_ascertained_pops)
         return ret
-
-    def draw(self, pop_x_positions, figsize=None, yticks=None, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0, **kwargs):
-        if figsize:
-            plt.figure(figsize=(6,8))
-
-        if x_leafs_only:
-            exclude_xlabs = [p for p in pop_x_positions
-                             if p not in self.leafs]
-        else:
-            exclude_xlabs = []
-        if add_to_existing is None:
-            ax = None
-            min_N = None
-            no_ticks_legend=False
-        else:
-            ax = add_to_existing.ax
-            min_N = add_to_existing.min_N
-            no_ticks_legend=True
-
-        if yticks is None:
-            yticks = []
-
-        demo_plt = self._demo_plotter(
-            yticks, pop_x_positions,
-            legend_kwargs=legend_kwargs, xlab_rotation=xlab_rotation,
-            exclude_xlabs=exclude_xlabs,
-            pop_marker_kwargs=pop_marker_kwargs,
-            adjust_pulse_labels=adjust_pulse_labels,
-            ax=ax, min_N=min_N, cm_scalar_mappable=cm_scalar_mappable, alpha=alpha, **kwargs)
-        demo_plt.draw(tree_only=tree_only, rad=rad, no_ticks_legend=no_ticks_legend)
-
-        if yticks:
-            plt.gca().set_yticks(yticks)
-
-    def draw_with_bootstraps(self, bootstrap_x, pop_x_positions,
-                             figsize=None, yticks=None,
-                             linthreshy=None, minor_yticks=None, major_yticks=None,
-                             p_min=0, p_max=1, p_cmap=plt.cm.hot,
-                             p_rad=.2, p_rad_rand=True, factr=2):
-        cm_scalar_mappable = plt.cm.ScalarMappable(
-            norm=mpl.colors.Normalize(vmin=p_min,vmax=p_max), cmap=p_cmap)
-
-        demo_plt = self.draw(pop_x_positions, figsize=figsize, yticks=yticks,
-                             x_leafs_only=True, tree_only=True, alpha=0,
-                             cm_scalar_mappable=cm_scalar_mappable)
-
-        if linthreshy:
-            demo_plt.ax.set_yscale('symlog', linthreshy=linthreshy)
-        if minor_yticks:
-            demo_plt.ax.set_yticks(minor_yticks, minor=True)
-        if major_yticks:
-            demo_plt.ax.set_yticks(major_yticks)
-        if linthreshy:
-            demo_plt.ax.get_yaxis().set_major_formatter(
-                mpl.ticker.LogFormatterSciNotation(labelOnlyBase=False,
-                                                   minor_thresholds=(float("inf"),float("inf")),
-                                                   linthresh=linthreshy))
-
-        curr_x = self.get_x()
-        try:
-            for i, x in enumerate(bootstrap_x):
-                logging.getLogger(__name__).info("Adding {}-th bootstrap to plot".format(i))
-                self.set_x(x)
-                rad = p_rad
-                if p_rad_rand:
-                    rad *= np.random.uniform()
-                self.draw(pop_x_positions,
-                          add_to_existing=demo_plt,
-                          cm_scalar_mappable=cm_scalar_mappable,
-                          rad=rad*2*np.random.uniform(),
-                          alpha=np.min([1.0, factr/len(bootstrap_x)]),
-                          pop_line_color="gray", plot_leafs=False)
-        except:
-            self.set_x(curr_x)
-            raise
-        self.set_x(curr_x)
-        self.draw(pop_x_positions,
-                  add_to_existing=demo_plt,
-                  pulse_line_color='black',
-                  cm_scalar_mappable=cm_scalar_mappable,
-                  plot_pulse_nums=True, rad=rad)
-
-    def _demo_plotter(self, additional_times, pop_x_positions, **kwargs):
-        try:
-            pop_x_positions.items()
-        except:
-            pop_x_positions = dict(zip(
-                pop_x_positions, range(len(pop_x_positions))))
-
-        params_dict = self.get_params()
-        return DemographyPlotter(
-            params_dict, self.N_e,
-            sorted(list(self.leaf_events) +
-                   list(self.size_events) +
-                   list(self.topology_events),
-                   key=lambda e: e.t(params_dict)),
-            additional_times, pop_x_positions, **kwargs)
 
     def set_params(self, new_params=None, randomize=False, scaled=False):
         """Set the current parameter values

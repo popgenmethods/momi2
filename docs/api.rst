@@ -10,3 +10,11 @@ DemographicModel
 
 .. autoclass:: momi.DemographicModel
    :members:
+
+--------------
+DemographyPlot
+--------------
+
+.. autoclass:: momi.DemographyPlot
+   :members:
+
