@@ -89,7 +89,8 @@ def check_jointime_inference(
 
     model.set_x(random.uniform(0, t1), "join_time")
 
-    model.set_data(data, theta, folded=folded)
+    # TODO pass in possibly folded SFS (still broken)
+    model.set_data(data, theta, use_folded_likelihood=folded)
     res = model.optimize()
 
     # make sure autograd is calling the rearranged gradient
@@ -126,7 +127,7 @@ def test_underflow_robustness(folded):
         num_replicates=num_runs,
         sampled_n_dict=dict(zip(sampled_pops, sampled_n)))
 
-    demo.set_data(data, folded=folded)
+    demo.set_data(data, use_folded_likelihood=folded)
     demo.set_params({"t0": 0.1, "t1": 100.0})
     optimize_res = demo.optimize()
 

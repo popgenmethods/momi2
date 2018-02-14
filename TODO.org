@@ -9,6 +9,10 @@
 ** fully allow Sfs object to be passed to set_data()
    partially implemented for some unit tests, but will crash if Sfs has wrong set of populations, etc.
 
+* fix up p_missing estimation
+  first, provide an option to not use it (in case it is already factored into theta)
+  second, use the same method for Sfs and SnpAlleleCounts
+* allow to use either Sfs or SnpAlleleCounts in DemoModel.set_data
 * link Demography graph to DemoPlotter more directly
   so that DemoPlotter can easily show if there is a bug or not
 * clean up confidence region stuff

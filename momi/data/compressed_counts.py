@@ -42,6 +42,9 @@ class _CompressedHashedCounts(object):
         self.compressed_list = _CompressedList()
         self.npops = npops
 
+    def __len__(self):
+        return len(self.compressed_list)
+
     def append(self, config):
         self.compressed_list.append(_config2hashable(config))
 

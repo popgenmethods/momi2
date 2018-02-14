@@ -9,6 +9,7 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 import seaborn
 from .data.config_array import config_array
+from .data.sfs import Sfs
 from .demography import Demography
 from .likelihood import SfsLikelihoodSurface
 from .compute_sfs import expected_total_branch_len, expected_sfs
@@ -524,7 +525,7 @@ class DemographicModel(object):
             self.set_x(prev_x)
 
     def set_data(
-            self, data, muts_per_gen=None, folded=False,
+            self, data, muts_per_gen=None, use_folded_likelihood=None,
             mem_chunk_size=1000, use_pairwise_diffs=None,
             n_blocks_jackknife=None, non_ascertained_pops=None):
         """
@@ -542,8 +543,9 @@ class DemographicModel(object):
             if None, assumes the number of observed SNPs
             is fixed (i.e. if using a SNP chip instead of
             whole genome sequencing)
-        folded:
-            whether the SFS should be folded
+        use_folded_likelihood:
+            whether to use the folded SFS when computing likelihood.
+            Default is to check the use_folded_likelihood property of the data
         mem_chunk_size:
             controls memory usage by computing likelihood
             in chunks of SNPs.
@@ -565,9 +567,15 @@ class DemographicModel(object):
         """
         if n_blocks_jackknife:
             data = data.chunk_data(n_blocks_jackknife)
+
+        if use_folded_likelihood is None:
+            if isinstance(data, Sfs):
+                raise ValueError("Need to specify whether to use_folded_likelihood when passing Sfs instead of SnpAlleleCounts as data")
+            use_folded_likelihood = data.use_folded_likelihood
+
         self._set_data(
             data=data,
-            muts_per_gen=muts_per_gen, folded=folded,
+            muts_per_gen=muts_per_gen, folded=use_folded_likelihood,
             mem_chunk_size=mem_chunk_size,
             use_pairwise_diffs=use_pairwise_diffs,
             non_ascertained_pops=non_ascertained_pops)

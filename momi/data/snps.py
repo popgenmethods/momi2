@@ -1,4 +1,3 @@
-import ast
 import itertools as it
 import numpy as np
 from cached_property import cached_property
@@ -56,18 +55,18 @@ class SnpAlleleCounts(object):
 
     @classmethod
     def read_vcf(cls, vcf_file, ind2pop,
-                 ancestral_alleles=None,
+                 ancestral_alleles=True,
                  non_ascertained_pops=[]):
         """
         Parameters:
         vcf_file: stream or filename
         ind2pop: dict mapping individual IDs to populations
         ancestral_allele: str or bool or None or function
-           if the name of a population, then treats that population as
-              the outgroup to determine AA
-           if None/False, uses REF to determine ancestral allele
            if True, uses AA info field to determine ancestral allele,
               skipping records missing this field
+           if the name of a population, then treats that population as
+              the outgroup, using its consensus allele to determine AA. If no consensus, the record is skipped.
+           if False, returns folded allele counts.
         non_ascertained_pops: list of str
            list of populations to treat as non-ascertained
         """
@@ -167,8 +166,13 @@ class SnpAlleleCounts(object):
                     logger.info("Read vcf up to CHR {}, POS {}".format(
                         chrom[-1], pos[-1]))
 
+        if len(compressed_hashed) == 0:
+            logger.warn("No valid SNPs read! Try setting "
+                        "ancestral_alleles=False.")
+
         compressed_allele_counts = compressed_hashed.compressed_allele_counts()
         return cls(chrom, pos, compressed_allele_counts, sampled_pops,
+                   use_folded_likelihood=not ancestral_alleles,
                    non_ascertained_pops=non_ascertained_pops)
 
     @classmethod
@@ -185,7 +189,11 @@ class SnpAlleleCounts(object):
 
         compressed_hashes = _CompressedHashedCounts(len(populations))
 
+        use_folded_likelihood = False
         for snp_cnts in to_concatenate:
+            use_folded_likelihood = (use_folded_likelihood or
+                                     snp_cnts.use_folded_likelihood)
+
             if any([list(snp_cnts.populations) != populations,
                     list(snp_cnts.non_ascertained_pops) != nonascertained]):
                 raise ValueError(
@@ -211,6 +219,7 @@ class SnpAlleleCounts(object):
         compressed_counts = CompressedAlleleCounts(
             compressed_hashes.config_array(), index2uniq)
         ret = cls(chrom_ids, positions, compressed_counts, populations,
+                  use_folded_likelihood=use_folded_likelihood,
                   non_ascertained_pops=nonascertained)
         logger.info("Finished concatenating datasets")
         return ret
@@ -223,31 +232,6 @@ class SnpAlleleCounts(object):
                    CompressedAlleleCounts.from_iter(
                        allele_counts, len(populations)),
                    populations)
-
-    #@classmethod
-    #def load(cls, f):
-    #    """
-    #    Reads the compressed JSON produced
-    #    by SnpAlleleCounts.dump().
-
-    #    Parameters:
-    #    f: a file-like object
-    #    """
-    #    info = json.load(f)
-    #    logger.debug("Read allele counts from file")
-
-    #    chrom_pos_config_key = "(chrom_id,position,config_id)"
-    #    chrom_ids, positions, config_ids = zip(
-    #        *info[chrom_pos_config_key])
-    #    del info[chrom_pos_config_key]
-
-    #    compressed_counts = CompressedAlleleCounts(
-    #        np.array(info["configs"], dtype=int),
-    #        np.array(config_ids, dtype=int))
-    #    del info["configs"]
-
-    #    return cls(chrom_ids, positions, compressed_counts,
-    #               **info)
 
     @classmethod
     def load(cls, f):
@@ -310,7 +294,7 @@ class SnpAlleleCounts(object):
                 configs = np.concatenate(configs)
                 logger.info("Finished reading configs")
             elif items_matched:
-                items[items_matched.group(1)] = ast.literal_eval(
+                items[items_matched.group(1)] = json.loads(
                     items_matched.group(2))
 
         compressed_counts = CompressedAlleleCounts(
@@ -319,8 +303,6 @@ class SnpAlleleCounts(object):
 
         return cls(chrom_ids, positions, compressed_counts,
                    **items)
-
-
 
     def dump(self, f):
         """
@@ -344,6 +326,8 @@ class SnpAlleleCounts(object):
         if self.non_ascertained_pops:
             print('\t"non_ascertained_pops": {},'.format(
                 json.dumps(list(self.non_ascertained_pops))), file=f)
+        print('\t"use_folded_likelihood": {},'.format(
+            str(self.use_folded_likelihood).lower()), file=f)
         print('\t"configs": [', file=f)
         n_configs = len(self.compressed_counts.config_array)
         for i, c in enumerate(self.compressed_counts.config_array.tolist()):
@@ -371,7 +355,7 @@ class SnpAlleleCounts(object):
 
     def __init__(self, chrom_ids, positions,
                  compressed_counts, populations,
-                 non_ascertained_pops=[]):
+                 use_folded_likelihood=False, non_ascertained_pops=[]):
         if any([len(compressed_counts) != len(chrom_ids),
                 len(chrom_ids) != len(positions)]):
             raise IOError(
@@ -383,12 +367,14 @@ class SnpAlleleCounts(object):
         self.populations = populations
         self.non_ascertained_pops = non_ascertained_pops
         self._subset_populations_cache = {}
+        self.use_folded_likelihood = use_folded_likelihood
 
     def __eq__(self, other):
         try:
             return (self.compressed_counts == other.compressed_counts and
                     np.all(self.chrom_ids == other.chrom_ids) and
-                    np.all(self.positions == other.positions))
+                    np.all(self.positions == other.positions) and
+                    self.use_folded_likelihood == other.use_folded_likelihood)
         except AttributeError:
             return False
 
@@ -399,7 +385,8 @@ class SnpAlleleCounts(object):
         new_chrom = [int(np.floor(i / chunk_len)) for i in new_pos]
         return SnpAlleleCounts(
             new_chrom, new_pos, self.compressed_counts,
-            self.populations, self.non_ascertained_pops)
+            self.populations, self.use_folded_likelihood,
+            self.non_ascertained_pops)
 
     def resample_chunks(self):
         uniq = np.unique(self.chrom_ids)
@@ -419,7 +406,8 @@ class SnpAlleleCounts(object):
             CompressedAlleleCounts(
                 self.compressed_counts.config_array,
                 index2uniq, sort=False),
-            self.populations, self.non_ascertained_pops)
+            self.populations, self.use_folded_likelihood,
+            self.non_ascertained_pops)
 
     def subset_snps(self, idx):
         new_chrom = self.chrom_ids[idx]
@@ -437,7 +425,8 @@ class SnpAlleleCounts(object):
             new_chrom, new_pos,
             CompressedAlleleCounts(
                 config_array, index2uniq, sort=False),
-            self.populations, self.non_ascertained_pops)
+            self.populations, self.use_folded_likelihood,
+            self.non_ascertained_pops)
 
     @cached_property
     def _p_missing(self):
@@ -513,6 +502,7 @@ class SnpAlleleCounts(object):
         return SnpAlleleCounts(
             self.chrom_ids, self.positions,
             new_compressed_configs, populations,
+            self.use_folded_likelihood,
             non_ascertained_pops)
 
     def __getitem__(self, i):
@@ -521,24 +511,11 @@ class SnpAlleleCounts(object):
     def __len__(self):
         return len(self.compressed_counts)
 
-    def join(self, other):
-        combined_pops = list(self.populations) + list(other.populations)
-        if len(combined_pops) != len(set(combined_pops)):
-            raise ValueError("Overlapping populations: {}, {}".format(
-                self.populations, other.populations))
-        if np.any((self.chrom_ids != other.chrom_ids)
-                  | (self.positions != other.positions)):
-            raise ValueError("Chromosome & SNP IDs must be identical")
-        return SnpAlleleCounts.from_iter(self.chrom_ids,
-                                         self.positions,
-                                         (tuple(it.chain(cnt1, cnt2))
-                                          for cnt1, cnt2 in zip(self, other)),
-                                         combined_pops)
-
     def filter(self, idxs):
         return SnpAlleleCounts(self.chrom_ids[idxs], self.positions[idxs],
                                self.compressed_counts.filter(idxs),
-                               self.populations)
+                               self.populations, self.use_folded_likelihood,
+                               self.non_ascertained_pops)
 
     def down_sample(self, sampled_n_dict):
         pops, sub_n = zip(*sampled_n_dict.items())
