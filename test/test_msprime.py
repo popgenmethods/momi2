@@ -46,8 +46,8 @@ def check_sfs_counts(demo, sampled_pops, sampled_n, theta=2.5, rho=2.5, num_loci
     #    num_replicates=num_loci,
     #)
     #sfs_list = seg_sites.sfs
-    data = demo.simulate_data(length=num_bases, recombination_rate=rho / num_bases,
-                              mutation_rate=theta / num_bases, num_replicates=num_loci,
+    data = demo.simulate_data(length=num_bases, recoms_per_base_per_gen=rho / num_bases,
+                              muts_per_base_per_gen=theta / num_bases, num_replicates=num_loci,
                               sampled_n_dict=dict(zip(sampled_pops, sampled_n)))
     sfs_list = data.sfs
 
@@ -59,7 +59,7 @@ def check_sfs_counts(demo, sampled_pops, sampled_n, theta=2.5, rho=2.5, num_loci
 
     #sfs_vals, branch_len = expected_sfs(demo, sfs_list.configs, folded=folded), expected_total_branch_len(
     #    demo, sampled_pops=sfs_list.sampled_pops, sampled_n=sfs_list.sampled_n)
-    demo.set_data(sfs_list, folded=folded)
+    demo.set_data(sfs_list, use_folded_likelihood=folded)
     sfs_vals = np.array(list(demo.expected_sfs().values()))
     theoretical = sfs_vals * theta
 

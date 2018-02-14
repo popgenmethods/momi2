@@ -402,7 +402,7 @@ class Demography(object):
                                self.sampled_pops)
 
     def simulate_vcf(self, outfile, mutation_rate, recombination_rate,
-                     length, chrom_names=[1], ploidy=1, random_seed=None):
+                     length, chrom_name=1, ploidy=1, random_seed=None):
         if isinstance(outfile, str):
             close = True
             if outfile.endswith(".gz"):
@@ -417,12 +417,11 @@ class Demography(object):
 
         treeseq = self.simulate_trees(
             mutation_rate=mutation_rate, recombination_rate=recombination_rate,
-            length=length, num_replicates=len(chrom_names), random_seed=random_seed)
+            length=length, num_replicates=1, random_seed=random_seed)
 
         outfile.write("##fileformat=VCFv4.2\n")
         outfile.write('##source="VCF simulated by momi2 using msprime backend"' + "\n")
-        for chrom in chrom_names:
-            outfile.write("##contig=<ID={0},length={1}>\n".format(chrom, length))
+        outfile.write("##contig=<ID={0},length={1}>\n".format(chrom_name, length))
 
         n_samples = int(np.sum(self.sampled_n) / ploidy)
         fields = ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT"]
@@ -430,12 +429,13 @@ class Demography(object):
             for i in range(int(n / ploidy)):
                 fields.append("{}_{}".format(pop, i))
         outfile.write("\t".join(fields) + "\n")
-        for chrom, locus in zip(chrom_names, treeseq):
-            for v in locus.variants():
-                gt = np.reshape(v.genotypes, (n_samples, ploidy))
-                row = [str(chrom), str(int(np.floor(v.position))), ".", "A", "T", ".", ".", "AA=A", "GT"] + [
-                    "|".join(map(str, sample)) for sample in gt]
-                outfile.write("\t".join(row) + "\n")
+
+        loc = next(treeseq)
+        for v in loc.variants():
+            gt = np.reshape(v.genotypes, (n_samples, ploidy))
+            row = [str(chrom_name), str(int(np.floor(v.position))), ".", "A", "T", ".", ".", "AA=A", "GT"] + [
+                "|".join(map(str, sample)) for sample in gt]
+            outfile.write("\t".join(row) + "\n")
 
         if close:
             outfile.close()

@@ -451,27 +451,55 @@ class DemographicModel(object):
             x = {param: x}
         self.set_params(x, scaled=True)
 
-    # TODO: note these are PER-GENERATION mutation/recombination rates...
-    def simulate_data(self, length, recombination_rate,
-                      mutation_rate, num_replicates,
+    def simulate_data(self, length, recoms_per_base_per_gen,
+                      muts_per_base_per_gen, num_replicates,
                       sampled_n_dict=None, **kwargs):
-        demo = self._get_demo(sampled_n_dict)
-        return demo.simulate_data(length=length,
-                                  recombination_rate=4*self.N_e*recombination_rate,
-                                  mutation_rate=4*self.N_e*mutation_rate,
-                                  num_replicates=num_replicates,
-                                  **kwargs)
+        """Simulate data, using msprime as backend
 
-    def simulate_vcf(self, outfile, mutation_rate, recombination_rate,
-                     length, chrom_names=[1], ploidy=1, random_seed=None,
-                     sampled_n_dict=None, **kwargs):
+        :param int length: Length of each locus in bases
+        :param float recoms_per_base_per_gen: Recombination rate per generation per base
+        :param float muts_per_base_per_gen: Mutation rate per generation per base
+        :param int num_replicates: Number of loci to simulate
+        :param dict sampled_n_dict: Number of haploids per population. \
+        If None, use sample sizes from the current dataset as set by \
+        :meth:`DemographicModel.set_data`
+
+        :returns: Dataset of SNP allele counts
+        :rtype: :class:`SnpAlleleCounts`
+        """
         demo = self._get_demo(sampled_n_dict)
-        return demo.simulate_vcf(outfile=outfile,
-                                 mutation_rate=4*self.N_e*mutation_rate,
-                                 recombination_rate=4*self.N_e*recombination_rate,
-                                 length=length, chrom_names=chrom_names,
-                                 ploidy=ploidy, random_seed=random_seed,
-                                 **kwargs)
+        return demo.simulate_data(
+            length=length,
+            recombination_rate=4*self.N_e*recoms_per_base_per_gen,
+            mutation_rate=4*self.N_e*muts_per_base_per_gen,
+            num_replicates=num_replicates,
+            **kwargs)
+
+    def simulate_vcf(self, outfile, muts_per_base_per_gen,
+                     recoms_per_base_per_gen,
+                     length, chrom_name="1", ploidy=1, random_seed=None,
+                     sampled_n_dict=None, **kwargs):
+        """Simulate a chromosome using msprime and write it to VCF
+
+        :param str,file outfile: Output VCF file. If a string ending in ".gz", gzip it.
+        :param float muts_per_base_per_gen: Mutation rate per generation per base
+        :param float recoms_per_base_per_gen: Recombination rate per generation per base
+        :param int length: Length of chromosome in bases
+        :param str chrom_name: Name of chromosome
+        :param int ploidy: Ploidy
+        :param int random_seed: Random seed
+        :param dict sampled_n_dict: Number of haploids per population. \
+        If None, use sample sizes from the current dataset as set by \
+        :meth:`DemographicModel.set_data`
+        """
+        demo = self._get_demo(sampled_n_dict)
+        return demo.simulate_vcf(
+            outfile=outfile,
+            mutation_rate=4*self.N_e*muts_per_base_per_gen,
+            recombination_rate=4*self.N_e*recoms_per_base_per_gen,
+            length=length, chrom_name=chrom_name,
+            ploidy=ploidy, random_seed=random_seed,
+            **kwargs)
 
     # TODO rename to model_fit_stats or somesuch
     def fstats(self, sampled_n_dict=None):

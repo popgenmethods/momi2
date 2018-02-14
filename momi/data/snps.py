@@ -32,28 +32,6 @@ class SnpAlleleCounts(object):
     load(): load data stored by dump(). Much faster than read_vcf_list()
     """
     @classmethod
-    def read_vcf_list(cls, vcf_list, ind2pop, n_cores=1, **kwargs):
-        """
-        Files may contain multiple chromosomes;
-        however, chromosomes should not be spread across multiple files.
-
-        Parameters:
-        vcf_list: list of filenames
-        ind2pop: dict mapping individual ids to populations
-        n_cores: number of parallel cores to use
-
-        Returns:
-        SnpAlleleCounts
-        """
-        pool = mp.Pool(n_cores)
-        read_vcf = ft.partial(cls.read_vcf, ind2pop=ind2pop, **kwargs)
-        allele_counts_list = pool.map(read_vcf, vcf_list)
-        logger.debug("Concatenating vcf files {}".format(vcf_list))
-        ret = cls.concatenate(allele_counts_list)
-        logger.debug("Finished concatenating vcf files {}".format(vcf_list))
-        return ret
-
-    @classmethod
     def read_vcf(cls, vcf_file, ind2pop,
                  ancestral_alleles=True,
                  non_ascertained_pops=[]):

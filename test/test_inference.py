@@ -28,8 +28,8 @@ def test_archaic_and_pairwisediffs():
 
     n_bases = 1000
     data = model.simulate_data(length=n_bases,
-                               recombination_rate=0,
-                               mutation_rate=theta/4./N_e/n_bases,
+                               recoms_per_base_per_gen=0,
+                               muts_per_base_per_gen=theta/4./N_e/n_bases,
                                num_replicates=num_runs,
                                sampled_n_dict={"a": 2, "b": 2})
 
@@ -122,8 +122,8 @@ def test_underflow_robustness(folded):
     n_bases = int(1e3)
     data = demo.simulate_data(
         length=n_bases,
-        recombination_rate=0.0,
-        mutation_rate=2.5 / n_bases,
+        recoms_per_base_per_gen=0.0,
+        muts_per_base_per_gen=2.5 / n_bases,
         num_replicates=num_runs,
         sampled_n_dict=dict(zip(sampled_pops, sampled_n)))
 

@@ -4,19 +4,24 @@
 API Documentation
 =================
 
-----------------
-DemographicModel
-----------------
+-------------------------
+Representing demographies
+-------------------------
 
 .. autoclass:: momi.DemographicModel
    :members:
 
---------------
-DemographyPlot
---------------
+--------
+Plotting
+--------
 
 .. autoclass:: momi.DemographyPlot
    :members:
 
 
+----
+Data
+----
 
+
+.. autoclass:: momi.SnpAlleleCounts
