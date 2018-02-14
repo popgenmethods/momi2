@@ -1,3 +1,4 @@
+import gzip
 from functools import partial
 from collections import OrderedDict
 import networkx as nx
@@ -402,6 +403,15 @@ class Demography(object):
 
     def simulate_vcf(self, outfile, mutation_rate, recombination_rate,
                      length, chrom_names=[1], ploidy=1, random_seed=None):
+        if isinstance(outfile, str):
+            close = True
+            if outfile.endswith(".gz"):
+                outfile = gzip.open(outfile, "wt")
+            else:
+                outfile = open(outfile, "w")
+        else:
+            close = False
+
         if np.any(self.sampled_n % ploidy != 0):
             raise ValueError("Sampled alleles per population must be integer multiple of ploidy")
 
@@ -427,8 +437,8 @@ class Demography(object):
                     "|".join(map(str, sample)) for sample in gt]
                 outfile.write("\t".join(row) + "\n")
 
-
-
+        if close:
+            outfile.close()
 
     def simulate_trees(self, **kwargs):
         sampled_t = self.sampled_t

@@ -70,7 +70,7 @@ class SnpAlleleCounts(object):
         non_ascertained_pops: list of str
            list of populations to treat as non-ascertained
         """
-        if type(vcf_file) is str:
+        if isinstance(vcf_file, str):
             if vcf_file.endswith(".gz"):
                 def openfun():
                     return gzip.open(vcf_file, "rt")
@@ -235,6 +235,10 @@ class SnpAlleleCounts(object):
 
     @classmethod
     def load(cls, f):
+        if isinstance(f, str):
+            with gzip.open(f, "rt") as gf:
+                return cls.load(gf)
+
         items = {}
         items_re = re.compile(r'\s*"(.*)":\s*(.*),\s*\n')
         config_re = re.compile(r'\s*"configs":\s*\[\s*\n')
@@ -320,6 +324,11 @@ class SnpAlleleCounts(object):
         with gzip.open("allele_counts.gz", "wt") as f:
             allele_counts.dump(f)
         """
+        if isinstance(f, str):
+            with gzip.open(f, "wt") as gf:
+                self.dump(gf)
+                return
+
         print("{", file=f)
         print('\t"populations": {},'.format(
             json.dumps(list(self.populations))), file=f)
