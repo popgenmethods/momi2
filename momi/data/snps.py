@@ -17,36 +17,71 @@ from ..util import memoize_instance
 logger = logging.getLogger(__name__)
 
 
+def snp_allele_counts(chrom_ids, positions, populations,
+                      ancestral_counts, derived_counts,
+                      use_folded_likelihood=False):
+    """Create a :class:`SnpAlleleCounts` object.
+
+    :param iterator chrom_ids: the CHROM at each SNP
+    :param iterator positions: the POS at each SNP
+    :param list populations: the population names
+
+    :param iterator ancestral_counts: iterator over tuples of \
+    the ancestral counts at each SNP. tuple length should \
+    be the same as the number of populations
+
+    :param iterator derived_counts: iterator over tuples of \
+    the derived counts at each SNP. tuple length should \
+    be the same as the number of populations
+
+    :param bool use_folded_likelihood: whether the folded SFS should \
+    be used when computing likelihoods. Set this to True if there is \
+    uncertainty about the ancestral allele.
+
+    :rtype: :class:`SnpAlleleCounts`
+    """
+    config_iter = (tuple(zip(a, d)) for a, d in
+                   zip(ancestral_counts, derived_counts))
+    return SnpAlleleCounts(list(chrom_ids), list(positions),
+                           CompressedAlleleCounts.from_iter(
+                               config_iter, len(populations)),
+                           populations, use_folded_likelihood)
+
+
 class SnpAlleleCounts(object):
     """
     The allele counts for a list of SNPs.
-    Can be passed as data into SfsLikelihoodSurface
-    to compute site frequency spectrum and likelihoods.
 
-    Important methods:
-    read_vcf(): read allele counts from a single vcf
-    read_vcf_list(): read allele counts from a list of vcf files using
-                     multiple parallel cores
-    dump(): save data in a compressed JSON format that can be
-            quickly read by load()
-    load(): load data stored by dump(). Much faster than read_vcf_list()
+    To create a :class:`SnpAlleleCounts` object,
+    use :func:`SnpAlleleCounts.read_vcf`, :func:`SnpAlleleCounts.load`,
+    or :func:`snp_allele_counts`. Do NOT call the class constructor directly,
+    it is for internal use only.
     """
     @classmethod
     def read_vcf(cls, vcf_file, ind2pop,
-                 ancestral_alleles=True,
-                 non_ascertained_pops=[]):
-        """
-        Parameters:
-        vcf_file: stream or filename
-        ind2pop: dict mapping individual IDs to populations
-        ancestral_allele: str or bool or None or function
-           if True, uses AA info field to determine ancestral allele,
-              skipping records missing this field
-           if the name of a population, then treats that population as
-              the outgroup, using its consensus allele to determine AA. If no consensus, the record is skipped.
-           if False, returns folded allele counts.
-        non_ascertained_pops: list of str
-           list of populations to treat as non-ascertained
+                 ancestral_alleles=True):
+        """Read in a VCF file and return the allele counts at biallelic SNPs.
+
+        This method can be slow, so it is recommended to save the resulting
+        :class:`SnpAlleleCounts` with :meth:`SnpAlleleCounts.dump`,
+        so that it can be read more quickly with :func:`SnpAlleleCounts.load`
+        later.
+
+        :param file,str vcf_file: File object or filename to read in. \
+        If a string ending in ".gz", the file is assumed to be gzipped.
+
+        :param dict ind2pop: Maps individual samples to populations.
+        :param bool,str ancestral_alleles: If True, use the AA INFO field to \
+        determine ancestral allele, skipping SNPs missing this field. \
+        If False, ignore ancestral allele information, and set the \
+        ``SnpAlleleCounts.use_folded_likelihood`` property so that \
+        the folded SFS is used by default when computing likelihoods. \
+        Finally, if ``ancestral_alleles`` is a string that is the name \
+        of a population in ``ind2pop``, then treat that population as an outgroup, \
+        using its consensus allele as the ancestral allele; SNPs without \
+        consensus are skipped.
+
+        :rtype: :class:`SnpAlleleCounts`
         """
         if isinstance(vcf_file, str):
             if vcf_file.endswith(".gz"):
@@ -58,8 +93,7 @@ class SnpAlleleCounts(object):
             with openfun() as f:
                 return cls.read_vcf(
                     vcf_file=f,
-                    ind2pop=ind2pop, ancestral_alleles=ancestral_alleles,
-                    non_ascertained_pops=non_ascertained_pops)
+                    ind2pop=ind2pop, ancestral_alleles=ancestral_alleles)
 
         for linenum, line in enumerate(vcf_file):
             if line.startswith("##"):
@@ -150,11 +184,16 @@ class SnpAlleleCounts(object):
 
         compressed_allele_counts = compressed_hashed.compressed_allele_counts()
         return cls(chrom, pos, compressed_allele_counts, sampled_pops,
-                   use_folded_likelihood=not ancestral_alleles,
-                   non_ascertained_pops=non_ascertained_pops)
+                   use_folded_likelihood=not ancestral_alleles)
 
     @classmethod
     def concatenate(cls, to_concatenate):
+        """Combine a list of :class:`SnpAlleleCounts` at different loci
+        into a single object.
+
+        :param iterator to_concatenate: Iterator over :class:`SnpAlleleCounts`
+        :rtype: :class:`SnpAlleleCounts`
+        """
         to_concatenate = iter(to_concatenate)
         first = next(to_concatenate)
         populations = list(first.populations)
@@ -203,16 +242,20 @@ class SnpAlleleCounts(object):
         return ret
 
     @classmethod
-    def from_iter(cls, chrom_ids, positions, allele_counts, populations):
-        populations = list(populations)
-        return cls(list(chrom_ids),
-                   list(positions),
-                   CompressedAlleleCounts.from_iter(
-                       allele_counts, len(populations)),
-                   populations)
-
-    @classmethod
     def load(cls, f):
+        """Load :class:`SnpAlleleCounts` from json file created
+        by :meth:`SnpAlleleCounts.dump`
+
+        This is the fastest way to read data into :mod:`momi`,
+        much faster than :func:`SnpAlleleCounts.read_vcf`
+        and :func:`snp_allele_counts`.
+        If needing to use the same dataset in multiple sessions,
+        it is highly recommended to store it with :meth:`SnpAlleleCounts.dump`
+        so that it can be read in with this method.
+
+        :param str,file f: file object or file name to read in
+        :rtype: :class:`SnpAlleleCounts`
+        """
         if isinstance(f, str):
             with gzip.open(f, "rt") as gf:
                 return cls.load(gf)
@@ -287,20 +330,10 @@ class SnpAlleleCounts(object):
                    **items)
 
     def dump(self, f):
-        """
-        Writes data in a compressed JSON format that can be
-        quickly loaded.
+        """Write data in JSON format.
 
-        Parameters:
-        f: a file-like object
-
-        See Also:
-        SnpAlleleCounts.load()
-
-        Example usage:
-
-        with gzip.open("allele_counts.gz", "wt") as f:
-            allele_counts.dump(f)
+        :param str,file f: filename or file object. \
+        If a filename, the resulting file is gzipped.
         """
         if isinstance(f, str):
             with gzip.open(f, "wt") as gf:
@@ -507,6 +540,7 @@ class SnpAlleleCounts(object):
     def down_sample(self, sampled_n_dict):
         pops, sub_n = zip(*sampled_n_dict.items())
         pop_idxs = [self.populations.index(p) for p in pops]
+
         def sub_counts():
             for config in self:
                 config = list(config)
@@ -520,9 +554,11 @@ class SnpAlleleCounts(object):
                         config[i] = (new_anc, new_der)
                 yield config
 
-        return type(self).from_iter(self.chrom_ids, self.positions,
-                                    sub_counts(), self.populations)
-
+        return SnpAlleleCounts(self.chrom_ids, self.positions,
+                               CompressedAlleleCounts.from_iter(
+                                   sub_counts(), len(self.populations)),
+                               self.populations, self.use_folded_likelihood,
+                               self.non_ascertained_pops)
 
     @property
     def is_polymorphic(self):
@@ -573,4 +609,3 @@ class SnpAlleleCounts(object):
     @property
     def configs(self):
         return self.sfs.configs
-

@@ -10,6 +10,6 @@ from .confidence_region import ConfidenceRegion
 from .data.config_array import config_array
 from .data.sfs import site_freq_spectrum
 from .data.tensor import sfs_tensor_prod
-from .data.snps import SnpAlleleCounts
+from .data.snps import SnpAlleleCounts, snp_allele_counts
 from .demo_model import DemographicModel
 from .demo_plotter import DemographyPlot

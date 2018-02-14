@@ -23,5 +23,7 @@ Plotting
 Data
 ----
 
+.. autofunction:: momi.snp_allele_counts
 
-.. autoclass:: momi.SnpAlleleCounts
+.. autoclass:: momi.SnpAlleleCounts()
+   :members:
