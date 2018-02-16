@@ -5,7 +5,7 @@ import autograd.numpy as np
 from .compute_sfs import _expected_sfs_tensor_prod
 
 
-class Fstats(object):
+class SfsStats(object):
     def __init__(self, sampled_n_dict):
         self.sampled_n_dict = {p: n for p, n in sampled_n_dict.items()
                                if n > 0}
@@ -115,14 +115,14 @@ class Fstats(object):
         return {"probs": probs, "denom": 1-denom}
 
 
-class EmpiricalFstats(Fstats):
+class ObservedSfsStats(SfsStats):
     def __init__(self, sfs, sampled_n_dict):
         is_ascertained = dict(zip(sfs.sampled_pops, sfs.ascertainment_pop))
         if sum(n for p, n in sampled_n_dict.items()
                if is_ascertained[p]) < 2:
             raise ValueError("sampled_n_dict must contain at least 2 ascertained alleles")
         self.sfs = sfs
-        super(EmpiricalFstats, self).__init__(sampled_n_dict)
+        super(ObservedSfsStats, self).__init__(sampled_n_dict)
 
     def tensor_prod(self, derived_weights_dict):
         weighted_counts = self.sfs.configs.count_subsets(derived_weights_dict,
@@ -251,11 +251,11 @@ class JackknifeArray(object):
             self.est, self.sd, self.z_score, hex(id(self)))
 
 
-class ExpectedFstats(Fstats):
+class ExpectedSfsStats(SfsStats):
     def __init__(self, demo, ascertainment_pops):
         self.demo = demo
         self.ascertainment_pops = ascertainment_pops
-        super(ExpectedFstats, self).__init__(dict(zip(demo.sampled_pops,
+        super(ExpectedSfsStats, self).__init__(dict(zip(demo.sampled_pops,
                                                       demo.sampled_n)))
 
     def tensor_prod(self, derived_weights_dict):
@@ -286,12 +286,12 @@ class ExpectedFstats(Fstats):
         return res[2] - res[0] - res[1]
 
 
-class ModelFitFstats(Fstats):
+class ModelFitStats(SfsStats):
     def __init__(self, sfs, demo, ascertainment_pop):
         sampled_n_dict = dict(zip(demo.sampled_pops, demo.sampled_n))
-        self.empirical = EmpiricalFstats(sfs, sampled_n_dict)
+        self.empirical = ObservedSfsStats(sfs, sampled_n_dict)
         self.sampled_n_dict = self.empirical.sampled_n_dict
-        self.expected = ExpectedFstats(demo, ascertainment_pop)
+        self.expected = ExpectedSfsStats(demo, ascertainment_pop)
 
     def tensor_prod(self, derived_weights_dict):
         return ModelFitArray(self.expected.tensor_prod(derived_weights_dict),
