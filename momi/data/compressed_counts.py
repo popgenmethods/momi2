@@ -1,5 +1,6 @@
 from cached_property import cached_property
-import autograd.numpy as np
+# autograd.numpy.array() inefficient, so use vanilla numpy here
+import numpy as np
 
 
 # to hash configs, represent it as a str
@@ -16,16 +17,27 @@ def _hashed2config(config_str):
 
 
 class _CompressedList(object):
-    def __init__(self):
+    def __init__(self, items=None):
         self.uniq_values = []
         self.value2uniq = {}
         self.index2uniq = []
+
+        if items:
+            for i in items:
+                self.append(i)
 
     def __len__(self):
         return len(self.index2uniq)
 
     def __getitem__(self, index):
-        return self.uniq_values[self.index2uniq[index]]
+        if isinstance(index, slice):
+            ret = _CompressedList()
+            ret.value2uniq = dict(self.value2uniq)
+            ret.uniq_values = list(self.uniq_values)
+            ret.index2uniq = self.index2uniq[index]
+            return ret
+        else:
+            return self.uniq_values[self.index2uniq[index]]
 
     def append(self, value):
         try:
@@ -35,6 +47,10 @@ class _CompressedList(object):
             self.value2uniq[value] = uniq_idx
             self.uniq_values.append(value)
         self.index2uniq.append(uniq_idx)
+
+    def extend(self, iterator):
+        for i in iterator:
+            self.append(i)
 
 
 class _CompressedHashedCounts(object):

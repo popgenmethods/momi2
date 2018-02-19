@@ -8,7 +8,7 @@ import json
 import re
 import gzip
 import logging
-from .compressed_counts import CompressedAlleleCounts, _CompressedHashedCounts
+from .compressed_counts import CompressedAlleleCounts, _CompressedHashedCounts, _CompressedList
 from .config_array import ConfigArray
 from .sfs import Sfs
 from ..util import memoize_instance
@@ -42,7 +42,8 @@ def snp_allele_counts(chrom_ids, positions, populations,
     """
     config_iter = (tuple(zip(a, d)) for a, d in
                    zip(ancestral_counts, derived_counts))
-    return SnpAlleleCounts(list(chrom_ids), list(positions),
+    return SnpAlleleCounts(_CompressedList(chrom_ids),
+                           list(positions),
                            CompressedAlleleCounts.from_iter(
                                config_iter, len(populations)),
                            populations, use_folded_likelihood)
@@ -121,7 +122,8 @@ class SnpAlleleCounts(object):
                                 if p != outgroup]
 
                 compressed_hashed = _CompressedHashedCounts(len(sampled_pops))
-                chrom = []
+                #chrom = []
+                chrom = _CompressedList()
                 pos = []
             else:
                 line = line.split()
@@ -200,7 +202,8 @@ class SnpAlleleCounts(object):
         nonascertained = list(first.non_ascertained_pops)
         to_concatenate = it.chain([first], to_concatenate)
 
-        chrom_ids = []
+        #chrom_ids = []
+        chrom_ids = _CompressedList()
         positions = []
         index2uniq = []
 
@@ -272,7 +275,8 @@ class SnpAlleleCounts(object):
             if chrom_pos_idx_matched:
                 logger.info("Reading SNPs")
                 line_re = re.compile(r'\s*\[(.*)\],?\s*\n')
-                chrom_ids = []
+                #chrom_ids = []
+                chrom_ids = _CompressedList()
                 positions = []
                 config_ids = []
                 for i, line in enumerate(f):
@@ -322,10 +326,12 @@ class SnpAlleleCounts(object):
                 items[items_matched.group(1)] = json.loads(
                     items_matched.group(2))
 
+        logging.debug("Creating CompressedAlleleCounts")
         compressed_counts = CompressedAlleleCounts(
             configs, config_ids,
             sort=False)
 
+        logging.debug("Creating SnpAlleleCounts")
         return cls(chrom_ids, positions, compressed_counts,
                    **items)
 
@@ -381,12 +387,12 @@ class SnpAlleleCounts(object):
             raise IOError(
                 "chrom_ids, positions, allele_counts should have same length")
 
-        self.chrom_ids = np.array(chrom_ids, dtype=str)
+        #self.chrom_ids = np.array(chrom_ids, dtype=str)
+        self.chrom_ids = chrom_ids
         self.positions = np.array(positions)
         self.compressed_counts = compressed_counts
         self.populations = populations
         self.non_ascertained_pops = non_ascertained_pops
-        self._subset_populations_cache = {}
         self.use_folded_likelihood = use_folded_likelihood
 
     def __eq__(self, other):
@@ -402,7 +408,8 @@ class SnpAlleleCounts(object):
     def chunk_data(self, n_chunks):
         chunk_len = len(self.chrom_ids) / float(n_chunks)
         new_pos = list(range(len(self.chrom_ids)))
-        new_chrom = [int(np.floor(i / chunk_len)) for i in new_pos]
+        new_chrom = _CompressedList(
+            int(np.floor(i / chunk_len)) for i in new_pos)
         return SnpAlleleCounts(
             new_chrom, new_pos, self.compressed_counts,
             self.populations, self.use_folded_likelihood,
@@ -410,7 +417,8 @@ class SnpAlleleCounts(object):
 
     def resample_chunks(self):
         uniq = np.unique(self.chrom_ids)
-        new_chrom = []
+        #new_chrom = []
+        new_chrom = _CompressedList()
         new_pos = []
         index2uniq = []
         for i, chnk in enumerate(np.random.choice(uniq, size=len(uniq),
@@ -426,25 +434,6 @@ class SnpAlleleCounts(object):
             CompressedAlleleCounts(
                 self.compressed_counts.config_array,
                 index2uniq, sort=False),
-            self.populations, self.use_folded_likelihood,
-            self.non_ascertained_pops)
-
-    def subset_snps(self, idx):
-        new_chrom = self.chrom_ids[idx]
-        new_pos = self.positions[idx]
-        index2uniq = self.compressed_counts.index2uniq[idx]
-
-        present_uniq, uniq_inv = np.unique(index2uniq,
-                                           return_inverse=True)
-
-        config_array = self.compressed_counts.config_array[
-            present_uniq,:,:]
-        index2uniq = uniq_inv
-
-        return SnpAlleleCounts(
-            new_chrom, new_pos,
-            CompressedAlleleCounts(
-                config_array, index2uniq, sort=False),
             self.populations, self.use_folded_likelihood,
             self.non_ascertained_pops)
 
@@ -532,9 +521,11 @@ class SnpAlleleCounts(object):
         return len(self.compressed_counts)
 
     def filter(self, idxs):
-        return SnpAlleleCounts(self.chrom_ids[idxs], self.positions[idxs],
+        return SnpAlleleCounts(self.chrom_ids[idxs],
+                               self.positions[idxs],
                                self.compressed_counts.filter(idxs),
-                               self.populations, self.use_folded_likelihood,
+                               self.populations,
+                               self.use_folded_likelihood,
                                self.non_ascertained_pops)
 
     def down_sample(self, sampled_n_dict):
