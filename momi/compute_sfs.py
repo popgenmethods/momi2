@@ -63,9 +63,6 @@ def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, folded=Fal
 
 
 def _expected_sfs(demography, configs, folded, error_matrices):
-    demography = demography._get_multipop_moran(
-        configs.sampled_pops, configs.sampled_n)
-
     if np.any(configs.sampled_n != demography.sampled_n) or np.any(configs.sampled_pops != demography.sampled_pops):
         raise ValueError(
             "configs and demography must have same sampled_n, sampled_pops. Use Demography.copy() or ConfigArray.copy() to make a copy with different sampled_n.")
@@ -122,8 +119,6 @@ def expected_total_branch_len(demography, error_matrices=None, ascertainment_pop
     expected_tmrca, expected_deme_tmrca : other interesting statistics
     expected_sfs_tensor_prod : compute general class of summary statistics
     """
-    demography = demography._get_multipop_moran(sampled_pops, sampled_n)
-
     if ascertainment_pop is None:
         ascertainment_pop = [True] * len(demography.sampled_n)
     ascertainment_pop = np.array(ascertainment_pop)
@@ -155,8 +150,6 @@ def expected_tmrca(demography, sampled_pops=None, sampled_n=None):
     expected_deme_tmrca : tmrca of subsample within a deme
     expected_sfs_tensor_prod : compute general class of summary statistics
     """
-    demography = demography._get_multipop_moran(sampled_pops, sampled_n)
-
     vecs = [np.ones(n + 1) for n in demography.sampled_n]
     n0 = len(vecs[0]) - 1.0
     vecs[0] = np.arange(n0 + 1) / n0
@@ -165,7 +158,6 @@ def expected_tmrca(demography, sampled_pops=None, sampled_n=None):
 
 def expected_heterozygosity(demography, sampled_pops=None, error_matrices=None):
     sampled_n = [2] * len(sampled_pops)
-    demography = demography._get_multipop_moran(sampled_pops, sampled_n)
     configs = np.zeros((len(demography.sampled_pops), len(
         demography.sampled_pops), 2), dtype=int)
     for i in range(len(demography.sampled_pops)):
@@ -194,8 +186,6 @@ def expected_deme_tmrca(demography, deme, sampled_pops=None, sampled_n=None):
     expected_tmrca : the tmrca of the whole sample
     expected_sfs_tensor_prod : compute general class of summary statistics
     """
-    demography = demography._get_multipop_moran(sampled_pops, sampled_n)
-
     deme = list(demography.sampled_pops).index(deme)
     vecs = [np.ones(n + 1) for n in demography.sampled_n]
 
@@ -244,8 +234,6 @@ def expected_sfs_tensor_prod(vecs, demography, mut_rate=1.0, sampled_pops=None):
     """
     # NOTE cannot use vecs[i] = ... due to autograd issues
     sampled_n = [np.array(v).shape[-1] - 1 for v in vecs]
-    demography = demography._get_multipop_moran(sampled_pops, sampled_n)
-
     vecs = [np.vstack([np.array([1.0] + [0.0] * n),  # all ancestral state
                        np.array([0.0] * n + [1.0]),  # all derived state
                        v])

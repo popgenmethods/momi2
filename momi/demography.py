@@ -11,7 +11,7 @@ import autograd
 from autograd import primitive
 import msprime
 from .compute_sfs import expected_total_branch_len
-from .data.compressed_counts import _CompressedHashedCounts
+from .data.compressed_counts import _CompressedHashedCounts, _CompressedList
 from .data.snps import SnpAlleleCounts
 from .util import memoize_instance, memoize
 from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse, par_einsum, convolve_sum_axes
@@ -128,31 +128,6 @@ class Demography(object):
         The list of number of samples per population
         """
         return np.array(tuple(self._G.node[(l, 0)]['lineages'] for l in self.sampled_pops), dtype=int)
-
-    @cached_property
-    def _demo_hist(self):
-        return DemographicHistory(
-            self.events,
-            dict(zip(self.sampled_pops, self.sampled_t)),
-            self.default_N)
-
-    def _get_multipop_moran(self, sampled_pops, sampled_n):
-        if sampled_pops is None:
-            sampled_pops = self.sampled_pops
-        if sampled_n is None:
-            sampled_n = self.sampled_n
-
-        ## converting sampled_pops to array breaks if pops are labeled as ints
-        #sampled_pops = np.array(sampled_pops)
-        sampled_n = np.array(sampled_n)
-
-        if (any([p1 != p2 for p1, p2 in zip(sampled_pops,
-                                            self.sampled_pops)])
-            or np.any(self.sampled_n != sampled_n)):
-            return self._demo_hist._get_multipop_moran(
-                sampled_pops, sampled_n)
-
-        return self
 
     def rescaled(self, factor=None):
         """
@@ -388,7 +363,8 @@ class Demography(object):
                 derived_counts
             ]).T
 
-        chrom = []
+        #chrom = []
+        chrom = _CompressedList()
         pos = []
         compressed_counts = _CompressedHashedCounts(len(self.sampled_pops))
 

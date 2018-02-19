@@ -21,25 +21,35 @@ class _CompressedList(object):
         self.uniq_values = []
         self.value2uniq = {}
         self.index2uniq = []
+        self._array = None
 
         if items:
             for i in items:
                 self.append(i)
 
+    def __eq__(self, other):
+        return list(self) == list(other)
+
     def __len__(self):
         return len(self.index2uniq)
 
     def __getitem__(self, index):
-        if isinstance(index, slice):
+        if isinstance(index, slice) or isinstance(index, np.ndarray):
             ret = _CompressedList()
             ret.value2uniq = dict(self.value2uniq)
             ret.uniq_values = list(self.uniq_values)
-            ret.index2uniq = self.index2uniq[index]
+            ret.index2uniq = self._get_array()[index]
             return ret
         else:
             return self.uniq_values[self.index2uniq[index]]
 
+    def _get_array(self):
+        if self._array is None:
+            self._array = np.array(self.index2uniq, dtype=int)
+        return self._array
+
     def append(self, value):
+        self._array = None
         try:
             uniq_idx = self.value2uniq[value]
         except KeyError:
