@@ -141,8 +141,7 @@ class SfsLikelihoodSurface(object):
             demo = self.demo_func(*x)
         else:
             demo = x
-        return demo._get_multipop_moran(self.sfs.sampled_pops,
-                                        self.sfs.sampled_n)
+        return demo
 
     def _get_multinom_loglik(self, demo, vector):
         if self.sfs_batches:

@@ -366,7 +366,7 @@ class SnpAlleleCounts(object):
         print('\t"(chrom_id,position,config_id)": [', file=f)
         n_positions = len(self)
         for i, chrom_id, pos, config_id in zip(
-                range(n_positions), self.chrom_ids.tolist(),
+                range(n_positions), list(self.chrom_ids),
                 self.positions.tolist(),
                 self.compressed_counts.index2uniq.tolist()):
             if i != n_positions - 1:
