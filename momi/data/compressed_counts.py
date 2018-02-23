@@ -35,6 +35,7 @@ class _CompressedList(object):
             self.value2uniq[value] = uniq_idx
             self.uniq_values.append(value)
         self.index2uniq.append(uniq_idx)
+        return uniq_idx
 
 
 class _CompressedHashedCounts(object):

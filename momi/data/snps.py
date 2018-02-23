@@ -485,7 +485,8 @@ class SnpAlleleCounts(object):
     def fstats(self, sampled_n_dict=None):
         return self.sfs.fstats(sampled_n_dict)
 
-    def subset_populations(self, populations, non_ascertained_pops=None):
+    def subset_populations(self, populations,
+                           non_ascertained_pops=None):
         if non_ascertained_pops is not None:
             non_ascertained_pops = tuple(non_ascertained_pops)
         return self._subset_populations(tuple(populations),
@@ -536,9 +537,11 @@ class SnpAlleleCounts(object):
                                          combined_pops)
 
     def filter(self, idxs):
-        return SnpAlleleCounts(self.chrom_ids[idxs], self.positions[idxs],
-                               self.compressed_counts.filter(idxs),
-                               self.populations)
+        return SnpAlleleCounts(
+            self.chrom_ids[idxs], self.positions[idxs],
+            self.compressed_counts.filter(idxs),
+            self.populations,
+            non_ascertained_pops=self.non_ascertained_pops)
 
     def down_sample(self, sampled_n_dict):
         pops, sub_n = zip(*sampled_n_dict.items())
@@ -568,6 +571,12 @@ class SnpAlleleCounts(object):
         return ascertained_is_poly[self.compressed_counts.index2uniq]
 
     @property
+    def not_singleton(self):
+        configs = self.compressed_counts.config_array
+        ret = np.all(configs.sum(axis=1) > 1, axis=1)
+        return ret[self.compressed_counts.index2uniq]
+
+    @property
     def ascertainment_pop(self):
         return np.array([(pop not in self.non_ascertained_pops)
                          for pop in self.populations])
@@ -577,7 +586,8 @@ class SnpAlleleCounts(object):
         try:
             self._seg_sites
         except:
-            filtered = self.filter(self.is_polymorphic)
+            to_keep = self.is_polymorphic
+            filtered = self.filter(to_keep)
             idx_list = [
                 np.array([i for chrom, i in grouped_idxs])
                 for key, grouped_idxs in it.groupby(
@@ -587,8 +597,7 @@ class SnpAlleleCounts(object):
             self._seg_sites = SegSites(ConfigArray(
                 self.populations,
                 filtered.compressed_counts.config_array,
-                ascertainment_pop=self.ascertainment_pop
-            ), idx_list)
+                ascertainment_pop=self.ascertainment_pop), idx_list)
         return self._seg_sites
 
     @property

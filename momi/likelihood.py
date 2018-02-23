@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class SfsLikelihoodSurface(object):
-    def __init__(self, data, demo_func=None, mut_rate=None, length=1, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=1000, p_missing=None, use_pairwise_diffs=False):
+    def __init__(self, data, demo_func=None, mut_rate=None, length=1, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=1000, p_missing=None, use_pairwise_diffs=False, ignore_singletons=False):
         """
         Object for computing composite likelihoods, and searching for the maximum composite likelihood.
 
@@ -95,6 +95,7 @@ class SfsLikelihoodSurface(object):
         self.p_missing = p_missing
 
         self.use_pairwise_diffs = use_pairwise_diffs
+        self.ignore_singletons = ignore_singletons
 
         if self.mut_rate and self.sfs.configs.has_missing_data and not self.use_pairwise_diffs:
             raise ValueError(
@@ -153,12 +154,14 @@ class SfsLikelihoodSurface(object):
                 ret = ret + _raw_log_lik(
                     cache, G, batch,
                     self.truncate_probs, self.folded,
-                    self.error_matrices, vector)
+                    self.error_matrices,
+                    self.ignore_singletons, vector)
         else:
             ret = _composite_log_likelihood(
                 self.data, demo, truncate_probs=self.truncate_probs,
                 folded=self.folded, error_matrices=self.error_matrices,
                 use_pairwise_diffs=self.use_pairwise_diffs,
+                ignore_singletons=self.ignore_singletons,
                 vector=vector)
         return ret
 
@@ -182,14 +185,20 @@ class SfsLikelihoodSurface(object):
         """
         log_lik = self.log_lik(x)
         #ret = -log_lik + self.sfs.n_snps() * self.sfs._entropy + _entropy_mut_term(self.mut_rate, self.sfs, self.p_missing, self.use_pairwise_diffs)
-        ret = -log_lik + self.sfs.n_snps() * self.sfs._entropy
+        if self.ignore_singletons:
+            sfs = self.sfs.exclude_singletons
+        else:
+            sfs = self.sfs
+        ret = -log_lik + sfs.n_snps() * sfs._entropy
+
         if self.mut_rate:
+            # NOTE use full SFS for Poisson mutations even if ignore_singletons
             ret = ret + \
                 self.sfs._get_muts_poisson_entropy(self.use_pairwise_diffs)
-        ret = ret / float(self.sfs.n_snps())
+        ret = ret / float(sfs.n_snps())
         if not self.log_prior:
             assert ret >= 0, "kl-div: %s, log_lik: %s, total_count: %s" % (
-                str(ret), str(log_lik), str(self.sfs.n_snps()))
+                str(ret), str(log_lik), str(sfs.n_snps()))
         return ret
 
     def find_mle(self, x0, method="tnc", jac=True, hess=False, hessp=False, bounds=None, callback=None, **kwargs):
@@ -352,9 +361,12 @@ class SfsLikelihoodSurface(object):
             mut_rate = self.mut_rate * np.ones(self.sfs.n_loci)
             mut_rate = np.sum(mut_rate) / float(pieces)
 
-        return [SfsLikelihoodSurface(sfs, demo_func=self.demo_func, mut_rate=None,
-                                     folded=self.folded, error_matrices=self.error_matrices,
-                                     truncate_probs=self.truncate_probs, batch_size=self.batch_size)
+        return [SfsLikelihoodSurface(
+            sfs, demo_func=self.demo_func, mut_rate=None,
+            folded=self.folded, error_matrices=self.error_matrices,
+            truncate_probs=self.truncate_probs,
+            batch_size=self.batch_size,
+            ignore_singletons=self.ignore_singletons)
                 for sfs in sfs_pieces]
 
     def _stochastic_surfaces(self, n_minibatches=None, snps_per_minibatch=None, rgen=np.random):
@@ -425,20 +437,28 @@ def _make_likelihood_fun(sampled_pops, conf_arr, sampled_n, counts_arr, *args, *
     return surface.log_lik
 
 
-def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs=0.0, vector=False, p_missing=None, use_pairwise_diffs=False, **kwargs):
+def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs=0.0, vector=False, p_missing=None, use_pairwise_diffs=False, ignore_singletons=False, **kwargs):
     try:
-        sfs = data.sfs
+        full_sfs = data.sfs
     except AttributeError:
-        sfs = data
+        full_sfs = data
 
-    sfs_probs = np.maximum(expected_sfs(demo, sfs.configs, normalized=True, **kwargs),
-                           truncate_probs)
+    if ignore_singletons:
+        sfs = full_sfs.exclude_singletons
+    else:
+        sfs = full_sfs
+
+    sfs_probs = np.maximum(
+        expected_sfs(demo, sfs.configs, normalized=True, **kwargs),
+        truncate_probs)
     log_lik = sfs._integrate_sfs(np.log(sfs_probs), vector=vector)
 
     # add on log likelihood of poisson distribution for total number of SNPs
     if mut_rate is not None:
+        if ignore_singletons:
+            logging.warn("Including singletons for computing Poisson rate")
         log_lik = log_lik + \
-            _mut_factor(sfs, demo, mut_rate, vector,
+            _mut_factor(full_sfs, demo, mut_rate, vector,
                         p_missing, use_pairwise_diffs)
 
     if not vector:
@@ -447,6 +467,9 @@ def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs=0.0, vec
 
 
 def _mut_factor(sfs, demo, mut_rate, vector, p_missing, use_pairwise_diffs):
+    if sfs.configs.ignore_singletons:
+        raise NotImplementedError
+
     if use_pairwise_diffs:
         return _mut_factor_het(sfs, demo, mut_rate, vector, p_missing)
     else:
@@ -516,10 +539,14 @@ def rearrange_dict_grad(fun):
         return wrapped_fun_helper(ag.dict(xdict), lambda:None)
     return wrapped_fun
 
-def _raw_log_lik(cache, G, data, truncate_probs, folded, error_matrices, vector=False):
+def _raw_log_lik(cache, G, data, truncate_probs, folded,
+                 error_matrices, ignore_singletons, vector=False):
     def wrapped_fun(cache):
         demo = Demography(G, cache=cache)
-        return _composite_log_likelihood(data, demo, truncate_probs=truncate_probs, folded=folded, error_matrices=error_matrices, vector=vector)
+        return _composite_log_likelihood(
+            data, demo, truncate_probs=truncate_probs, folded=folded,
+            error_matrices=error_matrices, vector=vector,
+            ignore_singletons=ignore_singletons)
     if vector:
         return ag.checkpoint(wrapped_fun)(cache)
     else:

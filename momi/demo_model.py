@@ -39,7 +39,8 @@ def demographic_model(default_N, gen_time=1):
         leaf_events=[], leafs=[],
         data=None, muts_per_gen=None, folded=None,
         mem_chunk_size=None, use_pairwise_diffs=None,
-        non_ascertained_pops=None)
+        non_ascertained_pops=None,
+        ignore_singletons=False)
 
 
 class DemographicModel(object):
@@ -48,7 +49,8 @@ class DemographicModel(object):
                  leaf_events, leafs,
                  data, muts_per_gen, folded,
                  mem_chunk_size, use_pairwise_diffs,
-                 non_ascertained_pops):
+                 non_ascertained_pops,
+                 ignore_singletons):
         self.N_e = N_e
         self.gen_time = gen_time
         self.parameters = co.OrderedDict((k, p.copy()) for k, p in parameters.items())
@@ -60,7 +62,8 @@ class DemographicModel(object):
         self._set_data(data=data, muts_per_gen=muts_per_gen,
                        folded=folded, mem_chunk_size=mem_chunk_size,
                        use_pairwise_diffs=use_pairwise_diffs,
-                       non_ascertained_pops=non_ascertained_pops)
+                       non_ascertained_pops=non_ascertained_pops,
+                       ignore_singletons=ignore_singletons)
 
     def copy(self):
         return DemographicModel(
@@ -73,7 +76,8 @@ class DemographicModel(object):
             folded=self._folded,
             mem_chunk_size=self._mem_chunk_size,
             use_pairwise_diffs=self._use_pairwise_diffs,
-            non_ascertained_pops=self._non_ascertained_pops)
+            non_ascertained_pops=self._non_ascertained_pops,
+            ignore_singletons=self._ignore_singletons)
 
     def draw(self, additional_times, pop_x_positions, tree_only=False, rad=-.1, legend_kwargs={}, xlab_rotation=-30, x_leafs_only=False, pop_marker_kwargs=None, adjust_pulse_labels={}, add_to_existing=None, cm_scalar_mappable=None, alpha=1.0, **kwargs):
         if x_leafs_only:
@@ -519,7 +523,8 @@ class DemographicModel(object):
     def set_data(
             self, data, muts_per_gen=None, folded=False,
             mem_chunk_size=1000, use_pairwise_diffs=None,
-            n_blocks_jackknife=100, non_ascertained_pops=None):
+            n_blocks_jackknife=100, non_ascertained_pops=None,
+            ignore_singletons=False):
         """
         Sets data, and optionally the mutation rate,
         in order to compute likelihoods and fit parameters
@@ -561,10 +566,13 @@ class DemographicModel(object):
             muts_per_gen=muts_per_gen, folded=folded,
             mem_chunk_size=mem_chunk_size,
             use_pairwise_diffs=use_pairwise_diffs,
-            non_ascertained_pops=non_ascertained_pops)
+            non_ascertained_pops=non_ascertained_pops,
+            ignore_singletons=ignore_singletons)
 
     def _set_data(self, data, muts_per_gen, folded,
-                  mem_chunk_size, use_pairwise_diffs, non_ascertained_pops):
+                  mem_chunk_size, use_pairwise_diffs,
+                  non_ascertained_pops,
+                  ignore_singletons):
         self._opt_surface = None
         self._conf_region = None
         self._sfs = None
@@ -574,6 +582,7 @@ class DemographicModel(object):
         self._muts_per_gen = muts_per_gen
         self._use_pairwise_diffs = use_pairwise_diffs
         self._non_ascertained_pops = non_ascertained_pops
+        self._ignore_singletons = ignore_singletons
 
     def _get_sfs(self):
         if self._sfs is None or list(
@@ -667,7 +676,8 @@ class DemographicModel(object):
             sfs, demo_fun, mut_rate=mut_rate,
             folded=self._folded, batch_size=self._mem_chunk_size,
             use_pairwise_diffs=use_pairwise_diffs,
-            p_missing=p_miss)
+            p_missing=p_miss,
+            ignore_singletons=self._ignore_singletons)
 
     def log_likelihood(self):
         """

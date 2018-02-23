@@ -1,7 +1,7 @@
 import itertools as it
 import autograd.numpy as np
 from scipy.misc import comb
-from .compressed_counts import _config2hashable
+from .compressed_counts import _config2hashable, _CompressedList
 from ..util import memoize_instance
 
 
@@ -55,12 +55,16 @@ class ConfigArray(object):
     """
 
     def __init__(self, sampled_pops, conf_arr, sampled_n=None,
-                 ascertainment_pop=None):
+                 ascertainment_pop=None, ignore_singletons=False):
         """Use config_array() instead of calling this constructor directly"""
         # If sampled_n=None, ConfigArray.sampled_n will be the max number of
         # observed individuals/alleles per population.
         self.sampled_pops = tuple(sampled_pops)
         self.value = conf_arr
+
+        self.ignore_singletons = ignore_singletons
+        if self.ignore_singletons:
+            assert np.all(self.value[:,:,1].sum(axis=1) > 1)
 
         if ascertainment_pop is None:
             ascertainment_pop = [True] * len(sampled_pops)
@@ -252,7 +256,8 @@ class ConfigArray(object):
         sample_sizes = [tuple(s) for s in sample_sizes_array]
         # corrections for monomorphic sites (all ancestral & all derived)
         ssize_2_corrections = [{}, {}]
-        for s in set(sample_sizes):
+        uniq_sample_sizes = set(sample_sizes)
+        for s in uniq_sample_sizes:
             # add rows for monomorphic correction terms
             for mono_allele in (0, 1):
                 mono_config = tuple(ss if asc else 0 for ss,
@@ -264,9 +269,38 @@ class ConfigArray(object):
                 mono_config = np.transpose(mono_config)
                 ssize_2_corrections[mono_allele][
                     s] = augmented_idx(mono_config)
-        corrections_2_denom = [np.array([corr_row[s] for s in sample_sizes],
-                                        dtype=int)
-                               for corr_row in ssize_2_corrections]
+        corrections_2_denom = [
+            np.array([corr_row[s] for s in sample_sizes], dtype=int)
+            for corr_row in ssize_2_corrections]
+
+        if self.ignore_singletons:
+            if folded:
+                raise NotImplementedError("Not yet implemented folding with ignore_singletons")
+
+            for i, p in enumerate(self.sampled_pops):
+                curr = {}
+                e_p = np.zeros(len(self.sampled_pops), dtype=int)
+                e_p[i] = 1
+                for s in uniq_sample_sizes:
+                    # exclude both ancestral and derived singletons
+                    for anc_singleton in (True, False):
+                        if anc_singleton:
+                            singleton_config = np.array(
+                                [s-e_p, e_p]).T
+                        else:
+                            singleton_config = np.array(
+                                [e_p, s-e_p]).T
+                        if np.any(singleton_config < 0):
+                            curr[s] = null_idx
+                        else:
+                            curr[s] = augmented_idx(singleton_config)
+
+                        corrections_2_denom.append(np.array([
+                            curr[s] for s in sample_sizes], dtype=int))
+
+        idxs = {'denom_idx': denom_idx,
+                'idx_2_row': idx_2_row,
+                'corrections_2_denom': corrections_2_denom}
 
         # get row indices for folded configs
         if folded:
@@ -283,14 +317,7 @@ class ConfigArray(object):
             # dont use monomorphic configs
             folded_2_row[monomorphic] = null_idx
 
-        idxs = {'denom_idx': denom_idx, 'idx_2_row': idx_2_row}
-        assert len(corrections_2_denom) == 2
-        idxs.update({('corrections_2_denom', 0): corrections_2_denom[0],
-                     ('corrections_2_denom', 1): corrections_2_denom[1]})
-        try:
             idxs['folded_2_row'] = folded_2_row
-        except UnboundLocalError:
-            pass
 
         return np.array(augmented_configs, dtype=int), idxs
 
@@ -300,6 +327,7 @@ class _ConfigArray_Subset(ConfigArray):
     def __init__(self, configs, sub_idxs):
         self.sub_idxs = sub_idxs
         self.full_configs = configs
+        self.ignore_singletons = self.full_configs.ignore_singletons
         for a in ("sampled_n", "sampled_pops",
                   "has_missing_data", "ascertainment_pop"):
             setattr(self, a, getattr(self.full_configs, a))
@@ -332,20 +360,23 @@ class _ConfigArray_Subset(ConfigArray):
 
     @memoize_instance
     def _build_old_new_idxs(self, folded):
-        idxs = self.full_configs._augmented_idxs(folded)
+        full_idxs = self.full_configs._augmented_idxs(folded)
 
-        denom_idx_key = 'denom_idx'
-        denom_idx = idxs[denom_idx_key]
-        idxs = {k: v[self.sub_idxs]
-                for k, v in list(idxs.items()) if k != denom_idx_key}
+        sub_idx_list = _CompressedList()
+        sub_idxs = {}
+        for k, v in full_idxs.items():
+            if k == "denom_idx":
+                sub_idxs[k] = sub_idx_list.append(v)
+            elif k == "corrections_2_denom":
+                sub_idxs[k] = []
+                for x in v:
+                    sub_idxs[k].append(
+                        np.array([sub_idx_list.append(x_i)
+                                  for x_i in x[self.sub_idxs]],
+                                 dtype=int))
+            else:
+                sub_idxs[k] = np.array([sub_idx_list.append(v_i)
+                                        for v_i in v[self.sub_idxs]],
+                                       dtype=int)
 
-        old_idxs = np.array(
-            list(set(sum(map(list, idxs.values()), [denom_idx]))))
-        old_2_new_idxs = {old_id: new_id for new_id,
-                          old_id in enumerate(old_idxs)}
-
-        idxs = {k: np.array([old_2_new_idxs[old_id]
-                             for old_id in v], dtype=int)
-                for k, v in list(idxs.items())}
-        idxs[denom_idx_key] = old_2_new_idxs[denom_idx]
-        return old_idxs, idxs
+        return np.array(sub_idx_list.uniq_values, dtype=int), sub_idxs

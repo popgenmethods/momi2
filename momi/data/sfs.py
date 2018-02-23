@@ -362,6 +362,43 @@ class Sfs(object):
                         sampled_n=sampled_n,
                         ascertainment_pop=self.ascertainment_pop))
 
+    @cached_property
+    def exclude_singletons(self):
+        if self.configs.ignore_singletons:
+            return self
+
+        # sum allele counts over populations
+        summed_counts = self.configs.value.sum(axis=1)
+
+        # require both alleles to have count > 1
+        assert summed_counts.shape[1:] == (2,)
+        is_not_singleton = np.all(summed_counts > 1, axis=1)
+
+        old2new_idxs = -1 * np.ones(len(self.configs.value),
+                                    dtype=int)
+        old2new_idxs[is_not_singleton] = np.arange(
+            np.sum(is_not_singleton), dtype=int)
+
+        configs = ConfigArray(
+            self.sampled_pops,
+            self.configs.value[is_not_singleton,:,:],
+            sampled_n=self.sampled_n,
+            ascertainment_pop=self.ascertainment_pop,
+            ignore_singletons=True)
+
+        loci = []
+        for old_idxs, cnts in zip(self.loc_idxs, self.loc_counts):
+            to_keep = is_not_singleton[old_idxs]
+
+            cnts = cnts[to_keep]
+            old_idxs = old_idxs[to_keep]
+
+            new_idxs = old2new_idxs[old_idxs]
+            assert np.all((new_idxs >= 0) & (new_idxs < len(configs)))
+            loci.append(np.array([new_idxs, cnts]))
+
+        return Sfs(loci, configs)
+
     def _integrate_sfs(self, weights, vector=False, locus=None):
         if vector:
             assert locus is None
