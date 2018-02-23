@@ -278,12 +278,12 @@ class ConfigArray(object):
                 raise NotImplementedError("Not yet implemented folding with ignore_singletons")
 
             for i, p in enumerate(self.sampled_pops):
-                curr = {}
                 e_p = np.zeros(len(self.sampled_pops), dtype=int)
                 e_p[i] = 1
-                for s in uniq_sample_sizes:
-                    # exclude both ancestral and derived singletons
-                    for anc_singleton in (True, False):
+                # exclude both ancestral and derived singletons
+                for anc_singleton in (True, False):
+                    curr = {}
+                    for s in uniq_sample_sizes:
                         if anc_singleton:
                             singleton_config = np.array(
                                 [s-e_p, e_p]).T
@@ -295,8 +295,8 @@ class ConfigArray(object):
                         else:
                             curr[s] = augmented_idx(singleton_config)
 
-                        corrections_2_denom.append(np.array([
-                            curr[s] for s in sample_sizes], dtype=int))
+                    corrections_2_denom.append(np.array([
+                        curr[s] for s in sample_sizes], dtype=int))
 
         idxs = {'denom_idx': denom_idx,
                 'idx_2_row': idx_2_row,
