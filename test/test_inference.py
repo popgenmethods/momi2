@@ -38,8 +38,11 @@ def test_archaic_and_pairwisediffs():
                    mem_chunk_size=-1)
 
     true_params = np.array(list(model.get_params().values()))
-    model.set_x([logit(random.uniform(.001, join_time-.001) / join_time),
-                 random.uniform(-1, 1)])
+    #model.set_x([logit(random.uniform(.001, join_time-.001) / join_time),
+    model.set_params([
+        logit(random.uniform(.001, join_time-.001) / join_time),
+        random.uniform(-1, 1)],
+                     scaled=True)
     res = model.optimize(method="trust-ncg", hessp=True)
     inferred_params = np.array(list(model.get_params().values()))
 
@@ -87,7 +90,8 @@ def check_jointime_inference(
     if not use_theta:
         theta = None
 
-    model.set_x(random.uniform(0, t1), "join_time")
+    #model.set_x(random.uniform(0, t1), "join_time")
+    model.set_params({"join_time": random.uniform(0,t1)}, scaled=True)
 
     # TODO pass in possibly folded SFS (still broken)
     model.set_data(data, theta, use_folded_likelihood=folded)

@@ -27,3 +27,15 @@ Data
 
 .. autoclass:: momi.SnpAlleleCounts()
    :members:
+
+
+------------------------------------
+SFS statistics and model diagnostics
+------------------------------------
+
+.. autoclass:: momi.ModelFitStats
+   :members:
+   :inherited-members:
+
+.. autoclass:: momi.JackknifeGoodnessFitStat
+   :members:

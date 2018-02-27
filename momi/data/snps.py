@@ -421,9 +421,10 @@ class SnpAlleleCounts(object):
         new_chrom = _CompressedList()
         new_pos = []
         index2uniq = []
+        chrom_ids_arr = np.array(self.chrom_ids)
         for i, chnk in enumerate(np.random.choice(uniq, size=len(uniq),
                                                   replace=True)):
-            idx = (self.chrom_ids == chnk)
+            idx = (chrom_ids_arr == chnk)
             chnk_len = np.sum(idx)
             new_chrom.extend([i]*chnk_len)
             new_pos.extend(1+np.arange(chnk_len))

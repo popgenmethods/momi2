@@ -10,7 +10,7 @@ from .compressed_counts import _hashed2config, _config2hashable
 from .compressed_counts import CompressedAlleleCounts
 from .config_array import ConfigArray
 from .config_array import _ConfigArray_Subset
-from ..fstats import EmpiricalFstats
+from ..sfs_stats import ObservedSfsStats
 from ..util import memoize_instance
 
 

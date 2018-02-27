@@ -4,6 +4,10 @@ from cached_property import cached_property
 import autograd.numpy as np
 from .compute_sfs import _expected_sfs_tensor_prod
 
+import pandas as pd
+import seaborn
+from matplotlib import pyplot as plt
+
 
 class SfsStats(object):
     def __init__(self, sampled_n_dict):
@@ -19,15 +23,14 @@ class SfsStats(object):
 
     def ordered_prob(self, subsample_dict,
                      fold=False):
-        """
-        The ordered probability for the subsample given by
-        subsample_dict.
+        # The ordered probability for the subsample given by
+        # subsample_dict.
+        #
+        # Parameters:
+        # subsample_dict: dict of list
+        #    dict mapping population to a list of 0s and 1s giving the
+        #       ordered subsample within that population.
 
-        Parameters:
-        subsample_dict: dict of list
-           dict mapping population to a list of 0s and 1s giving the
-              ordered subsample within that population.
-        """
         if fold:
             rev_subsample = {p: 1 - np.array(s)
                              for p, s in subsample_dict.items()}
@@ -73,21 +76,53 @@ class SfsStats(object):
     def abba(self, A, B, C, *O):
         return self.count_1100(B, C, A, *O)
 
-    def abba_baba(self, *args):
-        return self.baba(*args) - self.abba(*args)
+    def abba_baba(self, A, B, C, D=None):
+        """
+        Returns the ABBA-BABA (f4) statistic for testing admixture.
 
-    def f4(self, *args):
-        return self.abba_baba(*args)
+        :param str A: First population
+        :param str B: Second population
+        :param str C: Third population
+        :param str D: Fourth population. If None, use ancestral allele.
+        """
+        return self.baba(A, B, C, D) - self.abba(A, B, C, D)
+
+    def f4(self, A, B, C, D=None):
+        """
+        Same as :meth:`abba_baba`
+        """
+        return self.abba_baba(A, B, C, D)
 
     def f3(self, A, B, O):
+        """
+        Computes f3 statistic (O-A)*(O-B)
+
+        :param str A: First population
+        :param str B: Second population
+        :param str O: Third population.
+        """
         return self.f4(O, A, O, B)
 
     def f2(self, A, B):
+        """
+        Computes f2 statistic (A-B)*(A-B)
+
+        :param str A: First population
+        :param str B: Second population
+        """
         return self.f4(A, B, A, B)
 
-    def pattersons_d(self, *args):
-        abba = self.abba(*args)
-        baba = self.baba(*args)
+    def pattersons_d(self, A, B, C, D=None):
+        """
+        Returns Patterson's D, defined as (BABA-ABBA)/(BABA+ABBA).
+
+        :param str A: First population
+        :param str B: Second population
+        :param str C: Third population
+        :param str D: Fourth population. If None, use ancestral allele.
+        """
+        abba = self.abba(A, B, C, D)
+        baba = self.baba(A, B, C, D)
         return (baba - abba) / (baba + abba)
 
     def greens_f(self, A, B, C, *O):
@@ -113,6 +148,145 @@ class SfsStats(object):
             else:
                 denom = denom + prob
         return {"probs": probs, "denom": 1-denom}
+
+
+class ModelFitStats(SfsStats):
+    """Class to compare expected vs. observed statistics of the SFS.
+
+    All methods return :class:`JackknifeGoodnessFitStat` unless
+    otherwise stated.
+
+    Currently, all goodness-of-fit statistics are based on the multinomial
+    SFS (i.e., the SFS normalized to be a probability distribution
+    summing to 1). Thus the mutation rate has no effect on these statistics.
+
+    See Patterson et al 2012, "Ancient Admixture in Human History",
+    for definitions of f2, f3, f4 (abba-baba), and D statistics.
+
+    Note this class does NOT get updated when the underlying
+    ``demo_model`` changes; a new :class:`ModelFitStats` needs
+    to be created to reflect any changes in the demography.
+
+    :param momi.DemographicModel demo_model: Demography to compute expected \
+    statistics under.
+
+    :param int n_jackknife: Split the dataset into ``n_jackknife`` contiguous \
+    blocks of SNPs, to compute standard deviations via block jackknife.
+
+    :param momi.SnpAlleleCounts data: Dataset to compute observed SFS \
+    statistics. By default, use the dataset associated with ``demo_model`` \
+    if that has been set by :meth:`DemographicModel.set_data`
+
+    :param dict sampled_n_dict: The number of samples to use \
+    per population. SNPs with fewer than this number of samples \
+    are ignored. The default is to use the \
+    full sample size of the data, i.e. to remove all SNPs with any missing \
+    data. For datasets with large amounts of missing data, \
+    this could potentially lead to most or all SNPs being removed, so it is \
+    important to specify a smaller sample size in such cases.
+    """
+    def __init__(self, demo_model, n_jackknife, data=None,
+                 sampled_n_dict=None):
+        if not (data or demo_model._data):
+            raise ValueError("Need to provide data or call "
+                             "DemographicModel.set_data() first")
+        elif not data:
+            data = demo_model._data
+
+        if n_jackknife:
+            data = data.chunk_data(n_jackknife)
+
+        data = data.subset_populations(
+            demo_model.leafs, demo_model._non_ascertained_pops)
+        sfs = data.sfs
+
+        if not sampled_n_dict:
+            sampled_n_dict = dict(zip(sfs.sampled_pops, sfs.sampled_n))
+        self.sampled_n_dict = sampled_n_dict
+
+        self.empirical = ObservedSfsStats(sfs, self.sampled_n_dict)
+        self.expected = ExpectedSfsStats(
+            demo_model._get_demo(self.sampled_n_dict), [
+                pop for pop, is_asc in zip(sfs.sampled_pops,
+                                           sfs.ascertainment_pop)
+                if is_asc])
+
+    def tensor_prod(self, derived_weights_dict):
+        """Compute rank-1 tensor products of the SFS, which can be used \
+        to express a wide range of SFS-based statistics.
+
+        More specifically, this computes the sum
+
+        .. math:: \sum_{i,j,\ldots} SFS_{i,j,\ldots} w^{(1)}_i w^{(2)}_j \cdots
+
+        where :math:`w^{(1)}_i` is the weight corresponding to SFS entries \
+        with ``i`` derived alleles in population 1, etc. Note the SFS is \
+        normalized to sum to 1 here (it is a probability).
+
+        :param dict derived_weights_dict: Maps leaf populations to \
+        vectors (:class:`numpy.ndarray`). If a population has ``n`` samples \
+        then the corresponding vector ``w`` should have length ``n+1``, \
+        with ``w[i]`` being the weight for SFS entries with ``i`` copies of \
+        the derived allele in the population.
+
+        :rtype: :class:`JackknifeGoodnessFitStat`
+        """
+        exp = self.expected.tensor_prod(derived_weights_dict)
+        emp = self.empirical.tensor_prod(derived_weights_dict)
+
+        exp = exp / self.expected.denom
+        emp = emp / self.empirical.denom
+
+        return JackknifeGoodnessFitStat(exp, emp.est, emp.jackknife)
+
+    @property
+    def denom(self):
+        return 1.0
+
+    def pairwise_diffs(self, exclude_pops=[],
+                       exclude_singletons=False, plot=True):
+        pops = [p for p in self.leafs if p not in exclude_pops]
+        fstats = self.fstats(sampled_n_dict={
+            p: 1 for p in pops})
+
+        if exclude_singletons:
+            s_probs = fstats.singleton_probs(pops)
+
+        df = []
+        for pop1 in pops:
+            for pop2 in pops:
+                if pop1 < pop2:
+                    prob = fstats.ordered_prob({
+                        pop1: [1], pop2: [0]}, fold=True)
+                    if exclude_singletons:
+                        prob = (
+                            prob - s_probs["probs"][pop1] -
+                            s_probs["probs"][pop2]) / s_probs[
+                                "denom"]
+
+                    penalty = np.log(prob.observed / prob.expected)
+                    line = [pop1, pop2, penalty, prob.z_score]
+                    print(*line)
+                    df.append(line)
+        ret = pd.DataFrame(sorted(df, key=lambda x: abs(x[-1]),
+                                  reverse=True),
+                           columns=["Pop1", "Pop2", "Penalty", "Z"])
+        if plot:
+            pivoted = ret.pivot(index="Pop1", columns="Pop2",
+                                values="Z")
+            plt.gcf().clear()
+            seaborn.heatmap(pivoted, annot=True, center=0)
+            plt.title("Residual (Observed-Expected) Z-scores")
+            pass
+        return ret
+
+    @property
+    def n_subsets(self):
+        return self.empirical.n_subsets
+
+    @property
+    def n_jackknife_blocks(self):
+        return self.empirical.n_jackknife_blocks
 
 
 class ObservedSfsStats(SfsStats):
@@ -150,7 +324,7 @@ class ObservedSfsStats(SfsStats):
         mono_der = self.sfs.configs.count_subsets(
             mono_der, self.sampled_n_dict)
 
-        return JackknifeArray.from_chunks(
+        return JackknifeStat.from_chunks(
             self.sfs.freqs_matrix.T.dot(
                 weighted_counts - mono_anc - mono_der))
 
@@ -163,100 +337,12 @@ class ObservedSfsStats(SfsStats):
         return self.sfs.n_loci
 
 
-def jackknife_arr_op(wrapped_op):
-    @ft.wraps(wrapped_op)
-    def wraps_op(self, other):
-        try:
-            other.est, other.jackknife
-        except AttributeError:
-            return wrapped_op(self, JackknifeArray(other, other))
-        else:
-            return wrapped_op(self, other)
-    return wraps_op
-
-class JackknifeArray(object):
-    @classmethod
-    def from_chunks(cls, x):
-        tot = np.sum(x)
-        return cls(tot, tot - x)
-
-    def __init__(self, est, jackknife):
-        self.est = est
-        self.jackknife = jackknife
-
-    def apply(self, fun):
-        return JackknifeArray(fun(self.est),
-                              fun(self.jackknife))
-
-    @jackknife_arr_op
-    def __add__(self, other):
-        return JackknifeArray(self.est + other.est,
-                              self.jackknife + other.jackknife)
-
-    def __radd__(self, other):
-        return self + other
-
-    def __neg__(self):
-        return JackknifeArray(-self.est, -self.jackknife)
-
-    @jackknife_arr_op
-    def __sub__(self, other):
-        return self + (-other)
-
-    def __rsub__(self, other):
-        return -self + other
-
-    @jackknife_arr_op
-    def __mul__(self, other):
-        return JackknifeArray(self.est * other.est,
-                              self.jackknife * other.jackknife)
-
-    def __rmul__(self, other):
-        return self * other
-
-    def __truediv__(self, other):
-        return self * (other**-1)
-
-    def __rtruediv__(self, other):
-        return (self**-1) * other
-
-    @jackknife_arr_op
-    def __pow__(self, other):
-        return JackknifeArray(self.est ** other.est,
-                              self.jackknife ** other.jackknife)
-
-    @jackknife_arr_op
-    def __rpow__(self, other):
-        return JackknifeArray(other.est ** self.est,
-                              other.jackknife ** self.jackknife)
-
-    @property
-    def resids(self):
-        return self.jackknife - self.est
-
-    @property
-    def var(self):
-        return np.mean(self.resids**2) * (len(self.jackknife) - 1)
-
-    @property
-    def sd(self):
-        return np.sqrt(self.var)
-
-    @property
-    def z_score(self):
-        return self.est / self.sd
-
-    def __repr__(self):
-        return "JackknifeArray(est={}, sd={}, z_score={}) at {}".format(
-            self.est, self.sd, self.z_score, hex(id(self)))
-
-
 class ExpectedSfsStats(SfsStats):
     def __init__(self, demo, ascertainment_pops):
         self.demo = demo
         self.ascertainment_pops = ascertainment_pops
         super(ExpectedSfsStats, self).__init__(dict(zip(demo.sampled_pops,
-                                                      demo.sampled_n)))
+                                                        demo.sampled_n)))
 
     def tensor_prod(self, derived_weights_dict):
         #sampled_pops, sampled_n = zip(*sorted(self.sampled_n_dict.items()))
@@ -286,46 +372,53 @@ class ExpectedSfsStats(SfsStats):
         return res[2] - res[0] - res[1]
 
 
-class ModelFitStats(SfsStats):
-    def __init__(self, sfs, demo, ascertainment_pop):
-        sampled_n_dict = dict(zip(demo.sampled_pops, demo.sampled_n))
-        self.empirical = ObservedSfsStats(sfs, sampled_n_dict)
-        self.sampled_n_dict = self.empirical.sampled_n_dict
-        self.expected = ExpectedSfsStats(demo, ascertainment_pop)
+class JackknifeGoodnessFitStat(object):
+    """
+    Object returned by methods of :class:`ModelFitStats`.
 
-    def tensor_prod(self, derived_weights_dict):
-        return ModelFitArray(self.expected.tensor_prod(derived_weights_dict),
-                             self.empirical.tensor_prod(derived_weights_dict))
+    Basic arithmetic operations are supported, allowing to build
+    up complex statistics out of simpler ones.
+
+    The raw expected, observed, and jackknifed_array values
+    can be accessed as attributes of this class.
+
+    :param float expected: the expected value of the statistic
+    :param float observed: the observed value of the statistic
+    :param numpy.ndarray jackknifed_array: array of the jackknifed \
+    values of the statistic.
+    """
+    def __init__(self, expected, observed, jackknifed_array):
+        self.expected = expected
+        self.observed = observed
+        self.jackknifed_array = jackknifed_array
 
     @property
-    def n_subsets(self):
-        return self.empirical.n_subsets
+    def sd(self):
+        """
+        Standard deviation of the statistic, estimated via jackknife
+        """
+        resids = self.jackknifed_array - self.observed
+        return np.sqrt(np.mean(resids**2) * (
+            len(self.jackknifed_array) - 1))
 
     @property
-    def n_jackknife_blocks(self):
-        return self.empirical.n_jackknife_blocks
+    def z_score(self):
+        """
+        Z-score of the statistic, defined as (observed-expected)/sd
+        """
+        return (self.observed - self.expected) / self.sd
 
-def get_theoretical_jackknifeArr(other):
-    # Helper function for ModelFitArray binary operations
-    try:
-        return (other.theoretical, other.jackknife_arr)
-    except AttributeError:
-        return (other, other)
-
-
-class ModelFitArray(object):
-    def __init__(self, theoretical, jackknife_arr):
-        self.theoretical = theoretical
-        self.jackknife_arr = jackknife_arr
-
-    def apply(self, fun):
-        return ModelFitArray(fun(self.theoretical),
-                             self.jackknife_arr.apply(fun))
+    def __repr__(self):
+        return ("JackknifeGoodnessFitStat(expected={}, observed={},"
+                " sd={}, z_score={})").format(self.expected, self.observed,
+                                              self.sd, self.z_score)
 
     def __add__(self, other):
-        o_th, o_ja = get_theoretical_jackknifeArr(other)
-        return ModelFitArray(self.theoretical + o_th,
-                             self.jackknife_arr + o_ja)
+        other = self._get_other(other)
+        return JackknifeGoodnessFitStat(
+            self.expected + other.expected,
+            self.observed + other.observed,
+            self.jackknifed_array + other.jackknifed_array)
 
     def __radd__(self, other):
         return self + other
@@ -337,23 +430,25 @@ class ModelFitArray(object):
         return (self * (-1)) + other
 
     def __mul__(self, other):
-        o_th, o_ja = get_theoretical_jackknifeArr(other)
-        return ModelFitArray(self.theoretical * o_th,
-                             self.jackknife_arr * o_ja)
+        other = self._get_other(other)
+        return JackknifeGoodnessFitStat(
+            self.expected * other.expected,
+            self.observed * other.observed,
+            self.jackknifed_array * other.jackknifed_array)
 
     def __rmul__(self, other):
         return self * other
 
     def __pow__(self, other):
-        o_th, o_ja = get_theoretical_jackknifeArr(other)
-        return ModelFitArray(self.theoretical ** o_th,
-                             self.jackknife_arr ** o_ja)
+        other = self._get_other(other)
+        return JackknifeGoodnessFitStat(
+            self.expected ** other.expected,
+            self.observed ** other.observed,
+            self.jackknifed_array ** other.jackknifed_array)
 
     def __rpow__(self, other):
-        o_th, o_ja = get_theoretical_jackknifeArr(other)
-        return ModelFitArray(o_th ** self.theoretical,
-                             o_ja ** self.jackknife_arr)
-
+        other = self._get_other(other)
+        return other ** self
 
     def __truediv__(self, other):
         return self * (other**-1)
@@ -361,23 +456,100 @@ class ModelFitArray(object):
     def __rtruediv__(self, other):
         return (self**-1) * other
 
-    @property
-    def expected(self):
-        return self.theoretical
+    def _get_other(self, other):
+        try:
+            other.expected, other.observed, other.jackknifed_array
+        except AttributeError:
+            return type(self)(other, other, other)
+        else:
+            return other
+
+
+def jackknife_arr_op(wrapped_op):
+    @ft.wraps(wrapped_op)
+    def wraps_op(self, other):
+        try:
+            other.est, other.jackknife
+        except AttributeError:
+            return wrapped_op(self, JackknifeStat(other, other))
+        else:
+            return wrapped_op(self, other)
+    return wraps_op
+
+
+class JackknifeStat(object):
+    @classmethod
+    def from_chunks(cls, x):
+        tot = np.sum(x)
+        return cls(tot, tot - x)
+
+    def __init__(self, est, jackknife):
+        self.est = est
+        self.jackknife = jackknife
+
+    def apply(self, fun):
+        return JackknifeStat(fun(self.est),
+                              fun(self.jackknife))
+
+    @jackknife_arr_op
+    def __add__(self, other):
+        return JackknifeStat(self.est + other.est,
+                              self.jackknife + other.jackknife)
+
+    def __radd__(self, other):
+        return self + other
+
+    def __neg__(self):
+        return JackknifeStat(-self.est, -self.jackknife)
+
+    @jackknife_arr_op
+    def __sub__(self, other):
+        return self + (-other)
+
+    def __rsub__(self, other):
+        return -self + other
+
+    @jackknife_arr_op
+    def __mul__(self, other):
+        return JackknifeStat(self.est * other.est,
+                              self.jackknife * other.jackknife)
+
+    def __rmul__(self, other):
+        return self * other
+
+    def __truediv__(self, other):
+        return self * (other**-1)
+
+    def __rtruediv__(self, other):
+        return (self**-1) * other
+
+    @jackknife_arr_op
+    def __pow__(self, other):
+        return JackknifeStat(self.est ** other.est,
+                              self.jackknife ** other.jackknife)
+
+    @jackknife_arr_op
+    def __rpow__(self, other):
+        return JackknifeStat(other.est ** self.est,
+                              other.jackknife ** self.jackknife)
 
     @property
-    def observed(self):
-        return self.jackknife_arr.est
+    def resids(self):
+        return self.jackknife - self.est
+
+    @property
+    def var(self):
+        return np.mean(self.resids**2) * (len(self.jackknife) - 1)
 
     @property
     def sd(self):
-        return self.jackknife_arr.sd
+        return np.sqrt(self.var)
 
     @property
     def z_score(self):
-        return (self.observed - self.expected) / self.sd
+        return self.est / self.sd
 
-    def __str__(self):
-        return ("ModelFitArray(expected={}, observed={},"
-                " sd={}, z_score={})").format(self.expected, self.observed,
-                                              self.sd, self.z_score)
+    def __repr__(self):
+        return "JackknifeStat(est={}, sd={}) at {}".format(
+            self.est, self.sd, hex(id(self)))
+

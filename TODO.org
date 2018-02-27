@@ -1,18 +1,14 @@
 * documentation
 * polish tutorial
-** add a randomize flag to set_params in order to iteratively fit submodels
 ** add pairwise distances cell
 * clean up, rename fstats
   rename to model_fit_Stats or somesuch?
-* decide how to create SFS/SnpAlleleCounts from scratch
-  try to KISS
-** fully allow Sfs object to be passed to set_data()
-   partially implemented for some unit tests, but will crash if Sfs has wrong set of populations, etc.
-
 * fix up p_missing estimation
   first, provide an option to not use it (in case it is already factored into theta)
   second, use the same method for Sfs and SnpAlleleCounts
-* allow to use either Sfs or SnpAlleleCounts in DemoModel.set_data
+* method to easily estimate mutation rate
+* store (jackknifed) Sfs in json, pass to set_data()
+  using SnpAlleleCounts is too slow and memory intensive
 * link Demography graph to DemoPlotter more directly
   so that DemoPlotter can easily show if there is a bug or not
 * clean up confidence region stuff
@@ -29,8 +25,6 @@
 
 * make SfsLikelihoodSurface not accessible to user
 * get all unit tests working
-* make foldedness a property of the data structure?
-* add AA property to simulated vcf; remove option to use ref as ancestral allele
 * method to compute tensor product, other stats
   and document it
   

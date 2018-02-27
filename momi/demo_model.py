@@ -18,7 +18,7 @@ from .events import LeafEvent, SizeEvent, JoinEvent, PulseEvent, GrowthEvent
 from .events import Parameter, ParamsDict
 from .events import _build_demo_graph
 from .demo_plotter import DemographyPlotter
-from .fstats import ModelFitFstats
+from .sfs_stats import ModelFitStats
 
 
 class DemographicModel(object):
@@ -406,11 +406,6 @@ class DemographicModel(object):
         self.size_events.append(GrowthEvent(
             t, g, pop_name, self.N_e, self.gen_time))
 
-    # TODO delete this method
-    def get_params_df(self):
-        return pd.DataFrame(list(self.get_params().items()),
-                            columns=["Param", "Value"])
-
     def get_params(self, scaled=False):
         """Return an ordered dictionary with the current parameter
         values.
@@ -427,8 +422,7 @@ class DemographicModel(object):
                 param.update_params_dict(params_dict)
         return params_dict
 
-    # TODO use get_params() instead
-    def get_x(self, param=None):
+    def _get_x(self, param=None):
         if param is None:
             return np.array([
                 p.x for p in self.parameters.values()])
@@ -438,15 +432,7 @@ class DemographicModel(object):
                     return p.x
             raise ValueError("Unrecognized parameter {}".format(param))
 
-    # TODO get rid of this; add a randomize flag to set_params()
-    def set_random_parameters(self):
-        params_dict = ParamsDict()
-        for param in self.parameters.values():
-            param.resample(params_dict)
-            param.update_params_dict(params_dict)
-
-    # TODO delete this method (just call set_params directly)
-    def set_x(self, x, param=None):
+    def _set_x(self, x, param=None):
         if param:
             x = {param: x}
         self.set_params(x, scaled=True)
@@ -511,7 +497,7 @@ class DemographicModel(object):
                 sfs.sampled_pops, sfs.ascertainment_pop)
             if is_asc]
 
-        return ModelFitFstats(
+        return ModelFitStats(
             sfs, demo,
             ascertainment_pops)
 
@@ -543,14 +529,14 @@ class DemographicModel(object):
 
     def _demo_fun(self, *x):
         logging.getLogger(__name__).debug("x = {}".format(str(x)))
-        prev_x = self.get_x()
+        prev_x = self._get_x()
         try:
-            self.set_x(x)
+            self._set_x(x)
             return self._get_demo(None)
         except:
             raise
         finally:
-            self.set_x(prev_x)
+            self._set_x(prev_x)
 
     def set_data(
             self, data, muts_per_gen=None, use_folded_likelihood=None,
@@ -664,7 +650,7 @@ class DemographicModel(object):
     #def test(self, null_point=None, sims=int(1e3), test_type="ratio",
     #         alt_point=None, *args, **kwargs):
     #    if null_point is None:
-    #        null_point = self.get_x()
+    #        null_point = self._get_x()
     #    null_point = self._opt_x_from_x(null_point)
     #    if alt_point is not None:
     #        alt_point = self._opt_x_from_x(alt_point)
@@ -757,60 +743,20 @@ class DemographicModel(object):
         """
         The log likelihood at the current parameter values
         """
-        return self._get_surface().log_lik(self.get_x())
+        return self._get_surface().log_lik(self._get_x())
 
     def kl_div(self):
         """
         The KL-divergence at the current parameter values
         """
-        return self._get_surface().kl_div(self.get_x())
-
-    def pairwise_diffs(self, exclude_pops=[],
-                       exclude_singletons=False, plot=True):
-        pops = [p for p in self.leafs if p not in exclude_pops]
-        fstats = self.fstats(sampled_n_dict={
-            p: 1 for p in pops})
-
-        if exclude_singletons:
-            s_probs = fstats.singleton_probs(pops)
-
-        df = []
-        for pop1 in pops:
-            for pop2 in pops:
-                if pop1 < pop2:
-                    prob = fstats.ordered_prob({
-                        pop1: [1], pop2: [0]}, fold=True)
-                    if exclude_singletons:
-                        prob = (
-                            prob - s_probs["probs"][pop1] -
-                            s_probs["probs"][pop2]) / s_probs[
-                                "denom"]
-
-                    z = prob.z_score
-                    penalty = np.log(prob.observed / prob.expected)
-                    line = [pop1, pop2, penalty, prob.z_score]
-                    print(*line)
-                    df.append(line)
-        ret = pd.DataFrame(sorted(df, key=lambda x: abs(x[-1]),
-                                   reverse=True),
-                            columns=["Pop1", "Pop2", "Penalty", "Z"])
-        if plot:
-            pivoted = ret.pivot(index="Pop1", columns="Pop2",
-                                values="Z")
-            plt.gcf().clear()
-            seaborn.heatmap(pivoted, annot=True, center=0)
-            plt.title("Residual (Observed-Expected) Z-scores")
-            pass
-        return ret
-
-
+        return self._get_surface().kl_div(self._get_x())
 
     def stochastic_optimize(
             self, n_minibatches=None, snps_per_minibatch=None,
             rgen=np.random, printfreq=1, start_from_checkpoint=None,
             **kwargs):
         def callback(x):
-            self.set_x(x)
+            self._set_x(x)
             if x.iteration % printfreq == 0:
                 msg = [("it", x.iteration), ("LogLikelihood", -x.fun)]
                 msg.extend(list(self.get_params().items()))
@@ -830,14 +776,14 @@ class DemographicModel(object):
             with open(start_from_checkpoint) as f:
                 kwargs.update(json.load(f))
         else:
-            kwargs["x0"] = self.get_x()
+            kwargs["x0"] = self._get_x()
 
         res = self._get_surface()._stochastic_surfaces(
             n_minibatches=n_minibatches,
             snps_per_minibatch=snps_per_minibatch,
             rgen=rgen).find_mle(**kwargs)
 
-        self.set_x(res.x)
+        self._set_x(res.x)
         return res
 
     def optimize(self, method="tnc", jac=True,
@@ -874,7 +820,7 @@ class DemographicModel(object):
             bounds = None
 
         def callback(x):
-            self.set_x(x)
+            self._set_x(x)
             if x.iteration % printfreq == 0:
                 msg = [("it", x.iteration), ("KLDivergence", x.fun)]
                 msg.extend(list(self.get_params().items()))
@@ -882,11 +828,11 @@ class DemographicModel(object):
                 logging.getLogger(__name__).info("{" + msg + "}")
 
         res = self._get_surface().find_mle(
-            self.get_x(), method=method,
+            self._get_x(), method=method,
             jac=jac, hess=hess, hessp=hessp,
             bounds=bounds, callback=callback,
             **kwargs)
 
-        self.set_x(res.x)
+        self._set_x(res.x)
         res["parameters"] = self.get_params()
         return res

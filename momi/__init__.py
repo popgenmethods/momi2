@@ -13,3 +13,4 @@ from .data.tensor import sfs_tensor_prod
 from .data.snps import SnpAlleleCounts, snp_allele_counts
 from .demo_model import DemographicModel
 from .demo_plotter import DemographyPlot
+from .sfs_stats import ModelFitStats, JackknifeGoodnessFitStat

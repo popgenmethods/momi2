@@ -1,0 +1,589 @@
+#+PROPERTY: header-args:ipython :session :results raw drawer :kernel momi2-gaxri9wx
+* Tutorial
+  :PROPERTIES:
+  :CUSTOM_ID: tutorial
+  :END:
+
+This is a tutorial for the =momi= package. You can run the ipython
+notebook that created this tutorial at =examples/tutorial.ipynb=.
+
+To get started, import the =momi= package:
+
+#+BEGIN_SRC ipython
+    import momi
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[1]:
+:END:
+
+Some =momi= operations can take awhile complete, so it is useful to turn
+on status monitoring messages to check that everything is running
+normally. Here, we output logging messages to the file =tutorial.log=.
+See the [[https://docs.python.org/3/library/logging.html][logging]]
+module for more details.
+
+#+BEGIN_SRC ipython
+    import logging
+    logging.basicConfig(level=logging.INFO, filename="tutorial.log")
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[2]:
+:END:
+
+
+** Constructing a demographic history
+   :PROPERTIES:
+   :CUSTOM_ID: constructing-a-demographic-history
+   :END:
+
+We will construct a demographic model loosely based on human history. To
+start, we need to specify =N_e=, which is the size of each population
+unless explicitly specified otherwise, and =gen_time=, the amount of
+time per generation.
+
+(TODO is =N_e= diploid or haploid???)
+
+We will measure time in years; the human generation time is
+approximately =gen_time=29= years per generation. The human effective
+population size is typically measured as $1.2 \times 10^{4}$ so we set
+=N_e=1.2e4=.
+
+(Note the population size here is NOT the census size, but the
+population genetics concept of
+[[https://en.wikipedia.org/wiki/Effective_population_size][effective
+population size]] or $N_e$).
+
+#+BEGIN_SRC ipython
+    model = momi.DemographicModel(N_e=1.2e4, gen_time=29)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[3]:
+:END:
+
+
+We now specify the sampled ("leaf") populations of our demography. We
+specify three populations: YRI, CHB, and NEA. YRI and CHB are
+present-day populations at $t=0$, while NEA is an archaic population
+from $t=50,000$ years ago. We set YRI and NEA to have the default
+population sizes, and set CHB to have a size of $N=100,000$ growing at
+rate $.0005$ per year.
+
+TODO check is growth rate g or g/2
+
+#+BEGIN_SRC ipython
+    # add YRI leaf at t=0 and default_N
+    model.add_leaf("YRI")
+    # add  CHB leaf at t=0, N=1e5, growing at rate 5e-4 per unit time (year)
+    model.add_leaf("CHB", N=1e5, g=5e-4)
+    # add NEA leaf at 50kya
+    model.add_leaf("NEA", t=5e4) 
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[4]:
+:END:
+
+Demographic events are added to the model by the methods =set_size()=
+and =move_lineages()=. =set_size()= is used to change population size
+and growth rate, while =move_lineages()= is used for population split
+and admixture events.
+
+#+BEGIN_SRC ipython
+    # stop CHB growth at 10kya
+    model.set_size("CHB", g=0, t=1e4)
+
+    # at 45kya CHB receive a 3% pulse from GhostNea
+    model.move_lineages("CHB", "GhostNea", t=4.5e4, p=.03)
+    # at 55kya GhostNea joins onto NEA
+    model.move_lineages("GhostNea", "NEA", t=5.5e4)
+
+    # at 80 kya CHB goes thru bottleneck
+    model.set_size("CHB", N=100, t=8e4)
+    # at 85 kya CHB joins onto YRI
+    model.move_lineages("CHB", "YRI", t=8.5e4)
+
+    # at 500 kya YRI joins onto NEA
+    model.move_lineages("YRI", "NEA", t=5e5)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[5]:
+:END:
+
+If you are familiar with the software
+[[http://home.uchicago.edu/rhudson1/source/mksamples.html][ms]],
+=set_size()= is analogous to the flags "-en" and "-eg", while
+=move_lineages()= is analogous to the flags "-ej" and "-es". If you are
+familiar with the package
+[[https://msprime.readthedocs.io/en/stable/][msprime]], then
+=set_size()= is analogous to =msprime.PopulationParametersChange=, while
+=move_lineages()= is analogous to =msprime.MassMigration=.
+
+Note that events can involve other populations aside from the 3 sampled
+populations YRI, CHB, and NEA. Unsampled populations are also known as
+"ghost populations". In this example, CHB receives a small amount of
+admixture from a population "GhostNea", which splits off from NEA at an
+earlier date.
+
+** Plotting a demography
+   :PROPERTIES:
+   :CUSTOM_ID: plotting-a-demography
+   :END:
+
+#+BEGIN_SRC ipython
+    plt = momi.DemographyPlot(model, ["YRI", "CHB", "GhostNea", "NEA"],
+                              figsize=(6,8),
+                              major_yticks=[1e4, 2.5e4, 5e4, 7.5e4,
+                                            1e5, 2.5e5, 5e5, 7.5e5],
+                              linthreshy=1e5, pulse_bounds=(0,.25))
+    plt.draw()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[6]:
+[[file:./obipy-resources/28149L1U.png]]
+:END:
+
+Note the user needs to specify the order of all populations (including
+ghost populations) along the x-axis.
+
+The argument =linthreshy= is useful for visualizing demographic events
+at different scales. In our example, the split time of NEA is far above
+the other events. Times below =linthreshy= are plotted on a linear
+scale, while times above it are plotted on a log scale.
+
+*** Additional plotting details
+    :PROPERTIES:
+    :CUSTOM_ID: additional-plotting-details
+    :END:
+
+If you are using Python outside a notebook environment, e.g. in a shell,
+then you need to call the following before making calls to =draw()=:
+
+#+BEGIN_EXAMPLE
+    # call first if in a shell not a notebook:
+    from matplotlib import pyplot as plt
+    plt.ion()
+#+END_EXAMPLE
+
+=momi= uses [[https://matplotlib.org/][matplotlib]] for plotting. Users
+can make calls to =matplotlib= to adjust various aspects of the
+plotting.
+
+TODO simplify the plotting API, make it easier to interact with
+matplotlib
+
+** Reading and simulating data
+   :PROPERTIES:
+   :CUSTOM_ID: reading-and-simulating-data
+   :END:
+
+In this section we demonstrate how to read in data from a VCF file.
+
+Before we can read in a dataset we first need to create one. So we start
+by demonstrating how to simulate a VCF from our demography, then we read
+it in.
+
+*** Simulating data
+    :PROPERTIES:
+    :CUSTOM_ID: simulating-data
+    :END:
+
+#+BEGIN_SRC ipython
+    import os
+
+    per_base_mut_rate = 1.25e-8
+    per_base_recom_rate = 1.25e-8
+    bases_per_locus = int(5e5)
+    n_loci = 20
+    ploidy = 2
+
+    # number of alleles to sample per population
+    sampled_n_dict = {"NEA":2, "YRI":4, "CHB":4}
+
+    # create data directory if it doesn't exist
+    os.makedirs("data", exist_ok=True) 
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[7]:
+:END:
+
+
+#+BEGIN_SRC ipython :async t
+    # simulate 20 "chromosomes", saving each in a separate gzipped vcf file
+    for chrom in range(n_loci):
+          model.simulate_vcf(
+              "data/{}.vcf.gz".format(chrom),
+              muts_per_base_per_gen=per_base_mut_rate,
+              recoms_per_base_per_gen=per_base_recom_rate,
+              length=bases_per_locus,
+              chrom_name="chr{}".format(chrom),
+              ploidy=ploidy,
+              random_seed=1234+chrom,
+              sampled_n_dict=sampled_n_dict) 
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[8]:
+:END:
+
+
+#+BEGIN_SRC ipython
+    ## read in data from vcf
+
+    ## first create a dict mapping samples to populations
+    ind2pop = {}
+    for pop, n in sampled_n_dict.items():
+        for i in range(int(n / ploidy)):
+            ## in the simulated vcfs, the samples are named like YRI_0, YRI_1, CHB_0, etc
+            ind2pop["{}_{}".format(pop, i)] = pop
+
+    # Read in each vcf in a for loop
+    data = []
+    for chrom in range(n_loci):
+        data.append(momi.SnpAlleleCounts.read_vcf("data/{}.vcf.gz".format(chrom), ind2pop,
+                                                  ancestral_alleles=True))
+
+    # concatenate the 20 loci into a single dataset
+    data = momi.SnpAlleleCounts.concatenate(data) 
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[9]:
+:END:
+
+#+BEGIN_SRC ipython
+    ## dump the momi-style data to a gzipped json file
+    data.dump("data/momi_data.json.gz")
+
+    ## load the data back from the json file
+    data2 = momi.SnpAlleleCounts.load("data/momi_data.json.gz")
+
+    assert data == data2
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[10]:
+:END:
+
+#+BEGIN_SRC ipython
+    ## INFERENCE
+
+    ## create a new model
+    model2 = momi.DemographicModel(N_e=1.2e4, gen_time=29)
+
+    ## set the data
+    model2.set_data(data,
+                    # use multinomial model, unfolded SFS
+                    muts_per_gen=None,
+                    # splits data into 100 equally sized blocks
+                    # used to compute standard deviation of f4 and other stats
+                    # via block jackknife
+                   n_blocks_jackknife=100)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[11]:
+:END:
+
+#+BEGIN_SRC ipython
+    ## start by fitting CHB and YRI
+
+    ## define parameters of the model
+    #model2.add_size_param("n_chb", 1.2e4)
+    #model2.add_growth_param("g_chb", 0, lower=-1e-3, upper=1e-3)
+    #model2.add_time_param("t_chb_yri", 1e5, lower=1e4)
+    model2.add_size_param("n_chb")
+    model2.add_growth_param("g_chb", 0, lower=-1e-3, upper=1e-3)
+    model2.add_time_param("t_chb_yri", lower=1e4)
+
+    ## add demographic events
+    model2.add_leaf("CHB", N="n_chb", g="g_chb")
+    model2.add_leaf("YRI")
+    model2.set_size("CHB", t=1e4, g=0)
+    model2.move_lineages("CHB", "YRI", t="t_chb_yri")
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[12]:
+:END:
+
+#+BEGIN_SRC ipython :async t
+    #model2.optimize(method="L-BFGS-B")
+    model2.optimize(method="TNC")
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[13]:
+#+BEGIN_EXAMPLE
+  fun: 0.0012547237060575788
+  jac: array([ 9.03212290e-06, -8.42589141e-02, -1.08052715e-09])
+  message: 'Converged (|f_n-f_(n-1)| ~= 0)'
+  nfev: 69
+  nit: 29
+  parameters: ParamsDict({'n_chb': 3072604.5739751398, 'g_chb': 0.000820449228606471, 't_chb_yri': 113434.99838588433})
+  status: 1
+  success: True
+  x: array([1.49380362e+01, 8.20449229e-04, 1.03434998e+05])
+#+END_EXAMPLE
+:END:
+
+
+#+BEGIN_SRC ipython
+    model2.get_params()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[14]:
+#+BEGIN_EXAMPLE
+  ParamsDict([('n_chb', 3072604.5739751398),
+  ('g_chb', 0.000820449228606471),
+  ('t_chb_yri', 113434.99838588433)])
+#+END_EXAMPLE
+:END:
+
+#+BEGIN_SRC ipython
+    # plot the model
+    plt = momi.DemographyPlot(model2, ["YRI", "CHB"],
+                              figsize=(6,8), linthreshy=1e5,
+                              major_yticks=[1e4, 2.5e4, 5e4, 7.5e4,
+                              1e5, 1.25e5],
+                              pulse_bounds=(0,.25))
+    plt.draw()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[15]:
+[[file:./obipy-resources/28149Y_a.png]]
+:END:
+
+
+#+BEGIN_SRC ipython
+    ## add NEA to the model
+
+    model2.add_leaf("NEA", t=5e4)
+
+    #model2.add_time_param("t_anc", 5e5,
+    #                      lower_constraints=["t_chb_yri"])
+    model2.add_time_param("t_anc", lower=5e4, lower_constraints=["t_chb_yri"])
+
+    model2.move_lineages("YRI", "NEA", t="t_anc")
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[16]:
+:END:
+
+#+BEGIN_SRC ipython :async t
+    model2.optimize()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[17]:
+#+BEGIN_EXAMPLE
+  fun: 0.012623828568856266
+  jac: array([-4.43860912e-07,  9.76573115e-02,  1.22353558e-10,  2.46188266e-12])
+  message: 'Converged (|f_n-f_(n-1)| ~= 0)'
+  nfev: 33
+  nit: 9
+  parameters: ParamsDict({'n_chb': 2899418.220451948, 'g_chb': 0.0008194843052998753, 't_chb_yri': 105037.70430361234, 't_anc': 441680.28546608094})
+  status: 1
+  success: True
+  x: array([1.48800207e+01, 8.19484305e-04, 9.50377043e+04, 3.36642581e+05])
+#+END_EXAMPLE
+:END:
+
+#+BEGIN_SRC ipython
+  # plot the model
+  plt = momi.DemographyPlot(model2, ["YRI", "CHB", "NEA"], figsize=(6,8), linthreshy=1e5, major_yticks=[1e4, 2.5e4, 5e4, 7.5e4, 1e5, 2.5e5, 5e5])
+  plt.draw()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[18]:
+[[file:./obipy-resources/28149lJh.png]]
+:END:
+
+#+BEGIN_SRC ipython :results output raw drawer
+  # model diagnostics
+  model_fit_stats = momi.ModelFitStats(model2, 100)
+  # f4(YRI, CHB, NEA, AncestralAllele) < 0 because of unmodeled Neanderthal admixture
+  # z_score is not significant because we only have a small dataset here
+  model_fit_stats.f4("YRI", "CHB", "NEA", None)
+
+  # also some functionality to check other statistics
+  # e.g. f2, f3, distance between every pair of populations
+  # (TODO: easily plot residuals of all pairwise distances)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+JackknifeGoodnessFitStat(expected=0.0, observed=-0.005661024702653249, sd=0.0028238767826156788, z_score=-2.00469961632306)
+:END:
+
+#+BEGIN_SRC ipython
+    ## create a new model with added NEA->CHB pulse
+
+    add_pulse_model = model2.copy()
+
+    #add_pulse_model.add_pulse_param("p_pulse", .1)
+    #add_pulse_model.add_time_param("t_pulse", 5e4, upper_constraints=["t_chb_yri"])
+    add_pulse_model.add_pulse_param("p_pulse", upper=.25)
+    add_pulse_model.add_time_param("t_pulse", upper_constraints=["t_chb_yri"])
+
+    add_pulse_model.move_lineages("CHB", "GhostNea", t="t_pulse", p="p_pulse")
+
+    #add_pulse_model.add_time_param("t_ghost", 1e5, lower=5e4, lower_constraints=["t_pulse"], upper_constraints=["t_anc"])
+    add_pulse_model.add_time_param("t_ghost", lower=5e4, lower_constraints=["t_pulse"], upper_constraints=["t_anc"])
+    add_pulse_model.move_lineages("GhostNea", "NEA", t="t_ghost")
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[24]:
+:END:
+
+#+BEGIN_SRC ipython :async t
+    # stochastic gradient descent (ADAM+SVRG)
+    add_pulse_model.stochastic_optimize(snps_per_minibatch=1000, num_iters=10, svrg_epoch=3)
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[25]:
+#+BEGIN_EXAMPLE
+  fun: 2.916255748059337
+  jac: array([-3.26423624e-03,  3.12638570e+01,  1.46177705e-07, -4.13073751e-08,
+  -7.55870211e-03,  1.12631411e-02, -2.52477666e-06])
+  message: 'Maximum number of iterations reached'
+  nit: 9
+  success: False
+  x: array([ 1.43433942e+01,  1.00000000e-03,  9.50384783e+04,  3.36642719e+05,
+  -2.47835805e+00, -2.03682648e+00,  6.34744929e-01])
+#+END_EXAMPLE
+:END:
+
+#+BEGIN_SRC ipython :async t
+    # full gradient descent
+    add_pulse_model.optimize(method="TNC")
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[26]:
+#+BEGIN_EXAMPLE
+  fun: 0.004325475626152443
+  jac: array([ 6.10685927e-06, -1.02133901e-01,  2.25007307e-10,  3.15581959e-10,
+  1.36069411e-05,  1.90121964e-06,  2.94538017e-07])
+  message: 'Max. number of function evaluations reached'
+  nfev: 100
+  nit: 21
+  parameters: ParamsDict({'n_chb': 11203513.170782406, 'g_chb': 0.001, 't_chb_yri': 88327.17968883236, 't_anc': 469270.5044609507, 'p_pulse': 0.06782051950763485, 't_pulse': 37195.28743307708, 't_ghost': 50121.932072287906})
+  status: 3
+  success: False
+  x: array([ 1.62317380e+01,  1.00000000e-03,  7.83271797e+04,  3.80943325e+05,
+  -2.62066058e+00, -3.18226346e-01, -8.14251662e+00])
+#+END_EXAMPLE
+:END:
+
+#+BEGIN_SRC ipython
+    # plot the model
+    plt = momi.DemographyPlot(add_pulse_model, ["YRI", "CHB", "GhostNea", "NEA"], linthreshy=1e5, figsize=(6,8), major_yticks=[1e4, 2.5e4, 5e4, 7.5e4, 1e5, 2.5e5, 5e5, 7.5e5])
+    plt.draw()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[27]:
+[[file:./obipy-resources/28149yTn.png]]
+:END:
+
+
+#+BEGIN_SRC ipython :async t
+    ## generate nonparametric bootstrap datasets
+
+    n_bootstraps = 5
+    #n_bootstraps = 20
+    #bootstrap_mles = []
+
+    # split dataset into 100 equally sized blocks to resample
+    chunked_data = data.chunk_data(100)
+
+    plt = momi.DemographyPlot(add_pulse_model, ["YRI", "CHB", "GhostNea", "NEA"], linthreshy=1e5, figsize=(6,8), major_yticks=[1e4, 2.5e4, 5e4, 7.5e4, 1e5, 2.5e5, 5e5, 7.5e5])
+
+    #bootstrap_model = add_pulse_model.copy()
+    model2_copy = model2.copy()
+    add_pulse_copy = add_pulse_model.copy()
+    for bootstrap_it in range(n_bootstraps):
+        print(bootstrap_it)
+        # bootstrap resample blocks
+        bootstrap_data = chunked_data.resample_chunks()
+        model2_copy.set_data(bootstrap_data)
+        add_pulse_copy.set_data(bootstrap_data)
+        
+        model2_copy.set_params(randomize=True)
+        model2_copy.optimize()
+        add_pulse_copy.set_params(model2_copy.get_params(), randomize=True)
+        add_pulse_copy.optimize()
+
+        plt.add_bootstrap(add_pulse_copy.get_params(), alpha=1./n_bootstraps)
+
+    plt.draw()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+# Out[28]:
+[[file:./obipy-resources/28149_dt.png]]
+:END:
+
+
+#+BEGIN_SRC ipython
+    plt.figure(figsize=(8,10))
+    add_pulse_model.draw_with_bootstraps(bootstrap_mles,
+                                         ["YRI", "CHB", "GhostNea", "NEA"], 
+                                         linthreshy=1e5, p_min=0, p_max=1)
+    plt.gca().set_yticks([1e4, 2.5e4, 5e4, 7.5e4, 1e5, 2.5e5, 5e5])
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+    /home/jack/pythonpath/momi/demo_plotter.py:35: RuntimeWarning: invalid value encountered in double_scalars
+      -self.curr_g * (nxt_t - self.curr_t))
+
+
+
+
+
+    [<matplotlib.axis.YTick at 0x7f82e1a6e3c8>,
+     <matplotlib.axis.YTick at 0x7f82e1a58c88>,
+     <matplotlib.axis.YTick at 0x7f82e1a7b518>,
+     <matplotlib.axis.YTick at 0x7f82e1a859b0>,
+     <matplotlib.axis.YTick at 0x7f82e1aa53c8>,
+     <matplotlib.axis.YTick at 0x7f82e1aa5da0>,
+     <matplotlib.axis.YTick at 0x7f82e1aa37b8>]
+#+END_EXAMPLE
+
+#+CAPTION: png
+[[file:tutorial_files/tutorial_35_2.png]]
