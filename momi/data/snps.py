@@ -1,5 +1,6 @@
 import itertools as it
 import numpy as np
+import pysam
 from cached_property import cached_property
 import multiprocessing as mp
 import functools as ft
@@ -60,7 +61,8 @@ class SnpAlleleCounts(object):
     """
     @classmethod
     def read_vcf(cls, vcf_file, ind2pop,
-                 ancestral_alleles=True):
+                 ancestral_alleles=True,
+                 bed_file=None, chrom=None):
         """Read in a VCF file and return the allele counts at biallelic SNPs.
 
         This method can be slow, so it is recommended to save the resulting
@@ -68,9 +70,7 @@ class SnpAlleleCounts(object):
         so that it can be read more quickly with :func:`SnpAlleleCounts.load`
         later.
 
-        :param file,str vcf_file: File object or filename to read in. \
-        If a string ending in ".gz", the file is assumed to be gzipped.
-
+        :param str vcf_file: VCF file to read in. "-" reads from stdin.
         :param dict ind2pop: Maps individual samples to populations.
         :param bool,str ancestral_alleles: If True, use the AA INFO field to \
         determine ancestral allele, skipping SNPs missing this field. \
@@ -84,101 +84,62 @@ class SnpAlleleCounts(object):
 
         :rtype: :class:`SnpAlleleCounts`
         """
-        if isinstance(vcf_file, str):
-            if vcf_file.endswith(".gz"):
-                def openfun():
-                    return gzip.open(vcf_file, "rt")
-            else:
-                def openfun():
-                    return open(vcf_file)
-            with openfun() as f:
-                return cls.read_vcf(
-                    vcf_file=f,
-                    ind2pop=ind2pop, ancestral_alleles=ancestral_alleles)
+        bcf_in = pysam.VariantFile(vcf_file)
 
-        for linenum, line in enumerate(vcf_file):
-            if line.startswith("##"):
+        samples = list(bcf_in.header.samples)
+        pop2idxs = defaultdict(list)
+        for i, p in ind2pop.items():
+            pop2idxs[p].append(samples.index(i))
+
+        pop_allele_counts = {pop: Counter() for pop in pop2idxs.keys()}
+        sampled_pops = sorted(p for p in pop2idxs.keys()
+                              if p != ancestral_alleles)
+        config = np.zeros((len(sampled_pops), 2), dtype=int)
+        chrom = _CompressedList()
+        pos = []
+        compressed_hashed = _CompressedHashedCounts(len(sampled_pops))
+        for recnum, rec in enumerate(bcf_in.fetch()):
+            if len(rec.alleles) != 2:
                 continue
-            elif line.startswith("#CHROM"):
-                columns = line.split()
-                format_idx = columns.index("FORMAT")
-                fixed_columns = columns[:(format_idx+1)]
 
-                if ancestral_alleles and not isinstance(
-                        ancestral_alleles, str):
-                    info_aa_re = re.compile(r"AA=(.)")
-                    outgroup = None
-                elif ancestral_alleles:
-                    info_aa_re = None
-                    outgroup = ancestral_alleles
+            for pop, inds in pop2idxs.items():
+                pop_allele_counts[pop].clear()
+                for i in inds:
+                    for a in rec.samples[i].allele_indices:
+                        pop_allele_counts[pop][a] += 1
+
+            if ancestral_alleles is True:
+                try:
+                    aa = rec.info["AA"]
+                except KeyError:
+                    continue
                 else:
-                    info_aa_re = None
-                    outgroup = None
-
-                pop2idxs = defaultdict(list)
-                for i, p in ind2pop.items():
-                    pop2idxs[p].append(columns.index(i))
-                sampled_pops = [p for p in sorted(pop2idxs.keys())
-                                if p != outgroup]
-
-                compressed_hashed = _CompressedHashedCounts(len(sampled_pops))
-                #chrom = []
-                chrom = _CompressedList()
-                pos = []
+                    aa = rec.alleles.index(aa)
+            elif ancestral_alleles:
+                outgroup_counts = pop_allele_counts.pop(
+                    ancestral_alleles)
+                if len(outgroup_counts) != 1:
+                    continue
+                aa, = outgroup_counts.keys()
             else:
-                line = line.split()
-                fixed_fields = OrderedDict(zip(fixed_columns, line))
-                if not fixed_fields["FORMAT"].startswith("GT"):
-                    continue
+                aa = 0
 
-                alt = fixed_fields["ALT"]
-                if "," in alt or alt == ".":
-                    continue
-                alleles = [fixed_fields["REF"], alt]
+            config *= 0
+            for pop_idx, pop in enumerate(sampled_pops):
+                for a, n in pop_allele_counts[pop].items():
+                    config[pop_idx, a] = n
 
-                aa = None
-                if info_aa_re:
-                    info_field_list = fixed_fields["INFO"].split(":")
-                    for info_field in info_field_list:
-                        aa_matched = info_aa_re.match(info_field)
-                        if aa_matched:
-                            aa = aa_matched.group(1)
-                            break
-                    if aa is None or aa == "." or aa not in alleles:
-                        continue
+            if aa == 1:
+                config = config[:, ::-1]
 
-                pop_allele_counts = {
-                    pop: Counter(a for i in idxs
-                                 for a in line[i].split(":")[0][::2]
-                                 if a != ".")
-                    for pop, idxs in pop2idxs.items()
-                }
+            compressed_hashed.append(config)
 
-                if outgroup:
-                    outgroup_counts = pop_allele_counts.pop(outgroup)
-                    if len(outgroup_counts) != 1:
-                        continue
-                    aa, = outgroup_counts.keys()
-                    aa = alleles[int(aa)]
-                    if aa not in alleles:
-                        continue
+            chrom.append(rec.chrom)
+            pos.append(rec.pos)
 
-                if not aa or aa == alleles[0]:
-                    allele_order = "01"
-                else:
-                    assert aa == alleles[1]
-                    allele_order = "10"
-
-                config = [[pop_allele_counts[pop][a] for a in allele_order]
-                          for pop in sampled_pops]
-                compressed_hashed.append(config)
-
-                chrom.append(fixed_fields["#CHROM"])
-                pos.append(int(fixed_fields["POS"]))
-
-                if linenum % 10000 == 0:
-                    logger.info("Read vcf up to CHR {}, POS {}".format(
-                        chrom[-1], pos[-1]))
+            if recnum % 10000 == 0:
+                logger.info("Read vcf up to CHR {}, POS {}".format(
+                    chrom[-1], pos[-1]))
 
         if len(compressed_hashed) == 0:
             logger.warn("No valid SNPs read! Try setting "
@@ -190,8 +151,7 @@ class SnpAlleleCounts(object):
 
     @classmethod
     def concatenate(cls, to_concatenate):
-        """Combine a list of :class:`SnpAlleleCounts` at different loci
-        into a single object.
+        """Combine a list of :class:`SnpAlleleCounts` into a single object.
 
         :param iterator to_concatenate: Iterator over :class:`SnpAlleleCounts`
         :rtype: :class:`SnpAlleleCounts`
@@ -235,6 +195,10 @@ class SnpAlleleCounts(object):
 
             for k, v in Counter(snp_cnts.chrom_ids).items():
                 logger.info("Added {} SNPs from Chromosome {}".format(v, k))
+
+        # make sure the positions are sorted
+        chrom_ids, positions, index2uniq = zip(*sorted(zip(
+            chrom_ids, positions, index2uniq)))
 
         compressed_counts = CompressedAlleleCounts(
             compressed_hashes.config_array(), index2uniq)

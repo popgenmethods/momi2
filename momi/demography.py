@@ -381,10 +381,7 @@ class Demography(object):
                      length, chrom_name=1, ploidy=1, random_seed=None):
         if isinstance(outfile, str):
             close = True
-            if outfile.endswith(".gz"):
-                outfile = gzip.open(outfile, "wt")
-            else:
-                outfile = open(outfile, "w")
+            outfile = open(outfile, "w")
         else:
             close = False
 

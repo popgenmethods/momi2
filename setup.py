@@ -30,7 +30,7 @@ setup(name='momi',
       install_requires=[
           'autograd>=1.2.0', 'numpy>=1.9.0', 'networkx', 'scipy',
           'pandas', 'numdifftools', 'cached_property>=1.3',
-          'msprime', "matplotlib", "seaborn"],
+          'msprime', "matplotlib", "seaborn", "pysam"],
       keywords=['population genetics', 'statistics',
                 'site frequency spectrum', 'coalescent'],
       url='https://github.com/jackkamm/momi2',

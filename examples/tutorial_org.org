@@ -150,7 +150,7 @@ earlier date.
 #+RESULTS:
 :RESULTS:
 # Out[6]:
-[[file:./obipy-resources/28149_kh.png]]
+[[file:./obipy-resources/28149SKu.png]]
 :END:
 
 Note the user needs to specify the order of all populations (including
@@ -221,10 +221,10 @@ it in.
 
 
 #+BEGIN_SRC ipython :async t
-    # simulate 20 "chromosomes", saving each in a separate gzipped vcf file
+    # simulate 20 "chromosomes", saving each in a separate vcf file
     for chrom in range(n_loci):
           model.simulate_vcf(
-              "data/{}.vcf.gz".format(chrom),
+              "data/{}.vcf".format(chrom),
               muts_per_base_per_gen=per_base_mut_rate,
               recoms_per_base_per_gen=per_base_recom_rate,
               length=bases_per_locus,
@@ -253,7 +253,7 @@ it in.
     # Read in each vcf in a for loop
     data = []
     for chrom in range(n_loci):
-        data.append(momi.SnpAlleleCounts.read_vcf("data/{}.vcf.gz".format(chrom), ind2pop,
+        data.append(momi.SnpAlleleCounts.read_vcf("data/{}.vcf".format(chrom), ind2pop,
                                                   ancestral_alleles=True))
 
     # concatenate the 20 loci into a single dataset
@@ -333,15 +333,15 @@ it in.
 :RESULTS:
 # Out[13]:
 #+BEGIN_EXAMPLE
-  fun: 0.0012560916614677282
-  jac: array([1.31572507e-07, 7.59458565e-03, 1.76899975e-12])
+  fun: 0.0012543964821657456
+  jac: array([ 1.92996002e-06, -1.43896499e-02, -7.54015323e-10])
   message: 'Converged (|f_n-f_(n-1)| ~= 0)'
   nfev: 53
-  nit: 22
-  parameters: ParamsDict({'n_chb': 18465623.521551635, 'g_chb': 0.000999953071711772, 't_chb_yri': 113527.30598166375})
+  nit: 21
+  parameters: ParamsDict({'n_chb': 2048141.613721602, 'g_chb': 0.0007797125004909825, 't_chb_yri': 113557.0433577229})
   status: 1
   success: True
-  x: array([1.67314214e+01, 9.99953072e-04, 1.03527306e+05])
+  x: array([1.45324434e+01, 7.79712500e-04, 1.03557043e+05])
 #+END_EXAMPLE
 :END:
 
@@ -354,9 +354,9 @@ it in.
 :RESULTS:
 # Out[14]:
 #+BEGIN_EXAMPLE
-  ParamsDict([('n_chb', 18465623.521551635),
-  ('g_chb', 0.000999953071711772),
-  ('t_chb_yri', 113527.30598166375)])
+  ParamsDict([('n_chb', 2048141.613721602),
+  ('g_chb', 0.0007797125004909825),
+  ('t_chb_yri', 113557.0433577229)])
 #+END_EXAMPLE
 :END:
 
@@ -373,7 +373,7 @@ it in.
 #+RESULTS:
 :RESULTS:
 # Out[15]:
-[[file:./obipy-resources/28149Mvn.png]]
+[[file:./obipy-resources/28149fU0.png]]
 :END:
 
 
@@ -402,15 +402,15 @@ it in.
 :RESULTS:
 # Out[17]:
 #+BEGIN_EXAMPLE
-  fun: 0.012637601111919847
-  jac: array([ 1.51821172e-06,  5.02004335e-02, -4.11743827e-11,  8.62294183e-12])
+  fun: 0.012457110044636666
+  jac: array([-1.70697677e-06,  1.34258197e-02, -4.75718310e-11, -2.23022277e-11])
   message: 'Converged (|f_n-f_(n-1)| ~= 0)'
-  nfev: 18
-  nit: 5
-  parameters: ParamsDict({'n_chb': 16852476.451523032, 'g_chb': 0.0009959244694130104, 't_chb_yri': 104842.03418806678, 't_anc': 441625.75337889337})
+  nfev: 85
+  nit: 20
+  parameters: ParamsDict({'n_chb': 1839.6318099043624, 'g_chb': 7.231825600664063e-05, 't_chb_yri': 109590.90506567738, 't_anc': 443019.89612181386})
   status: 1
   success: True
-  x: array([1.66400082e+01, 9.95924469e-04, 9.48420342e+04, 3.36783719e+05])
+  x: array([7.51732073e+00, 7.23182560e-05, 9.95909051e+04, 3.33428991e+05])
 #+END_EXAMPLE
 :END:
 
@@ -423,7 +423,7 @@ it in.
 #+RESULTS:
 :RESULTS:
 # Out[18]:
-[[file:./obipy-resources/28149Z5t.png]]
+[[file:./obipy-resources/28149ReD.png]]
 :END:
 
 #+BEGIN_SRC ipython :results raw drawer
@@ -440,8 +440,8 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[21]:
-: JackknifeGoodnessFitStat(expected=3.469446951953614e-18, observed=-0.005661024702653249, sd=0.0028238767826156788, z_score=-2.0046996163230615)
+# Out[19]:
+: JackknifeGoodnessFitStat(expected=6.938893903907228e-18, observed=-0.005661024702653249, sd=0.002716661599502775, z_score=-2.0838166607461823)
 :END:
 
 #+BEGIN_SRC ipython
@@ -463,7 +463,7 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[28]:
+# Out[24]:
 :END:
 
 #+BEGIN_SRC ipython :async t
@@ -473,16 +473,16 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[29]:
+# Out[25]:
 #+BEGIN_EXAMPLE
-  fun: 2.9665767807282424
-  jac: array([ 9.81149234e-03, -9.75923953e+01, -6.22312914e-08,  1.73150483e-08,
-  7.64193065e-02,  1.99219333e-06, -2.48440592e-04])
+  fun: 13.399497549420728
+  jac: array([-8.49143686e-03,  4.02040046e+01,  6.69400237e-08, -2.48158085e-08,
+  2.35243384e-04,  1.77872676e-05,  8.22341583e-05])
   message: 'Maximum number of iterations reached'
   nit: 9
   success: False
-  x: array([ 1.57646595e+01,  1.00000000e-03,  9.48428795e+04,  3.36783075e+05,
-  -2.15452489e+00, -6.83650916e+00,  2.95342575e+00])
+  x: array([ 7.34097028e+00, -1.00000000e-03,  9.95911454e+04,  3.33429451e+05,
+  -4.15336046e+00,  4.33972649e-01, -7.23082472e-01])
 #+END_EXAMPLE
 :END:
 
@@ -493,19 +493,19 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[31]:
+# Out[27]:
 #+BEGIN_EXAMPLE
-  fun: 0.004325084228981499
-  jac: array([-3.82974193e-09, -4.07269655e-02,  2.28826133e-12, -1.44030973e-12,
-  5.55170857e-09,  2.92169486e-09,  1.01581102e-15])
+  fun: 0.0043250927144172875
+  jac: array([ 3.96345602e-09, -4.08134613e-02,  9.76017532e-12,  1.64151429e-12,
+  -1.06086297e-07,  3.78038003e-07,  8.45730041e-09])
   message: 'Converged (|f_n-f_(n-1)| ~= 0)'
-  nfev: 89
-  nit: 19
-  parameters: ParamsDict({'n_chb': 11212652.24851279, 'g_chb': 0.001, 't_chb_yri': 88402.58642984807, 't_anc': 468979.4651084364, 'p_pulse': 0.06742735757452079, 't_pulse': 37082.9696919212, 't_ghost': 50000.00000041583})
+  nfev: 64
+  nit: 15
+  parameters: ParamsDict({'n_chb': 11212904.056481114, 'g_chb': 0.001, 't_chb_yri': 88402.69859455126, 't_anc': 468983.049765317, 'p_pulse': 0.06743181131859675, 't_pulse': 37086.60850806266, 't_ghost': 50003.461165715926})
   status: 1
   success: True
-  x: array([ 1.62325534e+01,  1.00000000e-03,  7.84025864e+04,  3.80576879e+05,
-  -2.62689621e+00, -3.24915245e-01, -2.76385626e+01])
+  x: array([ 1.62325758e+01,  1.00000000e-03,  7.84026986e+04,  3.80580351e+05,
+  -2.62682539e+00, -3.24748402e-01, -1.17039720e+01])
 #+END_EXAMPLE
 :END:
 
@@ -517,8 +517,8 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[32]:
-[[file:./obipy-resources/28149mD0.png]]
+# Out[29]:
+[[file:./obipy-resources/2814948V.png]]
 :END:
 
 
