@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class SfsLikelihoodSurface(object):
-    def __init__(self, data, demo_func=None, mut_rate=None, length=1, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=1000, p_missing=None, use_pairwise_diffs=False):
+    def __init__(self, data, demo_func=None, mut_rate=None, length=1, log_prior=None, folded=False, error_matrices=None, truncate_probs=1e-100, batch_size=1000, p_missing=0.0, use_pairwise_diffs=False):
         """
         Object for computing composite likelihoods, and searching for the maximum composite likelihood.
 
@@ -90,8 +90,6 @@ class SfsLikelihoodSurface(object):
         else:
             self.sfs_batches = _build_sfs_batches(self.sfs, batch_size)
 
-        if p_missing is None and self.mut_rate:
-            p_missing = self.sfs.p_missing
         self.p_missing = p_missing
 
         self.use_pairwise_diffs = use_pairwise_diffs
@@ -456,8 +454,7 @@ def _mut_factor_het(sfs, demo, mut_rate, vector, p_missing):
     mut_rate = mut_rate * np.ones(sfs.n_loci)
     E_het = expected_heterozygosity(demo, sampled_pops=sfs.sampled_pops)[
         sfs.ascertainment_pop]
-    if p_missing is None:
-        p_missing = sfs.p_missing
+
     p_missing = p_missing * np.ones(len(sfs.ascertainment_pop))
     p_missing = p_missing[sfs.ascertainment_pop]
     lambd = np.einsum("i,j->ij", mut_rate, E_het * (1.0 - p_missing))

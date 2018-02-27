@@ -150,7 +150,7 @@ earlier date.
 #+RESULTS:
 :RESULTS:
 # Out[6]:
-[[file:./obipy-resources/28149L1U.png]]
+[[file:./obipy-resources/28149_kh.png]]
 :END:
 
 Note the user needs to specify the order of all populations (including
@@ -333,15 +333,15 @@ it in.
 :RESULTS:
 # Out[13]:
 #+BEGIN_EXAMPLE
-  fun: 0.0012547237060575788
-  jac: array([ 9.03212290e-06, -8.42589141e-02, -1.08052715e-09])
+  fun: 0.0012560916614677282
+  jac: array([1.31572507e-07, 7.59458565e-03, 1.76899975e-12])
   message: 'Converged (|f_n-f_(n-1)| ~= 0)'
-  nfev: 69
-  nit: 29
-  parameters: ParamsDict({'n_chb': 3072604.5739751398, 'g_chb': 0.000820449228606471, 't_chb_yri': 113434.99838588433})
+  nfev: 53
+  nit: 22
+  parameters: ParamsDict({'n_chb': 18465623.521551635, 'g_chb': 0.000999953071711772, 't_chb_yri': 113527.30598166375})
   status: 1
   success: True
-  x: array([1.49380362e+01, 8.20449229e-04, 1.03434998e+05])
+  x: array([1.67314214e+01, 9.99953072e-04, 1.03527306e+05])
 #+END_EXAMPLE
 :END:
 
@@ -354,9 +354,9 @@ it in.
 :RESULTS:
 # Out[14]:
 #+BEGIN_EXAMPLE
-  ParamsDict([('n_chb', 3072604.5739751398),
-  ('g_chb', 0.000820449228606471),
-  ('t_chb_yri', 113434.99838588433)])
+  ParamsDict([('n_chb', 18465623.521551635),
+  ('g_chb', 0.000999953071711772),
+  ('t_chb_yri', 113527.30598166375)])
 #+END_EXAMPLE
 :END:
 
@@ -373,7 +373,7 @@ it in.
 #+RESULTS:
 :RESULTS:
 # Out[15]:
-[[file:./obipy-resources/28149Y_a.png]]
+[[file:./obipy-resources/28149Mvn.png]]
 :END:
 
 
@@ -402,15 +402,15 @@ it in.
 :RESULTS:
 # Out[17]:
 #+BEGIN_EXAMPLE
-  fun: 0.012623828568856266
-  jac: array([-4.43860912e-07,  9.76573115e-02,  1.22353558e-10,  2.46188266e-12])
+  fun: 0.012637601111919847
+  jac: array([ 1.51821172e-06,  5.02004335e-02, -4.11743827e-11,  8.62294183e-12])
   message: 'Converged (|f_n-f_(n-1)| ~= 0)'
-  nfev: 33
-  nit: 9
-  parameters: ParamsDict({'n_chb': 2899418.220451948, 'g_chb': 0.0008194843052998753, 't_chb_yri': 105037.70430361234, 't_anc': 441680.28546608094})
+  nfev: 18
+  nit: 5
+  parameters: ParamsDict({'n_chb': 16852476.451523032, 'g_chb': 0.0009959244694130104, 't_chb_yri': 104842.03418806678, 't_anc': 441625.75337889337})
   status: 1
   success: True
-  x: array([1.48800207e+01, 8.19484305e-04, 9.50377043e+04, 3.36642581e+05])
+  x: array([1.66400082e+01, 9.95924469e-04, 9.48420342e+04, 3.36783719e+05])
 #+END_EXAMPLE
 :END:
 
@@ -423,10 +423,10 @@ it in.
 #+RESULTS:
 :RESULTS:
 # Out[18]:
-[[file:./obipy-resources/28149lJh.png]]
+[[file:./obipy-resources/28149Z5t.png]]
 :END:
 
-#+BEGIN_SRC ipython :results output raw drawer
+#+BEGIN_SRC ipython :results raw drawer
   # model diagnostics
   model_fit_stats = momi.ModelFitStats(model2, 100)
   # f4(YRI, CHB, NEA, AncestralAllele) < 0 because of unmodeled Neanderthal admixture
@@ -440,7 +440,8 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-JackknifeGoodnessFitStat(expected=0.0, observed=-0.005661024702653249, sd=0.0028238767826156788, z_score=-2.00469961632306)
+# Out[21]:
+: JackknifeGoodnessFitStat(expected=3.469446951953614e-18, observed=-0.005661024702653249, sd=0.0028238767826156788, z_score=-2.0046996163230615)
 :END:
 
 #+BEGIN_SRC ipython
@@ -462,7 +463,7 @@ JackknifeGoodnessFitStat(expected=0.0, observed=-0.005661024702653249, sd=0.0028
 
 #+RESULTS:
 :RESULTS:
-# Out[24]:
+# Out[28]:
 :END:
 
 #+BEGIN_SRC ipython :async t
@@ -472,16 +473,16 @@ JackknifeGoodnessFitStat(expected=0.0, observed=-0.005661024702653249, sd=0.0028
 
 #+RESULTS:
 :RESULTS:
-# Out[25]:
+# Out[29]:
 #+BEGIN_EXAMPLE
-  fun: 2.916255748059337
-  jac: array([-3.26423624e-03,  3.12638570e+01,  1.46177705e-07, -4.13073751e-08,
-  -7.55870211e-03,  1.12631411e-02, -2.52477666e-06])
+  fun: 2.9665767807282424
+  jac: array([ 9.81149234e-03, -9.75923953e+01, -6.22312914e-08,  1.73150483e-08,
+  7.64193065e-02,  1.99219333e-06, -2.48440592e-04])
   message: 'Maximum number of iterations reached'
   nit: 9
   success: False
-  x: array([ 1.43433942e+01,  1.00000000e-03,  9.50384783e+04,  3.36642719e+05,
-  -2.47835805e+00, -2.03682648e+00,  6.34744929e-01])
+  x: array([ 1.57646595e+01,  1.00000000e-03,  9.48428795e+04,  3.36783075e+05,
+  -2.15452489e+00, -6.83650916e+00,  2.95342575e+00])
 #+END_EXAMPLE
 :END:
 
@@ -492,19 +493,19 @@ JackknifeGoodnessFitStat(expected=0.0, observed=-0.005661024702653249, sd=0.0028
 
 #+RESULTS:
 :RESULTS:
-# Out[26]:
+# Out[31]:
 #+BEGIN_EXAMPLE
-  fun: 0.004325475626152443
-  jac: array([ 6.10685927e-06, -1.02133901e-01,  2.25007307e-10,  3.15581959e-10,
-  1.36069411e-05,  1.90121964e-06,  2.94538017e-07])
-  message: 'Max. number of function evaluations reached'
-  nfev: 100
-  nit: 21
-  parameters: ParamsDict({'n_chb': 11203513.170782406, 'g_chb': 0.001, 't_chb_yri': 88327.17968883236, 't_anc': 469270.5044609507, 'p_pulse': 0.06782051950763485, 't_pulse': 37195.28743307708, 't_ghost': 50121.932072287906})
-  status: 3
-  success: False
-  x: array([ 1.62317380e+01,  1.00000000e-03,  7.83271797e+04,  3.80943325e+05,
-  -2.62066058e+00, -3.18226346e-01, -8.14251662e+00])
+  fun: 0.004325084228981499
+  jac: array([-3.82974193e-09, -4.07269655e-02,  2.28826133e-12, -1.44030973e-12,
+  5.55170857e-09,  2.92169486e-09,  1.01581102e-15])
+  message: 'Converged (|f_n-f_(n-1)| ~= 0)'
+  nfev: 89
+  nit: 19
+  parameters: ParamsDict({'n_chb': 11212652.24851279, 'g_chb': 0.001, 't_chb_yri': 88402.58642984807, 't_anc': 468979.4651084364, 'p_pulse': 0.06742735757452079, 't_pulse': 37082.9696919212, 't_ghost': 50000.00000041583})
+  status: 1
+  success: True
+  x: array([ 1.62325534e+01,  1.00000000e-03,  7.84025864e+04,  3.80576879e+05,
+  -2.62689621e+00, -3.24915245e-01, -2.76385626e+01])
 #+END_EXAMPLE
 :END:
 
@@ -516,8 +517,8 @@ JackknifeGoodnessFitStat(expected=0.0, observed=-0.005661024702653249, sd=0.0028
 
 #+RESULTS:
 :RESULTS:
-# Out[27]:
-[[file:./obipy-resources/28149yTn.png]]
+# Out[32]:
+[[file:./obipy-resources/28149mD0.png]]
 :END:
 
 

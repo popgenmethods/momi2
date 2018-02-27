@@ -1,12 +1,8 @@
 * documentation
 * polish tutorial
 ** add pairwise distances cell
-* clean up, rename fstats
-  rename to model_fit_Stats or somesuch?
-* fix up p_missing estimation
-  first, provide an option to not use it (in case it is already factored into theta)
-  second, use the same method for Sfs and SnpAlleleCounts
-* method to easily estimate mutation rate
+* method to easily estimate mutation rate from pairwise diversity
+* fix plotting of pairwise diffs
 * store (jackknifed) Sfs in json, pass to set_data()
   using SnpAlleleCounts is too slow and memory intensive
 * link Demography graph to DemoPlotter more directly
@@ -25,10 +21,7 @@
 
 * make SfsLikelihoodSurface not accessible to user
 * get all unit tests working
-* method to compute tensor product, other stats
-  and document it
-  
-  this should be united with fstats somehow
+* make sure there are unit tests for inferring with missing data
 * Fix demo_plotter RuntimeWarning
   /nfs/team118/jk21/miniconda3/lib/python3.6/site-packages/momi/demo_plotter
 .py:35: RuntimeWarning: invalid value encountered in double_scalars
