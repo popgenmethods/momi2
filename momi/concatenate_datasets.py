@@ -7,8 +7,6 @@ from .data.snps import SnpAlleleCounts
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--gz", action="store_true",
-                        help="Files read in to concatenate are gzipped")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("files", nargs="+",
                         help="Files containing momi json data to concatenate")
@@ -18,11 +16,6 @@ if __name__ == "__main__":
     if args.verbose:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
-    if args.gz:
-        def fopen(fname):
-            return gzip.open(fname, "rt")
-    else:
-        fopen = open
-
-    SnpAlleleCounts.concatenate(SnpAlleleCounts.load(
-        fopen(fname)) for fname in args.files).dump(sys.stdout)
+    SnpAlleleCounts.concatenate(
+        SnpAlleleCounts.load(fname)
+        for fname in args.files).dump(sys.stdout)
