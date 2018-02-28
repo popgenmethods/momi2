@@ -461,7 +461,8 @@ class DemographicModel(object):
             num_replicates=num_replicates,
             **kwargs)
 
-    def simulate_vcf(self, outfile, muts_per_base_per_gen,
+    def simulate_vcf(self, out_prefix,
+                     muts_per_base_per_gen,
                      recoms_per_base_per_gen,
                      length, chrom_name="1", ploidy=1, random_seed=None,
                      sampled_n_dict=None, **kwargs):
@@ -480,7 +481,7 @@ class DemographicModel(object):
         """
         demo = self._get_demo(sampled_n_dict)
         return demo.simulate_vcf(
-            outfile=outfile,
+            out_prefix=out_prefix,
             mutation_rate=4*self.N_e*muts_per_base_per_gen,
             recombination_rate=4*self.N_e*recoms_per_base_per_gen,
             length=length, chrom_name=chrom_name,

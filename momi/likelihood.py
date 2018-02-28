@@ -13,7 +13,7 @@ from autograd.extend import primitive, defvjp, defvjp_argnum
 from .util import count_calls, make_constant
 from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
 from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
-from .demography import DemographyError, Demography
+from .demography import Demography
 from .data.config_array import ConfigArray, _ConfigArray_Subset
 from .data.sfs import _sub_sfs, site_freq_spectrum, Sfs
 

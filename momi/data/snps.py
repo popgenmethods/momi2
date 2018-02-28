@@ -1,18 +1,18 @@
+import os
 import itertools as it
-import numpy as np
-import pysam
-from cached_property import cached_property
-import multiprocessing as mp
-import functools as ft
-from collections import defaultdict, Counter, OrderedDict
+from collections import defaultdict, Counter
 import json
 import re
 import gzip
 import logging
-from .compressed_counts import CompressedAlleleCounts, _CompressedHashedCounts, _CompressedList
+import numpy as np
+import pysam
+from cached_property import cached_property
 from .config_array import ConfigArray
 from .sfs import Sfs
 from ..util import memoize_instance
+from .compressed_counts import (
+    CompressedAlleleCounts, _CompressedHashedCounts, _CompressedList)
 
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def snp_allele_counts(chrom_ids, positions, populations,
                       ancestral_counts, derived_counts,
-                      use_folded_likelihood=False):
+                      length=None, use_folded_likelihood=False):
     """Create a :class:`SnpAlleleCounts` object.
 
     :param iterator chrom_ids: the CHROM at each SNP
@@ -43,11 +43,14 @@ def snp_allele_counts(chrom_ids, positions, populations,
     """
     config_iter = (tuple(zip(a, d)) for a, d in
                    zip(ancestral_counts, derived_counts))
-    return SnpAlleleCounts(_CompressedList(chrom_ids),
-                           list(positions),
+    chrom_ids = _CompressedList(chrom_ids)
+    positions = list(positions)
+    return SnpAlleleCounts(chrom_ids, positions,
                            CompressedAlleleCounts.from_iter(
                                config_iter, len(populations)),
-                           populations, use_folded_likelihood)
+                           populations, use_folded_likelihood,
+                           [], length,
+                           len(chrom_ids), 0)
 
 
 class SnpAlleleCounts(object):
@@ -61,8 +64,7 @@ class SnpAlleleCounts(object):
     """
     @classmethod
     def read_vcf(cls, vcf_file, ind2pop,
-                 ancestral_alleles=True,
-                 bed_file=None, chrom=None):
+                 bed_file=None, ancestral_alleles=True):
         """Read in a VCF file and return the allele counts at biallelic SNPs.
 
         This method can be slow, so it is recommended to save the resulting
@@ -86,19 +88,73 @@ class SnpAlleleCounts(object):
         """
         bcf_in = pysam.VariantFile(vcf_file)
 
+        # subset samples for faster VCF parsing
+        bcf_in.subset_samples(list(ind2pop.keys()))
         samples = list(bcf_in.header.samples)
-        pop2idxs = defaultdict(list)
-        for i, p in ind2pop.items():
-            pop2idxs[p].append(samples.index(i))
+        assert set(samples) == set(ind2pop.keys())
 
-        pop_allele_counts = {pop: Counter() for pop in pop2idxs.keys()}
-        sampled_pops = sorted(p for p in pop2idxs.keys()
-                              if p != ancestral_alleles)
-        config = np.zeros((len(sampled_pops), 2), dtype=int)
-        chrom = _CompressedList()
-        pos = []
+        # extract populations, samples
+        pop2idxs = defaultdict(list)
+        for ind, pop in ind2pop.items():
+            pop2idxs[pop].append(samples.index(ind))
+        sampled_pops = sorted(
+            p for p in pop2idxs.keys() if p != ancestral_alleles)
+
+        # objects to store chrom, pos, configs
+        chrom_list = _CompressedList()
+        pos_list = []
         compressed_hashed = _CompressedHashedCounts(len(sampled_pops))
-        for recnum, rec in enumerate(bcf_in.fetch()):
+        excluded = []
+
+        # pre-allocate objects for temporary configs
+        pop_allele_counts = {pop: Counter() for pop in pop2idxs.keys()}
+        config = np.zeros((len(sampled_pops), 2), dtype=int)
+
+        if bed_file:
+            def open_bed():
+                if bed_file.endswith(".gz"):
+                    return gzip.open(bed_file, "rt")
+                else:
+                    return open(bed_file)
+            length = 0
+            with open_bed() as bed:
+                for line in bed:
+                    line = line.split()
+                    contig = line[0]
+                    start, end = map(int, line[1:3])
+                    length += (end - start)
+                    fetcher = bcf_in.fetch(
+                        contig, start+1, end)
+                    cls._read_vcf_helper(
+                        fetcher, chrom_list, pos_list,
+                        compressed_hashed, excluded,
+                        ancestral_alleles, pop2idxs,
+                        sampled_pops, pop_allele_counts, config)
+        else:
+            length = None
+            logger.warn("No BED provided, will need to specify length"
+                        " manually with mutation rate")
+            fetcher = bcf_in.fetch()
+            cls._read_vcf_helper(
+                fetcher, chrom_list, pos_list, compressed_hashed,
+                excluded, ancestral_alleles, pop2idxs, sampled_pops,
+                pop_allele_counts, config)
+
+        if len(compressed_hashed) == 0:
+            logger.warn("No valid SNPs read! Try setting "
+                        "ancestral_alleles=False.")
+
+        return cls(chrom_list, pos_list,
+                   compressed_hashed.compressed_allele_counts(),
+                   sampled_pops, not ancestral_alleles, [], length,
+                   len(chrom_list), len(excluded))
+
+    @classmethod
+    def _read_vcf_helper(
+            cls, bcf_in_fetch, chrom, pos, compressed_hashed, excluded,
+            ancestral_alleles, pop2idxs, sampled_pops,
+            pop_allele_counts, config):
+        for rec in bcf_in_fetch:
             if len(rec.alleles) != 2:
                 continue
 
@@ -112,6 +168,7 @@ class SnpAlleleCounts(object):
                 try:
                     aa = rec.info["AA"]
                 except KeyError:
+                    excluded.append((rec.chrom, rec.pos))
                     continue
                 else:
                     aa = rec.alleles.index(aa)
@@ -119,6 +176,7 @@ class SnpAlleleCounts(object):
                 outgroup_counts = pop_allele_counts.pop(
                     ancestral_alleles)
                 if len(outgroup_counts) != 1:
+                    excluded.append((rec.chrom, rec.pos))
                     continue
                 aa, = outgroup_counts.keys()
             else:
@@ -137,17 +195,9 @@ class SnpAlleleCounts(object):
             chrom.append(rec.chrom)
             pos.append(rec.pos)
 
-            if recnum % 10000 == 0:
+            if len(pos) % 10000 == 0:
                 logger.info("Read vcf up to CHR {}, POS {}".format(
                     chrom[-1], pos[-1]))
-
-        if len(compressed_hashed) == 0:
-            logger.warn("No valid SNPs read! Try setting "
-                        "ancestral_alleles=False.")
-
-        compressed_allele_counts = compressed_hashed.compressed_allele_counts()
-        return cls(chrom, pos, compressed_allele_counts, sampled_pops,
-                   use_folded_likelihood=not ancestral_alleles)
 
     @classmethod
     def concatenate(cls, to_concatenate):
@@ -170,6 +220,9 @@ class SnpAlleleCounts(object):
         compressed_hashes = _CompressedHashedCounts(len(populations))
 
         use_folded_likelihood = False
+        length = 0
+        n_read_snps = 0
+        n_excluded_snps = 0
         for snp_cnts in to_concatenate:
             use_folded_likelihood = (use_folded_likelihood or
                                      snp_cnts.use_folded_likelihood)
@@ -193,6 +246,14 @@ class SnpAlleleCounts(object):
                 positions.append(pos)
                 index2uniq.append(old2new_uniq[old_uniq])
 
+            try:
+                length += snp_cnts.length
+            except TypeError:
+                length = None
+
+            n_read_snps += snp_cnts.n_read_snps
+            n_excluded_snps += snp_cnts.n_excluded_snps
+
             for k, v in Counter(snp_cnts.chrom_ids).items():
                 logger.info("Added {} SNPs from Chromosome {}".format(v, k))
 
@@ -204,7 +265,10 @@ class SnpAlleleCounts(object):
             compressed_hashes.config_array(), index2uniq)
         ret = cls(chrom_ids, positions, compressed_counts, populations,
                   use_folded_likelihood=use_folded_likelihood,
-                  non_ascertained_pops=nonascertained)
+                  non_ascertained_pops=nonascertained,
+                  length=length,
+                  n_read_snps=n_read_snps,
+                  n_excluded_snps=n_excluded_snps)
         logger.info("Finished concatenating datasets")
         return ret
 
@@ -227,7 +291,11 @@ class SnpAlleleCounts(object):
             with gzip.open(f, "rt") as gf:
                 return cls.load(gf)
 
-        items = {}
+        # default values for back-compatibility
+        items = {"use_folded_likelihood": False,
+                 "non_ascertained_pops": [],
+                 "length": None,
+                 "n_excluded_snps": 0}
         items_re = re.compile(r'\s*"(.*)":\s*(.*),\s*\n')
         config_re = re.compile(r'\s*"configs":\s*\[\s*\n')
         chrom_pos_idx_re = re.compile(
@@ -290,6 +358,10 @@ class SnpAlleleCounts(object):
                 items[items_matched.group(1)] = json.loads(
                     items_matched.group(2))
 
+        # for back-compatibility
+        if "n_read_snps" not in items:
+            items["n_read_snps"] = len(chrom_ids)
+
         logging.debug("Creating CompressedAlleleCounts")
         compressed_counts = CompressedAlleleCounts(
             configs, config_ids,
@@ -317,7 +389,11 @@ class SnpAlleleCounts(object):
             print('\t"non_ascertained_pops": {},'.format(
                 json.dumps(list(self.non_ascertained_pops))), file=f)
         print('\t"use_folded_likelihood": {},'.format(
-            str(self.use_folded_likelihood).lower()), file=f)
+            json.dumps(self.use_folded_likelihood)), file=f)
+        print('\t"length": {},'.format(
+            json.dumps(self.length)), file=f)
+        print(f'\t"n_read_snps": {self.n_read_snps},', file=f)
+        print(f'\t"n_excluded_snps": {self.n_excluded_snps},', file=f)
         print('\t"configs": [', file=f)
         n_configs = len(self.compressed_counts.config_array)
         for i, c in enumerate(self.compressed_counts.config_array.tolist()):
@@ -345,26 +421,34 @@ class SnpAlleleCounts(object):
 
     def __init__(self, chrom_ids, positions,
                  compressed_counts, populations,
-                 use_folded_likelihood=False, non_ascertained_pops=[]):
+                 use_folded_likelihood, non_ascertained_pops, length,
+                 n_read_snps, n_excluded_snps):
         if any([len(compressed_counts) != len(chrom_ids),
                 len(chrom_ids) != len(positions)]):
             raise IOError(
                 "chrom_ids, positions, allele_counts should have same length")
 
-        #self.chrom_ids = np.array(chrom_ids, dtype=str)
         self.chrom_ids = chrom_ids
         self.positions = np.array(positions)
         self.compressed_counts = compressed_counts
         self.populations = populations
         self.non_ascertained_pops = non_ascertained_pops
         self.use_folded_likelihood = use_folded_likelihood
+        self.length = length
+        self.n_read_snps = n_read_snps
+        self.n_excluded_snps = n_excluded_snps
 
     def __eq__(self, other):
         try:
-            return (self.compressed_counts == other.compressed_counts and
-                    np.all(self.chrom_ids == other.chrom_ids) and
-                    np.all(self.positions == other.positions) and
-                    self.use_folded_likelihood == other.use_folded_likelihood)
+            return (
+                self.compressed_counts == other.compressed_counts and
+                np.all(self.chrom_ids == other.chrom_ids) and
+                np.all(self.positions == other.positions) and
+                self.length == other.length and
+                (self.use_folded_likelihood ==
+                 other.use_folded_likelihood) and
+                self.n_read_snps == other.n_read_snps and
+                self.n_excluded_snps == other.n_excluded_snps)
         except AttributeError:
             return False
 
@@ -377,7 +461,8 @@ class SnpAlleleCounts(object):
         return SnpAlleleCounts(
             new_chrom, new_pos, self.compressed_counts,
             self.populations, self.use_folded_likelihood,
-            self.non_ascertained_pops)
+            self.non_ascertained_pops, self.length,
+            self.n_read_snps, self.n_excluded_snps)
 
     def resample_chunks(self):
         uniq = np.unique(self.chrom_ids)
@@ -394,13 +479,20 @@ class SnpAlleleCounts(object):
             new_pos.extend(1+np.arange(chnk_len))
             index2uniq.extend(self.compressed_counts.index2uniq[idx])
 
+        if self.length:
+            # NOTE this is not exactly right...but close enough
+            length = self.length * len(index2uniq) / len(self)
+        else:
+            length = None
+
         return SnpAlleleCounts(
             new_chrom, new_pos,
             CompressedAlleleCounts(
                 self.compressed_counts.config_array,
                 index2uniq, sort=False),
             self.populations, self.use_folded_likelihood,
-            self.non_ascertained_pops)
+            self.non_ascertained_pops, length,
+            self.n_read_snps, self.n_excluded_snps)
 
     @cached_property
     def _p_missing(self):
@@ -477,7 +569,8 @@ class SnpAlleleCounts(object):
             self.chrom_ids, self.positions,
             new_compressed_configs, populations,
             self.use_folded_likelihood,
-            non_ascertained_pops)
+            non_ascertained_pops, self.length,
+            self.n_read_snps, self.n_excluded_snps)
 
     def __getitem__(self, i):
         return self.compressed_counts[i]
@@ -491,7 +584,8 @@ class SnpAlleleCounts(object):
                                self.compressed_counts.filter(idxs),
                                self.populations,
                                self.use_folded_likelihood,
-                               self.non_ascertained_pops)
+                               self.non_ascertained_pops, self.length,
+                               self.n_read_snps, self.n_excluded_snps)
 
     def down_sample(self, sampled_n_dict):
         pops, sub_n = zip(*sampled_n_dict.items())
@@ -510,11 +604,13 @@ class SnpAlleleCounts(object):
                         config[i] = (new_anc, new_der)
                 yield config
 
-        return SnpAlleleCounts(self.chrom_ids, self.positions,
-                               CompressedAlleleCounts.from_iter(
-                                   sub_counts(), len(self.populations)),
-                               self.populations, self.use_folded_likelihood,
-                               self.non_ascertained_pops)
+        return SnpAlleleCounts(
+            self.chrom_ids, self.positions,
+            CompressedAlleleCounts.from_iter(
+                sub_counts(), len(self.populations)),
+            self.populations, self.use_folded_likelihood,
+            self.non_ascertained_pops, self.length,
+            self.n_read_snps, self.n_excluded_snps)
 
     @property
     def is_polymorphic(self):

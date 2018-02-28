@@ -25,8 +25,9 @@ See the [[https://docs.python.org/3/library/logging.html][logging]]
 module for more details.
 
 #+BEGIN_SRC ipython
-    import logging
-    logging.basicConfig(level=logging.INFO, filename="tutorial.log")
+  import logging
+  #logging.basicConfig(level=logging.INFO, filename="tutorial.log")
+  logging.basicConfig(level=logging.INFO)
 #+END_SRC
 
 #+RESULTS:
@@ -150,7 +151,7 @@ earlier date.
 #+RESULTS:
 :RESULTS:
 # Out[6]:
-[[file:./obipy-resources/28149SKu.png]]
+[[file:./obipy-resources/28149NyY.png]]
 :END:
 
 Note the user needs to specify the order of all populations (including
@@ -220,18 +221,19 @@ it in.
 :END:
 
 
-#+BEGIN_SRC ipython :async t
-    # simulate 20 "chromosomes", saving each in a separate vcf file
-    for chrom in range(n_loci):
-          model.simulate_vcf(
-              "data/{}.vcf".format(chrom),
+#+BEGIN_SRC ipython
+  # simulate 20 "chromosomes", saving each in a separate vcf file
+  for chrom in range(n_loci):
+        model.simulate_vcf(
+              f"data/{chrom}",
               muts_per_base_per_gen=per_base_mut_rate,
               recoms_per_base_per_gen=per_base_recom_rate,
               length=bases_per_locus,
               chrom_name="chr{}".format(chrom),
               ploidy=ploidy,
               random_seed=1234+chrom,
-              sampled_n_dict=sampled_n_dict) 
+              sampled_n_dict=sampled_n_dict,
+              force=True)
 #+END_SRC
 
 #+RESULTS:
@@ -240,24 +242,29 @@ it in.
 :END:
 
 
+*** read in data from vcf
+
+    
 #+BEGIN_SRC ipython
-    ## read in data from vcf
+  ## read in data from vcf
 
-    ## first create a dict mapping samples to populations
-    ind2pop = {}
-    for pop, n in sampled_n_dict.items():
-        for i in range(int(n / ploidy)):
-            ## in the simulated vcfs, the samples are named like YRI_0, YRI_1, CHB_0, etc
-            ind2pop["{}_{}".format(pop, i)] = pop
+  ## first create a dict mapping samples to populations
+  ind2pop = {}
+  for pop, n in sampled_n_dict.items():
+      for i in range(int(n / ploidy)):
+          ## in the simulated vcfs, the samples are named like YRI_0, YRI_1, CHB_0, etc
+          ind2pop["{}_{}".format(pop, i)] = pop
 
-    # Read in each vcf in a for loop
-    data = []
-    for chrom in range(n_loci):
-        data.append(momi.SnpAlleleCounts.read_vcf("data/{}.vcf".format(chrom), ind2pop,
-                                                  ancestral_alleles=True))
+  # Read in each vcf in a for loop
+  data = []
+  for chrom in range(n_loci):
+      data.append(momi.SnpAlleleCounts.read_vcf(
+          f"data/{chrom}.vcf.gz", ind2pop,
+          bed_file=f"data/{chrom}.bed",
+          ancestral_alleles=True))
 
-    # concatenate the 20 loci into a single dataset
-    data = momi.SnpAlleleCounts.concatenate(data) 
+  # concatenate the 20 loci into a single dataset
+  data = momi.SnpAlleleCounts.concatenate(data)
 #+END_SRC
 
 #+RESULTS:
@@ -298,7 +305,7 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[11]:
+# Out[18]:
 :END:
 
 #+BEGIN_SRC ipython
@@ -321,7 +328,7 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[12]:
+# Out[17]:
 :END:
 
 #+BEGIN_SRC ipython :async t

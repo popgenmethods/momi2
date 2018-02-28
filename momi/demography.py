@@ -1,26 +1,22 @@
-import gzip
 from functools import partial
-from collections import OrderedDict
 import networkx as nx
 import scipy
 import scipy.misc
 from scipy.misc import comb
 import scipy.sparse
 import autograd.numpy as np
-import autograd
-from autograd import primitive
 import msprime
 from .compute_sfs import expected_total_branch_len
 from .data.compressed_counts import _CompressedHashedCounts, _CompressedList
 from .data.snps import SnpAlleleCounts
-from .util import memoize_instance, memoize
-from .math_functions import sum_antidiagonals, convolve_axes, binom_coeffs, roll_axes, hypergeom_quasi_inverse, par_einsum, convolve_sum_axes
-from .events import get_event_from_old, DemographyError, _set_sizes, _build_demo_graph
+from .util import memoize_instance
+from .math_functions import (
+    binom_coeffs, roll_axes, hypergeom_quasi_inverse,
+    par_einsum, convolve_sum_axes)
 
+import pysam
 import os
 import itertools
-
-from cached_property import cached_property
 
 import logging
 logger = logging.getLogger(__name__)
@@ -377,41 +373,55 @@ class Demography(object):
         return SnpAlleleCounts(chrom, pos, compressed_counts.compressed_allele_counts(),
                                self.sampled_pops)
 
-    def simulate_vcf(self, outfile, mutation_rate, recombination_rate,
-                     length, chrom_name=1, ploidy=1, random_seed=None):
-        if isinstance(outfile, str):
-            close = True
-            outfile = open(outfile, "w")
-        else:
-            close = False
+    def simulate_vcf(self, out_prefix, mutation_rate,
+                     recombination_rate, length,
+                     chrom_name=1, ploidy=1, random_seed=None,
+                     force=False):
+        out_prefix = os.path.expanduser(out_prefix)
+        vcf_name = out_prefix + ".vcf"
+        bed_name = out_prefix + ".bed"
+        for fname in (vcf_name, bed_name):
+            if not force and os.path.isfile(fname):
+                raise FileExistsError(
+                    f"{fname} exists and force=False")
 
         if np.any(self.sampled_n % ploidy != 0):
-            raise ValueError("Sampled alleles per population must be integer multiple of ploidy")
+            raise ValueError("Sampled alleles per population must be"
+                             " integer multiple of ploidy")
 
-        treeseq = self.simulate_trees(
-            mutation_rate=mutation_rate, recombination_rate=recombination_rate,
-            length=length, num_replicates=1, random_seed=random_seed)
+        with open(bed_name, "w") as bed_f:
+            print(chrom_name, 0, length, sep="\t", file=bed_f)
 
-        outfile.write("##fileformat=VCFv4.2\n")
-        outfile.write('##source="VCF simulated by momi2 using msprime backend"' + "\n")
-        outfile.write("##contig=<ID={0},length={1}>\n".format(chrom_name, length))
+        with open(vcf_name, "w") as vcf_f:
+            treeseq = self.simulate_trees(
+                mutation_rate=mutation_rate,
+                recombination_rate=recombination_rate,
+                length=length, num_replicates=1,
+                random_seed=random_seed)
 
-        n_samples = int(np.sum(self.sampled_n) / ploidy)
-        fields = ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT"]
-        for pop, n in zip(self.sampled_pops, self.sampled_n):
-            for i in range(int(n / ploidy)):
-                fields.append("{}_{}".format(pop, i))
-        outfile.write("\t".join(fields) + "\n")
+            print("##fileformat=VCFv4.2", file=vcf_f)
+            print('##source="VCF simulated by momi2 using'
+                  ' msprime backend"', file=vcf_f)
+            print(f"##contig=<ID={chrom_name},length={length}>",
+                  file=vcf_f)
 
-        loc = next(treeseq)
-        for v in loc.variants():
-            gt = np.reshape(v.genotypes, (n_samples, ploidy))
-            row = [str(chrom_name), str(int(np.floor(v.position))), ".", "A", "T", ".", ".", "AA=A", "GT"] + [
-                "|".join(map(str, sample)) for sample in gt]
-            outfile.write("\t".join(row) + "\n")
+            n_samples = int(np.sum(self.sampled_n) / ploidy)
+            fields = ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL",
+                      "FILTER", "INFO", "FORMAT"]
+            for pop, n in zip(self.sampled_pops, self.sampled_n):
+                for i in range(int(n / ploidy)):
+                    fields.append("{}_{}".format(pop, i))
+            print(*fields, sep="\t", file=vcf_f)
 
-        if close:
-            outfile.close()
+            loc = next(treeseq)
+            for v in loc.variants():
+                gt = np.reshape(v.genotypes, (n_samples, ploidy))
+                print(chrom_name, int(np.floor(v.position)),
+                      ".", "A", "T", ".", ".", "AA=A", "GT",
+                      *["|".join(map(str, sample)) for sample in gt],
+                      sep="\t", file=vcf_f)
+
+        pysam.tabix_index(vcf_name, preset="vcf", force=force)
 
     def simulate_trees(self, **kwargs):
         sampled_t = self.sampled_t
@@ -420,7 +430,6 @@ class Demography(object):
         sampled_t = np.array(sampled_t) * np.ones(len(self.sampled_pops))
 
         pops = {p: i for i, p in enumerate(self.sampled_pops)}
-        sampled_n = self.sampled_n
 
         demographic_events = []
         for e in self._G.graph["events"]:
@@ -428,14 +437,19 @@ class Demography(object):
             if e is not None:
                 demographic_events.append(e)
 
-        return msprime.simulate(population_configurations=[msprime.PopulationConfiguration()
-                                                           for _ in range(len(pops))],
-                                Ne=self.default_N / 4,
-                                demographic_events=demographic_events,
-                                samples=[msprime.Sample(population=pops[p], time=t)
-                                         for p, t, n in zip(self.sampled_pops, self.sampled_t, self.sampled_n)
-                                         for _ in range(n)],
-                                **kwargs)
+        return msprime.simulate(
+            population_configurations=[
+                msprime.PopulationConfiguration()
+                for _ in range(len(pops))],
+            Ne=self.default_N / 4,
+            demographic_events=demographic_events,
+            samples=[
+                msprime.Sample(population=pops[p], time=t)
+                for p, t, n in zip(
+                        self.sampled_pops, self.sampled_t,
+                        self.sampled_n)
+                for _ in range(n)],
+            **kwargs)
 
 
 def rescale_events(events, factor):
