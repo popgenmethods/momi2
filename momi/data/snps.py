@@ -162,7 +162,8 @@ class SnpAlleleCounts(object):
                 pop_allele_counts[pop].clear()
                 for i in inds:
                     for a in rec.samples[i].allele_indices:
-                        pop_allele_counts[pop][a] += 1
+                        if a is not None:
+                            pop_allele_counts[pop][a] += 1
 
             if ancestral_alleles is True:
                 try:
