@@ -124,7 +124,7 @@ class SnpAlleleCounts(object):
                     start, end = map(int, line[1:3])
                     length += (end - start)
                     fetcher = bcf_in.fetch(
-                        contig, start+1, end)
+                        contig, start, end)
                     cls._read_vcf_helper(
                         fetcher, chrom_list, pos_list,
                         compressed_hashed, excluded,
