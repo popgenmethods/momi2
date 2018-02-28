@@ -173,8 +173,7 @@ class SnpAlleleCounts(object):
                 else:
                     aa = rec.alleles.index(aa)
             elif ancestral_alleles:
-                outgroup_counts = pop_allele_counts.pop(
-                    ancestral_alleles)
+                outgroup_counts = pop_allele_counts[ancestral_alleles]
                 if len(outgroup_counts) != 1:
                     excluded.append((rec.chrom, rec.pos))
                     continue
