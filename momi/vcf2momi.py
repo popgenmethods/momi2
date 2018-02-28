@@ -6,10 +6,11 @@ from .data.snps import SnpAlleleCounts
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("vcf_file")
     parser.add_argument("ind2pop",
                         help="File whose first column is individual ID and second column is population ID")
-    parser.add_argument("--info_aa", action="store_true", default=False,
-                        help="Use INFO/AA field to set ancestral allele, and ignore all SNPs with missing INFO/AA")
+    parser.add_argument("--bed")
+    parser.add_argument("--no_aa", action='store_true')
     parser.add_argument("--outgroup", default=None,
                         help="Set this population as outgroup to determine ancestral allele")
     parser.add_argument("--verbose", action="store_true")
@@ -21,13 +22,13 @@ if __name__ == "__main__":
     with open(args.ind2pop) as f:
         ind2pop = dict([l.split() for l in f])
 
-    if args.outgroup and args.info_aa:
-        raise ValueError("At most one of --outgroup, --info_aa may be specified")
+    if args.no_aa:
+        ancestral_alleles = False
     elif args.outgroup:
         ancestral_alleles = args.outgroup
-    elif args.info_aa:
-        ancestral_alleles = args.info_aa
     else:
-        ancestral_alleles = None
+        ancestral_alleles = True
 
-    SnpAlleleCounts.read_vcf(sys.stdin, ind2pop, ancestral_alleles=ancestral_alleles).dump(sys.stdout)
+    SnpAlleleCounts.read_vcf(
+        args.vcf_file, ind2pop, bed_file=args.bed,
+        ancestral_alleles=ancestral_alleles).dump(sys.stdout)
