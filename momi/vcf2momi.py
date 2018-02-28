@@ -12,8 +12,6 @@ if __name__ == "__main__":
                         help="Use INFO/AA field to set ancestral allele, and ignore all SNPs with missing INFO/AA")
     parser.add_argument("--outgroup", default=None,
                         help="Set this population as outgroup to determine ancestral allele")
-    parser.add_argument("--non_ascertained_pops", nargs="*", default=[],
-                        help="Populations to treat as non-ascertained (only SNPs that are polymorphic within the ascertained populations are considered)")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
     if args.verbose:
@@ -32,4 +30,4 @@ if __name__ == "__main__":
     else:
         ancestral_alleles = None
 
-    SnpAlleleCounts.read_vcf(sys.stdin, ind2pop, ancestral_alleles=ancestral_alleles, non_ascertained_pops=args.non_ascertained_pops).dump(sys.stdout)
+    SnpAlleleCounts.read_vcf(sys.stdin, ind2pop, ancestral_alleles=ancestral_alleles).dump(sys.stdout)
