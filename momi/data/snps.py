@@ -453,7 +453,7 @@ class SnpAlleleCounts(object):
             return False
 
     @memoize_instance
-    def chunk_data(self, n_chunks):
+    def _chunk_data(self, n_chunks):
         chunk_len = len(self.chrom_ids) / float(n_chunks)
         new_pos = list(range(len(self.chrom_ids)))
         new_chrom = _CompressedList(
@@ -463,6 +463,9 @@ class SnpAlleleCounts(object):
             self.populations, self.use_folded_likelihood,
             self.non_ascertained_pops, self.length,
             self.n_read_snps, self.n_excluded_snps)
+
+    def extract_sfs(self, n_blocks):
+        return self._chunk_data(n_blocks).sfs
 
     def resample_chunks(self):
         uniq = np.unique(self.chrom_ids)
@@ -494,51 +497,9 @@ class SnpAlleleCounts(object):
             self.non_ascertained_pops, length,
             self.n_read_snps, self.n_excluded_snps)
 
-    @cached_property
+    @property
     def _p_missing(self):
-        """
-        Estimates the probability that a random allele
-        from each population is missing.
-
-        To estimate missingness, first remove random allele;
-        if the resulting config is monomorphic, then ignore.
-        If polymorphic, then count whether the removed allele
-        is missing or not.
-
-        This avoids bias from fact that we don't observe
-        some polymorphic configs that appear monomorphic
-        after removing the missing alleles.
-        """
-        counts = self.compressed_counts.count_configs()
-        sampled_n = self.compressed_counts.n_samples
-        n_pops = len(self.populations)
-
-        config_arr = self.compressed_counts.config_array
-        # augment config_arr to contain the missing counts
-        n_miss = sampled_n - np.sum(config_arr, axis=2)
-        config_arr = np.concatenate((config_arr, np.reshape(
-            n_miss, list(n_miss.shape)+[1])), axis=2)
-
-        ret = []
-        for i in range(n_pops):
-            n_valid = []
-            for allele in (0, 1, -1):
-                # configs with removed allele
-                removed = np.array(config_arr)
-                removed[:, i, allele] -= 1
-                # is the resulting config polymorphic?
-                valid_removed = (removed[:, i, allele] >= 0) & np.all(
-                    np.sum(removed[:, :, :2], axis=1) > 0, axis=1)
-
-                # sum up the valid configs
-                n_valid.append(np.sum(
-                    (counts * config_arr[:, i, allele])[valid_removed]))
-            # fraction of valid configs with missing additional allele
-            ret.append(n_valid[-1] / float(sum(n_valid)))
-        return np.array(ret)
-
-    def fstats(self, sampled_n_dict=None):
-        return self.sfs.fstats(sampled_n_dict)
+        return self.sfs._p_missing
 
     def subset_populations(self, populations, non_ascertained_pops=None):
         if non_ascertained_pops is not None:
@@ -656,8 +617,22 @@ class SnpAlleleCounts(object):
             self.populations,
             filtered.compressed_counts.config_array,
             ascertainment_pop=self.ascertainment_pop)
-        return Sfs(idx_list, configs)
+        if self.length:
+            length = self.length * (1 - self._p_excluded)
+        else:
+            length = None
+        ret = Sfs(idx_list, configs, folded=False, length=length)
+        if self.use_folded_likelihood:
+            ret = ret.fold()
+        return ret
 
     @property
     def configs(self):
         return self.sfs.configs
+
+    @property
+    def _p_excluded(self):
+        n_read = self.n_read_snps
+        n_exclude = self.n_excluded_snps
+
+        return n_exclude / (n_read + n_exclude)

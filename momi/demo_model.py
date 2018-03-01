@@ -540,9 +540,11 @@ class DemographicModel(object):
             self._set_x(prev_x)
 
     def set_data(
-            self, data, muts_per_gen=None, use_folded_likelihood=None,
+            self, data, muts_per_gen=None,
+            length=None,
+            use_folded_likelihood=None,
             mem_chunk_size=1000, use_pairwise_diffs=None,
-            n_blocks_jackknife=None, non_ascertained_pops=None):
+            non_ascertained_pops=None):
         """
         Sets data, and optionally the mutation rate,
         in order to compute likelihoods and fit parameters
@@ -580,13 +582,15 @@ class DemographicModel(object):
             if None, uses the pairwise heterozygosity if there is missing data;
             else, if there is no missing data, use total number of mutations
         """
-        if n_blocks_jackknife:
-            data = data.chunk_data(n_blocks_jackknife)
-
+        use_folded_likelihood = data.use_folded_likelihood
         if use_folded_likelihood is None:
             if isinstance(data, Sfs):
                 raise ValueError("Need to specify whether to use_folded_likelihood when passing Sfs instead of SnpAlleleCounts as data")
             use_folded_likelihood = data.use_folded_likelihood
+
+        if muts_per_gen:
+            # scale mutation rate by total data length
+            muts_per_gen = muts_per_gen * data.sfs.length
 
         self._set_data(
             data=data,
@@ -671,7 +675,7 @@ class DemographicModel(object):
         # TODO better message (e.g. "Building SFS...")
         logging.getLogger(__name__).info("Constructing likelihood surface...")
 
-        sfs = self._get_sfs()
+        sfs = self._get_sfs().combine_loci()
         use_pairwise_diffs = self._use_pairwise_diffs
         if use_pairwise_diffs is None:
             use_pairwise_diffs = True
@@ -680,7 +684,7 @@ class DemographicModel(object):
         if muts_per_gen is None:
             mut_rate = None
         else:
-            mut_rate = 4 * self.N_e * muts_per_gen / sfs.n_loci
+            mut_rate = 4 * self.N_e * muts_per_gen
 
         demo_fun = self._demo_fun
 
@@ -701,11 +705,15 @@ class DemographicModel(object):
 
     # TODO note these are in PER-GENERATION units
     # TODO allow to pass folded parameter (if passing separate configs?)
-    def expected_sfs(self, configs=None, normalized=False):
+    def expected_sfs(self, configs=None, normalized=False, folded=None):
         configs = self._get_configs(configs)
         demo = self._get_demo(dict(zip(configs.sampled_pops,
                                        configs.sampled_n)))
-        ret = expected_sfs(demo, configs, normalized=normalized, folded=self._folded) * self.N_e * 4.0
+        if folded is None:
+            folded = self._folded
+        ret = expected_sfs(demo, configs, normalized=normalized, folded=folded)
+        if not normalized:
+            ret = ret * self.N_e * 4.0
         return co.OrderedDict(zip(configs.as_tuple(), ret))
 
     def _get_configs(self, configs):

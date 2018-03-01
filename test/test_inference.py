@@ -33,7 +33,7 @@ def test_archaic_and_pairwisediffs():
                                num_replicates=num_runs,
                                sampled_n_dict={"a": 2, "b": 2})
 
-    model.set_data(data, muts_per_gen=theta/4./N_e*num_runs,
+    model.set_data(data.sfs, muts_per_gen=theta/4./N_e/n_bases,
                    use_pairwise_diffs=False,
                    mem_chunk_size=-1)
 
@@ -73,7 +73,8 @@ def check_jointime_inference(
     sampled_pops = (1, 2, 3)
 
     num_bases = 1e3
-    data = model.simulate_data(num_bases, 0, theta / num_bases, num_runs, dict(zip(sampled_pops, sampled_n)))
+    theta = theta / num_bases
+    data = model.simulate_data(num_bases, 0, theta, num_runs, dict(zip(sampled_pops, sampled_n)))
 
     sfs = data.sfs
     assert sfs.n_snps() > 0
@@ -94,7 +95,7 @@ def check_jointime_inference(
     model.set_params({"join_time": random.uniform(0,t1)}, scaled=True)
 
     # TODO pass in possibly folded SFS (still broken)
-    model.set_data(data, theta, use_folded_likelihood=folded)
+    model.set_data(data, muts_per_gen=theta, use_folded_likelihood=folded)
     res = model.optimize()
 
     # make sure autograd is calling the rearranged gradient

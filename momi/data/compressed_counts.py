@@ -1,6 +1,7 @@
 from cached_property import cached_property
 # autograd.numpy.array() inefficient, so use vanilla numpy here
 import numpy as np
+import scipy.sparse
 
 
 # to hash configs, represent it as a str
@@ -163,3 +164,9 @@ class CompressedAlleleCounts(object):
     @cached_property
     def n_samples(self):
         return np.max(np.sum(self.config_array, axis=2), axis=0)
+
+    @property
+    def index2uniq_mat(self):
+        return scipy.sparse.coo_matrix(
+            (np.ones(len(self)), (self.index2uniq, np.arange(len(self)))),
+            shape=(len(self.config_array), len(self)))

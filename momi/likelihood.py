@@ -1,21 +1,16 @@
-from collections import Counter
-import random
 import json
 import functools
 import logging
 import time
-import itertools as it
 import autograd.numpy as np
 import scipy
 import autograd as ag
-import numdifftools as ndt
-from autograd.extend import primitive, defvjp, defvjp_argnum
-from .util import count_calls, make_constant
+from autograd.extend import primitive, defvjp
 from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
 from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
 from .demography import Demography
-from .data.config_array import ConfigArray, _ConfigArray_Subset
-from .data.sfs import _sub_sfs, site_freq_spectrum, Sfs
+from .data.config_array import _ConfigArray_Subset
+from .data.sfs import Sfs
 
 logger = logging.getLogger(__name__)
 
@@ -415,12 +410,6 @@ class StochasticSfsLikelihoodSurface(object):
                              bounds=bounds, callback=callback, opt_kwargs=opt_kwargs,
                              gradmakers={'fun_and_jac': ag.value_and_grad})
 
-def _make_likelihood_fun(sampled_pops, conf_arr, sampled_n, counts_arr, *args, **kwargs):
-    configs = ConfigArray(sampled_pops, conf_arr, sampled_n, None)
-    sfs = Sfs([dict(zip(range(len(counts_arr)), counts_arr))], configs)
-    surface = SfsLikelihoodSurface(sfs, *args, **kwargs)
-    return surface.log_lik
-
 
 def _composite_log_likelihood(data, demo, mut_rate=None, truncate_probs=0.0, vector=False, p_missing=None, use_pairwise_diffs=False, **kwargs):
     try:
@@ -547,36 +536,16 @@ def _raw_log_lik(cache, G, data, truncate_probs, folded, error_matrices, vector=
 #    return [_sub_sfs(sfs.configs, counts[idx], subidxs=idx) for idx in idx_list]
 
 def _build_sfs_batches(sfs, batch_size):
-    csr_freq_mat = sfs.freqs_matrix.tocsr()
-    sfs_len = csr_freq_mat.shape[0]
+    sfs_len = len(sfs.configs)
     if sfs_len <= batch_size:
         return [sfs]
 
     ret = []
     batch_size = int(batch_size)
-    idx = 0
     for batch_start in range(0, sfs_len, batch_size):
         next_start = min(batch_start + batch_size, sfs_len)
-
-        indptr = csr_freq_mat.indptr[batch_start:(next_start+1)]
-        counts = csr_freq_mat.data[indptr[0]:indptr[-1]]
-        col_indices = csr_freq_mat.indices[indptr[0]:indptr[-1]]
-
-        indptr = indptr - indptr[0]
-        sub_freq_mat = scipy.sparse.csr_matrix((counts, col_indices, indptr),
-                                               shape=(len(indptr)-1, sfs.n_loci))
-
-        # convert to csc
-        sub_freq_mat = sub_freq_mat.tocsc()
-        indptr = sub_freq_mat.indptr
-        loci = []
-        for i in range(sub_freq_mat.shape[1]):
-            loci.append(np.array([sub_freq_mat.indices[indptr[i]:indptr[i+1]],
-                                  sub_freq_mat.data[indptr[i]:indptr[i+1]]]))
-
-        configs = _ConfigArray_Subset(sfs.configs, np.arange(batch_start, next_start))
-        ret.append(Sfs(loci, configs))
-
+        ret.append(sfs._subset_configs(np.arange(batch_start,
+                                                 next_start)))
     return ret
 
 
@@ -598,6 +567,9 @@ def _subsfs_list(sfs, n_chunks, rnd):
     logger.debug("Splitting permuted SNPs into {} minibatches".format(n_chunks))
     ret = []
     for chunk in range(n_chunks):
-        chunk_idxs, chunk_cnts = np.unique(idxs[chunk::n_chunks], return_counts=True)
-        ret.append(_sub_sfs(sfs.configs, chunk_cnts, chunk_idxs))
+        chunk_idxs, chunk_cnts = np.unique(idxs[chunk::n_chunks],
+                                           return_counts=True)
+        sub_configs = _ConfigArray_Subset(sfs.configs, chunk_idxs)
+        ret.append(Sfs.from_matrix(chunk_cnts, sub_configs,
+                                   folded=sfs.folded, length=None))
     return ret

@@ -91,7 +91,8 @@ class ConfigArray(object):
                              " sites must be polymorphic when restricted to"
                              " the ascertainment populations")
 
-    def __getitem__(self, *args): return self.value.__getitem__(*args)
+    def __getitem__(self, args):
+        return self.value.__getitem__(args)
 
     def __len__(self): return len(self.value)
 
@@ -314,6 +315,14 @@ class _ConfigArray_Subset(ConfigArray):
     @property
     def value(self):
         return self.full_configs.value[self.sub_idxs, :, :]
+
+    def __getitem__(self, args):
+        if isinstance(args, tuple):
+            arg0 = self.sub_idxs[args[0]]
+            rest = tuple([slice(None)] + list(args[1:]))
+            return self.full_configs[arg0][rest]
+        else:
+            return self.full_configs[self.sub_idxs[args]]
 
     def __iter__(self):
         for i in self.value:

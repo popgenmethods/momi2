@@ -10,11 +10,10 @@ from .compressed_counts import _hashed2config, _config2hashable
 from .compressed_counts import CompressedAlleleCounts
 from .config_array import ConfigArray
 from .config_array import _ConfigArray_Subset
-from ..sfs_stats import ObservedSfsStats
 from ..util import memoize_instance
 
 
-def site_freq_spectrum(sampled_pops, loci):
+def site_freq_spectrum(sampled_pops, loci, length=None):
     """
     Parameters
     ----------
@@ -58,7 +57,7 @@ def site_freq_spectrum(sampled_pops, loci):
         loci_counters[loc][uniq] += count
 
     configs = ConfigArray(sampled_pops, config_array, None, None)
-    return Sfs(loci_counters, configs)
+    return Sfs(loci_counters, configs, folded=False, length=length)
 
 
 def load_sfs(f):
@@ -68,27 +67,38 @@ def load_sfs(f):
     info = json.load(f)
 
     loci = []
-    for locus, locus_rows in it.groupby(info["(locus,config_id,count)"],
-                                        lambda x: x[0]):
+    for locus, locus_rows in it.groupby(
+            info.pop("(locus,config_id,count)"), lambda x: x[0]):
         loci.append({config_id: count
                      for _, config_id, count in locus_rows})
 
-    configs = ConfigArray(info["sampled_pops"],
-                          np.array(info["configs"]))
+    configs = ConfigArray(info.pop("sampled_pops"),
+                          np.array(info.pop("configs")))
 
-    return Sfs(loci, configs)
+    return Sfs(loci, configs, **info)
 
 
 site_freq_spectrum.load = load_sfs
 
 
 class Sfs(object):
-    """
-    Represents an observed SFS across several loci.
+    @classmethod
+    def from_matrix(cls, mat, configs, *args, **kwargs):
+        # convert to csc
+        mat = scipy.sparse.csc_matrix(mat)
+        indptr = mat.indptr
+        loci = []
+        for i in range(mat.shape[1]):
+            loci.append(np.array([
+                mat.indices[indptr[i]:indptr[i+1]],
+                mat.data[indptr[i]:indptr[i+1]]]))
 
-    Important methods/attributes:
-    """
-    def __init__(self, loci, configs):
+        return cls(loci, configs, *args, **kwargs)
+
+    def __init__(self, loci, configs, folded, length):
+        self.folded = folded
+        self.length = length
+
         self.configs = configs
 
         self.loc_idxs, self.loc_counts = [], []
@@ -122,6 +132,8 @@ class Sfs(object):
             self._total_freqs = np.zeros(len(self.configs))
             self._total_freqs[idxs] = cnts
 
+        assert not np.any(self._total_freqs == 0)
+
     def dump(self, f):
         """
         Write the Sfs in a compressed JSON format,
@@ -130,6 +142,10 @@ class Sfs(object):
         print("{", file=f)
         print('\t"sampled_pops": {},'.format(
             json.dumps(list(self.sampled_pops))), file=f)
+        print('\t"folded": {},'.format(
+            json.dumps(self.folded)), file=f)
+        print('\t"length": {},'.format(
+            json.dumps(self.length)), file=f)
         print('\t"configs": [', file=f)
         n_configs = len(self.configs.value)
         for i, c in enumerate(self.configs.value.tolist()):
@@ -156,12 +172,19 @@ class Sfs(object):
         print("\t]", file=f)
         print("}", file=f)
 
+    @property
+    def populations(self):
+        return self.sampled_pops
+
+    @memoize_instance
     def combine_loci(self):
         """
         Returns a copy of this SFS, but with all loci
         combined into a single locus
         """
-        return _sub_sfs(self.configs, self._total_freqs)
+        return self.from_matrix(self.freqs_matrix.sum(axis=1),
+                                self.configs, self.folded,
+                                self.length)
 
     @property
     def freqs_matrix(self):
@@ -169,12 +192,12 @@ class Sfs(object):
         Returns the frequencies as a sparse matrix;
         freqs_matrix[i, j] is the frequency of Sfs.configs[i] at locus j
         """
-        try:
-            self._freqs_matrix
-        except:
-            self._freqs_matrix = _freq_matrix_from_counters(
-                self.loc_idxs, self.loc_counts, len(self.configs))
-        return self._freqs_matrix
+        return self.csr_freqs_matrix
+
+    @cached_property
+    def csr_freqs_matrix(self):
+        return _csr_freq_matrix_from_counters(
+            self.loc_idxs, self.loc_counts, len(self.configs))
 
     @cached_property
     def avg_pairwise_hets(self):
@@ -299,33 +322,22 @@ class Sfs(object):
         """
         Returns a copy of the SFS, but with folded entries.
         """
-        loci = []
-        # for l in self.loci:
-        for li, lc in zip(self.loc_idxs, self.loc_counts):
-            loci += [co.Counter()]
-            # for k,v in list(l.items()):
-            for k, v in zip(li, lc):
-                k = np.array(self.configs[k])
-                if tuple(k[:, 0]) < tuple(k[:, 1]):
-                    k = k[:, ::-1]
-                k = _config2hashable(k)
-                loci[-1][k] = loci[-1][k] + v
+        def get_folded(config):
+            if tuple(config[:, 0]) < tuple(config[:, 1]):
+                return config[:, ::-1]
+            else:
+                return config
 
-        def convert_loc(loc):
-            ret = SimpleNamespace()
+        compressed_folded = CompressedAlleleCounts.from_iter(
+            map(get_folded, self.configs),
+            len(self.sampled_pops), sort=False)
 
-            def ret_items():
-                for k, v in loc.items():
-                    k = _hashed2config(k)
-                    yield k, v
-            ret.items = ret_items
-            return ret
-
-        loci = [convert_loc(loc) for loc in loci]
-        ret = site_freq_spectrum(self.sampled_pops, loci)
-        if np.any(ret.sampled_n != self.sampled_n):
-            ret = ret._copy(sampled_n=self.sampled_n)
-        return ret
+        return self.from_matrix(
+            compressed_folded.index2uniq_mat @ self.freqs_matrix,
+            ConfigArray(self.sampled_pops, compressed_folded.config_array,
+                        sampled_n=self.sampled_n,
+                        ascertainment_pop=self.ascertainment_pop),
+            folded=True, length=self.length)
 
     def _copy(self, sampled_n=None):
         """
@@ -333,12 +345,12 @@ class Sfs(object):
         """
         if sampled_n is None:
             sampled_n = self.sampled_n
-        return Sfs(
-            [dict(zip(li, lc)) for li, lc in zip(
-                self.loc_idxs, self.loc_counts)],
+        return self.from_matrix(
+            self.csr_freqs_matrix,
             ConfigArray(self.sampled_pops, self.configs.value,
                         sampled_n=sampled_n,
-                        ascertainment_pop=self.ascertainment_pop))
+                        ascertainment_pop=self.ascertainment_pop),
+            self.folded, self.length)
 
     def _integrate_sfs(self, weights, vector=False, locus=None):
         if vector:
@@ -351,41 +363,114 @@ class Sfs(object):
             idxs, counts = self.loc_idxs[locus], self.loc_counts[locus]
         return np.sum(weights[idxs] * counts)
 
-    def subsample_inds(self, n):
-        """
-        Return the induced SFS on all subsets of n
-        individuals.
-
-        See also: momi.SegSites.subsample_inds()
-        """
-        subconfigs, weights = _get_subsample_counts(self.configs, n)
-        freqs = np.array(self.freqs_matrix.T.dot(weights.T).T)
-        assert freqs.shape == (weights.shape[0], self.n_loci)
-        return site_freq_spectrum(
-            self.sampled_pops,
-            [{tuple(map(tuple, c)): f for c, f in zip(subconfigs, loc_freqs) if f != 0}
-             for loc_freqs in freqs.T])
-
-    def subset_populations(self, populations, non_ascertained_pops):
+    def subset_populations(self, populations, non_ascertained_pops=None):
         if non_ascertained_pops is None:
             non_ascertained_pops = []
-        asc_pops = [p not in non_ascertained_pops for p in populations]
-        if list(populations) == list(self.sampled_pops) and asc_pops == list(self.ascertainment_pop):
-            return self
-        else:
-            # TODO
-            assert False
+            for pop, asc in zip(self.sampled_pops, self.ascertainment_pop):
+                if not asc:
+                    non_ascertained_pops.append(pop)
+        return self._subset_populations(tuple(populations),
+                                        tuple(non_ascertained_pops))
+
+    @property
+    def use_folded_likelihood(self):
+        return self.folded
+
+    @memoize_instance
+    def _subset_populations(self, populations, non_ascertained_pops):
+        # old indexes of the new population ordering
+        old_sampled_pops = list(self.sampled_pops)
+        old_pop_idx = np.array([
+            old_sampled_pops.index(p) for p in populations], dtype=int)
+
+        # old ascertainment
+        ascertained = dict(zip(self.sampled_pops,
+                               self.ascertainment_pop))
+        # restrict to new populations
+        ascertained = {p: ascertained[p] for p in populations}
+        # previously non-ascertained pops should remain so
+        for pop, is_asc in ascertained.items():
+            if not is_asc:
+                assert pop in non_ascertained_pops
+        # update ascertainment
+        for pop in non_ascertained_pops:
+            ascertained[pop] = False
+        # convert from dict to numpy array
+        ascertained = np.array([ascertained[p] for p in populations])
+
+        # keep only polymorphic configs
+        asc_only = self.configs[:, old_pop_idx[ascertained], :]
+        asc_is_poly = (asc_only.sum(axis=1) != 0).all(axis=1)
+        asc_is_poly = np.arange(len(asc_is_poly))[asc_is_poly]
+        sub_sfs = self._subset_configs(asc_is_poly)
+
+        # get the new configs
+        new_configs = CompressedAlleleCounts.from_iter(
+            sub_sfs.configs[:, old_pop_idx, :],
+            len(populations), sort=False)
+
+        return self.from_matrix(
+            new_configs.index2uniq_mat @ sub_sfs.freqs_matrix,
+            ConfigArray(populations, new_configs.config_array,
+                        ascertainment_pop=ascertained),
+            self.folded, self.length)
+
+    def _subset_configs(self, idxs):
+        return self.from_matrix(
+            self.csr_freqs_matrix[idxs, :],
+            _ConfigArray_Subset(self.configs, idxs),
+            self.folded, self.length)
 
     @property
     def sfs(self):
         return self
 
-    def _get_pairwise_missing_probs(self):
-        return np.dot(self._total_freqs,
-                      self.configs._get_pairwise_missing_probs())
+    @cached_property
+    def _p_missing(self):
+        """
+        Estimates the probability that a random allele
+        from each population is missing.
+
+        To estimate missingness, first remove random allele;
+        if the resulting config is monomorphic, then ignore.
+        If polymorphic, then count whether the removed allele
+        is missing or not.
+
+        This avoids bias from fact that we don't observe
+        some polymorphic configs that appear monomorphic
+        after removing the missing alleles.
+        """
+        counts = self._total_freqs
+        sampled_n = self.sampled_n
+        n_pops = len(self.sampled_pops)
+
+        config_arr = self.configs.value
+        # augment config_arr to contain the missing counts
+        n_miss = sampled_n - np.sum(config_arr, axis=2)
+        config_arr = np.concatenate((config_arr, np.reshape(
+            n_miss, list(n_miss.shape)+[1])), axis=2)
+
+        ret = []
+        for i in range(n_pops):
+            n_valid = []
+            for allele in (0, 1, -1):
+                # configs with removed allele
+                removed = np.array(config_arr)
+                removed[:, i, allele] -= 1
+                # is the resulting config polymorphic?
+                valid_removed = (removed[:, i, allele] >= 0) & np.all(
+                    np.sum(removed[:, :, :2], axis=1) > 0, axis=1)
+
+                # sum up the valid configs
+                n_valid.append(np.sum(
+                    (counts * config_arr[:, i, allele])[valid_removed]))
+            # fraction of valid configs with missing additional allele
+            ret.append(n_valid[-1] / float(sum(n_valid)))
+        return np.array(ret)
 
 
-def _freq_matrix_from_counters(idxs_by_loc, cnts_by_loc, n_configs):
+def _csr_freq_matrix_from_counters(idxs_by_loc, cnts_by_loc,
+                                   n_configs):
     data = []
     indices = []
     indptr = []
@@ -423,19 +508,6 @@ def _get_subsample_counts(configs, n):
                 weights.append(cnt_vec)
 
     return np.array(subconfigs), np.array(weights)
-
-
-def _sub_sfs(configs, counts, subidxs=None):
-    assert len(counts.shape) == 1
-    if subidxs is None:
-        assert len(counts) == len(configs.value)
-        # make array copies to prevent views keeping references to larger
-        # objects
-        subidxs = np.array(np.arange(len(counts))[counts != 0])
-        counts = np.array(counts[counts != 0])
-    assert len(subidxs) == len(counts)
-    sub_configs = _ConfigArray_Subset(configs, subidxs)
-    return Sfs([{i: c for i, c in enumerate(counts)}], sub_configs)
 
 
 class SimpleNamespace(object):

@@ -335,8 +335,9 @@ class Demography(object):
                 parent2] == self._admixture_prob_idxs(admixture_node)
         return ret
 
-    def simulate_data(self, **kwargs):
-        treeseq = self.simulate_trees(**kwargs)
+    def simulate_data(self, length, num_replicates=1, **kwargs):
+        treeseq = self.simulate_trees(length=length, num_replicates=num_replicates,
+                                      **kwargs)
         try:
             treeseq.variants
         except:
@@ -371,7 +372,9 @@ class Demography(object):
                 pos.append(v.position)
 
         return SnpAlleleCounts(chrom, pos, compressed_counts.compressed_allele_counts(),
-                               self.sampled_pops)
+                               self.sampled_pops, use_folded_likelihood=False,
+                               non_ascertained_pops=[], length=length*num_replicates,
+                               n_read_snps=len(compressed_counts), n_excluded_snps=0)
 
     def simulate_vcf(self, out_prefix, mutation_rate,
                      recombination_rate, length,

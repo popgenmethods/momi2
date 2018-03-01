@@ -194,7 +194,7 @@ class ModelFitStats(SfsStats):
             data = demo_model._data
 
         if n_jackknife:
-            data = data.chunk_data(n_jackknife)
+            data = data._chunk_data(n_jackknife)
 
         data = data.subset_populations(
             demo_model.leafs, demo_model._non_ascertained_pops)
