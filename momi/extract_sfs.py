@@ -12,7 +12,7 @@ if __name__ == "__main__":
         "files", nargs="+",
         help="Files containing SNP allele counts")
     parser.add_argument(
-        "--n_blocks", type=int, required=True,
+        "--n_blocks", type=int, default=1,
         help="Number of blocks for jackknife/bootstrap")
     parser.add_argument(
         "--out", type=str, required=True,
