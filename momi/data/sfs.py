@@ -2,11 +2,14 @@ import itertools as it
 import collections as co
 import json
 import autograd.numpy as np
+import numpy as raw_np
 from cached_property import cached_property
 import scipy
 import scipy.sparse
 import scipy.misc
 import gzip
+import os
+import logging
 from .compressed_counts import _hashed2config, _config2hashable
 from .compressed_counts import CompressedAlleleCounts
 from .config_array import ConfigArray
@@ -66,7 +69,7 @@ def load_sfs(f):
     Read in Sfs that has been written to file by Sfs.dump()
     """
     if isinstance(f, str):
-        fname = f
+        fname = os.path.expanduser(f)
         if fname.endswith(".gz"):
             with gzip.open(fname, "rt") as f:
                 return load_sfs(f)
@@ -74,18 +77,30 @@ def load_sfs(f):
             with open(fname) as f:
                 return load_sfs(f)
 
+    logging.getLogger(__name__).info("Reading json...")
     info = json.load(f)
+    logging.getLogger(__name__).info("Finished reading json...")
 
+    logging.getLogger(__name__).info("Constructing configs...")
+    configs = info.pop("configs")
+    logging.getLogger(__name__).info(f"{len(configs)} unique configs detected")
+    # don't use autograd here for performance
+    configs = raw_np.array(configs, dtype=int)
+    logging.getLogger(__name__).info("Converted to numpy array...")
+    configs = ConfigArray(info.pop("sampled_pops"), configs)
+    logging.getLogger(__name__).info("Finished constructing configs")
+
+    logging.getLogger(__name__).info("Constructing SFS...")
     loci = []
     for locus, locus_rows in it.groupby(
             info.pop("(locus,config_id,count)"), lambda x: x[0]):
         loci.append({config_id: count
                      for _, config_id, count in locus_rows})
 
-    configs = ConfigArray(info.pop("sampled_pops"),
-                          np.array(info.pop("configs")))
+    ret = Sfs(loci, configs, **info)
+    logging.getLogger(__name__).info("Finished constructing SFS")
 
-    return Sfs(loci, configs, **info)
+    return ret
 
 
 site_freq_spectrum.load = load_sfs
@@ -150,7 +165,7 @@ class Sfs(object):
         that can be read in by site_freq_spectrum.load()
         """
         if isinstance(f, str):
-            fname = f
+            fname = os.path.expanduser(f)
             if fname.endswith(".gz"):
                 with gzip.open(fname, "wt") as f:
                     self.dump(f)
