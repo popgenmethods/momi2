@@ -48,7 +48,8 @@ def test_generated_cases(m_name, v, demo, sampled_sfs):
 
 def compute_stats(demo, sampled_sfs, true_sfs=None, true_branch_len=None):
     sampled_sfs = momi.site_freq_spectrum(demo.leafs, to_dict(sampled_sfs))
-    demo.set_data(sampled_sfs, use_folded_likelihood=False)
+    demo.set_data(sampled_sfs, length=1)
+    demo.set_mut_rate(1)
 
     exp_branch_len = demo.expected_branchlen()
     exp_sfs = demo.expected_sfs()

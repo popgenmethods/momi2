@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def snp_allele_counts(chrom_ids, positions, populations,
                       ancestral_counts, derived_counts,
-                      length=None, use_folded_likelihood=False):
+                      length=None, use_folded_sfs=False):
     """Create a :class:`SnpAlleleCounts` object.
 
     :param iterator chrom_ids: the CHROM at each SNP
@@ -35,7 +35,7 @@ def snp_allele_counts(chrom_ids, positions, populations,
     the derived counts at each SNP. tuple length should \
     be the same as the number of populations
 
-    :param bool use_folded_likelihood: whether the folded SFS should \
+    :param bool use_folded_sfs: whether the folded SFS should \
     be used when computing likelihoods. Set this to True if there is \
     uncertainty about the ancestral allele.
 
@@ -48,7 +48,7 @@ def snp_allele_counts(chrom_ids, positions, populations,
     return SnpAlleleCounts(chrom_ids, positions,
                            CompressedAlleleCounts.from_iter(
                                config_iter, len(populations)),
-                           populations, use_folded_likelihood,
+                           populations, use_folded_sfs,
                            [], length,
                            len(chrom_ids), 0)
 
@@ -77,7 +77,7 @@ class SnpAlleleCounts(object):
         :param bool,str ancestral_alleles: If True, use the AA INFO field to \
         determine ancestral allele, skipping SNPs missing this field. \
         If False, ignore ancestral allele information, and set the \
-        ``SnpAlleleCounts.use_folded_likelihood`` property so that \
+        ``SnpAlleleCounts.use_folded_sfs`` property so that \
         the folded SFS is used by default when computing likelihoods. \
         Finally, if ``ancestral_alleles`` is a string that is the name \
         of a population in ``ind2pop``, then treat that population as an outgroup, \
@@ -219,13 +219,13 @@ class SnpAlleleCounts(object):
 
         compressed_hashes = _CompressedHashedCounts(len(populations))
 
-        use_folded_likelihood = False
+        use_folded_sfs = False
         length = 0
         n_read_snps = 0
         n_excluded_snps = 0
         for snp_cnts in to_concatenate:
-            use_folded_likelihood = (use_folded_likelihood or
-                                     snp_cnts.use_folded_likelihood)
+            use_folded_sfs = (use_folded_sfs or
+                                     snp_cnts.use_folded_sfs)
 
             if any([list(snp_cnts.populations) != populations,
                     list(snp_cnts.non_ascertained_pops) != nonascertained]):
@@ -264,7 +264,7 @@ class SnpAlleleCounts(object):
         compressed_counts = CompressedAlleleCounts(
             compressed_hashes.config_array(), index2uniq)
         ret = cls(chrom_ids, positions, compressed_counts, populations,
-                  use_folded_likelihood=use_folded_likelihood,
+                  use_folded_sfs=use_folded_sfs,
                   non_ascertained_pops=nonascertained,
                   length=length,
                   n_read_snps=n_read_snps,
@@ -292,7 +292,7 @@ class SnpAlleleCounts(object):
                 return cls.load(gf)
 
         # default values for back-compatibility
-        items = {"use_folded_likelihood": False,
+        items = {"use_folded_sfs": False,
                  "non_ascertained_pops": [],
                  "length": None,
                  "n_excluded_snps": 0}
@@ -388,8 +388,8 @@ class SnpAlleleCounts(object):
         if self.non_ascertained_pops:
             print('\t"non_ascertained_pops": {},'.format(
                 json.dumps(list(self.non_ascertained_pops))), file=f)
-        print('\t"use_folded_likelihood": {},'.format(
-            json.dumps(self.use_folded_likelihood)), file=f)
+        print('\t"use_folded_sfs": {},'.format(
+            json.dumps(self.use_folded_sfs)), file=f)
         print('\t"length": {},'.format(
             json.dumps(self.length)), file=f)
         print(f'\t"n_read_snps": {self.n_read_snps},', file=f)
@@ -421,7 +421,7 @@ class SnpAlleleCounts(object):
 
     def __init__(self, chrom_ids, positions,
                  compressed_counts, populations,
-                 use_folded_likelihood, non_ascertained_pops, length,
+                 use_folded_sfs, non_ascertained_pops, length,
                  n_read_snps, n_excluded_snps):
         if any([len(compressed_counts) != len(chrom_ids),
                 len(chrom_ids) != len(positions)]):
@@ -433,7 +433,7 @@ class SnpAlleleCounts(object):
         self.compressed_counts = compressed_counts
         self.populations = populations
         self.non_ascertained_pops = non_ascertained_pops
-        self.use_folded_likelihood = use_folded_likelihood
+        self.use_folded_sfs = use_folded_sfs
         self.length = length
         self.n_read_snps = n_read_snps
         self.n_excluded_snps = n_excluded_snps
@@ -445,8 +445,8 @@ class SnpAlleleCounts(object):
                 np.all(self.chrom_ids == other.chrom_ids) and
                 np.all(self.positions == other.positions) and
                 self.length == other.length and
-                (self.use_folded_likelihood ==
-                 other.use_folded_likelihood) and
+                (self.use_folded_sfs ==
+                 other.use_folded_sfs) and
                 self.n_read_snps == other.n_read_snps and
                 self.n_excluded_snps == other.n_excluded_snps)
         except AttributeError:
@@ -460,16 +460,19 @@ class SnpAlleleCounts(object):
             int(np.floor(i / chunk_len)) for i in new_pos)
         return SnpAlleleCounts(
             new_chrom, new_pos, self.compressed_counts,
-            self.populations, self.use_folded_likelihood,
+            self.populations, self.use_folded_sfs,
             self.non_ascertained_pops, self.length,
             self.n_read_snps, self.n_excluded_snps)
 
     def extract_sfs(self, n_blocks):
-        return self._chunk_data(n_blocks).sfs
+        if n_blocks is None:
+            return self._sfs
+        else:
+            return self._chunk_data(n_blocks)._sfs
 
     @property
     def _p_missing(self):
-        return self.sfs._p_missing
+        return self._sfs._p_missing
 
     def subset_populations(self, populations, non_ascertained_pops=None):
         if non_ascertained_pops is not None:
@@ -499,7 +502,7 @@ class SnpAlleleCounts(object):
         return SnpAlleleCounts(
             self.chrom_ids, self.positions,
             new_compressed_configs, populations,
-            self.use_folded_likelihood,
+            self.use_folded_sfs,
             non_ascertained_pops, self.length,
             self.n_read_snps, self.n_excluded_snps)
 
@@ -514,7 +517,7 @@ class SnpAlleleCounts(object):
                                self.positions[idxs],
                                self.compressed_counts.filter(idxs),
                                self.populations,
-                               self.use_folded_likelihood,
+                               self.use_folded_sfs,
                                self.non_ascertained_pops, self.length,
                                self.n_read_snps, self.n_excluded_snps)
 
@@ -539,7 +542,7 @@ class SnpAlleleCounts(object):
             self.chrom_ids, self.positions,
             CompressedAlleleCounts.from_iter(
                 sub_counts(), len(self.populations)),
-            self.populations, self.use_folded_likelihood,
+            self.populations, self.use_folded_sfs,
             self.non_ascertained_pops, self.length,
             self.n_read_snps, self.n_excluded_snps)
 
@@ -575,7 +578,7 @@ class SnpAlleleCounts(object):
     #    return self._seg_sites
 
     @cached_property
-    def sfs(self):
+    def _sfs(self):
         filtered = self.filter(self.is_polymorphic)
         idx_list = [
             np.array([i for chrom, i in grouped_idxs])
@@ -592,13 +595,13 @@ class SnpAlleleCounts(object):
         else:
             length = None
         ret = Sfs(idx_list, configs, folded=False, length=length)
-        if self.use_folded_likelihood:
+        if self.use_folded_sfs:
             ret = ret.fold()
         return ret
 
     @property
     def configs(self):
-        return self.sfs.configs
+        return self._sfs.configs
 
     @property
     def _p_excluded(self):

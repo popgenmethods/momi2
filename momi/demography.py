@@ -372,7 +372,7 @@ class Demography(object):
                 pos.append(v.position)
 
         return SnpAlleleCounts(chrom, pos, compressed_counts.compressed_allele_counts(),
-                               self.sampled_pops, use_folded_likelihood=False,
+                               self.sampled_pops, use_folded_sfs=False,
                                non_ascertained_pops=[], length=length*num_replicates,
                                n_read_snps=len(compressed_counts), n_excluded_snps=0)
 

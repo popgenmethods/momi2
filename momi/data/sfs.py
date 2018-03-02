@@ -225,9 +225,11 @@ class Sfs(object):
         to_keep = np.arange(len(self.configs))[to_keep]
         mat = mat[to_keep, :]
         configs = _ConfigArray_Subset(self.configs, to_keep)
-        return self.from_matrix(mat, configs, self.folded,
-                                # NOTE assumes all loci same size
-                                self.length)
+
+        # NOTE not exactly right but close enough
+        length = self.length * mat.sum() / self.n_snps()
+
+        return self.from_matrix(mat, configs, self.folded, length)
 
     @property
     def sampled_n(self):

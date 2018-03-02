@@ -21,8 +21,8 @@ import scipy
 #    mu = 1.0
 #    num_replicates = 1000
 #    data = demo.simulate_data(
-#        length=num_bases, recoms_per_base_per_gen=0,
-#        muts_per_base_per_gen=1.0 / num_bases,
+#        length=num_bases, recoms_per_gen=0,
+#        muts_per_gen=1.0 / num_bases,
 #        num_replicates=num_replicates,
 #        sampled_n_dict={"b":2,"a":3})
 #    #data = demo.demo_hist.simulate_data(
@@ -45,11 +45,11 @@ def test_count_subsets():
     mu = 1.0
     num_replicates = 100
     data = demo.simulate_data(
-        muts_per_base_per_gen=mu/num_bases,
-        recoms_per_base_per_gen=0,
+        muts_per_gen=mu/num_bases,
+        recoms_per_gen=0,
         length=num_bases,
         num_replicates=num_replicates,
-        sampled_n_dict={"b":2,"a":3}).sfs
+        sampled_n_dict={"b":2,"a":3}).extract_sfs(None)
 
     subconfig = []
     for n in data.sampled_n:
@@ -116,12 +116,12 @@ def test_subsample_pops():
     mu = 1.0
     num_replicates = 100
     data = demo.simulate_data(
-        muts_per_base_per_gen=mu/num_bases,
-        recoms_per_base_per_gen=0,
+        muts_per_gen=mu/num_bases,
+        recoms_per_gen=0,
         length=num_bases,
         num_replicates=num_replicates,
         sampled_n_dict={i: 5 for i in range(1,6)})
 
-    sfs1 = data.subset_populations([1,2,3], [3]).sfs
-    sfs2 = data.sfs.subset_populations([1,2,3], [3])
+    sfs1 = data.subset_populations([1,2,3], [3]).extract_sfs(None)
+    sfs2 = data.extract_sfs(None).subset_populations([1,2,3], [3])
     assert sfs1 == sfs2

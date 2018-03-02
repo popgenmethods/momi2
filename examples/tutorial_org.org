@@ -152,7 +152,7 @@ earlier date.
 #+RESULTS:
 :RESULTS:
 # Out[6]:
-[[file:./obipy-resources/14551ug.png]]
+[[file:./obipy-resources/1455bhI.png]]
 :END:
 
 Note the user needs to specify the order of all populations (including
@@ -352,15 +352,15 @@ it in.
 :RESULTS:
 # Out[14]:
 #+BEGIN_EXAMPLE
-  fun: 0.0013466221737334606
-  jac: array([-5.75017364e-05,  2.85030320e-01,  5.57443513e-10])
+  fun: 0.0013188904222862497
+  jac: array([-1.28035229e-07, -1.22574350e-03, -2.75979164e-12])
   message: 'Converged (|f_n-f_(n-1)| ~= 0)'
-  nfev: 43
-  nit: 16
-  parameters: ParamsDict({'n_chb': 18526.892257864765, 'g_chb': 0.0003050757786989606, 't_chb_yri': 115685.45164837231})
+  nfev: 66
+  nit: 25
+  parameters: ParamsDict({'n_chb': 632335.4833000335, 'g_chb': 0.0006611324316647527, 't_chb_yri': 114233.89795735932})
   status: 1
   success: True
-  x: array([9.82697859e+00, 3.05075779e-04, 1.05685452e+05])
+  x: array([1.33571754e+01, 6.61132432e-04, 1.04233898e+05])
 #+END_EXAMPLE
 :END:
 
@@ -373,9 +373,9 @@ it in.
 :RESULTS:
 # Out[15]:
 #+BEGIN_EXAMPLE
-  ParamsDict([('n_chb', 18526.892257864765),
-  ('g_chb', 0.0003050757786989606),
-  ('t_chb_yri', 115685.45164837231)])
+  ParamsDict([('n_chb', 632335.4833000335),
+  ('g_chb', 0.0006611324316647527),
+  ('t_chb_yri', 114233.89795735932)])
 #+END_EXAMPLE
 :END:
 
@@ -392,7 +392,7 @@ it in.
 #+RESULTS:
 :RESULTS:
 # Out[16]:
-[[file:./obipy-resources/1455C5m.png]]
+[[file:./obipy-resources/1455orO.png]]
 :END:
 
 
@@ -421,15 +421,15 @@ it in.
 :RESULTS:
 # Out[18]:
 #+BEGIN_EXAMPLE
-  fun: 0.012567120418911925
-  jac: array([-6.67844320e-08, -7.68025159e-04, -2.98708130e-11,  2.03554987e-12])
+  fun: 0.012702307884692036
+  jac: array([ 1.94930853e-05, -2.21521098e-02,  6.44226189e-11,  7.50117970e-13])
   message: 'Converged (|f_n-f_(n-1)| ~= 0)'
-  nfev: 50
-  nit: 14
-  parameters: ParamsDict({'n_chb': 1841.2471681874276, 'g_chb': 7.25664489267316e-05, 't_chb_yri': 109500.50203880756, 't_anc': 442978.7398167962})
+  nfev: 32
+  nit: 8
+  parameters: ParamsDict({'n_chb': 237675.07861130912, 'g_chb': 0.0005685266035726794, 't_chb_yri': 105335.07475507694, 't_anc': 441725.15372839564})
   status: 1
   success: True
-  x: array([7.51819843e+00, 7.25664489e-05, 9.95005020e+04, 3.33478238e+05])
+  x: array([1.23786598e+01, 5.68526604e-04, 9.53350748e+04, 3.36390079e+05])
 #+END_EXAMPLE
 :END:
 
@@ -442,7 +442,7 @@ it in.
 #+RESULTS:
 :RESULTS:
 # Out[19]:
-[[file:./obipy-resources/1455PDt.png]]
+[[file:./obipy-resources/145511U.png]]
 :END:
 
 #+BEGIN_SRC ipython :results raw drawer
@@ -482,7 +482,7 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[28]:
+# Out[21]:
 :END:
 
 #+BEGIN_SRC ipython :async t
@@ -492,16 +492,16 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[29]:
+# Out[22]:
 #+BEGIN_EXAMPLE
-  fun: 3.7190104911306694
-  jac: array([ 2.12556560e-02, -2.20290249e+01, -7.62600757e-08, -1.42325507e-07,
-  5.12755003e-02, -1.00813058e-04, -3.33314704e-03])
+  fun: 3.761893529422757
+  jac: array([ 1.28549539e-04, -1.32710926e-01, -1.01543397e-07, -1.16831179e-07,
+  6.73631768e-02, -1.88356677e-04, -5.91524419e-03])
   message: 'Maximum number of iterations reached'
   nit: 9
   success: False
-  x: array([ 7.44326709e+00, -1.00000000e-03,  9.95005384e+04,  3.33478731e+05,
-  -2.63439732e+00,  1.34345508e+00,  5.70926198e-01])
+  x: array([ 1.26264474e+01, -1.00000000e-03,  9.53348275e+04,  3.36390841e+05,
+  -2.31833490e+00,  2.09763833e-01,  4.85028544e-01])
 #+END_EXAMPLE
 :END:
 
@@ -512,19 +512,19 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[30]:
+# Out[26]:
 #+BEGIN_EXAMPLE
-  fun: 0.004945928148744051
-  jac: array([ 5.40943979e-03, -5.33583325e+01, -4.97477068e-08,  5.65130981e-09,
-  2.05264960e-03, -2.15299405e-03,  1.07695169e-04])
-  message: 'Max. number of function evaluations reached'
-  nfev: 100
-  nit: 16
-  parameters: ParamsDict({'n_chb': 8920.323737864543, 'g_chb': 0.00028127935049284666, 't_chb_yri': 94275.54269551455, 't_anc': 471939.2204350214, 'p_pulse': 0.06610239563436653, 't_pulse': 29880.5809462377, 't_ghost': 104926.14200154741})
-  status: 3
-  success: False
-  x: array([ 9.09608752e+00,  2.81279350e-04,  8.42755427e+04,  3.77663678e+05,
-  -2.64816181e+00, -7.67826594e-01, -1.89940807e+00])
+  fun: 0.004439110050872129
+  jac: array([ 1.51230302e-09, -4.08457922e-02,  1.03548659e-12, -1.62636375e-14,
+  2.39465396e-08, -8.19953107e-09,  2.58801559e-14])
+  message: 'Converged (|f_n-f_(n-1)| ~= 0)'
+  nfev: 40
+  nit: 10
+  parameters: ParamsDict({'n_chb': 11270057.167988703, 'g_chb': 0.001, 't_chb_yri': 88642.2353337148, 't_anc': 469147.3738233907, 'p_pulse': 0.0674372566502732, 't_pulse': 37146.17405832294, 't_ghost': 50000.00001059765})
+  status: 1
+  success: True
+  x: array([ 1.62376600e+01,  1.00000000e-03,  7.86422353e+04,  3.80505138e+05,
+  -2.62673880e+00, -3.26644545e-01, -2.44008555e+01])
 #+END_EXAMPLE
 :END:
 
@@ -536,8 +536,8 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[31]:
-[[file:./obipy-resources/1455cNz.png]]
+# Out[27]:
+[[file:./obipy-resources/1455PKh.png]]
 :END:
 
 
@@ -572,8 +572,8 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[32]:
-[[file:./obipy-resources/1455OXC.png]]
+# Out[28]:
+[[file:./obipy-resources/1455cUn.png]]
 :END:
 
 

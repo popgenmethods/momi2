@@ -47,6 +47,9 @@ class DemographicModel(object):
                        use_pairwise_diffs=None,
                        non_ascertained_pops=None)
 
+    def set_mut_rate(self, muts_per_gen):
+        self.muts_per_gen = muts_per_gen
+
     def copy(self):
         ret = DemographicModel(self.N_e, self.gen_time,
                                self.muts_per_gen)
@@ -558,9 +561,9 @@ class DemographicModel(object):
             if None, assumes the number of observed SNPs
             is fixed (i.e. if using a SNP chip instead of
             whole genome sequencing)
-        use_folded_likelihood:
+        use_folded_sfs:
             whether to use the folded SFS when computing likelihood.
-            Default is to check the use_folded_likelihood property of the data
+            Default is to check the use_folded_sfs property of the data
         mem_chunk_size:
             controls memory usage by computing likelihood
             in chunks of SNPs.
@@ -694,27 +697,20 @@ class DemographicModel(object):
 
     # TODO note these are in PER-GENERATION units
     # TODO allow to pass folded parameter (if passing separate configs?)
-    def expected_sfs(self, configs=None, normalized=False, folded=None):
-        configs = self._get_configs(configs)
+    def expected_sfs(self, configs=None, normalized=False,
+                     folded=False):
+        if configs is None:
+            sfs = self._get_sfs()
+            configs = sfs.configs
+            folded = sfs.folded
+
         demo = self._get_demo(dict(zip(configs.sampled_pops,
                                        configs.sampled_n)))
-        if folded is None:
-            folded = self._folded
-        ret = expected_sfs(demo, configs, normalized=normalized, folded=folded)
+        ret = expected_sfs(demo, configs,
+                           normalized=normalized, folded=folded)
         if not normalized:
-            ret = ret * self.N_e * 4.0
+            ret = ret * self.N_e * 4.0 * self.muts_per_gen * self._length
         return co.OrderedDict(zip(configs.as_tuple(), ret))
-
-    def _get_configs(self, configs):
-        if configs is not None:
-            return config_array(self.leafs, configs)
-
-        if self._fullsfs is None:
-            raise ValueError(
-                "Need to call set_data() or provide configs")
-
-        sfs = self._get_sfs()
-        return sfs.configs
 
     # TODO note these are in PER-GENERATION units
     def expected_branchlen(self, sampled_n_dict=None):

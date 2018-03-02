@@ -17,7 +17,10 @@ def test_archaic_and_pairwisediffs():
     def expit(x):
         return 1. / (1. + np.exp(-x))
 
-    model = momi.DemographicModel(N_e)
+    n_bases = 1000
+    model = momi.DemographicModel(
+        N_e, muts_per_gen=theta/4./N_e/n_bases)
+
     model.add_time_param(
         "sample_t", random.uniform(0.001, join_time-.001) / join_time,
         upper=join_time)
@@ -26,14 +29,12 @@ def test_archaic_and_pairwisediffs():
     model.add_leaf("b", t="sample_t", N="N")
     model.move_lineages("a", "b", join_time)
 
-    n_bases = 1000
     data = model.simulate_data(length=n_bases,
-                               recoms_per_base_per_gen=0,
-                               muts_per_base_per_gen=theta/4./N_e/n_bases,
+                               recoms_per_gen=0,
                                num_replicates=num_runs,
                                sampled_n_dict={"a": 2, "b": 2})
 
-    model.set_data(data.sfs, muts_per_gen=theta/4./N_e/n_bases,
+    model.set_data(data.extract_sfs(1),
                    use_pairwise_diffs=False,
                    mem_chunk_size=-1)
 
@@ -60,7 +61,10 @@ def check_jointime_inference(
     t0 = random.uniform(.25, 2.5)
     t1 = t0 + random.uniform(.5, 5.0)
 
-    model = momi.DemographicModel(1)
+    num_bases = 1e3
+    theta = theta / num_bases
+
+    model = momi.DemographicModel(1, muts_per_gen=theta)
     model.add_leaf(1)
     model.add_leaf(2)
     model.add_leaf(3)
@@ -72,11 +76,11 @@ def check_jointime_inference(
 
     sampled_pops = (1, 2, 3)
 
-    num_bases = 1e3
-    theta = theta / num_bases
-    data = model.simulate_data(num_bases, 0, theta, num_runs, dict(zip(sampled_pops, sampled_n)))
+    data = model.simulate_data(
+        num_bases, 0, num_runs,
+        sampled_n_dict=dict(zip(sampled_pops, sampled_n)))
 
-    sfs = data.sfs
+    sfs = data.extract_sfs(1)
     assert sfs.n_snps() > 0
     sfs = sfs._copy(sampled_n=np.array(sampled_n) + add_n)
     if folded:
@@ -89,13 +93,12 @@ def check_jointime_inference(
     #assert not prim_log_lik.num_grad_calls()
 
     if not use_theta:
-        theta = None
+        model.set_mut_rate(None)
 
     #model.set_x(random.uniform(0, t1), "join_time")
     model.set_params({"join_time": random.uniform(0,t1)}, scaled=True)
 
-    # TODO pass in possibly folded SFS (still broken)
-    model.set_data(data, muts_per_gen=theta, use_folded_likelihood=folded)
+    model.set_data(sfs)
     res = model.optimize()
 
     # make sure autograd is calling the rearranged gradient
@@ -113,7 +116,8 @@ def test_underflow_robustness(folded):
     sampled_pops = (1, 2, 3)
     sampled_n = (5, 5, 5)
 
-    demo = momi.DemographicModel(1.0, .25)
+    n_bases = int(1e3)
+    demo = momi.DemographicModel(1.0, .25, muts_per_gen=2.5 / n_bases)
     for p in sampled_pops:
         demo.add_leaf(p)
     demo.add_time_param("t0")
@@ -124,15 +128,17 @@ def test_underflow_robustness(folded):
     true_params = np.array([0.5, 0.7])
     demo.set_params(true_params)
 
-    n_bases = int(1e3)
     data = demo.simulate_data(
         length=n_bases,
-        recoms_per_base_per_gen=0.0,
-        muts_per_base_per_gen=2.5 / n_bases,
+        recoms_per_gen=0.0,
         num_replicates=num_runs,
         sampled_n_dict=dict(zip(sampled_pops, sampled_n)))
 
-    demo.set_data(data, use_folded_likelihood=folded)
+    sfs = data.extract_sfs(1)
+    if folded:
+        sfs = sfs.fold()
+
+    demo.set_data(sfs)
     demo.set_params({"t0": 0.1, "t1": 100.0})
     optimize_res = demo.optimize()
 
