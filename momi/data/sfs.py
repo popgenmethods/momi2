@@ -6,6 +6,7 @@ from cached_property import cached_property
 import scipy
 import scipy.sparse
 import scipy.misc
+import gzip
 from .compressed_counts import _hashed2config, _config2hashable
 from .compressed_counts import CompressedAlleleCounts
 from .config_array import ConfigArray
@@ -64,6 +65,15 @@ def load_sfs(f):
     """
     Read in Sfs that has been written to file by Sfs.dump()
     """
+    if isinstance(f, str):
+        fname = f
+        if fname.endswith(".gz"):
+            with gzip.open(fname, "rt") as f:
+                return load_sfs(f)
+        else:
+            with open(fname) as f:
+                return load_sfs(f)
+
     info = json.load(f)
 
     loci = []
@@ -139,6 +149,16 @@ class Sfs(object):
         Write the Sfs in a compressed JSON format,
         that can be read in by site_freq_spectrum.load()
         """
+        if isinstance(f, str):
+            fname = f
+            if fname.endswith(".gz"):
+                with gzip.open(fname, "wt") as f:
+                    self.dump(f)
+            else:
+                with open(fname, 'w') as f:
+                    self.dump(f)
+            return
+
         print("{", file=f)
         print('\t"sampled_pops": {},'.format(
             json.dumps(list(self.sampled_pops))), file=f)
