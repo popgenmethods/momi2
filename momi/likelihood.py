@@ -570,6 +570,7 @@ def _subsfs_list(sfs, n_chunks, rnd):
         chunk_idxs, chunk_cnts = np.unique(idxs[chunk::n_chunks],
                                            return_counts=True)
         sub_configs = _ConfigArray_Subset(sfs.configs, chunk_idxs)
-        ret.append(Sfs.from_matrix(chunk_cnts, sub_configs,
-                                   folded=sfs.folded, length=None))
+        ret.append(Sfs.from_matrix(
+            np.array([chunk_cnts]).T, sub_configs,
+            folded=sfs.folded, length=None))
     return ret

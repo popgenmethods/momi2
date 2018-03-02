@@ -31,35 +31,39 @@ class DemographicModel(object):
     For example, if you wish to specify time in years, and a \
     generation is 29 years, set this to 29. Default value is 1.
     """
-    def __init__(self, N_e, gen_time=1):
+    def __init__(self, N_e, gen_time=1, muts_per_gen=None):
         self.N_e = N_e
         self.gen_time = gen_time
+        self.muts_per_gen = muts_per_gen
+
         self.parameters = co.OrderedDict()
         self.topology_events = []
         self.size_events = []
         self.leaf_events = []
         self.leafs = []
 
-        self._set_data(data=None, muts_per_gen=None,
-                       folded=None, mem_chunk_size=None,
+        self._set_data(sfs=None, length=None,
+                       mem_chunk_size=None,
                        use_pairwise_diffs=None,
                        non_ascertained_pops=None)
 
     def copy(self):
-        ret = DemographicModel(self.N_e, self.gen_time)
+        ret = DemographicModel(self.N_e, self.gen_time,
+                               self.muts_per_gen)
         for k, v in self.parameters.items():
             ret.parameters[k] = v.copy()
         ret.topology_events.extend(self.topology_events)
         ret.size_events.extend(self.size_events)
         ret.leaf_events.extend(self.leaf_events)
         ret.leafs.extend(self.leafs)
-        ret._set_data(data=self._data, muts_per_gen=self._muts_per_gen,
-                      folded=self._folded, mem_chunk_size=self._mem_chunk_size,
+        ret._set_data(sfs=self._fullsfs, length=self._length,
+                      mem_chunk_size=self._mem_chunk_size,
                       use_pairwise_diffs=self._use_pairwise_diffs,
                       non_ascertained_pops=self._non_ascertained_pops)
         return ret
 
-    def set_params(self, new_params=None, randomize=False, scaled=False):
+    def set_params(self, new_params=None, randomize=False,
+                   scaled=False):
         """Set the current parameter values
 
         :param dict/list new_params: dict mapping parameter names to \
@@ -437,14 +441,14 @@ class DemographicModel(object):
             x = {param: x}
         self.set_params(x, scaled=True)
 
-    def simulate_data(self, length, recoms_per_base_per_gen,
-                      muts_per_base_per_gen, num_replicates,
+    def simulate_data(self, length, recoms_per_gen,
+                      num_replicates, muts_per_gen=None,
                       sampled_n_dict=None, **kwargs):
         """Simulate data, using msprime as backend
 
         :param int length: Length of each locus in bases
-        :param float recoms_per_base_per_gen: Recombination rate per generation per base
-        :param float muts_per_base_per_gen: Mutation rate per generation per base
+        :param float recoms_per_gen: Recombination rate per generation per base
+        :param float muts_per_gen: Mutation rate per generation per base
         :param int num_replicates: Number of loci to simulate
         :param dict sampled_n_dict: Number of haploids per population. \
         If None, use sample sizes from the current dataset as set by \
@@ -454,23 +458,28 @@ class DemographicModel(object):
         :rtype: :class:`SnpAlleleCounts`
         """
         demo = self._get_demo(sampled_n_dict)
+        if muts_per_gen is None:
+            if not self.muts_per_gen:
+                raise ValueError("Need to provide mutation rate")
+            muts_per_gen = self.muts_per_gen
         return demo.simulate_data(
             length=length,
-            recombination_rate=4*self.N_e*recoms_per_base_per_gen,
-            mutation_rate=4*self.N_e*muts_per_base_per_gen,
+            recombination_rate=4*self.N_e*recoms_per_gen,
+            mutation_rate=4*self.N_e*muts_per_gen,
             num_replicates=num_replicates,
             **kwargs)
 
-    def simulate_vcf(self, out_prefix,
-                     muts_per_base_per_gen,
-                     recoms_per_base_per_gen,
-                     length, chrom_name="1", ploidy=1, random_seed=None,
-                     sampled_n_dict=None, **kwargs):
+    def simulate_vcf(
+            self, out_prefix,
+            recoms_per_gen, length,
+            muts_per_gen=None, chrom_name="1",
+            ploidy=1, random_seed=None,
+            sampled_n_dict=None, **kwargs):
         """Simulate a chromosome using msprime and write it to VCF
 
         :param str,file outfile: Output VCF file. If a string ending in ".gz", gzip it.
-        :param float muts_per_base_per_gen: Mutation rate per generation per base
-        :param float recoms_per_base_per_gen: Recombination rate per generation per base
+        :param float muts_per_gen: Mutation rate per generation per base
+        :param float recoms_per_gen: Recombination rate per generation per base
         :param int length: Length of chromosome in bases
         :param str chrom_name: Name of chromosome
         :param int ploidy: Ploidy
@@ -480,27 +489,17 @@ class DemographicModel(object):
         :meth:`DemographicModel.set_data`
         """
         demo = self._get_demo(sampled_n_dict)
+        if muts_per_gen is None:
+            if not self.muts_per_gen:
+                raise ValueError("Need to provide mutation rate")
+            muts_per_gen = self.muts_per_gen
         return demo.simulate_vcf(
             out_prefix=out_prefix,
-            mutation_rate=4*self.N_e*muts_per_base_per_gen,
-            recombination_rate=4*self.N_e*recoms_per_base_per_gen,
+            mutation_rate=4*self.N_e*muts_per_gen,
+            recombination_rate=4*self.N_e*recoms_per_gen,
             length=length, chrom_name=chrom_name,
             ploidy=ploidy, random_seed=random_seed,
             **kwargs)
-
-    # TODO rename to model_fit_stats or somesuch
-    def fstats(self, sampled_n_dict=None):
-        demo = self._get_demo(sampled_n_dict)
-        sfs = self._get_sfs()
-
-        ascertainment_pops = [
-            pop for pop, is_asc in zip(
-                sfs.sampled_pops, sfs.ascertainment_pop)
-            if is_asc]
-
-        return ModelFitStats(
-            sfs, demo,
-            ascertainment_pops)
 
     # TODO rename to get_multipop_moran?
     def _get_demo(self, sampled_n_dict):
@@ -540,10 +539,9 @@ class DemographicModel(object):
             self._set_x(prev_x)
 
     def set_data(
-            self, data, muts_per_gen=None,
-            length=None,
-            use_folded_likelihood=None,
-            mem_chunk_size=1000, use_pairwise_diffs=None,
+            self, sfs, length=None,
+            mem_chunk_size=1000,
+            use_pairwise_diffs=True,
             non_ascertained_pops=None):
         """
         Sets data, and optionally the mutation rate,
@@ -582,42 +580,34 @@ class DemographicModel(object):
             if None, uses the pairwise heterozygosity if there is missing data;
             else, if there is no missing data, use total number of mutations
         """
-        use_folded_likelihood = data.use_folded_likelihood
-        if use_folded_likelihood is None:
-            if isinstance(data, Sfs):
-                raise ValueError("Need to specify whether to use_folded_likelihood when passing Sfs instead of SnpAlleleCounts as data")
-            use_folded_likelihood = data.use_folded_likelihood
-
-        if muts_per_gen:
-            # scale mutation rate by total data length
-            muts_per_gen = muts_per_gen * data.sfs.length
+        if not length:
+            length = sfs.length
 
         self._set_data(
-            data=data,
-            muts_per_gen=muts_per_gen, folded=use_folded_likelihood,
+            sfs=sfs, length=length,
             mem_chunk_size=mem_chunk_size,
             use_pairwise_diffs=use_pairwise_diffs,
             non_ascertained_pops=non_ascertained_pops)
 
-    def _set_data(self, data, muts_per_gen, folded,
-                  mem_chunk_size, use_pairwise_diffs, non_ascertained_pops):
+    def _set_data(self, sfs, length,
+                  mem_chunk_size, use_pairwise_diffs,
+                  non_ascertained_pops):
         self._lik_surface = None
         self._conf_region = None
-        self._sfs = None
-        self._data = data
-        self._folded = folded
+        self._subsfs = None
+        self._fullsfs = sfs
+        self._length = length
         self._mem_chunk_size = mem_chunk_size
-        self._muts_per_gen = muts_per_gen
         self._use_pairwise_diffs = use_pairwise_diffs
         self._non_ascertained_pops = non_ascertained_pops
 
     def _get_sfs(self):
-        if self._sfs is None or list(
-                self._sfs.sampled_pops) != list(self.leafs):
-            self._sfs = self._data.subset_populations(
+        if self._subsfs is None or list(
+                self._subsfs.sampled_pops) != list(self.leafs):
+            self._subsfs = self._fullsfs.subset_populations(
                 self.leafs,
                 non_ascertained_pops=self._non_ascertained_pops).sfs
-        return self._sfs
+        return self._subsfs
 
     #def _get_conf_region(self):
     #    opt_surface = self._get_surface()
@@ -670,34 +660,33 @@ class DemographicModel(object):
             return self._lik_surface
 
         self._conf_region = None
-        if self._data is None:
+        if self._fullsfs is None:
             raise ValueError("Need to call DemographicModel.set_data()")
         # TODO better message (e.g. "Building SFS...")
         logging.getLogger(__name__).info("Constructing likelihood surface...")
 
         sfs = self._get_sfs().combine_loci()
         use_pairwise_diffs = self._use_pairwise_diffs
-        if use_pairwise_diffs is None:
-            use_pairwise_diffs = True
 
-        muts_per_gen = self._muts_per_gen
+        muts_per_gen = self.muts_per_gen
         if muts_per_gen is None:
             mut_rate = None
+        elif self._length is None:
+            raise ValueError("SFS is missing length attribute, need to manually set length in set_data(), or set mutation rate to None")
         else:
-            mut_rate = 4 * self.N_e * muts_per_gen
+            mut_rate = 4 * self.N_e * muts_per_gen * self._length
 
         demo_fun = self._demo_fun
 
-        p_miss = self._data._p_missing
+        p_miss = self._fullsfs._p_missing
         p_miss = {pop: pm for pop, pm in zip(
-            self._data.populations, p_miss)}
+            self._fullsfs.populations, p_miss)}
         p_miss = np.array([p_miss[pop] for pop in sfs.sampled_pops])
 
         self._lik_surface = SfsLikelihoodSurface(
             sfs, demo_fun, mut_rate=mut_rate,
-            folded=self._folded, batch_size=self._mem_chunk_size,
-            use_pairwise_diffs=use_pairwise_diffs,
-            p_missing=p_miss)
+            folded=sfs.folded, batch_size=self._mem_chunk_size,
+            use_pairwise_diffs=use_pairwise_diffs, p_missing=p_miss)
 
         logging.getLogger(__name__).info("Finished constructing likelihood surface")
 
@@ -720,7 +709,7 @@ class DemographicModel(object):
         if configs is not None:
             return config_array(self.leafs, configs)
 
-        if self._data is None:
+        if self._fullsfs is None:
             raise ValueError(
                 "Need to call set_data() or provide configs")
 
@@ -742,7 +731,7 @@ class DemographicModel(object):
             # make sure it is sorted in correct order
             return co.OrderedDict((k, sampled_n_dict[k]) for k in self.leafs
                                   if k in sampled_pops_set)
-        if self._data is None:
+        if self._fullsfs is None:
             raise ValueError(
                 "Need to call set_data() or provide dict of sample sizes.")
         sfs = self._get_sfs()

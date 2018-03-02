@@ -217,6 +217,18 @@ class Sfs(object):
 
         return self.freqs_matrix.T.dot(p_het)
 
+    def resample(self):
+        loci = np.random.choice(
+            np.arange(self.n_loci), size=self.n_loci, replace=True)
+        mat = self.freqs_matrix[:, loci]
+        to_keep = np.asarray(mat.sum(axis=1) > 0).squeeze()
+        to_keep = np.arange(len(self.configs))[to_keep]
+        mat = mat[to_keep, :]
+        configs = _ConfigArray_Subset(self.configs, to_keep)
+        return self.from_matrix(mat, configs, self.folded,
+                                # NOTE assumes all loci same size
+                                self.length)
+
     @property
     def sampled_n(self):
         return self.configs.sampled_n
@@ -371,10 +383,6 @@ class Sfs(object):
                     non_ascertained_pops.append(pop)
         return self._subset_populations(tuple(populations),
                                         tuple(non_ascertained_pops))
-
-    @property
-    def use_folded_likelihood(self):
-        return self.folded
 
     @memoize_instance
     def _subset_populations(self, populations, non_ascertained_pops):

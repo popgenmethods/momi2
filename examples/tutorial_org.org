@@ -59,7 +59,8 @@ population genetics concept of
 population size]] or $N_e$).
 
 #+BEGIN_SRC ipython
-    model = momi.DemographicModel(N_e=1.2e4, gen_time=29)
+  model = momi.DemographicModel(N_e=1.2e4, gen_time=29,
+                                muts_per_gen=1.25e-8)
 #+END_SRC
 
 #+RESULTS:
@@ -151,7 +152,7 @@ earlier date.
 #+RESULTS:
 :RESULTS:
 # Out[6]:
-[[file:./obipy-resources/1523DZv.png]]
+[[file:./obipy-resources/14551ug.png]]
 :END:
 
 Note the user needs to specify the order of all populations (including
@@ -200,19 +201,18 @@ it in.
     :END:
 
 #+BEGIN_SRC ipython
-    import os
+  import os
 
-    per_base_mut_rate = 1.25e-8
-    per_base_recom_rate = 1.25e-8
-    bases_per_locus = int(5e5)
-    n_loci = 20
-    ploidy = 2
+  recoms_per_gen = 1.25e-8
+  bases_per_locus = int(5e5)
+  n_loci = 20
+  ploidy = 2
 
-    # number of alleles to sample per population
-    sampled_n_dict = {"NEA":2, "YRI":4, "CHB":4}
+  # number of alleles to sample per population
+  sampled_n_dict = {"NEA":2, "YRI":4, "CHB":4}
 
-    # create data directory if it doesn't exist
-    os.makedirs("data", exist_ok=True) 
+  # create data directory if it doesn't exist
+  os.makedirs("data", exist_ok=True)
 #+END_SRC
 
 #+RESULTS:
@@ -226,8 +226,7 @@ it in.
   for chrom in range(n_loci):
         model.simulate_vcf(
               f"data/{chrom}",
-              muts_per_base_per_gen=per_base_mut_rate,
-              recoms_per_base_per_gen=per_base_recom_rate,
+              recoms_per_gen=recoms_per_gen,
               length=bases_per_locus,
               chrom_name="chr{}".format(chrom),
               ploidy=ploidy,
@@ -309,13 +308,11 @@ it in.
   ## INFERENCE
 
   ## create a new model
-  model2 = momi.DemographicModel(N_e=1.2e4, gen_time=29)
+  model2 = momi.DemographicModel(N_e=1.2e4, gen_time=29,
+                                 muts_per_gen=1.25e-8)
 
   ## set the data
-  model2.set_data(sfs,
-                  # use multinomial model, unfolded SFS
-                  #muts_per_gen=None,
-                  muts_per_gen=1.25e-8)
+  model2.set_data(sfs)
 #+END_SRC
 
 #+RESULTS:
@@ -355,15 +352,15 @@ it in.
 :RESULTS:
 # Out[14]:
 #+BEGIN_EXAMPLE
-  fun: 0.0013189023086538107
-  jac: array([ 1.78766256e-07, -4.75596909e-03, -3.54243968e-10])
+  fun: 0.0013466221737334606
+  jac: array([-5.75017364e-05,  2.85030320e-01,  5.57443513e-10])
   message: 'Converged (|f_n-f_(n-1)| ~= 0)'
-  nfev: 50
-  nit: 22
-  parameters: ParamsDict({'n_chb': 642942.3203272597, 'g_chb': 0.0006628800413495369, 't_chb_yri': 114140.37239140319})
+  nfev: 43
+  nit: 16
+  parameters: ParamsDict({'n_chb': 18526.892257864765, 'g_chb': 0.0003050757786989606, 't_chb_yri': 115685.45164837231})
   status: 1
   success: True
-  x: array([1.33738103e+01, 6.62880041e-04, 1.04140372e+05])
+  x: array([9.82697859e+00, 3.05075779e-04, 1.05685452e+05])
 #+END_EXAMPLE
 :END:
 
@@ -376,9 +373,9 @@ it in.
 :RESULTS:
 # Out[15]:
 #+BEGIN_EXAMPLE
-  ParamsDict([('n_chb', 642942.3203272597),
-  ('g_chb', 0.0006628800413495369),
-  ('t_chb_yri', 114140.37239140319)])
+  ParamsDict([('n_chb', 18526.892257864765),
+  ('g_chb', 0.0003050757786989606),
+  ('t_chb_yri', 115685.45164837231)])
 #+END_EXAMPLE
 :END:
 
@@ -395,7 +392,7 @@ it in.
 #+RESULTS:
 :RESULTS:
 # Out[16]:
-[[file:./obipy-resources/1523Qj1.png]]
+[[file:./obipy-resources/1455C5m.png]]
 :END:
 
 
@@ -424,15 +421,15 @@ it in.
 :RESULTS:
 # Out[18]:
 #+BEGIN_EXAMPLE
-  fun: 0.012567145401972832
-  jac: array([ 2.17850726e-06, -4.83262080e-03,  3.18805683e-10, -3.66315294e-11])
+  fun: 0.012567120418911925
+  jac: array([-6.67844320e-08, -7.68025159e-04, -2.98708130e-11,  2.03554987e-12])
   message: 'Converged (|f_n-f_(n-1)| ~= 0)'
-  nfev: 79
-  nit: 22
-  parameters: ParamsDict({'n_chb': 1864.228825492168, 'g_chb': 7.376740886688851e-05, 't_chb_yri': 109596.60156189486, 't_anc': 442998.1389806783})
+  nfev: 50
+  nit: 14
+  parameters: ParamsDict({'n_chb': 1841.2471681874276, 'g_chb': 7.25664489267316e-05, 't_chb_yri': 109500.50203880756, 't_anc': 442978.7398167962})
   status: 1
   success: True
-  x: array([7.53060275e+00, 7.37674089e-05, 9.95966016e+04, 3.33401537e+05])
+  x: array([7.51819843e+00, 7.25664489e-05, 9.95005020e+04, 3.33478238e+05])
 #+END_EXAMPLE
 :END:
 
@@ -445,12 +442,12 @@ it in.
 #+RESULTS:
 :RESULTS:
 # Out[19]:
-[[file:./obipy-resources/1523CtE.png]]
+[[file:./obipy-resources/1455PDt.png]]
 :END:
 
 #+BEGIN_SRC ipython :results raw drawer
   # model diagnostics
-  model_fit_stats = momi.ModelFitStats(model2, 100)
+  model_fit_stats = momi.ModelFitStats(model2)
   # f4(YRI, CHB, NEA, AncestralAllele) < 0 because of unmodeled Neanderthal admixture
   # z_score is not significant because we only have a small dataset here
   model_fit_stats.f4("YRI", "CHB", "NEA", None)
@@ -462,8 +459,8 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[34]:
-: JackknifeGoodnessFitStat(expected=0.0, observed=-0.005661024702653249, sd=0.002716661599502775, z_score=-2.0838166607461797)
+# Out[20]:
+: JackknifeGoodnessFitStat(expected=6.938893903907228e-18, observed=-0.005661024702653249, sd=0.002716661599502775, z_score=-2.0838166607461823)
 :END:
 
 #+BEGIN_SRC ipython
@@ -485,17 +482,27 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[21]:
+# Out[28]:
 :END:
 
 #+BEGIN_SRC ipython :async t
-    # stochastic gradient descent (ADAM+SVRG)
-    add_pulse_model.stochastic_optimize(snps_per_minibatch=1000, num_iters=10, svrg_epoch=3)
+  # stochastic gradient descent (ADAM+SVRG)
+  add_pulse_model.stochastic_optimize(snps_per_minibatch=1000, num_iters=10, svrg_epoch=3)
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-0 - df5129ba-f0b0-49e0-90cf-561229c0d47f
+# Out[29]:
+#+BEGIN_EXAMPLE
+  fun: 3.7190104911306694
+  jac: array([ 2.12556560e-02, -2.20290249e+01, -7.62600757e-08, -1.42325507e-07,
+  5.12755003e-02, -1.00813058e-04, -3.33314704e-03])
+  message: 'Maximum number of iterations reached'
+  nit: 9
+  success: False
+  x: array([ 7.44326709e+00, -1.00000000e-03,  9.95005384e+04,  3.33478731e+05,
+  -2.63439732e+00,  1.34345508e+00,  5.70926198e-01])
+#+END_EXAMPLE
 :END:
 
 #+BEGIN_SRC ipython :async t
@@ -505,19 +512,19 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[23]:
+# Out[30]:
 #+BEGIN_EXAMPLE
-  fun: 0.0044391313520478525
-  jac: array([-5.39537827e-07, -3.54335807e-02,  1.58296017e-12, -5.96482524e-13,
-  -7.46789966e-07, -8.67047171e-08,  2.12102558e-08])
-  message: 'Converged (|f_n-f_(n-1)| ~= 0)'
+  fun: 0.004945928148744051
+  jac: array([ 5.40943979e-03, -5.33583325e+01, -4.97477068e-08,  5.65130981e-09,
+  2.05264960e-03, -2.15299405e-03,  1.07695169e-04])
+  message: 'Max. number of function evaluations reached'
   nfev: 100
-  nit: 22
-  parameters: ParamsDict({'n_chb': 11270129.33554711, 'g_chb': 0.001, 't_chb_yri': 88643.87190403217, 't_anc': 469143.92131910264, 'p_pulse': 0.06742324236168179, 't_pulse': 37140.84596220227, 't_ghost': 50008.68118993056})
-  status: 1
-  success: True
-  x: array([ 1.62376664e+01,  1.00000000e-03,  7.86438719e+04,  3.80500049e+05,
-  -2.62696166e+00, -3.26923229e-01, -1.07847903e+01])
+  nit: 16
+  parameters: ParamsDict({'n_chb': 8920.323737864543, 'g_chb': 0.00028127935049284666, 't_chb_yri': 94275.54269551455, 't_anc': 471939.2204350214, 'p_pulse': 0.06610239563436653, 't_pulse': 29880.5809462377, 't_ghost': 104926.14200154741})
+  status: 3
+  success: False
+  x: array([ 9.09608752e+00,  2.81279350e-04,  8.42755427e+04,  3.77663678e+05,
+  -2.64816181e+00, -7.67826594e-01, -1.89940807e+00])
 #+END_EXAMPLE
 :END:
 
@@ -529,47 +536,44 @@ it in.
 
 #+RESULTS:
 :RESULTS:
-# Out[24]:
-[[file:./obipy-resources/1523P3K.png]]
+# Out[31]:
+[[file:./obipy-resources/1455cNz.png]]
 :END:
 
 
 #+BEGIN_SRC ipython :async t
-    ## generate nonparametric bootstrap datasets
+  ## generate nonparametric bootstrap datasets
 
-    n_bootstraps = 5
-    #n_bootstraps = 20
-    #bootstrap_mles = []
+  n_bootstraps = 5
+  #n_bootstraps = 20
+  #bootstrap_mles = []
 
-    # split dataset into 100 equally sized blocks to resample
-    chunked_data = data.chunk_data(100)
+  plt = momi.DemographyPlot(add_pulse_model, ["YRI", "CHB", "GhostNea", "NEA"], linthreshy=1e5, figsize=(6,8), major_yticks=[1e4, 2.5e4, 5e4, 7.5e4, 1e5, 2.5e5, 5e5, 7.5e5])
 
-    plt = momi.DemographyPlot(add_pulse_model, ["YRI", "CHB", "GhostNea", "NEA"], linthreshy=1e5, figsize=(6,8), major_yticks=[1e4, 2.5e4, 5e4, 7.5e4, 1e5, 2.5e5, 5e5, 7.5e5])
+  #bootstrap_model = add_pulse_model.copy()
+  model2_copy = model2.copy()
+  add_pulse_copy = add_pulse_model.copy()
+  for bootstrap_it in range(n_bootstraps):
+      print(bootstrap_it)
+      # bootstrap resample blocks
+      resampled = sfs.resample()
+      model2_copy.set_data(resampled)
+      add_pulse_copy.set_data(resampled)
 
-    #bootstrap_model = add_pulse_model.copy()
-    model2_copy = model2.copy()
-    add_pulse_copy = add_pulse_model.copy()
-    for bootstrap_it in range(n_bootstraps):
-        print(bootstrap_it)
-        # bootstrap resample blocks
-        bootstrap_data = chunked_data.resample_chunks()
-        model2_copy.set_data(bootstrap_data)
-        add_pulse_copy.set_data(bootstrap_data)
-        
-        model2_copy.set_params(randomize=True)
-        model2_copy.optimize()
-        add_pulse_copy.set_params(model2_copy.get_params(), randomize=True)
-        add_pulse_copy.optimize()
+      model2_copy.set_params(randomize=True)
+      model2_copy.optimize()
+      add_pulse_copy.set_params(model2_copy.get_params(), randomize=True)
+      add_pulse_copy.optimize()
 
-        plt.add_bootstrap(add_pulse_copy.get_params(), alpha=1./n_bootstraps)
+      plt.add_bootstrap(add_pulse_copy.get_params(), alpha=1./n_bootstraps)
 
-    plt.draw()
+  plt.draw()
 #+END_SRC
 
 #+RESULTS:
 :RESULTS:
-# Out[28]:
-[[file:./obipy-resources/28149_dt.png]]
+# Out[32]:
+[[file:./obipy-resources/1455OXC.png]]
 :END:
 
 

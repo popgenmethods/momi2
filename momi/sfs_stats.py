@@ -185,21 +185,12 @@ class ModelFitStats(SfsStats):
     this could potentially lead to most or all SNPs being removed, so it is \
     important to specify a smaller sample size in such cases.
     """
-    def __init__(self, demo_model, n_jackknife, data=None,
-                 sampled_n_dict=None):
-        if not (data or demo_model._data):
-            raise ValueError("Need to provide data or call "
-                             "DemographicModel.set_data() first")
-        elif not data:
-            data = demo_model._data
+    def __init__(self, demo_model, sampled_n_dict=None):
+        if not demo_model._fullsfs:
+            raise ValueError(
+                "Need to call DemographicModel.set_data() first")
 
-        if n_jackknife:
-            data = data._chunk_data(n_jackknife)
-
-        data = data.subset_populations(
-            demo_model.leafs, demo_model._non_ascertained_pops)
-        sfs = data.sfs
-
+        sfs = demo_model._get_sfs()
         if not sampled_n_dict:
             sampled_n_dict = dict(zip(sfs.sampled_pops, sfs.sampled_n))
         self.sampled_n_dict = sampled_n_dict

@@ -467,36 +467,6 @@ class SnpAlleleCounts(object):
     def extract_sfs(self, n_blocks):
         return self._chunk_data(n_blocks).sfs
 
-    def resample_chunks(self):
-        uniq = np.unique(self.chrom_ids)
-        #new_chrom = []
-        new_chrom = _CompressedList()
-        new_pos = []
-        index2uniq = []
-        chrom_ids_arr = np.array(self.chrom_ids)
-        for i, chnk in enumerate(np.random.choice(uniq, size=len(uniq),
-                                                  replace=True)):
-            idx = (chrom_ids_arr == chnk)
-            chnk_len = np.sum(idx)
-            new_chrom.extend([i]*chnk_len)
-            new_pos.extend(1+np.arange(chnk_len))
-            index2uniq.extend(self.compressed_counts.index2uniq[idx])
-
-        if self.length:
-            # NOTE this is not exactly right...but close enough
-            length = self.length * len(index2uniq) / len(self)
-        else:
-            length = None
-
-        return SnpAlleleCounts(
-            new_chrom, new_pos,
-            CompressedAlleleCounts(
-                self.compressed_counts.config_array,
-                index2uniq, sort=False),
-            self.populations, self.use_folded_likelihood,
-            self.non_ascertained_pops, length,
-            self.n_read_snps, self.n_excluded_snps)
-
     @property
     def _p_missing(self):
         return self.sfs._p_missing
