@@ -46,7 +46,8 @@ class DemographyPlot(object):
                  linthreshy=None, minor_yticks=None,
                  major_yticks=None,
                  color_map="cool",
-                 pulse_bounds=(0, 1)):
+                 pulse_bounds=(0, 1),
+                 draw=True):
         self.leafs = model.leafs
         self.model = model.copy()
         try:
@@ -90,6 +91,9 @@ class DemographyPlot(object):
             norm=mpl.colors.Normalize(vmin=self.pmin, vmax=self.pmax),
             cmap=color_map)
 
+        if draw:
+            self.draw()
+
     def _init_plot(self, model):
         self._plot = _DemographyPlot(
             self.x_pos, model.N_e, self.additional_times)
@@ -107,7 +111,7 @@ class DemographyPlot(object):
             pop.goto_time(float('inf'))
 
     def draw(self, alpha=1.0, tree_color="C0", draw_frame=True,
-             rad=-.1, pulse_label=True):
+             rad=0, pulse_label=True):
         """Draw the demography.
 
         This is method draws the demography by calling
