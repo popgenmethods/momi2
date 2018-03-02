@@ -23,7 +23,13 @@ if __name__ == "__main__":
     if args.verbose:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
-    SnpAlleleCounts.concatenate(
-        SnpAlleleCounts.load(fname)
-        for fname in args.files).extract_sfs(
-                args.n_blocks).dump(args.out)
+    if len(args.files) == 1:
+        f, = args.files
+        counts = SnpAlleleCounts.load(f)
+    else:
+        counts = SnpAlleleCounts.concatenate(
+            SnpAlleleCounts.load(fname)
+            for fname in args.files)
+
+    logging.info("Extracting SFS...")
+    counts.extract_sfs(args.n_blocks).dump(args.out)
