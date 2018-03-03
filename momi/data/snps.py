@@ -288,8 +288,12 @@ class SnpAlleleCounts(object):
         :rtype: :class:`SnpAlleleCounts`
         """
         if isinstance(f, str):
-            with gzip.open(f, "rt") as gf:
-                return cls.load(gf)
+            if f.endswith(".gz"):
+                with gzip.open(f, "rt") as gf:
+                    return cls.load(gf)
+            else:
+                with open(f) as gf:
+                    return cls.load(gf)
 
         # default values for back-compatibility
         items = {"use_folded_sfs": False,
@@ -378,9 +382,13 @@ class SnpAlleleCounts(object):
         If a filename, the resulting file is gzipped.
         """
         if isinstance(f, str):
-            with gzip.open(f, "wt") as gf:
-                self.dump(gf)
-                return
+            if f.endswith(".gz"):
+                with gzip.open(f, "wt") as gf:
+                    self.dump(gf)
+            else:
+                with open(f, "w") as gf:
+                    self.dump(gf)
+            return
 
         print("{", file=f)
         print('\t"populations": {},'.format(

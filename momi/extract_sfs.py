@@ -9,14 +9,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument(
-        "files", nargs="+",
-        help="Files containing SNP allele counts")
+        "out", type=str, help="Output file")
     parser.add_argument(
-        "--n_blocks", type=int, default=1,
+        "n_blocks", type=int, default=1,
         help="Number of blocks for jackknife/bootstrap")
     parser.add_argument(
-        "--out", type=str, required=True,
-        help="Output file")
+        "files", nargs="+",
+        help="Files containing SNP allele counts")
 
     args = parser.parse_args()
 

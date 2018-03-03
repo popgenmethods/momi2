@@ -38,7 +38,7 @@ class DemographyPlot(object):
     :param str,matplotlib.colors.Colormap color_map: \
     Colormap mapping pulse probabilities to colors
 
-    :param tuple pulse_bounds: pair of ``(lower, upper)`` bounds \
+    :param tuple pulse_color_bounds: pair of ``(lower, upper)`` bounds \
     for mapping pulse probabilities to colors
     """
     def __init__(self, model, pop_x_positions,
@@ -46,7 +46,7 @@ class DemographyPlot(object):
                  linthreshy=None, minor_yticks=None,
                  major_yticks=None,
                  color_map="cool",
-                 pulse_bounds=(0, 1),
+                 pulse_color_bounds=(0, 1),
                  draw=True):
         self.leafs = model.leafs
         self.model = model.copy()
@@ -86,11 +86,12 @@ class DemographyPlot(object):
         self.all_N = [p.N for popline in self._plot.pop_lines.values()
                       for p in popline.points]
         self.base_N = min(self.all_N)
-        self.pmin, self.pmax = pulse_bounds
+        self.pmin, self.pmax = pulse_color_bounds
         self.cm_scalar_mappable = plt.cm.ScalarMappable(
             norm=mpl.colors.Normalize(vmin=self.pmin, vmax=self.pmax),
             cmap=color_map)
 
+        self.cbar = None
         if draw:
             self.draw()
 
@@ -159,9 +160,11 @@ class DemographyPlot(object):
 
     def draw_pulse_colorbar(self):
         self.cm_scalar_mappable.set_array([])
-        self.ax.get_figure().colorbar(
-            self.cm_scalar_mappable, fraction=0.046, pad=0.04,
-            ax=self.ax)
+        if not self.cbar:
+            self.cbar = self.ax.get_figure().colorbar(
+                self.cm_scalar_mappable, fraction=0.046, pad=0.04,
+                ax=self.ax)
+            self.cbar.set_label("PulseProb")
 
     def add_bootstrap(self, params, alpha,
                       rad=-.1, rand_rad=True):

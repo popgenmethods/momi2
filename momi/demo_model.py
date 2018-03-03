@@ -19,7 +19,7 @@ from .events import LeafEvent, SizeEvent, JoinEvent, PulseEvent, GrowthEvent
 from .events import Parameter, ParamsDict
 from .events import _build_demo_graph
 from .demo_plotter import DemographyPlotter
-from .sfs_stats import ModelFitStats
+from .sfs_stats import SfsModelFitStats
 
 
 class DemographicModel(object):
@@ -302,12 +302,17 @@ class DemographicModel(object):
                 return np.random.uniform(lower, upper)
 
         def scale_transform(x, params):
-            # FIXME gives divide by 0 warning when x=0
             return np.log(x/np.array(1-x))
+
+        if upper == 1:
+            # avoid divide by 0 warning
+            scaled_upper = None
+        else:
+            scaled_upper = scale_transform(upper, None)
 
         self.add_parameter(name, p0,
                            scaled_lower=scale_transform(lower, None),
-                           scaled_upper=scale_transform(upper, None),
+                           scaled_upper=scaled_upper,
                            scale_transform=scale_transform,
                            unscale_transform=lambda x, params: 1/(1+np.exp(-x)),
                            rgen=rgen)
@@ -890,4 +895,6 @@ class DemographicModel(object):
 
         self._set_x(res.x)
         res["parameters"] = self.get_params()
+        res["kl_divergence"] = res.fun
+        res["log_likelihood"] = self.log_likelihood()
         return res

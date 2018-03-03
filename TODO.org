@@ -1,10 +1,6 @@
 * documentation
 * polish tutorial
 ** add pairwise distances cell
-* method to easily estimate mutation rate from pairwise diversity
-* fix plotting of pairwise diffs
-* store (jackknifed) Sfs in json, pass to set_data()
-  using SnpAlleleCounts is too slow and memory intensive
 * link Demography graph to DemoPlotter more directly
   so that DemoPlotter can easily show if there is a bug or not
 * clean up confidence region stuff
@@ -19,7 +15,6 @@
   
      Currently leaning towards cleaning it up and documenting it, but not illustrating it in the tutorial.
 
-* make SfsLikelihoodSurface not accessible to user
 * get all unit tests working
 * make sure there are unit tests for inferring with missing data
 * Fix demo_plotter RuntimeWarning
@@ -31,10 +26,3 @@
   only in extreme cases when N is tiny or huge. should we try to fix this?
 
 * rename Demography to MultipopMoran
-* use per-base mutation rate?
-  require user to supply total number of bases
-* improve drawing api
-* add test for inferring mutation rate
-  both with hets, and with total branch len
-  (also check if I am scaling mutation rate correctly internally!)
-* do some of the data parsing in C?

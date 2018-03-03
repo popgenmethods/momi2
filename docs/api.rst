@@ -33,7 +33,7 @@ Data
 SFS statistics and model diagnostics
 ------------------------------------
 
-.. autoclass:: momi.ModelFitStats
+.. autoclass:: momi.SfsModelFitStats
    :members:
    :inherited-members:
 

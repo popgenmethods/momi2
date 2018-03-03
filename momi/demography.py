@@ -407,6 +407,10 @@ class Demography(object):
                   ' msprime backend"', file=vcf_f)
             print(f"##contig=<ID={chrom_name},length={length}>",
                   file=vcf_f)
+            print('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
+                  file=vcf_f)
+            print('##INFO=<ID=AA,Number=1,Type=String,Description="Ancestral Allele">',
+                  file=vcf_f)
 
             n_samples = int(np.sum(self.sampled_n) / ploidy)
             fields = ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL",

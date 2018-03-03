@@ -150,7 +150,7 @@ class SfsStats(object):
         return {"probs": probs, "denom": 1-denom}
 
 
-class ModelFitStats(SfsStats):
+class SfsModelFitStats(SfsStats):
     """Class to compare expected vs. observed statistics of the SFS.
 
     All methods return :class:`JackknifeGoodnessFitStat` unless
@@ -164,7 +164,7 @@ class ModelFitStats(SfsStats):
     for definitions of f2, f3, f4 (abba-baba), and D statistics.
 
     Note this class does NOT get updated when the underlying
-    ``demo_model`` changes; a new :class:`ModelFitStats` needs
+    ``demo_model`` changes; a new :class:`SfsModelFitStats` needs
     to be created to reflect any changes in the demography.
 
     :param momi.DemographicModel demo_model: Demography to compute expected \
@@ -234,7 +234,7 @@ class ModelFitStats(SfsStats):
     def denom(self):
         return 1.0
 
-    def all_pairwise_diffs(self, fig=True):
+    def all_pairs_ibs(self, fig=True):
         pops = list(self.sampled_n_dict.keys())
 
         df = []
@@ -246,10 +246,10 @@ class ModelFitStats(SfsStats):
                     if self.sampled_n_dict[pop1] == 1:
                         continue
                     prob = self.ordered_prob({
-                        pop1: [1, 0]}, fold=True)
+                        pop1: [0, 0]}, fold=True)
                 else:
                     prob = self.ordered_prob({
-                        pop1: [1], pop2: [0]}, fold=True)
+                        pop1: [0], pop2: [0]}, fold=True)
 
                 line = [pop1, pop2, prob.expected,
                         prob.observed, prob.z_score]
@@ -383,7 +383,7 @@ class ExpectedSfsStats(SfsStats):
 
 class JackknifeGoodnessFitStat(object):
     """
-    Object returned by methods of :class:`ModelFitStats`.
+    Object returned by methods of :class:`SfsModelFitStats`.
 
     Basic arithmetic operations are supported, allowing to build
     up complex statistics out of simpler ones.
