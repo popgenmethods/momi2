@@ -234,35 +234,53 @@ class ModelFitStats(SfsStats):
     def denom(self):
         return 1.0
 
-    def pairwise_diffs(self, exclude_pops=[],
-                       exclude_singletons=False, plot=True):
-        pops = [p for p in self.leafs if p not in exclude_pops]
-        fstats = self.fstats(sampled_n_dict={
-            p: 1 for p in pops})
-
-        if exclude_singletons:
-            s_probs = fstats.singleton_probs(pops)
+    def all_pairwise_diffs(self, fig=True):
+        pops = list(self.sampled_n_dict.keys())
 
         df = []
         for pop1 in pops:
             for pop2 in pops:
-                if pop1 < pop2:
-                    prob = fstats.ordered_prob({
+                if pop1 > pop2:
+                    continue
+                elif pop1 == pop2:
+                    if self.sampled_n_dict[pop1] == 1:
+                        continue
+                    prob = self.ordered_prob({
+                        pop1: [1, 0]}, fold=True)
+                else:
+                    prob = self.ordered_prob({
                         pop1: [1], pop2: [0]}, fold=True)
-                    if exclude_singletons:
-                        prob = (
-                            prob - s_probs["probs"][pop1] -
-                            s_probs["probs"][pop2]) / s_probs[
-                                "denom"]
 
-                    penalty = np.log(prob.observed / prob.expected)
-                    line = [pop1, pop2, penalty, prob.z_score]
-                    print(*line)
-                    df.append(line)
+                line = [pop1, pop2, prob.expected,
+                        prob.observed, prob.z_score]
+                df.append(line)
+
+        return self._pairwise_zscores(df, fig)
+
+    def all_f2(self, fig=True):
+        pops = [k for k, v in self.sampled_n_dict.items() if v > 1]
+
+        df = []
+        for pop1 in pops:
+            for pop2 in pops:
+                if pop1 >= pop2:
+                    continue
+                else:
+                    prob = self.f2(pop1, pop2)
+
+                line = [pop1, pop2, prob.expected,
+                        prob.observed, prob.z_score]
+                df.append(line)
+
+        return self._pairwise_zscores(df, fig)
+
+    def _pairwise_zscores(self, df, fig):
         ret = pd.DataFrame(sorted(df, key=lambda x: abs(x[-1]),
                                   reverse=True),
-                           columns=["Pop1", "Pop2", "Penalty", "Z"])
-        if plot:
+                           columns=["Pop1", "Pop2",
+                                    "Expected", "Observed", "Z"])
+
+        if fig:
             pivoted = ret.pivot(index="Pop1", columns="Pop2",
                                 values="Z")
             plt.gcf().clear()

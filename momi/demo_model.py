@@ -8,11 +8,12 @@ import pandas as pd
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 import seaborn
+from .sfs_stats import JackknifeGoodnessFitStat
 from .data.config_array import config_array
 from .data.sfs import Sfs
 from .demography import Demography
 from .likelihood import SfsLikelihoodSurface
-from .compute_sfs import expected_total_branch_len, expected_sfs
+from .compute_sfs import expected_total_branch_len, expected_sfs, expected_heterozygosity
 from .confidence_region import _ConfidenceRegion
 from .events import LeafEvent, SizeEvent, JoinEvent, PulseEvent, GrowthEvent
 from .events import Parameter, ParamsDict
@@ -612,6 +613,63 @@ class DemographicModel(object):
                 non_ascertained_pops=self._non_ascertained_pops).sfs
         return self._subsfs
 
+    def fit_within_pop_diversity(self):
+        if not self._length:
+            raise ValueError("SFS has no length attribute, need to provide it with set_data(). If unknown, set length=1 to estimate the mutation rate over the full data instead of per-base.")
+
+        sfs = self._get_sfs()
+
+        keep_pops = np.array([
+            a and n > 1
+            for p, n, a in zip(sfs.sampled_pops, sfs.sampled_n,
+                               sfs.ascertainment_pop)])
+        asc_pops = np.array(sfs.sampled_pops)[keep_pops]
+
+        # expected hets per unit mutation
+        e_het = expected_heterozygosity(
+            self._get_demo({p: 2 for p in sfs.sampled_pops}),
+            sampled_pops=asc_pops)
+        # convert from ms scaling
+        e_het = e_het * 4 * self.N_e
+
+        # scale by data length and per-population missingness
+        p_miss = self._p_missing_dict()
+        p_miss = np.array([p_miss[pop] for pop in asc_pops])
+        e_het = e_het * self._length * (1-p_miss)
+
+        # observed hets per locus
+        o_het = sfs.avg_pairwise_hets[:, keep_pops]
+        # sum over loci
+        total_o_het = o_het.sum(axis=0)
+
+        # estimated mutation rate per population
+        est_mut_rate = total_o_het / e_het
+        # jaccknife
+        n_loci = o_het.shape[0]
+        jackknife_o_het = (total_o_het - o_het) * (n_loci / (n_loci-1))
+        jackknife_mut_rate = jackknife_o_het / e_het
+
+        # make dataframe
+        if not self.muts_per_gen:
+            muts_per_gen = 0
+        else:
+            muts_per_gen = self.muts_per_gen
+
+        jackknife_stats = []
+        for i, pop in enumerate(asc_pops):
+            jackknife_stats.append(JackknifeGoodnessFitStat(
+                muts_per_gen, est_mut_rate[i],
+                jackknife_mut_rate[:, i]))
+
+        df = pd.DataFrame(
+            [[p, j.observed, j.sd]
+             for p, j in zip(asc_pops, jackknife_stats)],
+            columns=["Pop", "EstMutRate", "JackknifeSD"])
+        if muts_per_gen:
+            df["JackknifeZscore"] = [j.z_score
+                                     for j in jackknife_stats]
+        return df
+
     #def _get_conf_region(self):
     #    opt_surface = self._get_surface()
     #    opt_x = self._get_opt_x()
@@ -681,9 +739,7 @@ class DemographicModel(object):
 
         demo_fun = self._demo_fun
 
-        p_miss = self._fullsfs._p_missing
-        p_miss = {pop: pm for pop, pm in zip(
-            self._fullsfs.populations, p_miss)}
+        p_miss = self._p_missing_dict()
         p_miss = np.array([p_miss[pop] for pop in sfs.sampled_pops])
 
         self._lik_surface = SfsLikelihoodSurface(
@@ -694,6 +750,11 @@ class DemographicModel(object):
         logging.getLogger(__name__).info("Finished constructing likelihood surface")
 
         return self._lik_surface
+
+    def _p_missing_dict(self):
+        p_miss = self._fullsfs._p_missing
+        return {pop: pm for pop, pm in zip(
+            self._fullsfs.populations, p_miss)}
 
     # TODO note these are in PER-GENERATION units
     # TODO allow to pass folded parameter (if passing separate configs?)
