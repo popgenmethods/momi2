@@ -304,6 +304,12 @@ class DemographicModel(object):
         def scale_transform(x, params):
             return np.log(x/np.array(1-x))
 
+        if lower == 0:
+            # avoid log(0)
+            scaled_lower = None
+        else:
+            scaled_lower = scale_transform(lower, None)
+
         if upper == 1:
             # avoid divide by 0 warning
             scaled_upper = None
@@ -311,7 +317,7 @@ class DemographicModel(object):
             scaled_upper = scale_transform(upper, None)
 
         self.add_parameter(name, p0,
-                           scaled_lower=scale_transform(lower, None),
+                           scaled_lower=scaled_lower,
                            scaled_upper=scaled_upper,
                            scale_transform=scale_transform,
                            unscale_transform=lambda x, params: 1/(1+np.exp(-x)),
