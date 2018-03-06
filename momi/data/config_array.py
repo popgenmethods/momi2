@@ -5,7 +5,7 @@ from .compressed_counts import _config2hashable
 from ..util import memoize_instance
 
 
-def config_array(sampled_pops, counts, sampled_n=None, ascertainment_pop=None):
+def build_config_list(sampled_pops, counts, sampled_n=None, ascertainment_pop=None):
     """
     if sampled_n is not None, counts is the derived allele counts
 
@@ -38,7 +38,7 @@ def build_full_config_list(sampled_pops, sampled_n, ascertainment_pop=None):
         if not (np.all(x[ascertainment_pop] == 0) or np.all(
                 x[ascertainment_pop] == sampled_n[ascertainment_pop])):
             config_list.append(x)
-    return config_array(
+    return build_config_list(
         sampled_pops, np.array(config_list, dtype=int), sampled_n,
         ascertainment_pop=ascertainment_pop)
 
@@ -55,7 +55,7 @@ class ConfigList(object):
     """
     def __init__(self, sampled_pops, conf_arr, sampled_n=None,
                  ascertainment_pop=None):
-        """Use config_array() instead of calling this constructor directly"""
+        """Use build_config_list() instead of calling this constructor directly"""
         # If sampled_n=None, ConfigList.sampled_n will be the max number of
         # observed individuals/alleles per population.
         self.sampled_pops = tuple(sampled_pops)

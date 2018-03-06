@@ -67,7 +67,7 @@ def sfs_func(demo_func, n_lins, normalized=True, states=None):
 
     def f(x):
         demo = demo_func(x, n_lins)
-        configs = momi.config_array(demo.pops, tuple(states), n_lins)
+        configs = momi.build_config_list(demo.pops, tuple(states), n_lins)
         #print(configs)
         # print demo.graph['cmd']
         sfs, branch_len = expected_sfs(demo.demo_hist, configs), expected_total_branch_len(

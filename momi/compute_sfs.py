@@ -3,7 +3,7 @@ import warnings
 import autograd.numpy as np
 import scipy
 from .util import memoize, make_constant, set0, closegeq
-from .data.config_array import config_array, ConfigList
+from .data.config_array import build_config_list, ConfigList
 from .math_functions import hypergeom_quasi_inverse, binom_coeffs, _apply_error_matrices, convolve_trailing_axes, sum_trailing_antidiagonals
 from .moran_model import moran_action, moran_transition
 from autograd.core import primitive
