@@ -337,8 +337,7 @@ class Sfs(object):
         :param bool vector: Whether to return a single total count, or an array of counts per-locus
         """
         if vector:
-            return np.array([self.n_snps(locus=loc)
-                             for loc in range(self.n_loci)])
+            return raw_np.array(self.freqs_matrix.sum(axis=0)).reshape((-1,))
         else:
             return np.sum(self._total_freqs)
 
