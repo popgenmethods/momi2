@@ -8,7 +8,7 @@ import logging
 import numpy as np
 import pysam
 from cached_property import cached_property
-from .config_array import ConfigArray
+from .config_array import ConfigList
 from .sfs import Sfs
 from ..util import memoize_instance
 from .compressed_counts import (
@@ -578,7 +578,7 @@ class SnpAlleleCounts(object):
     #                    zip(filtered.chrom_ids,
     #                        filtered.compressed_counts.index2uniq),
     #                    key=lambda x: x[0])]
-    #        self._seg_sites = SegSites(ConfigArray(
+    #        self._seg_sites = SegSites(ConfigList(
     #            self.populations,
     #            filtered.compressed_counts.config_array,
     #            ascertainment_pop=self.ascertainment_pop
@@ -594,7 +594,7 @@ class SnpAlleleCounts(object):
                     zip(filtered.chrom_ids,
                         filtered.compressed_counts.index2uniq),
                     key=lambda x: x[0])]
-        configs = ConfigArray(
+        configs = ConfigList(
             self.populations,
             filtered.compressed_counts.config_array,
             ascertainment_pop=self.ascertainment_pop)

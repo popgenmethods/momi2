@@ -8,7 +8,7 @@ from .compute_sfs import expected_sfs, expected_total_branch_len, expected_sfs_t
 from .likelihood import SfsLikelihoodSurface
 from .confidence_region import ConfidenceRegion
 from .data.config_array import config_array
-from .data.sfs import site_freq_spectrum
+from .data.sfs import site_freq_spectrum, Sfs
 from .data.tensor import sfs_tensor_prod
 from .data.snps import SnpAlleleCounts, snp_allele_counts
 from .demo_model import DemographicModel

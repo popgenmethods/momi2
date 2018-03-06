@@ -12,34 +12,32 @@ import os
 import logging
 from .compressed_counts import _hashed2config, _config2hashable
 from .compressed_counts import CompressedAlleleCounts
-from .config_array import ConfigArray
-from .config_array import _ConfigArray_Subset
+from .config_array import ConfigList
+from .config_array import _ConfigList_Subset
 from ..util import memoize_instance
 
 
-def site_freq_spectrum(sampled_pops, loci, length=None):
-    """
-    Parameters
-    ----------
-    sampled_pops : list of the population labels
-    loci : list of dicts, or list of lists
+def site_freq_spectrum(sampled_pops, freqs_by_locus, length=None):
+    """Create :class:`Sfs` from a list of dicts of counts.
 
-           if loci[i] is a dict, then loci[i][config]
-           is the count of the config at locus i
+    ``freqs_by_locus[l][config]`` gives the frequency of ``config`` \
+    on locus ``l``.
 
-           if loci[i] is a list, then loci[i][j]
-           is the config of the j-th SNP at locus i
+    A ``config`` is a ``(n_pops,2)``-array, where ``config[p][a]`` \
+    is the count of allele ``a`` in population ``p``. ``a=0`` represents \
+    the ancestral allele while ``a=1`` represents the derived allele.
 
-    See also
-    --------
-    site_freq_spectrum.load(): load in sfs from file created by Sfs.dump()
+    :param list sampled_pops: list of population names
+    :param list freqs_by_locus: list of dict
+    :param float,None length: Number of bases in the dataset. Set to ``None`` if unknown.
+    :rtype: :class:`Sfs`
     """
     index2loc = []
     index2count = []
     loci_counters = []
 
     def chained_sequences():
-        for loc, locus_iter in enumerate(loci):
+        for loc, locus_iter in enumerate(freqs_by_locus):
             loci_counters.append(co.Counter())
             try:
                 locus_iter = locus_iter.items()
@@ -60,53 +58,20 @@ def site_freq_spectrum(sampled_pops, loci, length=None):
     for loc, count, uniq in zip(index2loc, index2count, index2uniq):
         loci_counters[loc][uniq] += count
 
-    configs = ConfigArray(sampled_pops, config_array, None, None)
+    configs = ConfigList(sampled_pops, config_array, None, None)
     return Sfs(loci_counters, configs, folded=False, length=length)
 
 
-def load_sfs(f):
-    """
-    Read in Sfs that has been written to file by Sfs.dump()
-    """
-    if isinstance(f, str):
-        fname = os.path.expanduser(f)
-        if fname.endswith(".gz"):
-            with gzip.open(fname, "rt") as f:
-                return load_sfs(f)
-        else:
-            with open(fname) as f:
-                return load_sfs(f)
-
-    logging.getLogger(__name__).info("Reading json...")
-    info = json.load(f)
-    logging.getLogger(__name__).info("Finished reading json...")
-
-    logging.getLogger(__name__).info("Constructing configs...")
-    configs = info.pop("configs")
-    logging.getLogger(__name__).info(f"{len(configs)} unique configs detected")
-    # don't use autograd here for performance
-    configs = raw_np.array(configs, dtype=int)
-    logging.getLogger(__name__).info("Converted to numpy array...")
-    configs = ConfigArray(info.pop("sampled_pops"), configs)
-    logging.getLogger(__name__).info("Finished constructing configs")
-
-    logging.getLogger(__name__).info("Constructing SFS...")
-    loci = []
-    for locus, locus_rows in it.groupby(
-            info.pop("(locus,config_id,count)"), lambda x: x[0]):
-        loci.append({config_id: count
-                     for _, config_id, count in locus_rows})
-
-    ret = Sfs(loci, configs, **info)
-    logging.getLogger(__name__).info("Finished constructing SFS")
-
-    return ret
-
-
-site_freq_spectrum.load = load_sfs
-
 
 class Sfs(object):
+    """
+    Class for representing observed site frequnecy spectrum data.
+
+    To create a :class:`Sfs` object, use \
+    :meth:`SnpAlleleCounts.extract_sfs`, \
+    :meth:`Sfs.load`, or :func:`site_freq_spectrum`. \
+    Do NOT call the class constructor directly, it is for internal use only.
+    """
     @classmethod
     def from_matrix(cls, mat, configs, *args, **kwargs):
         # convert to csc
@@ -119,6 +84,47 @@ class Sfs(object):
                 mat.data[indptr[i]:indptr[i+1]]]))
 
         return cls(loci, configs, *args, **kwargs)
+
+    @classmethod
+    def load(cls, f):
+        """Load :class:`Sfs` from json file (as created by :meth:`Sfs.dump` or `extract_sfs` script)
+
+        :param str,file f: file object or file name to read in
+        :rtype: :class:`Sfs`
+        """
+        if isinstance(f, str):
+            fname = os.path.expanduser(f)
+            if fname.endswith(".gz"):
+                with gzip.open(fname, "rt") as f:
+                    return cls.load(f)
+            else:
+                with open(fname) as f:
+                    return cls.load(f)
+
+        logging.getLogger(__name__).info("Reading json...")
+        info = json.load(f)
+        logging.getLogger(__name__).info("Finished reading json...")
+
+        logging.getLogger(__name__).info("Constructing configs...")
+        configs = info.pop("configs")
+        logging.getLogger(__name__).info(f"{len(configs)} unique configs detected")
+        # don't use autograd here for performance
+        configs = raw_np.array(configs, dtype=int)
+        logging.getLogger(__name__).info("Converted to numpy array...")
+        configs = ConfigList(info.pop("sampled_pops"), configs)
+        logging.getLogger(__name__).info("Finished constructing configs")
+
+        logging.getLogger(__name__).info("Constructing SFS...")
+        loci = []
+        for locus, locus_rows in it.groupby(
+                info.pop("(locus,config_id,count)"), lambda x: x[0]):
+            loci.append({config_id: count
+                        for _, config_id, count in locus_rows})
+
+        ret = cls(loci, configs, **info)
+        logging.getLogger(__name__).info("Finished constructing SFS")
+
+        return ret
 
     def __init__(self, loci, configs, folded, length):
         self.folded = folded
@@ -160,9 +166,9 @@ class Sfs(object):
         assert not np.any(self._total_freqs == 0)
 
     def dump(self, f):
-        """
-        Write the Sfs in a compressed JSON format,
-        that can be read in by site_freq_spectrum.load()
+        """Write Sfs to file
+
+        :param str,file f: Filename or object. If name ends with ".gz" gzip it.
         """
         if isinstance(f, str):
             fname = os.path.expanduser(f)
@@ -213,20 +219,14 @@ class Sfs(object):
 
     @memoize_instance
     def combine_loci(self):
-        """
-        Returns a copy of this SFS, but with all loci
-        combined into a single locus
-        """
+        # return copy with all loci combined
         return self.from_matrix(self.freqs_matrix.sum(axis=1),
                                 self.configs, self.folded,
                                 self.length)
 
     @property
     def freqs_matrix(self):
-        """
-        Returns the frequencies as a sparse matrix;
-        freqs_matrix[i, j] is the frequency of Sfs.configs[i] at locus j
-        """
+        # [i,j] = freq of configs[i] at locus j
         return self.csr_freqs_matrix
 
     @cached_property
@@ -236,13 +236,7 @@ class Sfs(object):
 
     @cached_property
     def avg_pairwise_hets(self):
-        """
-        Returns the number of SNPs where a single individual is heterozygote,
-        averaged over all individuals within each population
-
-        Returns numpy.ndarray pairwise_hets, where pairwise_hets[i,j] is the
-        average number of hets in population j at locus i
-        """
+        # avg number of hets per ind per pop (assuming Hardy-Weinberg)
         n_nonmissing = np.sum(self.configs.value, axis=2)
         # for denominator, assume 1 allele is drawn from whole sample, and 1
         # allele is drawn only from nomissing alleles
@@ -253,13 +247,18 @@ class Sfs(object):
         return self.freqs_matrix.T.dot(p_het)
 
     def resample(self):
+        """Create a new SFS by resampling loci with replacement.
+
+        :returns: Resampled SFS
+        :rtype: :class:`Sfs`
+        """
         loci = np.random.choice(
             np.arange(self.n_loci), size=self.n_loci, replace=True)
         mat = self.freqs_matrix[:, loci]
         to_keep = np.asarray(mat.sum(axis=1) > 0).squeeze()
         to_keep = np.arange(len(self.configs))[to_keep]
         mat = mat[to_keep, :]
-        configs = _ConfigArray_Subset(self.configs, to_keep)
+        configs = _ConfigList_Subset(self.configs, to_keep)
 
         # NOTE not exactly right but close enough
         length = self.length * mat.sum() / self.n_snps()
@@ -268,6 +267,14 @@ class Sfs(object):
 
     @property
     def sampled_n(self):
+        """Number of samples per population
+
+        ``sampled_n[i]`` is the number of haploids \
+        in ``sampled_pops[i]``
+
+        :returns: 1-d array of integers
+        :rtype: :class:`numpy.ndarray`
+        """
         return self.configs.sampled_n
 
     @property
@@ -276,6 +283,11 @@ class Sfs(object):
 
     @property
     def sampled_pops(self):
+        """Names of sampled populations
+
+        :returns: 1-d array of strings
+        :rtype: :class:`numpy.ndarray`
+        """
         return self.configs.sampled_pops
 
     @property
@@ -383,20 +395,20 @@ class Sfs(object):
 
         return self.from_matrix(
             compressed_folded.index2uniq_mat @ self.freqs_matrix,
-            ConfigArray(self.sampled_pops, compressed_folded.config_array,
+            ConfigList(self.sampled_pops, compressed_folded.config_array,
                         sampled_n=self.sampled_n,
                         ascertainment_pop=self.ascertainment_pop),
             folded=True, length=self.length)
 
     def _copy(self, sampled_n=None):
         """
-        See also: ConfigArray._copy()
+        See also: ConfigList._copy()
         """
         if sampled_n is None:
             sampled_n = self.sampled_n
         return self.from_matrix(
             self.csr_freqs_matrix,
-            ConfigArray(self.sampled_pops, self.configs.value,
+            ConfigList(self.sampled_pops, self.configs.value,
                         sampled_n=sampled_n,
                         ascertainment_pop=self.ascertainment_pop),
             self.folded, self.length)
@@ -456,14 +468,14 @@ class Sfs(object):
 
         return self.from_matrix(
             new_configs.index2uniq_mat @ sub_sfs.freqs_matrix,
-            ConfigArray(populations, new_configs.config_array,
+            ConfigList(populations, new_configs.config_array,
                         ascertainment_pop=ascertained),
             self.folded, self.length)
 
     def _subset_configs(self, idxs):
         return self.from_matrix(
             self.csr_freqs_matrix[idxs, :],
-            _ConfigArray_Subset(self.configs, idxs),
+            _ConfigList_Subset(self.configs, idxs),
             self.folded, self.length)
 
     @property

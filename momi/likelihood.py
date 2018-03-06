@@ -9,7 +9,7 @@ from autograd.extend import primitive, defvjp
 from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
 from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
 from .demography import Demography
-from .data.config_array import _ConfigArray_Subset
+from .data.config_array import _ConfigList_Subset
 from .data.sfs import Sfs
 
 logger = logging.getLogger(__name__)
@@ -569,7 +569,7 @@ def _subsfs_list(sfs, n_chunks, rnd):
     for chunk in range(n_chunks):
         chunk_idxs, chunk_cnts = np.unique(idxs[chunk::n_chunks],
                                            return_counts=True)
-        sub_configs = _ConfigArray_Subset(sfs.configs, chunk_idxs)
+        sub_configs = _ConfigList_Subset(sfs.configs, chunk_idxs)
         ret.append(Sfs.from_matrix(
             np.array([chunk_cnts]).T, sub_configs,
             folded=sfs.folded, length=None))

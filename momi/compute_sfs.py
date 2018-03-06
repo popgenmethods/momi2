@@ -3,7 +3,7 @@ import warnings
 import autograd.numpy as np
 import scipy
 from .util import memoize, make_constant, set0, closegeq
-from .data.config_array import config_array, ConfigArray
+from .data.config_array import config_array, ConfigList
 from .math_functions import hypergeom_quasi_inverse, binom_coeffs, _apply_error_matrices, convolve_trailing_axes, sum_trailing_antidiagonals
 from .moran_model import moran_action, moran_transition
 from autograd.core import primitive
@@ -20,7 +20,7 @@ def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, folded=Fal
     Parameters
     ----------
     demography : Demography
-    configs : ConfigArray
+    configs : ConfigList
         if configs.folded == True, returns the folded SFS entries
     mut_rate : float
          mutation rate per unit time
@@ -65,7 +65,7 @@ def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, folded=Fal
 def _expected_sfs(demography, configs, folded, error_matrices):
     if np.any(configs.sampled_n != demography.sampled_n) or np.any(configs.sampled_pops != demography.sampled_pops):
         raise ValueError(
-            "configs and demography must have same sampled_n, sampled_pops. Use Demography.copy() or ConfigArray.copy() to make a copy with different sampled_n.")
+            "configs and demography must have same sampled_n, sampled_pops. Use Demography.copy() or ConfigList.copy() to make a copy with different sampled_n.")
 
     vecs, idxs = configs._vecs_and_idxs(folded)
 
@@ -162,7 +162,7 @@ def expected_heterozygosity(demography, sampled_pops=None, error_matrices=None):
         demography.sampled_pops), 2), dtype=int)
     for i in range(len(demography.sampled_pops)):
         configs[i, i, :] = 1
-    configs = ConfigArray(demography.sampled_pops, configs,
+    configs = ConfigList(demography.sampled_pops, configs,
                           sampled_n=demography.sampled_n)
     return expected_sfs(demography, configs, error_matrices=error_matrices)
 

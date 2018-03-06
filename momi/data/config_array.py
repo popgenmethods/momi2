@@ -22,10 +22,10 @@ def config_array(sampled_pops, counts, sampled_n=None, ascertainment_pop=None):
     counts = np.array(counts, ndmin=3, dtype=int)
     assert counts.shape[1:] == (len(sampled_pops), 2)
     counts.setflags(write=False)
-    return ConfigArray(sampled_pops, counts, sampled_n, ascertainment_pop)
+    return ConfigList(sampled_pops, counts, sampled_n, ascertainment_pop)
 
 
-def full_config_array(sampled_pops, sampled_n, ascertainment_pop=None):
+def build_full_config_list(sampled_pops, sampled_n, ascertainment_pop=None):
     sampled_n = np.array(sampled_n)
     if ascertainment_pop is None:
         ascertainment_pop = [True] * len(sampled_pops)
@@ -43,20 +43,20 @@ def full_config_array(sampled_pops, sampled_n, ascertainment_pop=None):
         ascertainment_pop=ascertainment_pop)
 
 
-class ConfigArray(object):
+class ConfigList(object):
     """
     Stores a list of configs. Important methods/attributes:
 
-    ConfigArray.sampled_pops: the population labels
-    ConfigArray[i] : the i-th config in the list
-    ConfigArray.sampled_n : the number of alleles sampled per population.
+    ConfigList.sampled_pops: the population labels
+    ConfigList[i] : the i-th config in the list
+    ConfigList.sampled_n : the number of alleles sampled per population.
                         used to construct the likelihood vectors for
                         junction tree algorithm.
     """
     def __init__(self, sampled_pops, conf_arr, sampled_n=None,
                  ascertainment_pop=None):
         """Use config_array() instead of calling this constructor directly"""
-        # If sampled_n=None, ConfigArray.sampled_n will be the max number of
+        # If sampled_n=None, ConfigList.sampled_n will be the max number of
         # observed individuals/alleles per population.
         self.sampled_pops = tuple(sampled_pops)
         self.value = conf_arr
@@ -174,7 +174,7 @@ class ConfigArray(object):
         Notes
         -----
         Note that momi.expected_sfs, momi.composite_log_likelihood require
-        Demography.sampled_n == ConfigArray.sampled_n.
+        Demography.sampled_n == ConfigList.sampled_n.
         If this is not the case, you can use _copy() to create a copy with the
         correct sampled_n.
         Note this has no affect on the actual allele counts, as missing data
@@ -183,7 +183,7 @@ class ConfigArray(object):
         """
         if sampled_n is None:
             sampled_n = self.sampled_n
-        return ConfigArray(self.sampled_pops, self.value, sampled_n=sampled_n,
+        return ConfigList(self.sampled_pops, self.value, sampled_n=sampled_n,
                            ascertainment_pop=self.ascertainment_pop)
 
     def _vecs_and_idxs(self, folded):
@@ -303,7 +303,7 @@ class ConfigArray(object):
         return np.array(augmented_configs, dtype=int), idxs
 
 
-class _ConfigArray_Subset(ConfigArray):
+class _ConfigList_Subset(ConfigList):
     # Efficient access to subset of configs
     def __init__(self, configs, sub_idxs):
         self.sub_idxs = sub_idxs

@@ -31,6 +31,10 @@ class DemographicModel(object):
     :param float gen_time: units of time per generation. \
     For example, if you wish to specify time in years, and a \
     generation is 29 years, set this to 29. Default value is 1.
+
+    :param float,None muts_per_gen: mutation rate per base \
+    per generation. If unknown, set to None (the default). \
+    Can be changed with :meth:`DemographicModel.set_mut_rate`
     """
     def __init__(self, N_e, gen_time=1, muts_per_gen=None):
         self.N_e = N_e
@@ -49,6 +53,10 @@ class DemographicModel(object):
                        non_ascertained_pops=None)
 
     def set_mut_rate(self, muts_per_gen):
+        """Set the mutation rate.
+
+        :param float,None muts_per_gen: Mutation rate per base per generation. If unknown, set to None.
+        """
         self.muts_per_gen = muts_per_gen
 
     def copy(self):
@@ -124,7 +132,7 @@ class DemographicModel(object):
         :meth:`DemographicModel.add_time_param`, or
         :meth:`DemographicModel.add_growth_param`.
 
-        In order for internal gradients to be correct, ``scale_transform`` and ``unscale_transform`` should be constructed using the ``autograd`` package (see `tutorial <https://github.com/HIPS/autograd/blob/master/docs/tutorial.md>`_).
+        In order for internal gradients to be correct, ``scale_transform`` and ``unscale_transform`` should be constructed using `autograd <https://github.com/HIPS/autograd/blob/master/docs/tutorial.md>`_.
 
         :param str name: Name of the parameter.
         :param float start_value: Starting value. If None, use \
@@ -767,7 +775,7 @@ class DemographicModel(object):
         return {pop: pm for pop, pm in zip(
             self._fullsfs.populations, p_miss)}
 
-    # TODO note these are in PER-GENERATION units
+    # NOTE note these are in PER-GENERATION units
     # TODO allow to pass folded parameter (if passing separate configs?)
     def expected_sfs(self, configs=None, normalized=False,
                      folded=False):
@@ -784,7 +792,7 @@ class DemographicModel(object):
             ret = ret * self.N_e * 4.0 * self.muts_per_gen * self._length
         return co.OrderedDict(zip(configs.as_tuple(), ret))
 
-    # TODO note these are in PER-GENERATION units
+    # NOTE these are in PER-GENERATION units
     def expected_branchlen(self, sampled_n_dict=None):
         demo = self._get_demo(sampled_n_dict)
         return expected_total_branch_len(demo) * self.N_e * 4.0
@@ -854,31 +862,18 @@ class DemographicModel(object):
 
     def optimize(self, method="tnc", jac=True,
                  hess=False, hessp=False, printfreq=1, **kwargs):
-        """
-        Search for the maximum likelihood value of the
-        parameters.
+        """Search for the maximum likelihood value of the parameters.
 
-        This is just a wrapper around scipy.optimize.minimize
-        on the KL-divergence
+        This is a wrapper around :func:`scipy.optimize.minimize`, \
+        and arguments for that function can be passed in via \
+        ``**kwargs``. Note the following arguments are constructed by :mod:`momi` and not be passed in by ``**kwargs``: ``fun``, ``x0``, ``jac``, ``hess``, ``hessp``, ``bounds``.
 
-        Arguments
-        ---------
-        method: str
-            any method from scipy.optimize.minimize
-            (e.g. "tnc", "L-BFGS-B", etc)
-        jac : bool
-              If True, use autograd to compute the gradient
-              and pass it into scipy.optimize.minimize
-        hess, hessp: bool
-              If True, use autograd to compute the hessian or
-              hessian-vector-product, and pass into
-              scipy.optimize.minimize.
-
-              Requires that the data was set with
-              DemographicModel.set_data(..., mem_chunk_size=-1),
-              and may incur a high memory cost.
-        **kwargs: additional arguments passed to
-              scipy.optimize.minimize
+        :param str method: Optimization method. Default is "tnc". For large models "L-BFGS-B" is recommended. See :func:`scipy.optimize.minimize`.
+        :param bool jac: Whether or not to provide the gradient (computed via :mod:`autograd`) to the optimizer. If `False`, optimizers requiring gradients will typically approximate it via finite differences.
+        :param bool hess: Whether or not to provide the hessian (computed via :mod:`autograd`) to the optimizer.
+        :param bool hessp: Whether or not to provide the hessian-vector-product (via :mod:`autograd`) to the optimizer
+        :param int printfreq: Log current progress via :func:`logging.info` every `printfreq` iterations
+        :rtype: :class:`scipy.optimize.OptimizeResult`
         """
         bounds = [p.x_bounds
                   for p in self.parameters.values()]

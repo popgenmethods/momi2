@@ -96,7 +96,7 @@ class Demography(object):
         Notes
         -----
         Note that momi.expected_sfs, momi.composite_log_likelihood require
-        Demography.sampled_n == ConfigArray.sampled_n.
+        Demography.sampled_n == ConfigList.sampled_n.
         If this is not the case, you can use copy() to create a copy with the correct
         sampled_n.
         """
