@@ -37,6 +37,17 @@ jupyter notebook docs/tutorial.ipynb
 ```
 to try it out.
 
+## Documentation
+
+To build the docs pre-release, do
+```
+pip install sphinx nbsphinx
+cd docs
+make html
+```
+
+You can then view documentation in `docs/_build/html/index.html`.
+
 ## A note on parallelization
 
 momi will automatically use all available CPUs to perform
