@@ -641,6 +641,19 @@ class DemographicModel(object):
         return self._subsfs
 
     def fit_within_pop_diversity(self):
+        """Estimates mutation rate using within-population nucleotide diversity.
+
+        The within-population nucleotide diversity is the average number of hets \
+        per individual in the population, assuming it is at Hardy Weinberg equilibrium.
+
+        This returns an estimated mutation rate for each (ascertained) population. Note these are \
+        non-independent estimates of the same value. It also returns standard deviations from the jacknife.
+
+        If :attr:`DemographicModel.muts_per_gen` is set, will also return Z-scores \
+        of the residuals.
+
+        :rtype: :class:`pandas.DataFrame`
+        """
         if not self._length:
             raise ValueError("SFS has no length attribute, need to provide it with set_data(). If unknown, set length=1 to estimate the mutation rate over the full data instead of per-base.")
 
@@ -835,8 +848,20 @@ class DemographicModel(object):
 
     def stochastic_optimize(
             self, n_minibatches=None, snps_per_minibatch=None,
-            rgen=np.random, printfreq=1, start_from_checkpoint=None,
-            **kwargs):
+            rgen=None, printfreq=1, start_from_checkpoint=None,
+            save_to_checkpoint=None, **kwargs):
+        """Use stochastic optimization (ADAM+SVRG) to search for MLE
+
+        Exactly one of of ``n_minibatches`` and ``snps_per_minibatch`` should be set, as one determines the other.
+
+        :param int n_minibatches: Number of minibatches
+        :param int snps_per_minibatch: Number of SNPs per minibatch
+        :param numpy.RandomState rgen: Random generator
+        :param int printfreq: How often to log progress
+        :param str start_from_checkpoint: Name of checkpoint file to start from
+        :param save_to_checkpoint: Name of checkpoint file to save to
+        :rtype: :class:`scipy.optimize.OptimizeResult`
+        """
         def callback(x):
             self._set_x(x)
             if x.iteration % printfreq == 0:
@@ -844,6 +869,9 @@ class DemographicModel(object):
                 msg.extend(list(self.get_params().items()))
                 msg = ", ".join(["{}: {}".format(k, v) for k, v in msg])
                 logging.getLogger(__name__).info("{" + msg + "}")
+
+        if rgen is None:
+            rgen = np.random
 
         bounds = [p.x_bounds
                   for p in self.parameters.values()]
@@ -863,7 +891,7 @@ class DemographicModel(object):
         res = self._get_surface()._stochastic_surfaces(
             n_minibatches=n_minibatches,
             snps_per_minibatch=snps_per_minibatch,
-            rgen=rgen).find_mle(**kwargs)
+            rgen=rgen).find_mle(checkpoint_file=None, **kwargs)
 
         self._set_x(res.x)
         return res

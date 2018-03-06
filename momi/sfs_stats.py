@@ -228,6 +228,11 @@ class SfsModelFitStats(SfsStats):
         return 1.0
 
     def all_pairs_ibs(self, fig=True):
+        """Fit the IBS fraction for all pairs of populations, and optionally plot it.
+
+        :param bool fig: whether to plot it
+        :rtype: :class:`pandas.DataFrame`
+        """
         pops = list(self.sampled_n_dict.keys())
 
         df = []
