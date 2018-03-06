@@ -1,6 +1,6 @@
 import itertools as it
 import autograd.numpy as np
-from scipy.misc import comb
+from scipy.special import comb
 from .compressed_counts import _config2hashable
 from ..util import memoize_instance
 

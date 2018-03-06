@@ -59,9 +59,9 @@ def test_count_subsets():
 
     subconfig_probs = np.ones(len(data.configs))
     for i, (a, d) in enumerate(subconfig):
-        #subconfig_probs *= scipy.misc.comb(
+        #subconfig_probs *= scipy.special.comb(
         #    data.configs.value[:, i, :], [a, d]).prod(axis=1)
-        #subconfig_probs /= scipy.misc.comb(
+        #subconfig_probs /= scipy.special.comb(
         #    data.configs.value[:, i, :].sum(axis=1), a+d)
         subconfig_probs *= scipy.stats.hypergeom.pmf(
             d, data.configs.value[:, i, :].sum(axis=1),

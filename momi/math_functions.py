@@ -183,7 +183,7 @@ def expm1d_taylor(x):
 
 
 def binom_coeffs(n):
-    return scipy.misc.comb(n, np.arange(n + 1))
+    return scipy.special.comb(n, np.arange(n + 1))
 
 log_factorial = lambda n: scipy.special.gammaln(n + 1)
 log_binom = lambda n, k: log_factorial(

@@ -289,7 +289,7 @@ class DemographicModel(object):
         else:
             self.add_parameter(
                 name, t0,
-                scaled_lower=1e-16,  # prevent optimizer from having a slightly negative number
+                scaled_lower=1e-12,  # prevent optimizer from having a slightly negative number
                 scale_transform=scale_transform,
                 unscale_transform=unscale_transform,
                 rgen=rgen)

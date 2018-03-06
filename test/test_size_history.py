@@ -1,7 +1,7 @@
 import momi.size_history as size_history
 import momi.util as util
 import numpy as np
-from scipy.misc import comb as binom
+from scipy.special import comb as binom
 import random
 
 

@@ -6,7 +6,6 @@ import numpy as raw_np
 from cached_property import cached_property
 import scipy
 import scipy.sparse
-import scipy.misc
 import gzip
 import os
 import logging

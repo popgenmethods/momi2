@@ -409,7 +409,7 @@ def _set_sizes(node_data, end_time):
 
         if not all([sizes[i][x] >= 0.0 for x in ('tau', 'N', 'N_top')]):
             raise DemographyError("Negative time or population size in {sizes}".format(
-                sizes=[{k: v for k, v in s.items()} for s in sizes]))
+                sizes=[{k: str(v) for k, v in s.items()} for s in sizes]))
     sizes.pop()  # remove the final dummy epoch
 
     assert len(pieces) > 0

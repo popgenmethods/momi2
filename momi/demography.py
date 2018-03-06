@@ -1,8 +1,8 @@
 from functools import partial
 import networkx as nx
 import scipy
-import scipy.misc
-from scipy.misc import comb
+import scipy.special
+from scipy.special import comb
 import scipy.sparse
 import autograd.numpy as np
 import msprime
@@ -324,7 +324,7 @@ class Demography(object):
         #n_from_1 = np.arange(n_node + 1)
         #n_from_2 = n_node - n_from_1
         #binom_coeffs = (prob1**n_from_1) * (prob2**n_from_2) * \
-        #    scipy.misc.comb(n_node, n_from_1)
+        #    scipy.special.comb(n_node, n_from_1)
         #ret = par_einsum(_der_in_admixture_node(n_node), list(range(4)),
         #                 binom_coeffs, [0],
         #                 [1, 2, 3])
@@ -535,8 +535,8 @@ def admixture_operator(n_node, p):
 #    anc_in_parent = n_node - der_in_parent
 #    anc_from_parent = n_from_parent - der_from_parent
 #
-#    x = scipy.misc.comb(der_in_parent, der_from_parent) * scipy.misc.comb(
-#        anc_in_parent, anc_from_parent) / scipy.misc.comb(n_node, n_from_parent)
+#    x = scipy.special.comb(der_in_parent, der_from_parent) * scipy.special.comb(
+#        anc_in_parent, anc_from_parent) / scipy.special.comb(n_node, n_from_parent)
 #
 #    ret, labels = convolve_axes(
 #        x, x[::-1, ...], [[c for c in 'ijk'], [c for c in 'ilm']], ['j', 'l'], 'n')
