@@ -30,10 +30,10 @@ for example:
 
 ## Getting started
 
-See the [tutorial](examples/tutorial.ipynb) notebook.
+See the [tutorial](docs/tutorial.ipynb) notebook.
 You can type
 ```
-jupyter notebook examples/tutorial.ipynb
+jupyter notebook docs/tutorial.ipynb
 ```
 to try it out.
 
