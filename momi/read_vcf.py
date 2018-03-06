@@ -1,3 +1,10 @@
+"""Runnable module to convert VCF file to :class:`SnpAlleleCounts`.
+
+Run this from the command line like ``python -m momi.read_vcf ...``. \
+See the ``--help`` flag for command line options. \
+Use :meth:`SnpAlleleCounts.read_vcf` to read the VCF from within Python.
+"""
+
 import argparse
 import sys
 import logging

@@ -67,11 +67,6 @@ class SnpAlleleCounts(object):
                  bed_file=None, ancestral_alleles=True):
         """Read in a VCF file and return the allele counts at biallelic SNPs.
 
-        This method can be slow, so it is recommended to save the resulting
-        :class:`SnpAlleleCounts` with :meth:`SnpAlleleCounts.dump`,
-        so that it can be read more quickly with :func:`SnpAlleleCounts.load`
-        later.
-
         :param str vcf_file: VCF file to read in. "-" reads from stdin.
         :param dict ind2pop: Maps individual samples to populations.
         :param bool,str ancestral_alleles: If True, use the AA INFO field to \
@@ -274,15 +269,8 @@ class SnpAlleleCounts(object):
 
     @classmethod
     def load(cls, f):
-        """Load :class:`SnpAlleleCounts` from json file created
-        by :meth:`SnpAlleleCounts.dump`
-
-        This is the fastest way to read data into :mod:`momi`,
-        much faster than :func:`SnpAlleleCounts.read_vcf`
-        and :func:`snp_allele_counts`.
-        If needing to use the same dataset in multiple sessions,
-        it is highly recommended to store it with :meth:`SnpAlleleCounts.dump`
-        so that it can be read in with this method.
+        """Load :class:`SnpAlleleCounts` created \
+        from :meth:`SnpAlleleCounts.dump` or ``python -m momi.read_vcf ...``
 
         :param str,file f: file object or file name to read in
         :rtype: :class:`SnpAlleleCounts`
@@ -473,14 +461,19 @@ class SnpAlleleCounts(object):
             self.n_read_snps, self.n_excluded_snps)
 
     def extract_sfs(self, n_blocks):
+        """Extracts SFS from data.
+
+        :param int n_blocks: Number of blocks to split SFS into, for jackknifing and bootstrapping
+        :rtype: :class:`Sfs`
+        """
         if n_blocks is None:
             return self._sfs
         else:
             return self._chunk_data(n_blocks)._sfs
 
     @property
-    def _p_missing(self):
-        return self._sfs._p_missing
+    def p_missing(self):
+        return self._sfs.p_missing
 
     def subset_populations(self, populations, non_ascertained_pops=None):
         if non_ascertained_pops is not None:

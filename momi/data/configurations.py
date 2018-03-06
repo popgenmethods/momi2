@@ -91,6 +91,10 @@ class ConfigList(object):
                              " sites must be polymorphic when restricted to"
                              " the ascertainment populations")
 
+    @property
+    def config_array(self):
+        return self.value
+
     def __getitem__(self, args):
         return self.value.__getitem__(args)
 

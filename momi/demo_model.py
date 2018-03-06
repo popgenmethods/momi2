@@ -561,11 +561,6 @@ class DemographicModel(object):
         finally:
             self._set_x(prev_x)
 
-    def set_data(
-            self, sfs, length=None,
-            mem_chunk_size=1000,
-            use_pairwise_diffs=True,
-            non_ascertained_pops=None):
         """
         Sets data, and optionally the mutation rate,
         in order to compute likelihoods and fit parameters
@@ -602,6 +597,19 @@ class DemographicModel(object):
             coalescence time within a population)
             if None, uses the pairwise heterozygosity if there is missing data;
             else, if there is no missing data, use total number of mutations
+        """
+    def set_data(
+            self, sfs, length=None,
+            mem_chunk_size=1000,
+            non_ascertained_pops=None,
+            use_pairwise_diffs=True):
+        """Set dataset for the model.
+
+        :param Sfs sfs: Observed SFS
+        :param float length: Length of data in bases. Overrides ``sfs.length`` if set. Required if :attr:`DemoModel.muts_per_gen` is set and ``sfs.length`` is not.
+        :param mem_chunk_size: Controls memory usage by computing likelihood in chunks of SNPs. If ``-1`` then no chunking is done.
+        :param non_ascertained_pops: Don't ascertain SNPs within these populations. That is, ignore all SNPs that are not polymorphic on the other populations. The SFS is adjusted to represent probabilities conditional on this ascertainment scheme.
+        :param use_pairwise_diffs: Only has an effect if :attr:`DemoModel.muts_per_gen` is set. If ``False``, assumes the total number of mutations is Poisson. If True, models the within population nucleotide diversity (i.e. the average number of heterozygotes per population) as independent Poissons. If there is missing data this is required to be ``True``.
         """
         if not length:
             length = sfs.length
@@ -771,7 +779,7 @@ class DemographicModel(object):
         return self._lik_surface
 
     def _p_missing_dict(self):
-        p_miss = self._fullsfs._p_missing
+        p_miss = self._fullsfs.p_missing
         return {pop: pm for pop, pm in zip(
             self._fullsfs.populations, p_miss)}
 

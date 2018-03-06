@@ -78,18 +78,18 @@ class SfsStats(object):
 
     def abba_baba(self, A, B, C, D=None):
         """
+        Same as :meth:`f4`
+        """
+        return self.baba(A, B, C, D) - self.abba(A, B, C, D)
+
+    def f4(self, A, B, C, D=None):
+        """
         Returns the ABBA-BABA (f4) statistic for testing admixture.
 
         :param str A: First population
         :param str B: Second population
         :param str C: Third population
         :param str D: Fourth population. If None, use ancestral allele.
-        """
-        return self.baba(A, B, C, D) - self.abba(A, B, C, D)
-
-    def f4(self, A, B, C, D=None):
-        """
-        Same as :meth:`abba_baba`
         """
         return self.abba_baba(A, B, C, D)
 
@@ -160,7 +160,7 @@ class SfsModelFitStats(SfsStats):
     SFS (i.e., the SFS normalized to be a probability distribution
     summing to 1). Thus the mutation rate has no effect on these statistics.
 
-    See Patterson et al 2012, "Ancient Admixture in Human History",
+    See `Patterson et al 2012 <http://www.genetics.org/content/192/3/1065>`_,
     for definitions of f2, f3, f4 (abba-baba), and D statistics.
 
     Note this class does NOT get updated when the underlying
@@ -169,13 +169,6 @@ class SfsModelFitStats(SfsStats):
 
     :param momi.DemographicModel demo_model: Demography to compute expected \
     statistics under.
-
-    :param int n_jackknife: Split the dataset into ``n_jackknife`` contiguous \
-    blocks of SNPs, to compute standard deviations via block jackknife.
-
-    :param momi.SnpAlleleCounts data: Dataset to compute observed SFS \
-    statistics. By default, use the dataset associated with ``demo_model`` \
-    if that has been set by :meth:`DemographicModel.set_data`
 
     :param dict sampled_n_dict: The number of samples to use \
     per population. SNPs with fewer than this number of samples \

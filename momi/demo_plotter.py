@@ -341,6 +341,14 @@ class DemographyPlot(object):
         return N_legend_values
 
     def draw_N_legend(self, N_legend_values=None, title="N", **kwargs):
+        """Draw legend of population sizes.
+
+        ``**kwargs`` are passed onto :meth:`matplotlib.axes.Axes.legend`.
+
+        :param N_legend_values: Values of ``N`` to plot.
+        :param title: Title of legend
+        :rtype: :class:`matplotlib.legend.Legend`
+        """
         if N_legend_values is None:
             N_legend_values = self.get_N_legend_values()
 

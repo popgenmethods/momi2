@@ -87,7 +87,7 @@ class Sfs(object):
 
     @classmethod
     def load(cls, f):
-        """Load :class:`Sfs` from json file (as created by :meth:`Sfs.dump` or `extract_sfs` script)
+        """Load :class:`Sfs` from file created by :meth:`Sfs.dump` or ``python -m momi.extract_sfs``
 
         :param str,file f: file object or file name to read in
         :rtype: :class:`Sfs`
@@ -128,7 +128,7 @@ class Sfs(object):
 
     def __init__(self, loci, configs, folded, length):
         self.folded = folded
-        self.length = length
+        self._length = length
 
         self.configs = configs
 
@@ -186,7 +186,7 @@ class Sfs(object):
         print('\t"folded": {},'.format(
             json.dumps(self.folded)), file=f)
         print('\t"length": {},'.format(
-            json.dumps(self.length)), file=f)
+            json.dumps(self._length)), file=f)
         print('\t"configs": [', file=f)
         n_configs = len(self.configs.value)
         for i, c in enumerate(self.configs.value.tolist()):
@@ -222,11 +222,16 @@ class Sfs(object):
         # return copy with all loci combined
         return self.from_matrix(self.freqs_matrix.sum(axis=1),
                                 self.configs, self.folded,
-                                self.length)
+                                self._length)
 
     @property
     def freqs_matrix(self):
-        # [i,j] = freq of configs[i] at locus j
+        """Sparse matrix representing the frequencies at each locus.
+
+        The ``(i,j)``-th entry gives the frequency of the ``i``-th config in :attr:`Sfs.config_array` at locus ``j``
+
+        :rtype: :class:`scipy.sparse.csr_matrix`
+        """
         return self.csr_freqs_matrix
 
     @cached_property
@@ -247,7 +252,10 @@ class Sfs(object):
         return self.freqs_matrix.T.dot(p_het)
 
     def resample(self):
-        """Create a new SFS by resampling loci with replacement.
+        """Create a new SFS by resampling blocks with replacement.
+
+        Note the resampled SFS is assumed to have the same length in base pairs \
+        as the original SFS, which may be a poor assumption if the blocks are not of equal length.
 
         :returns: Resampled SFS
         :rtype: :class:`Sfs`
@@ -260,17 +268,14 @@ class Sfs(object):
         mat = mat[to_keep, :]
         configs = _ConfigList_Subset(self.configs, to_keep)
 
-        # NOTE not exactly right but close enough
-        length = self.length * mat.sum() / self.n_snps()
-
-        return self.from_matrix(mat, configs, self.folded, length)
+        return self.from_matrix(mat, configs, self.folded, self.length)
 
     @property
     def sampled_n(self):
         """Number of samples per population
 
         ``sampled_n[i]`` is the number of haploids \
-        in ``sampled_pops[i]``
+        in the ``i``-th population of :attr:`Sfs.sampled_pops`
 
         :returns: 1-d array of integers
         :rtype: :class:`numpy.ndarray`
@@ -292,22 +297,50 @@ class Sfs(object):
 
     @property
     def n_loci(self):
+        """The number of loci in the dataset
+
+        :rtype: int
+        """
         return len(self.loc_idxs)
 
     @property
     def n_nonzero_entries(self):
         return len(self.configs)
 
+    @property
+    def config_array(self):
+        """Array of unique configs.
+
+        This is a 3-d array with shape ``(n_configs, n_pops, 2)``. \
+        ``config_array[i, p, a]`` gives the count of allele ``a`` \
+        in population ``p`` in configuration ``i``. \
+        Allele ``a=0`` is ancestral, ``a=1`` is derived. \
+        :attr:`Sfs.sampled_pops` gives the ordering of the populations.
+
+        :returns: array of configs
+        :rtype: :class:`numpy.ndarray`
+        """
+        return self.configs.config_array
+
+    @property
+    def length(self):
+        """Length of data in bases. ``None`` if unknown.
+
+        :rtype: float
+        """
+        return self._length
+
     @memoize_instance
-    def n_snps(self, vector=False, locus=None):
+    def n_snps(self, vector=False):
+        """Number of SNPs, either per-locus or overall.
+
+        :param bool vector: Whether to return a single total count, or an array of counts per-locus
+        """
         if vector:
-            assert locus is None
             return np.array([self.n_snps(locus=loc)
                              for loc in range(self.n_loci)])
-        if locus is None:
-            return np.sum(self._total_freqs)
         else:
-            return sum(self.loc_counts[locus])
+            return np.sum(self._total_freqs)
 
     def __eq__(self, other):
         loci_dicts = self._get_dict(vector=True)
@@ -381,7 +414,8 @@ class Sfs(object):
 
     def fold(self):
         """
-        Returns a copy of the SFS, but with folded entries.
+        :returns: A copy of the SFS, but with folded entries.
+        :rtype: :class:`Sfs`
         """
         def get_folded(config):
             if tuple(config[:, 0]) < tuple(config[:, 1]):
@@ -398,7 +432,7 @@ class Sfs(object):
             ConfigList(self.sampled_pops, compressed_folded.config_array,
                         sampled_n=self.sampled_n,
                         ascertainment_pop=self.ascertainment_pop),
-            folded=True, length=self.length)
+            folded=True, length=self._length)
 
     def _copy(self, sampled_n=None):
         """
@@ -411,7 +445,7 @@ class Sfs(object):
             ConfigList(self.sampled_pops, self.configs.value,
                         sampled_n=sampled_n,
                         ascertainment_pop=self.ascertainment_pop),
-            self.folded, self.length)
+            self.folded, self._length)
 
     def _integrate_sfs(self, weights, vector=False, locus=None):
         if vector:
@@ -470,32 +504,34 @@ class Sfs(object):
             new_configs.index2uniq_mat @ sub_sfs.freqs_matrix,
             ConfigList(populations, new_configs.config_array,
                         ascertainment_pop=ascertained),
-            self.folded, self.length)
+            self.folded, self._length)
 
     def _subset_configs(self, idxs):
         return self.from_matrix(
             self.csr_freqs_matrix[idxs, :],
             _ConfigList_Subset(self.configs, idxs),
-            self.folded, self.length)
+            self.folded, self._length)
 
     @property
     def sfs(self):
         return self
 
     @cached_property
-    def _p_missing(self):
-        """
-        Estimates the probability that a random allele
-        from each population is missing.
+    def p_missing(self):
+        """Estimate of probability that a random allele from each population is missing.
 
-        To estimate missingness, first remove random allele;
-        if the resulting config is monomorphic, then ignore.
-        If polymorphic, then count whether the removed allele
+        Missingness is estimated as follows: \
+        from each SNP remove a random allele; \
+        if the resulting config is monomorphic, then ignore. \
+        If polymorphic, then count whether the removed allele \
         is missing or not.
 
-        This avoids bias from fact that we don't observe
-        some polymorphic configs that appear monomorphic
+        This avoids bias from fact that we don't observe \
+        some polymorphic configs that appear monomorphic \
         after removing the missing alleles.
+
+        :returns: 1-d array of missingness per population
+        :rtype: :class:`numpy.ndarray`
         """
         counts = self._total_freqs
         sampled_n = self.sampled_n
