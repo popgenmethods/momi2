@@ -4,11 +4,23 @@
 API Documentation
 =================
 
+==================
+Demographic models
+==================
+
 .. autoclass:: momi.DemographicModel
    :members:
 
+========
+Plotting
+========
+
 .. autoclass:: momi.DemographyPlot
    :members:
+
+====
+Data
+====
 
 .. autofunction:: momi.snp_allele_counts
 
@@ -19,6 +31,10 @@ API Documentation
 
 .. autoclass:: momi.Sfs()
    :members:
+
+==========
+Statistics
+==========
 
 .. autoclass:: momi.SfsModelFitStats
    :members:
