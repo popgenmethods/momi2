@@ -45,7 +45,7 @@ def test_subconfigs(fold, normalized):
     val1 = momi.expected_sfs(demo.demo_hist, configs,
                              normalized=normalized, folded=fold)[sub_idxs]
 
-    sub_configs = momi.data.config_array._ConfigList_Subset(configs, sub_idxs)
+    sub_configs = momi.data.configurations._ConfigList_Subset(configs, sub_idxs)
     val2 = momi.expected_sfs(demo.demo_hist, sub_configs,
                              normalized=normalized, folded=fold)
 

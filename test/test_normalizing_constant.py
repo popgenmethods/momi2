@@ -73,7 +73,7 @@ def check_demo_normalization(demo, ascertainment_pop=None, add_n=None, error_mat
     if add_n is not None:
         sampled_n = sampled_n + add_n
 
-    config_list = momi.data.config_array.build_full_config_list(
+    config_list = momi.data.configurations.build_full_config_list(
         demo.sampled_pops, sampled_n, ascertainment_pop)
     config_list = config_list._copy(sampled_n=demo.sampled_n)
 

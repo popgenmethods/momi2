@@ -12,8 +12,8 @@ import os
 import logging
 from .compressed_counts import _hashed2config, _config2hashable
 from .compressed_counts import CompressedAlleleCounts
-from .config_array import ConfigList
-from .config_array import _ConfigList_Subset
+from .configurations import ConfigList
+from .configurations import _ConfigList_Subset
 from ..util import memoize_instance
 
 

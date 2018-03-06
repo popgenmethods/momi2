@@ -9,7 +9,7 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 import seaborn
 from .sfs_stats import JackknifeGoodnessFitStat
-from .data.config_array import build_config_list
+from .data.configurations import build_config_list
 from .data.sfs import Sfs
 from .demography import Demography
 from .likelihood import SfsLikelihoodSurface

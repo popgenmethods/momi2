@@ -79,7 +79,7 @@ def test_simple_admixture_subsampling(folded, n_lins):
 
 
 def check_subsampling(demo, sampled_n_dict, add_n, folded=False):
-    config_list = momi.data.config_array.build_full_config_list(*zip(
+    config_list = momi.data.configurations.build_full_config_list(*zip(
         *sampled_n_dict.items()))
     if folded:
         config_list = momi.site_freq_spectrum(

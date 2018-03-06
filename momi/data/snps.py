@@ -8,7 +8,7 @@ import logging
 import numpy as np
 import pysam
 from cached_property import cached_property
-from .config_array import ConfigList
+from .configurations import ConfigList
 from .sfs import Sfs
 from ..util import memoize_instance
 from .compressed_counts import (

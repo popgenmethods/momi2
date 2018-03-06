@@ -9,7 +9,7 @@ from autograd.extend import primitive, defvjp
 from .optimizers import _find_minimum, stochastic_opts, LoggingCallback
 from .compute_sfs import expected_sfs, expected_total_branch_len, expected_heterozygosity
 from .demography import Demography
-from .data.config_array import _ConfigList_Subset
+from .data.configurations import _ConfigList_Subset
 from .data.sfs import Sfs
 
 logger = logging.getLogger(__name__)
