@@ -28,6 +28,7 @@ else:
                   extra_compile_args=['-fopenmp'],
                   extra_link_args=['-fopenmp'],
                   include_dirs=[numpy.get_include()])]
+    extensions = cythonize(extensions)
 
     install_requires = [
         'autograd>=1.2.0', 'numpy>=1.9.0', 'networkx', 'scipy',
@@ -45,5 +46,4 @@ setup(name='momi',
       keywords=['population genetics', 'statistics',
                 'site frequency spectrum', 'coalescent'],
       url='https://github.com/jackkamm/momi2',
-      ext_modules=cythonize(extensions),
-      )
+      ext_modules=extensions)
