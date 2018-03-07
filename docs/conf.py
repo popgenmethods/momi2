@@ -190,6 +190,10 @@ class Mock(MagicMock):
     def __getattr__(cls, name):
             return MagicMock()
 
-MOCK_MODULES = ['msprime', 'scipy', 'pysam', 'pandas', 'networkx',
-                'matplotlib', 'seaborn', 'numdifftools', 'autograd']
+MOCK_MODULES = [
+    "momi.convolution", "momi.einsum2.parallel_matmul",
+    "autograd", "autograd.numpy",
+    "numpy", "networkx",
+    "scipy", "scipy.special", "scipy.sparse", "scipy.misc",
+    "pandas", "matplotlib", "seaborn", "pysam"]
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)

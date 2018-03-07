@@ -7,19 +7,32 @@
 # To install, type 'pip install .' from the top-level directory of momi:
 
 from setuptools import setup, Extension
-from Cython.Build import cythonize
-import numpy
+import os
 
-extensions = [Extension("momi.convolution",
-                        sources=["momi/convolution.pyx"],
-                        extra_compile_args=['-fopenmp'],
-                        extra_link_args=['-fopenmp'],
-                        include_dirs=[numpy.get_include()]),
-              Extension("momi.einsum2.parallel_matmul",
-                        sources=["momi/einsum2/parallel_matmul.pyx"],
-                        extra_compile_args=['-fopenmp'],
-                        extra_link_args=['-fopenmp'],
-                        include_dirs=[numpy.get_include()])]
+on_rtd = os.environ.get('READTHEDOCS') == 'True'
+if on_rtd:
+    extensions = []
+    install_requires = []
+else:
+    from Cython.Build import cythonize
+    import numpy
+
+    extensions = [
+        Extension("momi.convolution",
+                  sources=["momi/convolution.pyx"],
+                  extra_compile_args=['-fopenmp'],
+                  extra_link_args=['-fopenmp'],
+                  include_dirs=[numpy.get_include()]),
+        Extension("momi.einsum2.parallel_matmul",
+                  sources=["momi/einsum2/parallel_matmul.pyx"],
+                  extra_compile_args=['-fopenmp'],
+                  extra_link_args=['-fopenmp'],
+                  include_dirs=[numpy.get_include()])]
+
+    install_requires = [
+        'autograd>=1.2.0', 'numpy>=1.9.0', 'networkx', 'scipy',
+        'pandas', 'numdifftools', 'cached_property>=1.3',
+        'msprime', "matplotlib", "seaborn", "pysam"]
 
 setup(name='momi',
       version='0.1',
@@ -27,10 +40,7 @@ setup(name='momi',
       author='Jack Kamm, Jonathan Terhorst, Richard Durbin, Yun S. Song',
       author_email='jkamm@stat.berkeley.edu, terhorst@stat.berkeley.edu, yss@eecs.berkeley.edu',
       packages=['momi', 'momi.einsum2', 'momi.data'],
-      install_requires=[
-          'autograd>=1.2.0', 'numpy>=1.9.0', 'networkx', 'scipy',
-          'pandas', 'numdifftools', 'cached_property>=1.3',
-          'msprime', "matplotlib", "seaborn", "pysam"],
+      install_requires=install_requires,
       python_requires='>=3.5',
       keywords=['population genetics', 'statistics',
                 'site frequency spectrum', 'coalescent'],

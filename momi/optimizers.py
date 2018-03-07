@@ -1,7 +1,6 @@
 import json
 import autograd
 import autograd.numpy as np
-import numdifftools
 from functools import wraps, partial
 from .util import count_calls, closeleq, closegeq
 import scipy

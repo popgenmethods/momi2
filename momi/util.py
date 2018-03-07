@@ -1,7 +1,6 @@
 
 from future.utils import raise_with_traceback
 import autograd.numpy as np
-import numdifftools
 from functools import partial, wraps
 #from autograd.core import primitive, Node
 from autograd.extend import primitive, defvjp
