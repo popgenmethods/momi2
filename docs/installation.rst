@@ -6,7 +6,7 @@ Installation
 
 Prerequisites:
 
-* Python 3.6
+* Python 3.5
 * pip, numpy, and Cython.
 * C compiler with OpenMP support
 
