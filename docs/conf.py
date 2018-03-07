@@ -192,7 +192,7 @@ class Mock(MagicMock):
 
 MOCK_MODULES = [
     "momi.convolution", "momi.einsum2.parallel_matmul",
-    "autograd", "autograd.numpy",
+    "autograd", "autograd.numpy", "autograd.extend",
     "numpy", "networkx",
     "scipy", "scipy.special", "scipy.sparse", "scipy.misc",
     "pandas", "matplotlib", "seaborn", "pysam"]
