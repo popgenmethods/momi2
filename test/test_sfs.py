@@ -37,7 +37,7 @@ def generate_sfs():
             m_name, params, sampled_sfs = k
 
             n_lin = MODELS[m_name]['nlins']
-            demo = MODELS[m_name]['demo'](np.array(params), n_lin)
+            demo = MODELS[m_name]['demo'](np.array(params))
             yield m_name, v, demo, sampled_sfs
 
 

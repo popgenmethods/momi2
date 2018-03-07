@@ -799,7 +799,8 @@ class DemographicModel(object):
     # NOTE note these are in PER-GENERATION units
     # TODO allow to pass folded parameter (if passing separate configs?)
     def expected_sfs(self, configs=None, normalized=False,
-                     folded=False):
+                     folded=False, length=None,
+                     return_dict=True):
         if configs is None:
             sfs = self._get_sfs()
             configs = sfs.configs
@@ -810,10 +811,16 @@ class DemographicModel(object):
         ret = expected_sfs(demo, configs,
                            normalized=normalized, folded=folded)
         if not normalized:
-            ret = ret * self.N_e * 4.0 * self.muts_per_gen * self._length
-        return co.OrderedDict(zip(configs.as_tuple(), ret))
+            if length is None:
+                length = self._length
+            ret = ret * self.N_e * 4.0 * self.muts_per_gen * length
+        if return_dict:
+            return co.OrderedDict(zip(configs.as_tuple(), ret))
+        else:
+            return ret
 
     # NOTE these are in PER-GENERATION units
+    # this is mainly here for some old unit tests...
     def expected_branchlen(self, sampled_n_dict=None):
         demo = self._get_demo(sampled_n_dict)
         return expected_total_branch_len(demo) * self.N_e * 4.0
@@ -847,19 +854,21 @@ class DemographicModel(object):
         return self._get_surface().kl_div(self._get_x())
 
     def stochastic_optimize(
-            self, n_minibatches=None, snps_per_minibatch=None,
+            self, num_iters, n_minibatches=None, snps_per_minibatch=None,
             rgen=None, printfreq=1, start_from_checkpoint=None,
-            save_to_checkpoint=None, **kwargs):
+            save_to_checkpoint=None,  svrg_epoch=-1, **kwargs):
         """Use stochastic optimization (ADAM+SVRG) to search for MLE
 
         Exactly one of of ``n_minibatches`` and ``snps_per_minibatch`` should be set, as one determines the other.
 
+        :param int num_iters: Number of steps
         :param int n_minibatches: Number of minibatches
         :param int snps_per_minibatch: Number of SNPs per minibatch
         :param numpy.RandomState rgen: Random generator
         :param int printfreq: How often to log progress
         :param str start_from_checkpoint: Name of checkpoint file to start from
-        :param save_to_checkpoint: Name of checkpoint file to save to
+        :param str save_to_checkpoint: Name of checkpoint file to save to
+        :param int svrg_epoch: How often to compute full likelihood for SVRG. -1=never.
         :rtype: :class:`scipy.optimize.OptimizeResult`
         """
         def callback(x):
@@ -891,9 +900,14 @@ class DemographicModel(object):
         res = self._get_surface()._stochastic_surfaces(
             n_minibatches=n_minibatches,
             snps_per_minibatch=snps_per_minibatch,
-            rgen=rgen).find_mle(checkpoint_file=None, **kwargs)
+            rgen=rgen).find_mle(
+                method="adam", num_iters=num_iters,
+                svrg_epoch=svrg_epoch,
+                checkpoint_file=save_to_checkpoint, **kwargs)
 
         self._set_x(res.x)
+        res["parameters"] = self.get_params()
+        res["log_likelihood"] = res.fun
         return res
 
     def optimize(self, method="tnc", jac=True,

@@ -73,8 +73,8 @@ def test_P():
     i = np.random.choice([0, 1])
     j = 1 - i
 
-    demo0 = momi.demographic_model(1.0, .25)
-    demo1 = momi.demographic_model(1.0, .25)
+    demo0 = momi.DemographicModel(1.0, .25)
+    demo1 = momi.DemographicModel(1.0, .25)
 
     for d in (demo0, demo1):
         d.add_leaf(0)
@@ -119,8 +119,8 @@ def test_events_before_sample():
     t = t[1:]
 
 
-    demo0 = momi.demographic_model(1.0, .25)
-    demo1 = momi.demographic_model(1.0, .25)
+    demo0 = momi.DemographicModel(1.0, .25)
+    demo1 = momi.DemographicModel(1.0, .25)
     p = np.random.uniform(0, 1)
     for d in (demo0, demo1):
         d.add_leaf("a")

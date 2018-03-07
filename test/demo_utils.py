@@ -3,7 +3,7 @@ import autograd.numpy as np
 import random
 
 
-def simple_admixture_demo(x=np.random.normal(size=7), n_lins=(2, 3)):
+def simple_admixture_demo(x=np.random.normal(size=7)):
     t = np.cumsum(np.exp(x[:5]))
     p = 1.0 / (1.0 + np.exp(x[5:]))
 
@@ -18,7 +18,7 @@ def simple_admixture_demo(x=np.random.normal(size=7), n_lins=(2, 3)):
     return ret
 
 
-def simple_admixture_3pop(x=None, n_lins=(4, 4, 4)):
+def simple_admixture_3pop(x=None):
     if x is None:
         x = np.random.normal(size=7)
     t = np.cumsum(np.exp(x[:5]))
@@ -36,7 +36,7 @@ def simple_admixture_3pop(x=None, n_lins=(4, 4, 4)):
     return model
 
 
-def simple_two_pop_demo(x=np.random.normal(size=4), n_lins=(5, 6)):
+def simple_two_pop_demo(x=np.random.normal(size=4)):
     x = [np.exp(xi) for xi in x]
     model = momi.DemographicModel(1., .25)
     model.add_leaf(1)
@@ -48,7 +48,7 @@ def simple_two_pop_demo(x=np.random.normal(size=4), n_lins=(5, 6)):
     return model
 
 
-def simple_three_pop_demo(t0, t1, n_lins=(1,1,1)):
+def simple_three_pop_demo(t0, t1):
     model = momi.DemographicModel(1., .25)
     model.add_leaf(1)
     model.add_leaf(2)
@@ -90,9 +90,8 @@ simple_nea_admixture_demo.bounds = [(.01, 100.),
 simple_nea_admixture_demo.true_params = [10., .1, .25, .03, .25, 1.]
 
 
-def piecewise_constant_demo(x=np.random.normal(size=15), n_lins=(10,)):
+def piecewise_constant_demo(x=np.random.normal(size=15)):
     assert x.shape[0] % 2 == 1
-    n, = n_lins
 
     model = momi.DemographicModel(1.0, .25)
     model.add_leaf(0, N=np.exp(x[0]))
@@ -103,13 +102,9 @@ def piecewise_constant_demo(x=np.random.normal(size=15), n_lins=(10,)):
         N = np.exp(x[2 * i + 2])
         model.set_size(0, t=prev_time, N=N)
     return model
-    #    events_list += [('-en', 1e4 * prev_time, 0, 1e4 * N)]
-    #return make_demo_hist(events_list, sampled_pops=(0,), sampled_n=n_lins, default_N=1e4)
-    # return make_demography(events_list, sampled_pops = (0,), sampled_n =
-    # n_lins, default_N = 1e4)
 
 
-def exp_growth_model(x=np.random.normal(size=3), n_lins=(10,)):
+def exp_growth_model(x=np.random.normal(size=3)):
     t, g, g2 = x
     t, g2 = np.exp(t), np.exp(g2)
     model = momi.DemographicModel(1.0, .25)
@@ -125,12 +120,12 @@ def exp_growth_model(x=np.random.normal(size=3), n_lins=(10,)):
     # default_N = 1e4)
 
 
-def exp_growth_0_model(x, n_lins):
+def exp_growth_0_model(x):
     x0 = np.array([x[0], 0.0, x[1]])
-    return exp_growth_model(x0, n_lins)
+    return exp_growth_model(x0)
 
 
-def simple_five_pop_demo(x=np.random.normal(size=30), n_lins=(1, 2, 3, 4, 5)):
+def simple_five_pop_demo(x=np.random.normal(size=30)):
     assert len(x) == 30
     # make all params positive
     x = np.exp(x)

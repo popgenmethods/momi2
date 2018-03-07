@@ -91,18 +91,18 @@ class Demography(object):
 
         return ret
 
-    def copy(self, sampled_n=None):
-        """
-        Notes
-        -----
-        Note that momi.expected_sfs, momi.composite_log_likelihood require
-        Demography.sampled_n == ConfigList.sampled_n.
-        If this is not the case, you can use copy() to create a copy with the correct
-        sampled_n.
-        """
-        if sampled_n is None:
-            sampled_n = self.sampled_n
-        return _make_multipop_moran(self.events, self.sampled_pops, sampled_n, self.sampled_t, self.default_N)
+    #def copy(self, sampled_n=None):
+    #    """
+    #    Notes
+    #    -----
+    #    Note that momi.expected_sfs, momi.composite_log_likelihood require
+    #    Demography.sampled_n == ConfigList.sampled_n.
+    #    If this is not the case, you can use copy() to create a copy with the correct
+    #    sampled_n.
+    #    """
+    #    if sampled_n is None:
+    #        sampled_n = self.sampled_n
+    #    return _make_multipop_moran(self.events, self.sampled_pops, sampled_n, self.sampled_t, self.default_N)
 
     #@property
     #def events(self):
@@ -124,34 +124,6 @@ class Demography(object):
         The list of number of samples per population
         """
         return np.array(tuple(self._G.node[(l, 0)]['lineages'] for l in self.sampled_pops), dtype=int)
-
-    def rescaled(self, factor=None):
-        """
-        Returns the equivalent Demography, but with time rescaled by factor
-
-        Parameters
-        ----------
-        factor : float or None
-             The factor to rescale time by.
-             If None, rescale by 1/default_N (so that rescaled_demo is in ms units, and rescaled_demo.default_N == 1.0)
-
-        Returns
-        -------
-        rescaled_demo : Demography
-             The same demography, but with population sizes N*factor, times t*factor,
-             and growth rates g/factor.
-        """
-        if factor is None:
-            factor = 1.0 / self.default_N
-        rescaled_events = rescale_events(self.events, factor)
-        default_N = self.default_N * factor
-        try:
-            sampled_t = self.sampled_t * factor
-        except:
-            sampled_t = None
-        return _make_multipop_moran(rescaled_events,
-                                    self.sampled_pops, self.sampled_n,
-                                    sampled_t=sampled_t, default_N=default_N)
 
     @memoize_instance
     def _n_at_node(self, node):
@@ -371,10 +343,11 @@ class Demography(object):
                 chrom.append(c)
                 pos.append(v.position)
 
-        return SnpAlleleCounts(chrom, pos, compressed_counts.compressed_allele_counts(),
-                               self.sampled_pops, use_folded_sfs=False,
-                               non_ascertained_pops=[], length=length*num_replicates,
-                               n_read_snps=len(compressed_counts), n_excluded_snps=0)
+        return SnpAlleleCounts(
+            chrom, pos, compressed_counts.compressed_allele_counts(),
+            self.sampled_pops, use_folded_sfs=False,
+            non_ascertained_pops=[], length=length*num_replicates,
+            n_read_snps=len(compressed_counts), n_excluded_snps=0)
 
     def simulate_vcf(self, out_prefix, mutation_rate,
                      recombination_rate, length,

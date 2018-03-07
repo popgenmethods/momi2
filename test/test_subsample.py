@@ -36,7 +36,7 @@ import scipy
 
 
 def test_count_subsets():
-    demo = simple_admixture_demo(n_lins=(10,10))
+    demo = simple_admixture_demo()
     #data = momi.simulate_ms(ms_path, demo.demo_hist,
     #                        sampled_pops=demo.pops,
     #                        sampled_n=demo.n,
