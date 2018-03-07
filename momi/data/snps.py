@@ -392,8 +392,8 @@ class SnpAlleleCounts(object):
             json.dumps(self.use_folded_sfs)), file=f)
         print('\t"length": {},'.format(
             json.dumps(self.length)), file=f)
-        print(f'\t"n_read_snps": {self.n_read_snps},', file=f)
-        print(f'\t"n_excluded_snps": {self.n_excluded_snps},', file=f)
+        print('\t"n_read_snps": {},'.format(self.n_read_snps), file=f)
+        print('\t"n_excluded_snps": {},'.format(self.n_excluded_snps), file=f)
         print('\t"configs": [', file=f)
         n_configs = len(self.compressed_counts.config_array)
         for i, c in enumerate(self.compressed_counts.config_array.tolist()):

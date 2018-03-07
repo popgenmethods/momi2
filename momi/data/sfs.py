@@ -106,7 +106,7 @@ class Sfs(object):
 
         logging.getLogger(__name__).info("Constructing configs...")
         configs = info.pop("configs")
-        logging.getLogger(__name__).info(f"{len(configs)} unique configs detected")
+        logging.getLogger(__name__).info("{} unique configs detected".format(len(configs)))
         # don't use autograd here for performance
         configs = raw_np.array(configs, dtype=int)
         logging.getLogger(__name__).info("Converted to numpy array...")

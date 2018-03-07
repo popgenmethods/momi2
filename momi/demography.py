@@ -359,7 +359,7 @@ class Demography(object):
         for fname in (vcf_name, bed_name):
             if not force and os.path.isfile(fname):
                 raise FileExistsError(
-                    f"{fname} exists and force=False")
+                    "{} exists and force=False".format(fname))
 
         if np.any(self.sampled_n % ploidy != 0):
             raise ValueError("Sampled alleles per population must be"
@@ -378,8 +378,8 @@ class Demography(object):
             print("##fileformat=VCFv4.2", file=vcf_f)
             print('##source="VCF simulated by momi2 using'
                   ' msprime backend"', file=vcf_f)
-            print(f"##contig=<ID={chrom_name},length={length}>",
-                  file=vcf_f)
+            print("##contig=<ID={chrom_name},length={length}>".format(
+                chrom_name=chrom_name, length=length), file=vcf_f)
             print('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
                   file=vcf_f)
             print('##INFO=<ID=AA,Number=1,Type=String,Description="Ancestral Allele">',
