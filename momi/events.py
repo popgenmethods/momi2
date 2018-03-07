@@ -1,13 +1,10 @@
 import collections as co
 import autograd.numpy as np
 import networkx as nx
+import msprime
 from .math_functions import hypergeom_quasi_inverse, binom_coeffs, _apply_error_matrices, convolve_trailing_axes, sum_trailing_antidiagonals
 from .size_history import ConstantHistory, ExponentialHistory, PiecewiseHistory
 
-try:
-    import msprime
-except ImportError:
-    msprime = None
 
 # FIXME: we always assume default_N=1.0 for now
 # NOTE sample_sizes should be an OrderedDict?

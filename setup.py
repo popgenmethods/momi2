@@ -22,7 +22,7 @@ extensions = [Extension("momi.convolution",
                         include_dirs=[numpy.get_include()])]
 
 setup(name='momi',
-      version='2.0.0',
+      version='0.1',
       description='MOran Model for Inference',
       author='Jack Kamm, Jonathan Terhorst, Richard Durbin, Yun S. Song',
       author_email='jkamm@stat.berkeley.edu, terhorst@stat.berkeley.edu, yss@eecs.berkeley.edu',
@@ -30,9 +30,7 @@ setup(name='momi',
       install_requires=[
           'autograd>=1.2.0', 'numpy>=1.9.0', 'networkx', 'scipy',
           'pandas', 'numdifftools', 'cached_property>=1.3',
-          "matplotlib", "seaborn", "pysam"],
-      extras_require={
-          "msprime": ["msprime"]},
+          'msprime', "matplotlib", "seaborn", "pysam"],
       python_requires='>=3.5',
       keywords=['population genetics', 'statistics',
                 'site frequency spectrum', 'coalescent'],
