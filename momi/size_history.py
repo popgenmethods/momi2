@@ -1,11 +1,9 @@
 
 from .util import memoize
 import autograd.numpy as np
-from autograd.numpy import sum, exp, log, expm1
+from autograd.numpy import sum, exp, log
 from .math_functions import transformed_expi, expm1d
-import scipy.integrate
 from scipy.special import comb as binom
-from . import moran_model
 
 
 class SizeHistory(object):
@@ -166,42 +164,3 @@ def sfs_recurrence(sfs, tau):
     assert tau == ret[(1, 1)] or abs(log(tau / ret[(1, 1)])) < 1e-14
     return ret[1:, 1:]
 
-# TODO: not currently used, and not yet compatible with automatic
-# differentiation.
-
-
-class FunctionalHistory(SizeHistory):
-    '''Size history parameterized by an arbitrary function f.'''
-
-    def __init__(self, tau, f):
-        '''Initialize the model. For t > 0, f(t) >= is the instantaneous
-        rate of coalescence (i.e., the inverse of the population size).
-        f should accept and return vectors of times.
-        '''
-        self._f = f
-        super(FunctionalHistory, self).__init__(tau, self._R(tau))
-
-    def _R(self, t):
-        return scipy.integrate.quad(self._f, 0, t)[0]
-
-    def etjj(self, n):
-        ret = []
-        # TODO: if this is too slow for large n, it could be sped up
-        # by using vectorized integration (a la scipy.integrate.simps)
-        for j in range(2, n + 1):
-            j2 = binom(j, 2)
-            # tau * P(Tjj > tau)
-            r1 = self.tau * exp(-j2 * self.scaled_time)
-
-            def _int(t):
-                return t * self._f(t) * exp(-j2 * self._R(t))
-            r2 = scipy.integrate.quad(_int, 0, self.tau)[0]
-            ret.append(r1 + j2 * r2)
-        return ret
-
-# class _TrivialHistory(object):
-#     def sfs(self, n):
-#         return np.zeros(n+1)
-
-#     def transition_prob(self, v, axis=0):
-#         return v + 0.0 # return copy of v

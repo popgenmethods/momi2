@@ -194,6 +194,8 @@ MOCK_MODULES = [
     "momi.convolution", "momi.einsum2.parallel_matmul",
     "autograd", "autograd.numpy", "autograd.extend",
     "numpy", "networkx",
-    "scipy", "scipy.special", "scipy.sparse", "scipy.misc",
-    "pandas", "matplotlib", "seaborn", "pysam"]
+    "scipy", "scipy.special", "scipy.sparse",
+    "scipy.misc", "scipy.optimize", "scipy.stats",
+    "msprime", "pandas", "matplotlib", "matplotlib.ticker",
+    "seaborn", "pysam"]
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
