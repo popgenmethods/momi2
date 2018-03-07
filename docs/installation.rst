@@ -4,22 +4,25 @@
 Installation
 ============
 
-``momi`` is a Python3 package and requires Python >= 3.5.
+``momi`` requires Python >= 3.5.
 
 -------------
 Conda install
 -------------
 
-This is the recommended method.
-First make sure you have `conda <https://conda.io/docs/>`_,
-then do
+1. Download `anaconda <https://www.anaconda.com/download/>`_ or `miniconda <https://conda.io/miniconda.html>`_.
+2. (Optional) create a separate `conda environment <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ to install into:
+
+.. code:: bash
+
+    conda create -n momi-env
+    source activate momi-env
+
+3. Install:
 
 .. code:: bash
 
     conda install momi -c jackkamm -c bioconda -c conda-forge
-
-See `conda-environment <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ to install into a separate virtual environment (this is useful for keeping dependencies isolated).
-
 
 --------------
 Manual install
@@ -30,22 +33,22 @@ Prerequisites:
 * pip, numpy, cython
 * C compiler with OpenMP support
 
-Assumming you satisfy all the requirements, you can install by typing
+After satisfying the requirements, install with
 
 .. code:: bash
 
     pip install .
 
-from the root directory.
+in the root directory.
 
-Depending on your setup, ``pip`` may have trouble installing some
+Depending on your system, ``pip`` may have trouble installing some
 dependencies (such as ``msprime`` or ``pysam``).
 In this case, you should manually install these dependencies and try again.
 
 See  `venv <https://docs.python.org/3/tutorial/venv.html>`_ to install into a virtual environment.
 
 ..............
-Note for MacOS
+Building on MacOS
 ..............
 
 On MacOS the default C compiler does
