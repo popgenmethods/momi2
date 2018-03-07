@@ -1,0 +1,36 @@
+package:
+  name: momi
+  version: "2.0.0"
+
+source:
+  git_url: https://github.com/jackkamm/momi2.git
+  git_rev: v2.0.0
+
+requirements:
+  build:
+    - python >=3.5
+    - setuptools
+    - numpy
+    - cython
+
+  run:
+    - python >=3.5
+    - autograd
+    - cached-property
+    - numpy
+    - networkx
+    - scipy
+    - pandas
+    - msprime >=0.5.0
+    - matplotlib
+    - seaborn
+    - pysam
+
+test:
+  imports:
+    - momi
+
+about:
+  home: https://github.com/jackkamm/momi2
+  license: GPLv3
+  license_file: LICENSE
