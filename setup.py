@@ -9,11 +9,11 @@
 from setuptools import setup, Extension
 import os
 
+extensions = []
+install_requires = ['cached_property>=1.3']
+
 on_rtd = os.environ.get('READTHEDOCS') == 'True'
-if on_rtd:
-    extensions = []
-    install_requires = ['cached_property>=1.3']
-else:
+if not on_rtd:
     from Cython.Build import cythonize
     import numpy
 
@@ -30,10 +30,9 @@ else:
                   include_dirs=[numpy.get_include()])]
     extensions = cythonize(extensions)
 
-    install_requires = [
+    install_requires.extend([
         'autograd>=1.2.0', 'numpy>=1.9.0', 'networkx', 'scipy',
-        'pandas', 'cached_property>=1.3',
-        'msprime', "matplotlib", "seaborn", "pysam"]
+        'pandas', 'msprime', "matplotlib", "seaborn", "pysam"])
 
 setup(name='momi',
       version='2.0.0',
