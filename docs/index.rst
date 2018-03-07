@@ -11,6 +11,7 @@ Welcome to momi's documentation!
 
    introduction
    installation
+   parallel
    tutorial
    api
 

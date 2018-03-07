@@ -4,12 +4,12 @@ momi (MOran Models for Inference) is a Python package that computes
 the expected sample frequency spectrum (SFS), a statistic commonly used
 in population genetics, and uses it to fit demographic history.
 
-## Pre-release install instructions
+## Build instructions
 
 Prerequisites:
 
 * Python 3.6
-* numpy and Cython. These are included in the [Anaconda](http://continuum.io/downloads) Python distribution.
+* pip, numpy, and Cython.
 * C compiler with OpenMP support
 
 Assumming you satisfy all the requirements, you can install by typing
@@ -28,37 +28,3 @@ for example:
     brew install gcc
     CC=gcc-7 pip install .
 
-## Getting started
-
-See the [tutorial](docs/tutorial.ipynb) notebook.
-You can type
-```
-jupyter notebook docs/tutorial.ipynb
-```
-to try it out.
-
-## Documentation
-
-To build the docs pre-release, do
-```
-pip install sphinx nbsphinx
-cd docs
-make html
-```
-
-You can then view documentation in `docs/_build/html/index.html`.
-
-## A note on parallelization
-
-momi will automatically use all available CPUs to perform
-computations in parallel.
-You can control the number of threads by setting the
-environment variable `OMP_NUM_THREADS`.
-
-To take full advantage of parallelization, it is
-recommended to make sure `numpy` is linked against
-a parallel BLAS implementation such as MKL
-or OpenBlas.
-This is automatically taken care of in most
-packaged, precompiled versions of numpy, such as
-Anaconda Python.
