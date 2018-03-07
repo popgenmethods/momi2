@@ -5,7 +5,6 @@ import scipy.special
 from scipy.special import comb
 import scipy.sparse
 import autograd.numpy as np
-import msprime
 from .compute_sfs import expected_total_branch_len
 from .data.compressed_counts import _CompressedHashedCounts, _CompressedList
 from .data.snps import SnpAlleleCounts
@@ -20,6 +19,11 @@ import itertools
 
 import logging
 logger = logging.getLogger(__name__)
+
+try:
+    import msprime
+except ImportError:
+    msprime = None
 
 
 class differentiable_method(object):
@@ -404,6 +408,9 @@ class Demography(object):
         pysam.tabix_index(vcf_name, preset="vcf", force=force)
 
     def simulate_trees(self, **kwargs):
+        if not msprime:
+            raise ImportError("msprime required to simulate trees")
+
         sampled_t = self.sampled_t
         if sampled_t is None:
             sampled_t = 0.0
