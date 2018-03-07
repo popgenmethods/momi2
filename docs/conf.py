@@ -180,3 +180,16 @@ intersphinx_mapping = {
     "matplotlib": ('http://matplotlib.org', None),
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
     'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None)}
+
+
+import sys
+from unittest.mock import MagicMock
+
+class Mock(MagicMock):
+    @classmethod
+    def __getattr__(cls, name):
+            return MagicMock()
+
+MOCK_MODULES = ['msprime', 'scipy', 'pysam', 'pandas', 'networkx',
+                'matplotlib', 'seaborn', 'numdifftools', 'autograd']
+sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
