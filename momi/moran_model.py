@@ -2,7 +2,6 @@
 from .util import memoize, check_probs_matrix
 from .math_functions import par_einsum
 import scipy.sparse
-from scipy.sparse.linalg import expm_multiply
 import autograd.numpy as np
 from autograd.numpy import dot, diag, exp
 
