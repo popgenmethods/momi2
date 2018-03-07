@@ -1,20 +1,8 @@
 
-from future.utils import raise_with_traceback
 import autograd.numpy as np
 from functools import partial, wraps
 #from autograd.core import primitive, Node
 from autograd.extend import primitive, defvjp
-from autograd import hessian, grad, hessian_vector_product, jacobian, value_and_grad, vector_jacobian_product
-import autograd
-import itertools
-from collections import Counter
-import sys
-import warnings
-import collections
-import logging
-import gc
-import multiprocessing
-import os
 
 
 def count_calls(fun):
