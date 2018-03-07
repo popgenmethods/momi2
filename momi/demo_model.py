@@ -556,8 +556,15 @@ class DemographicModel(object):
         try:
             self._set_x(x)
             return self._get_demo(None)
-        except:
-            raise
+        except Exception as e:
+            curr_params = self.get_params()
+            curr_scaled = self.get_params(scaled=True)
+
+            curr_params = {k: str(v) for k, v in curr_params.items()}
+            curr_scaled = {k: str(v) for k, v in curr_scaled.items()}
+
+            new_msg = "Exception encountered at parameter values {} (internal scaling x = {})".format(curr_params, curr_scaled)
+            raise ValueError(new_msg) from e
         finally:
             self._set_x(prev_x)
 
