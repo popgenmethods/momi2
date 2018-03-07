@@ -1,16 +1,17 @@
 import networkx as nx
-import warnings
 import autograd.numpy as np
-import scipy
-from .util import memoize, make_constant, set0, closegeq
-from .data.configurations import build_config_list, ConfigList
-from .math_functions import hypergeom_quasi_inverse, binom_coeffs, _apply_error_matrices, convolve_trailing_axes, sum_trailing_antidiagonals
-from .moran_model import moran_action, moran_transition
-from autograd.core import primitive
-from autograd import hessian
+from .data.configurations import ConfigList
+from .math_functions import (hypergeom_quasi_inverse,
+                             binom_coeffs,
+                             _apply_error_matrices,
+                             convolve_trailing_axes,
+                             sum_trailing_antidiagonals)
+from .moran_model import moran_transition
 
 
-def expected_sfs(demography, configs, mut_rate=1.0, normalized=False, folded=False, error_matrices=None):
+def expected_sfs(
+        demography, configs, mut_rate=1.0, normalized=False,
+        folded=False, error_matrices=None):
     """
     Expected sample frequency spectrum (SFS) entries for the specified
     demography and configs. The expected SFS is the expected number of
