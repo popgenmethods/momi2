@@ -9,12 +9,16 @@ source:
 requirements:
   build:
     - python >=3.5
+    - gcc # [osx]
+    - nomkl # [osx]
     - setuptools
     - numpy
     - cython
 
   run:
     - python >=3.5
+    - gcc # [osx]
+    - nomkl # [osx]
     - autograd
     - cached-property
     - numpy
