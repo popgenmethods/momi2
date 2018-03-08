@@ -47,17 +47,13 @@ In this case, you should manually install these dependencies and try again.
 
 See  `venv <https://docs.python.org/3/tutorial/venv.html>`_ to install into a virtual environment.
 
-.................
-Building on MacOS
-.................
+--------------------
+Note for MacOS users
+--------------------
 
-On MacOS the default C compiler does
-not support OpenMP. You will need to install an
-alternative C compiler and provide it through the ``CC`` environment variable,
-like so:
+MacOS users are strongly recommended to use the ``conda install`` method, and to install into a separate conda environment as detailed in step 2.
 
-.. code:: bash
+Reasons are:
 
-    brew install gcc
-    CC=gcc-7 pip install .
-
+1. The default C compiler on MacOS does not support OpenMP. To install from source instead of conda, you will need an OpenMP-compliant C compiler, and to make sure appropriate libraries are linked.
+2. There is currently a bug when using MKL with momi on MacOS (`details <https://github.com/ContinuumIO/anaconda-issues/issues/8803>`_). As a workaround, conda will disable MKL when it installs momi on Mac. You should install momi in its own environment to avoid affecting other packages.
