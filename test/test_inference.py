@@ -55,9 +55,14 @@ def test_archaic_and_pairwisediffs():
 def test_jointime_inference(folded, add_n):
     check_jointime_inference(folded=folded, add_n=add_n)
 
+def test_ascertainment_inference():
+    check_jointime_inference(non_ascertained_pops=[3], use_theta=True,
+                             sampled_n=(5,5,1))
+
 def check_jointime_inference(
         sampled_n=(5, 5, 5), folded=False, add_n=0,
-        use_theta=False, theta=.1, num_runs=10000):
+        use_theta=False, theta=.1, num_runs=10000,
+        non_ascertained_pops=None):
     t0 = random.uniform(.25, 2.5)
     t1 = t0 + random.uniform(.5, 5.0)
 
@@ -98,7 +103,7 @@ def check_jointime_inference(
     #model.set_x(random.uniform(0, t1), "join_time")
     model.set_params({"join_time": random.uniform(0,t1)}, scaled=True)
 
-    model.set_data(sfs)
+    model.set_data(sfs, non_ascertained_pops=non_ascertained_pops)
     res = model.optimize()
 
     # make sure autograd is calling the rearranged gradient

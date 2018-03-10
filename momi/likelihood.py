@@ -441,8 +441,10 @@ def _mut_factor(sfs, demo, mut_rate, vector, p_missing, use_pairwise_diffs):
 
 def _mut_factor_het(sfs, demo, mut_rate, vector, p_missing):
     mut_rate = mut_rate * np.ones(sfs.n_loci)
-    E_het = expected_heterozygosity(demo, sampled_pops=sfs.sampled_pops)[
-        sfs.ascertainment_pop]
+    E_het = expected_heterozygosity(
+        demo,
+        restrict_to_pops=np.array(
+            sfs.sampled_pops)[sfs.ascertainment_pop])
 
     p_missing = p_missing * np.ones(len(sfs.ascertainment_pop))
     p_missing = p_missing[sfs.ascertainment_pop]

@@ -675,7 +675,7 @@ class DemographicModel(object):
         # expected hets per unit mutation
         e_het = expected_heterozygosity(
             self._get_demo({p: 2 for p in sfs.sampled_pops}),
-            sampled_pops=asc_pops)
+            restrict_to_pops=asc_pops)
         # convert from ms scaling
         e_het = e_het * 4 * self.N_e
 

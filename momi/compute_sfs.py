@@ -157,15 +157,20 @@ def expected_tmrca(demography, sampled_pops=None, sampled_n=None):
     return np.squeeze(expected_sfs_tensor_prod(vecs, demography))
 
 
-def expected_heterozygosity(demography, sampled_pops=None, error_matrices=None):
-    sampled_n = [2] * len(sampled_pops)
-    configs = np.zeros((len(demography.sampled_pops), len(
-        demography.sampled_pops), 2), dtype=int)
-    for i in range(len(demography.sampled_pops)):
-        configs[i, i, :] = 1
+def expected_heterozygosity(demography, restrict_to_pops=None,
+                            error_matrices=None):
+    if restrict_to_pops is None:
+        restrict_to_pops = demography.sampled_pops
+    configs = np.zeros(
+        (len(restrict_to_pops), len(demography.sampled_pops), 2),
+        dtype=int)
+    for i, pop in enumerate(restrict_to_pops):
+        if pop in restrict_to_pops:
+            configs[i, demography.sampled_pops.index(pop), :] = 1
     configs = ConfigList(demography.sampled_pops, configs,
-                          sampled_n=demography.sampled_n)
-    return expected_sfs(demography, configs, error_matrices=error_matrices)
+                         sampled_n=demography.sampled_n)
+    return expected_sfs(demography, configs,
+                        error_matrices=error_matrices)
 
 
 def expected_deme_tmrca(demography, deme, sampled_pops=None, sampled_n=None):
