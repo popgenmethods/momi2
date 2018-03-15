@@ -8,6 +8,7 @@
 
 from setuptools import setup, Extension
 import os
+import sys
 
 extensions = []
 install_requires = ['cached_property>=1.3']
@@ -17,7 +18,6 @@ if not on_rtd:
     from Cython.Build import cythonize
     import numpy
 
-    print(sys.platform)
     if sys.platform == "darwin":
         extra_compile_args=["-openmp"]
         extra_link_args=["-openmp"]
