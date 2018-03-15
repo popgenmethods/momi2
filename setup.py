@@ -1,11 +1,5 @@
 #!/usr/bin/env python
 
-# Pre-requisites:
-# * gcc
-# * a scientific Python distribution such as Anaconda or Enthought. alternatively, custom installation of pip, cython, the SciPy stack
-
-# To install, type 'pip install .' from the top-level directory of momi:
-
 from setuptools import setup, Extension
 import os
 import sys
@@ -18,12 +12,8 @@ if not on_rtd:
     from Cython.Build import cythonize
     import numpy
 
-    if sys.platform == "darwin":
-        extra_compile_args=["-openmp"]
-        extra_link_args=["-openmp"]
-    else:
-        extra_compile_args=["-fopenmp"]
-        extra_link_args=["-fopenmp"]
+    extra_compile_args=["-fopenmp"]
+    extra_link_args=["-fopenmp"]
 
     extensions = [
         Extension("momi.convolution",
