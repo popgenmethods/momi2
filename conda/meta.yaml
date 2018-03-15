@@ -1,23 +1,25 @@
 package:
   name: momi
-  version: "2.0.1"
+  version: {{ environ.get('GIT_DESCRIBE_TAG', 'default').lstrip('v') }}
+
+build:
+  number: {{ GIT_DESCRIBE_NUMBER }}
 
 source:
-  git_url: https://github.com/jackkamm/momi2.git
-  git_rev: v2.0.0
+  git_url: ../
 
 requirements:
   build:
-    - python >=3.5
-    - llvm # [osx]
+    - {{ compiler('c') }}
+    - llvm-openmp # [osx]
+  host:
+    - python {{ python }}
     - setuptools
     - numpy
     - cython
-
   run:
-    - python >=3.5
-    - gcc # [osx]
-    - nomkl # [osx]
+    - python
+    - llvm-openmp # [osx]
     - autograd
     - cached-property
     - numpy
