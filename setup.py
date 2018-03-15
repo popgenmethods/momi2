@@ -17,16 +17,24 @@ if not on_rtd:
     from Cython.Build import cythonize
     import numpy
 
+    print(sys.platform)
+    if sys.platform == "darwin":
+        extra_compile_args=["-openmp"]
+        extra_link_args=["-openmp"]
+    else:
+        extra_compile_args=["-fopenmp"]
+        extra_link_args=["-fopenmp"]
+
     extensions = [
         Extension("momi.convolution",
                   sources=["momi/convolution.pyx"],
-                  extra_compile_args=['-fopenmp'],
-                  extra_link_args=['-fopenmp'],
+                  extra_compile_args=extra_compile_args,
+                  extra_link_args=extra_link_args,
                   include_dirs=[numpy.get_include()]),
         Extension("momi.einsum2.parallel_matmul",
                   sources=["momi/einsum2/parallel_matmul.pyx"],
-                  extra_compile_args=['-fopenmp'],
-                  extra_link_args=['-fopenmp'],
+                  extra_compile_args=extra_compile_args,
+                  extra_link_args=extra_link_args,
                   include_dirs=[numpy.get_include()])]
     extensions = cythonize(extensions)
 

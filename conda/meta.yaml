@@ -9,8 +9,7 @@ source:
 requirements:
   build:
     - python >=3.5
-    - gcc # [osx]
-    - nomkl # [osx]
+    - llvm # [osx]
     - setuptools
     - numpy
     - cython
