@@ -13,5 +13,5 @@ recommended to make sure ``numpy`` is linked against
 a parallel BLAS implementation such as MKL
 or OpenBlas.
 This is automatically taken care of in most
-packaged, precompiled versions of numpy, such as
+packaged, precompiled versions of numpy, such as in
 Anaconda Python.

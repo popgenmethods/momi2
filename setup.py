@@ -7,26 +7,37 @@ import sys
 extensions = []
 install_requires = ['cached_property>=1.3']
 
+use_cython = "USE_CYTHON" in os.environ
+if use_cython:
+    from Cython.Build import cythonize
+    ext = ".pyx"
+else:
+    ext = ".c"
+
+class numpy_get_include(object):
+    def __str__(self):
+        import numpy
+        return numpy.get_include()
+numpy_get_include = numpy_get_include()
+
 on_rtd = os.environ.get('READTHEDOCS') == 'True'
 if not on_rtd:
-    from Cython.Build import cythonize
-    import numpy
-
     extra_compile_args=["-fopenmp"]
     extra_link_args=["-fopenmp"]
 
     extensions = [
         Extension("momi.convolution",
-                  sources=["momi/convolution.pyx"],
+                  sources=["momi/convolution" + ext],
                   extra_compile_args=extra_compile_args,
                   extra_link_args=extra_link_args,
-                  include_dirs=[numpy.get_include()]),
+                  include_dirs=[numpy_get_include]),
         Extension("momi.einsum2.parallel_matmul",
-                  sources=["momi/einsum2/parallel_matmul.pyx"],
+                  sources=["momi/einsum2/parallel_matmul" + ext],
                   extra_compile_args=extra_compile_args,
                   extra_link_args=extra_link_args,
-                  include_dirs=[numpy.get_include()])]
-    extensions = cythonize(extensions)
+                  include_dirs=[numpy_get_include])]
+    if use_cython:
+        extensions = cythonize(extensions)
 
     install_requires.extend([
         'autograd>=1.2.0', 'numpy>=1.9.0', 'networkx', 'scipy',

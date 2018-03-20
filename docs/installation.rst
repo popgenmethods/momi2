@@ -30,7 +30,7 @@ Method 2: Build from source using pip
 
 Prerequisites:
 
-* pip, numpy, cython
+* pip
 * C compiler with OpenMP support
 
 Clone the git repository, then ``pip install`` the project root:
@@ -42,7 +42,7 @@ Clone the git repository, then ``pip install`` the project root:
     pip install .
 
 Depending on your system, ``pip`` may have trouble installing some
-dependencies (such as ``msprime`` or ``pysam``).
+dependencies (such as ``numpy``, ``msprime``, ``pysam``).
 In this case, you should manually install these dependencies and try again.
 
 See  `venv <https://docs.python.org/3/tutorial/venv.html>`_ to install into a virtual environment.
