@@ -71,6 +71,8 @@ class DemographyPlot(object):
                 LogFormatterSciNotation(labelOnlyBase=False,
                                         minor_thresholds=(100, 100),
                                         linthresh=5e4))
+            self.ax.axhline(y=linthreshy, linestyle=":",
+                            color="black", zorder=1)
 
         self.minor_yticks = minor_yticks
         self.major_yticks = major_yticks
