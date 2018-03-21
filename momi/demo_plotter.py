@@ -159,6 +159,7 @@ class DemographyPlot(object):
             self.ax.set_yticks(self.minor_yticks, minor=True)
         if self.major_yticks:
             self.ax.set_yticks(self.major_yticks)
+        self.ax.set_ylabel("Time")
 
     def draw_pulse_colorbar(self):
         self.cm_scalar_mappable.set_array([])
@@ -166,7 +167,7 @@ class DemographyPlot(object):
             self.cbar = self.ax.get_figure().colorbar(
                 self.cm_scalar_mappable, fraction=0.046, pad=0.04,
                 ax=self.ax)
-            self.cbar.set_label("PulseProb")
+            self.cbar.set_label("Pulse Probability")
 
     def add_bootstrap(self, params, alpha,
                       rad=-.1, rand_rad=True):
