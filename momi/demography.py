@@ -352,7 +352,7 @@ class Demography(object):
     def simulate_vcf(self, out_prefix, mutation_rate,
                      recombination_rate, length,
                      chrom_name=1, ploidy=1, random_seed=None,
-                     force=False):
+                     force=False, print_aa=True):
         out_prefix = os.path.expanduser(out_prefix)
         vcf_name = out_prefix + ".vcf"
         bed_name = out_prefix + ".bed"
@@ -394,10 +394,15 @@ class Demography(object):
             print(*fields, sep="\t", file=vcf_f)
 
             loc = next(treeseq)
+            if print_aa:
+                info_str = "AA=A"
+            else:
+                info_str = "."
+
             for v in loc.variants():
                 gt = np.reshape(v.genotypes, (n_samples, ploidy))
                 print(chrom_name, int(np.floor(v.position)),
-                      ".", "A", "T", ".", ".", "AA=A", "GT",
+                      ".", "A", "T", ".", ".", info_str, "GT",
                       *["|".join(map(str, sample)) for sample in gt],
                       sep="\t", file=vcf_f)
 
