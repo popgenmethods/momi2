@@ -31,4 +31,10 @@ def test_read_vcf():
 
     assert data._sfs == data2._sfs.subset_populations(data._sfs.sampled_pops)
 
+    read_folded = momi.SnpAlleleCounts.read_vcf(
+        'test_vcf.vcf.gz', ind2pop={f"{pop}_{i}": pop for pop, n in sampled_n_dict.items() for i in range(n)},
+        ancestral_alleles=False)
+
+    assert data._sfs.fold() == read_folded._sfs.subset_populations(data._sfs.sampled_pops).fold()
+
     # TODO: test that concatenating datasets from multiple vcfs works?
