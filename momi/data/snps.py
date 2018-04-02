@@ -72,8 +72,8 @@ class SnpAlleleCounts(object):
         :param str,None bed_file: BED accessibility regions file. \
         Only regions in the BED file are read from the VCF. The BED file \
         is also used to determine the size of the data in bases, so the same \
-        BED file should NOT be used across multiple VCFs or regions will be double \
-        counted. If no BED is provided, all SNPs in the VCF are read, and the length \
+        BED file should NOT be used across multiple VCFs (otherwise regions will be double \
+        counted towards the data length). If no BED is provided, all SNPs in the VCF are read, and the length \
         of the data is set to be unknown.
         :param bool,str ancestral_alleles: If True, use the AA INFO field to \
         determine ancestral allele, skipping SNPs missing this field. \
