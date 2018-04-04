@@ -23,6 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("--outgroup", default=None,
                         help="Set this population as outgroup to determine ancestral allele, instead of using the AA info field. Note the outgroup will not appear in the created data (as it always has allele 0).")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--info_aa_field", default="AA", help="INFO field to read ancestral allele from. Default is AA. Has no effect if --outgroup or --no_aa are set.")
     args = parser.parse_args()
     if args.verbose:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
@@ -40,4 +41,5 @@ if __name__ == "__main__":
 
     SnpAlleleCounts.read_vcf(
         args.vcf_file, ind2pop, bed_file=args.bed,
-        ancestral_alleles=ancestral_alleles).dump(args.out_file)
+        ancestral_alleles=ancestral_alleles,
+        info_aa_field=args.info_aa_field).dump(args.out_file)

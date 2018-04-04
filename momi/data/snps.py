@@ -64,7 +64,8 @@ class SnpAlleleCounts(object):
     """
     @classmethod
     def read_vcf(cls, vcf_file, ind2pop,
-                 bed_file=None, ancestral_alleles=True):
+                 bed_file=None, ancestral_alleles=True,
+                 info_aa_field="AA"):
         """Read in a VCF file and return the allele counts at biallelic SNPs.
 
         :param str vcf_file: VCF file to read in. "-" reads from stdin.
@@ -84,6 +85,8 @@ class SnpAlleleCounts(object):
         of a population in ``ind2pop``, then treat that population as an outgroup, \
         using its consensus allele as the ancestral allele; SNPs without \
         consensus are skipped.
+        :param str info_aa_field: The INFO field to read Ancestral Allele from. \
+        Default is "AA". Only has effect if ``ancestral_alleles=True``.
 
         :rtype: :class:`SnpAlleleCounts`
         """
@@ -130,7 +133,8 @@ class SnpAlleleCounts(object):
                         fetcher, chrom_list, pos_list,
                         compressed_hashed, excluded,
                         ancestral_alleles, pop2idxs,
-                        sampled_pops, pop_allele_counts, config)
+                        sampled_pops, pop_allele_counts, config,
+                        info_aa_field)
         else:
             length = None
             logger.warn("No BED provided, will need to specify length"
@@ -139,7 +143,7 @@ class SnpAlleleCounts(object):
             cls._read_vcf_helper(
                 fetcher, chrom_list, pos_list, compressed_hashed,
                 excluded, ancestral_alleles, pop2idxs, sampled_pops,
-                pop_allele_counts, config)
+                pop_allele_counts, config, info_aa_field)
 
         if len(compressed_hashed) == 0:
             logger.warn("No valid SNPs read! Try setting "
@@ -154,7 +158,7 @@ class SnpAlleleCounts(object):
     def _read_vcf_helper(
             cls, bcf_in_fetch, chrom, pos, compressed_hashed, excluded,
             ancestral_alleles, pop2idxs, sampled_pops,
-            pop_allele_counts, config):
+            pop_allele_counts, config, info_aa_field):
         for rec in bcf_in_fetch:
             if len(rec.alleles) != 2:
                 continue
@@ -168,7 +172,7 @@ class SnpAlleleCounts(object):
 
             if ancestral_alleles is True:
                 try:
-                    aa = rec.info["AA"]
+                    aa = rec.info[info_aa_field]
                 except KeyError:
                     excluded.append((rec.chrom, rec.pos))
                     continue
