@@ -17,6 +17,9 @@ class SfsStats(object):
     def tensor_prod(self, derived_weights_dict):
         raise NotImplementedError
 
+    def log(self, x):
+        raise NotImplementedError
+
     @cached_property
     def denom(self):
         return self.tensor_prod({})
@@ -81,6 +84,26 @@ class SfsStats(object):
         Same as :meth:`f4`
         """
         return self.baba(A, B, C, D) - self.abba(A, B, C, D)
+
+    def log_abba_baba(self, A, B, C, D=None):
+        """
+        Returns log(BABA/ABBA) = log(BABA)-log(ABBA)
+        """
+        return self.log(self.baba(A, B, C, D)) - self.log(self.abba(A, B, C, D))
+
+    def f_st(self, A, B):
+        """
+        Returns (pi_between - pi_within) / pi_between, \
+        where pi_between, pi_within represent the average number of pairwise \
+        diffs between 2 individuals sampled from different or the same \
+        population, respectively.
+        """
+        pi_within = (self.ordered_prob({A: [1, 0]}, fold=True)
+                     + self.ordered_prob({B: [1, 0]}, fold=True)) / 2
+        pi_between = self.ordered_prob({A: [1], B: [0]}, fold=True)
+
+        return (pi_between - pi_within) / pi_between
+
 
     def f4(self, A, B, C, D=None):
         """
@@ -223,6 +246,9 @@ class SfsModelFitStats(SfsStats):
 
         return JackknifeGoodnessFitStat(exp, emp.est, emp.jackknife)
 
+    def log(self, x):
+        return x.apply(np.log)
+
     @property
     def denom(self):
         return 1.0
@@ -335,6 +361,9 @@ class ObservedSfsStats(SfsStats):
             self.sfs.freqs_matrix.T.dot(
                 weighted_counts - mono_anc - mono_der))
 
+    def log(self, x):
+        return x.apply(np.log)
+
     @property
     def n_subsets(self):
         return self.denom.est
@@ -378,6 +407,9 @@ class ExpectedSfsStats(SfsStats):
         res = _expected_sfs_tensor_prod(vecs, demo)
         return res[2] - res[0] - res[1]
 
+    def log(self, x):
+        return np.log(x)
+
 
 class JackknifeGoodnessFitStat(object):
     """
@@ -409,6 +441,11 @@ class JackknifeGoodnessFitStat(object):
             len(self.jackknifed_array) - 1))
 
     @property
+    def bias(self):
+        return np.mean(self.jackknifed_array - self.observed) * (
+            len(self.jackknifed_array) - 1)
+
+    @property
     def z_score(self):
         """
         Z-score of the statistic, defined as (observed-expected)/sd
@@ -417,8 +454,15 @@ class JackknifeGoodnessFitStat(object):
 
     def __repr__(self):
         return ("JackknifeGoodnessFitStat(expected={}, observed={},"
-                " sd={}, z_score={})").format(self.expected, self.observed,
-                                              self.sd, self.z_score)
+                " bias={}, sd={}, z_score={})").format(
+                    self.expected, self.observed,
+                    self.bias, self.sd, self.z_score)
+
+    def apply(self, fun):
+        return JackknifeGoodnessFitStat(
+            fun(self.expected),
+            fun(self.observed),
+            fun(self.jackknifed_array))
 
     def __add__(self, other):
         other = self._get_other(other)
@@ -496,12 +540,12 @@ class JackknifeStat(object):
 
     def apply(self, fun):
         return JackknifeStat(fun(self.est),
-                              fun(self.jackknife))
+                             fun(self.jackknife))
 
     @jackknife_arr_op
     def __add__(self, other):
         return JackknifeStat(self.est + other.est,
-                              self.jackknife + other.jackknife)
+                             self.jackknife + other.jackknife)
 
     def __radd__(self, other):
         return self + other
@@ -519,7 +563,7 @@ class JackknifeStat(object):
     @jackknife_arr_op
     def __mul__(self, other):
         return JackknifeStat(self.est * other.est,
-                              self.jackknife * other.jackknife)
+                             self.jackknife * other.jackknife)
 
     def __rmul__(self, other):
         return self * other
@@ -533,12 +577,12 @@ class JackknifeStat(object):
     @jackknife_arr_op
     def __pow__(self, other):
         return JackknifeStat(self.est ** other.est,
-                              self.jackknife ** other.jackknife)
+                             self.jackknife ** other.jackknife)
 
     @jackknife_arr_op
     def __rpow__(self, other):
         return JackknifeStat(other.est ** self.est,
-                              other.jackknife ** self.jackknife)
+                             other.jackknife ** self.jackknife)
 
     @property
     def resids(self):
@@ -547,6 +591,10 @@ class JackknifeStat(object):
     @property
     def var(self):
         return np.mean(self.resids**2) * (len(self.jackknife) - 1)
+
+    @property
+    def bias(self):
+        return np.mean(self.resids) * (len(self.jackknife) - 1)
 
     @property
     def sd(self):
@@ -559,4 +607,3 @@ class JackknifeStat(object):
     def __repr__(self):
         return "JackknifeStat(est={}, sd={}) at {}".format(
             self.est, self.sd, hex(id(self)))
-
