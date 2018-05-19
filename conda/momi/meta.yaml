@@ -6,7 +6,7 @@ build:
   number: {{ GIT_DESCRIBE_NUMBER }}
 
 source:
-  git_url: ../
+  git_url: ../../
 
 requirements:
   build:
