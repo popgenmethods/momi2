@@ -38,3 +38,4 @@ deploy:
       os: linux
       repo: popgenmethods/momi2
       tags: true
+    skip_cleanup: true
