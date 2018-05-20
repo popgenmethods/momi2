@@ -24,3 +24,4 @@ install:
 
   - conda install conda-build python=$TRAVIS_PYTHON_VERSION
   - conda build conda -c defaults -c conda-forge -c bioconda
+
