@@ -32,8 +32,16 @@ requirements:
     - pysam
 
 test:
+  requires:
+    - pytest
   imports:
     - momi
+  source_files:
+    - test/demo_utils.py
+    - test/test_sfs.py
+    - test/test_sfs.pickle
+  commands:
+    - pytest test/test_sfs.py
 
 about:
   home: https://github.com/jackkamm/momi2
