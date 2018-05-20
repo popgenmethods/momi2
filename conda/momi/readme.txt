@@ -1,6 +1,6 @@
-To build for conda, do:
+From project root, do:
 
-   conda build conda/ -c defaults -c conda-forge -c bioconda
+   conda build conda/momi -c defaults -c conda-forge -c jackkamm
 
 
 Note that defaults channel MUST be higher priority than conda-forge or bad things happen!
