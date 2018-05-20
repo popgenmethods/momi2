@@ -16,6 +16,8 @@ install:
   # Useful for debugging any issues with conda
   - conda info -a
   - conda install conda-build anaconda-client
+
+script:
   - conda build conda -c defaults -c conda-forge -c bioconda
   - conda build conda -c defaults -c conda-forge -c bioconda | tee .packages
 
@@ -23,6 +25,6 @@ deploy:
   - provider: script
     script: conda/deploy.sh
     on:
-      repo: popgenmethods/momi
+      repo: popgenmethods/momi2
       tags: true
     skip_cleanup: true
