@@ -33,11 +33,11 @@ Installing with pip
 
 The ``momi`` source distribution is provided on PyPi, and can be downloaded, built, and installed with ``pip``.
 
-First, ensure the following non-Python dependencies are installed with your favorite package manager (e.g. ``apt-get``, ``brew``, or ``conda``):
+First, ensure the following non-Python dependencies are installed with your favorite package manager (e.g. ``apt-get``, ``yum``, ``brew``, ``conda``, etc):
 
 1. hdf5
 2. gsl
-3. (OSX only) OpenMP-enabled clang.
+3. (OSX only) OpenMP-enabled clang
 
    * If using homebrew, do ``brew install llvm libomp``.
    * Or if using conda, do ``conda install llvm-openmp clang``.
