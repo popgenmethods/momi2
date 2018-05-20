@@ -4,42 +4,43 @@
 Installation
 ============
 
-``momi`` requires Python >= 3.5. Binaries can be downloaded with `conda <https://conda.io/docs/>`_ (recommended) or built with `pip <https://pip.readthedocs.io/en/stable/>`_.
+``momi`` requires Python >= 3.5, and can be installed with `conda <https://conda.io/docs/>`_ or `pip <https://pip.readthedocs.io/en/stable/>`_.
 
----------------------------------------------
-Method 1: Install pre-built binary from conda
----------------------------------------------
+---------------------
+Installing with conda
+---------------------
 
 1. Download `anaconda <https://www.anaconda.com/download/>`_ or `miniconda <https://conda.io/miniconda.html>`_.
 2. (Optional) create a separate `conda environment <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ to install into:
 
 .. code:: bash
 
-    conda create -n momi-env
-    source activate momi-env
+    conda create -n my-momi-env
+    conda activate my-momi-env
 
 3. Install:
 
 .. code:: bash
 
-    conda install momi -c jackkamm -c bioconda -c conda-forge
+    conda install momi -c defaults -c conda-forge -c bioconda -c jackkamm
 
--------------------------------------
-Method 2: Build from source using pip
--------------------------------------
+-------------------
+Installing with pip
+-------------------
 
-Prerequisites:
+The ``momi`` source distribution is provided on PyPi, and can be downloaded, built, and installed with ``pip``.
 
-* pip
-* C compiler with OpenMP support
+First, ensure the following non-Python dependencies are installed with your favorite package manager (e.g. ``apt-get``, ``brew``, or ``conda``):
 
-Clone the git repository, then ``pip install`` the project root:
+1. hdf5
+2. gsl
+3. (OSX only) OpenMP-enabled clang.
 
-.. code:: bash
+   * If using homebrew, do ``brew install llvm libomp``.
+   * Or if using conda, do ``conda install llvm-openmp clang``.
+   * You will also need to set the environment variable ``CC=/path/to/clang`` during installation.
 
-    git clone https://github.com/jackkamm/momi2
-    cd momi2/
-    pip install .
+Then do ``pip install momi`` (or on OSX, ``CC=/path/to/clang pip install momi``).
 
 Depending on your system, ``pip`` may have trouble installing some
 dependencies (such as ``numpy``, ``msprime``, ``pysam``).
@@ -57,26 +58,21 @@ Troubleshooting
 This is usually caused by trying to import ``momi``
 when in the top-level folder of the ``momi2`` project.
 In this case, Python will try to import the local, unbuilt copy
-of the ``momi`` folder rather than the installed version.
+of the ``momi`` subdirectory rather than the installed version.
 
 To fix this, simply ``cd`` out of the top-level directory before
-importing ``momi``. Alternatively, you can build ``momi`` with
-``pip install -e .`` which will build ``momi`` locally and place a
-symlink in your site-packages, instead of building a copy of ``momi``
-there.
+importing ``momi``.
 
 "clang: error: unsupported option '-fopenmp'"
 =============================================
 
 On macOS the system version of ``clang`` does not support OpenMP,
-which is required to build ``momi``.
+which causes this error when building ``momi`` with pip.
 
-To solve this, install ``momi`` via conda instead of building with pip.
-Alternatively, you can install a version of ``clang`` that supports
-OpenMP and tell pip to use that:
+To solve this, make sure you have OpenMP-enabled LLVM/clang installed,
+and set the environment variable ``CC`` as noted in the pip installation
+instructions above.
 
-    CC=/path/to/clang pip install .
-
-Even though ``gcc`` supports OpenMP, it is not recommended to replace ``clang`` with ``gcc`` on macOS,
+Note: it is NOT recommended to replace ``clang`` with ``gcc`` on macOS,
 as this can cause strange numerical errors when used with Intel MKL; for example, see
 https://github.com/ContinuumIO/anaconda-issues/issues/8803
