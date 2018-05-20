@@ -24,6 +24,9 @@ Installing with conda
 
     conda install momi -c defaults -c conda-forge -c bioconda -c jackkamm
 
+Note the order of the ``-c`` flags matters, it determines the priority of each channel when installing dependencies.
+
+
 -------------------
 Installing with pip
 -------------------
