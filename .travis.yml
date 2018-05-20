@@ -19,7 +19,7 @@ install:
 
 script:
   - conda build conda -c defaults -c conda-forge -c bioconda
-  - conda build conda -c defaults -c conda-forge -c bioconda | tee .packages
+  - conda build conda -c defaults -c conda-forge -c bioconda --output | tee .packages
 
 deploy:
   - provider: script
