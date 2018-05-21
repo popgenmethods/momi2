@@ -32,8 +32,7 @@ deploy:
     skip_cleanup: true
   - provider: pypi
     user: "jackkamm"
-    password:
-      secure: "kerxFuTfwFJGYKQjHzG37whXtorobrcK8B6XfzRUc5yeVSc7i5VkjSLDWNjcEDUtj7BXdo5RwulvefNyPG53cLbOAlToW3fZuhDFuWxi2wyrsyWTkUcRQ8oaBBqDGtu8xiwfgOIqXYs0Kd4vAiT1xNLYuRU0JqLI0jrMd277ef71DJGQWggrpz6WUlh/U8l9aOdCbDHkjO7WfblU68JJfCEP1N3RrsFGttVsvtHAn33Q+FxcW+8GqV8FHhqpGipz/kMcKQ/l/gOymKUi1L5kuuGXAJPeIkSec2P+AAFxqTKYNe8fYHefPtKcSF1XtiHEwt1jRAuEVsBJhCjdcfbxX0uSgzqAzcDi03X06BgkvSJ7afPW++8HQRyil7ar0WQEK/31q13Tb9BbeypWnCJ9IyZCcz6iSESS878ChA7qOvnZccHHx/ZWGiFbRV5gQGyapNPiMi2Y+xhUwmxDwZH3U+MBcCuxFtqKcezJCfJjXZvt3zdQer11SXXncnHyCcWKf9vutSpaX5qtSVVD1xeBrEBYkKpTO8kF5YXaDfMD5le/8Ud8U6Urgp8SxK+eTpx3ajSc3zXzp9nHfCyLw10vHGuUGVviln4hwTUsJAXZ09A2sX+H6AvOIYXHDE4rTzdP9tLVuyTz3qTAhw1W2YLFPY8ciRgsMmrQcB4pDlD6T6I="
+    password: $PYPI_TOKEN
     on:
       condition: $TRAVIS_OS_NAME = linux
       repo: popgenmethods/momi2
