@@ -43,7 +43,15 @@ First, ensure the following non-Python dependencies are installed with your favo
    * Or if using conda, do ``conda install llvm-openmp clang``.
    * You will also need to set the environment variable ``CC=/path/to/clang`` during installation.
 
-Then do ``pip install momi`` (or on OSX, ``CC=/path/to/clang pip install momi``).
+Then do ``pip install momi``.
+
+On OSX, remember to set the environment variable:
+
+``CC=/path/to/clang pip install momi``
+
+If you installed the above dependencies using homebrew, this should be:
+
+``CC=$(brew --prefix llvm)/bin/clang pip install momi``
 
 Depending on your system, ``pip`` may have trouble installing some
 dependencies (such as ``numpy``, ``msprime``, ``pysam``).
