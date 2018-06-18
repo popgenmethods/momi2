@@ -27,7 +27,6 @@ deploy:
   - provider: script
     script: conda/deploy.sh
     on:
-      branch: release
       repo: popgenmethods/momi2
       tags: true
     skip_cleanup: true
@@ -35,7 +34,6 @@ deploy:
     user: "jackkamm"
     password: $PYPI_TOKEN
     on:
-      branch: release
       condition: $TRAVIS_OS_NAME = linux
       repo: popgenmethods/momi2
       tags: true
