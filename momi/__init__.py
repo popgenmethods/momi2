@@ -14,3 +14,4 @@ from .data.snps import SnpAlleleCounts, snp_allele_counts
 from .demo_model import DemographicModel
 from .demo_plotter import DemographyPlot
 from .sfs_stats import SfsModelFitStats, JackknifeGoodnessFitStat
+from .data.convert import sfs_from_dadi

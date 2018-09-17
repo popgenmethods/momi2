@@ -1,6 +1,7 @@
 import json
 import os
 import momi
+import hashlib
 from momi.data.compressed_counts import CompressedAlleleCounts
 from io import StringIO
 
@@ -23,6 +24,17 @@ def test_combine_loci():
 
     data.extract_sfs(10).combine_loci()
 
+
+def test_import_dadi_sfs():
+    folded_sfs = "test_dadi_folded_2pop.sfs"
+    unfolded_sfs = "test_dadi_unfolded_2pop.sfs"
+
+    folded = momi.data.convert.sfs_from_dadi(folded_sfs, outfile="test_folded.sfs")
+    unfolded = momi.data.convert.sfs_from_dadi(unfolded_sfs, outfile="test_unfolded.sfs")
+
+    ## Assert the n_snps in each sfs is the number in the vcf file we created the sfs from.
+    assert(folded.n_snps() == 938)
+    assert(unfolded.n_snps() == 938)
 
 #def test_load_data():
 #    data_path = "test_data.json"
