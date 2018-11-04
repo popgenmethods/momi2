@@ -10,15 +10,15 @@ source:
 
 requirements:
   build:
-    - gcc # [linux]
+    - {{ compiler('c') }}
     - llvm-openmp # [osx]
+  host:
     - python {{ python }}
     - setuptools
     - numpy
     - cython
   run:
     - python
-    - libgcc # [linux]
     - llvm-openmp # [osx]
     - numpy
     - scipy
