@@ -9,6 +9,7 @@ matrix:
 
 install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export OS=MacOSX; else export OS=Linux; fi
+  - export USE_CYTHON=1
   - wget https://repo.continuum.io/miniconda/Miniconda3-latest-$OS-x86_64.sh -O miniconda.sh;
   - bash miniconda.sh -b -p $HOME/miniconda
   - hash -r
