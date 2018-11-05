@@ -1,0 +1,25 @@
+To build for conda, do:
+
+   conda build conda/ -c defaults -c conda-forge -c bioconda
+
+
+Note that defaults channel MUST be higher priority than conda-forge! Else, conda build will use the wrong C compiler, and we get errors on Linux like:
+
+#+BEGIN_EXAMPLE
+gcc: error: unrecognized command line option ‘-fstack-protector-strong’
+gcc: error: unrecognized command line option ‘-fno-plt’
+error: command 'gcc' failed with exit status 1
+#+END_EXAMPLE
+
+These links sort of explain the issue:
+https://github.com/conda/conda-build/issues/2523#issuecomment-346963138
+https://conda-forge.readthedocs.io/en/latest/meta.html#compilers
+
+HOWEVER, mixing the ~defaults~ and ~conda-forge~ in this way is not really recommended.
+It would be desirable to switch over to using ~conda-forge~ as the highest priority (for example, this is what Bioconda recommends).
+The following link might help us to get the ~conda-forge~ C compilers working:
+https://github.com/conda-forge/python-feedstock/issues/203#issuecomment-428598272
+
+This reference is also useful for explaining on conda ~defaults~ build things:
+https://conda.io/docs/user-guide/tasks/build-packages/compiler-tools.html
+
