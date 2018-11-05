@@ -22,7 +22,7 @@ Installing with conda
 
 .. code:: bash
 
-    conda install momi -c defaults -c conda-forge -c bioconda -c jackkamm
+    conda install momi -c conda-forge -c bioconda -c jackkamm
 
 Note the order of the ``-c`` flags matters, it determines the priority of each channel when installing dependencies.
 

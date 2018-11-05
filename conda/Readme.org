@@ -1,9 +1,27 @@
-To build for conda, do:
+* Notes on building for conda
 
-   conda build conda/ -c defaults -c conda-forge -c bioconda
+  To build for conda, do:
 
+  #+BEGIN_SRC sh
+    conda build conda -c conda-forge -c bioconda
+  #+END_SRC
 
-Note that defaults channel MUST be higher priority than conda-forge! Else, conda build will use the wrong C compiler, and we get errors on Linux like:
+** meta.yaml
+
+*** conda-build-3 syntax
+
+Ideally, we could use the ~conda-build=3~ syntax in meta.yaml, like so:
+
+#+BEGIN_EXAMPLE
+  requirements:
+    build:
+      - {{ compiler('c') }}
+    host:
+      - python
+      - etc...
+#+END_EXAMPLE
+
+However, when I tried this, conda-build used the wrong C compiler, causing the following errors on Linux:
 
 #+BEGIN_EXAMPLE
 gcc: error: unrecognized command line option ‘-fstack-protector-strong’
@@ -11,15 +29,48 @@ gcc: error: unrecognized command line option ‘-fno-plt’
 error: command 'gcc' failed with exit status 1
 #+END_EXAMPLE
 
-These links sort of explain the issue:
+Apparently, this is a conda-forge issue, which these links sort-of explain:
 https://github.com/conda/conda-build/issues/2523#issuecomment-346963138
 https://conda-forge.readthedocs.io/en/latest/meta.html#compilers
 
-HOWEVER, mixing the ~defaults~ and ~conda-forge~ in this way is not really recommended.
-It would be desirable to switch over to using ~conda-forge~ as the highest priority (for example, this is what Bioconda recommends).
-The following link might help us to get the ~conda-forge~ C compilers working:
+There should be a way to use the ~conda-build-3~ syntax and build with conda-forge, but I wasn't able to figure it out. Instead I found 2 possible workarounds:
+1. Prioritize the ~defaults~ channel above ~conda-forge~; then we use the correct C compilers from the defaults channel. (We still need ~conda-forge~ because of the ~msprime~ dependency).
+2. Don't use the ~conda-build-3~ syntax, just stick with the ~conda-build-2~ syntax.
+
+It generally isn't recommended to mix ~defaults~ and ~conda-forge~ as in Option 1 (for example, Bioconda recommends having priorities be conda-forge, then bioconda, then defaults).
+
+So, we stick with the ~conda-build-2~ syntax. The main advantage of the ~conda-build-3~ syntax has to do with cross-compiling but we're not using that, and the ~conda-build-2~ syntax is a lot easier to understand and better documented.
+
+When we look at this again, the following link might help us to get the ~conda-forge~ C compilers working:
 https://github.com/conda-forge/python-feedstock/issues/203#issuecomment-428598272
 
 This reference is also useful for explaining on conda ~defaults~ build things:
 https://conda.io/docs/user-guide/tasks/build-packages/compiler-tools.html
 
+*** OSX and openmp
+
+To build for OSX we need ~openmp~ as both a build and a run dependency. We also have ~clangdev~ as a build dependency, it's probably required, but I haven't tested this extensively.
+
+Previously I used ~llvm-openmp~, which is in the ~defaults~ channel. This no longer worked after I switched to using conda-build-2 syntax and setting ~conda-forge~ as the highest priority channel.
+
+*** Reference: xgboost
+
+I found it helpful to look at the conda-forge package for xgboost, as it also requires OpenMP. Here is an older version of their meta.yaml that uses the conda-build-2 syntax:
+
+https://github.com/conda-forge/xgboost-feedstock/blob/cbd3078becfe5bf8f55c35144cfd0080353cca96/recipe/meta.yaml
+https://github.com/conda-forge/xgboost-feedstock/pull/4
+
+Note the latest version of the conda-forge xgboost recipe uses the conda-build-3 syntax, and also uses ~llvm-openmp~ dependency -- but I couldn't get this working when I tried it out, as noted above. Here is the latest version of their meta.yaml as of this writing:
+
+https://github.com/conda-forge/xgboost-feedstock/blob/f06d4542163cc3fe62670bad9a56ddb3a06b68b8/recipe/meta.yaml
+
+*** openblas
+
+We list openblas as a runtime dependency, otherwise msprime will cause the following error:
+
+#+BEGIN_EXAMPLE
+from _msprime import FORWARD  # NOQA
+ImportError: libopenblas.so.0: cannot open shared object file: No such file or directory
+#+END_EXAMPLE
+
+The downside of this is that installing openblas may disable MKL.
