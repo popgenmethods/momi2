@@ -127,9 +127,9 @@ class Demography(object):
 
     @memoize_instance
     def _n_at_node(self, node):
-        return np.sum(self._G.node[(pop, idx)]['lineages']
-                      for pop, idx in nx.dfs_preorder_nodes(self._G, node)
-                      if idx == 0)
+        return sum(self._G.node[(pop, idx)]['lineages']
+                   for pop, idx in nx.dfs_preorder_nodes(self._G, node)
+                   if idx == 0)
 
     @property
     def _root(self):

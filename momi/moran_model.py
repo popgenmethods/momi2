@@ -38,6 +38,6 @@ def rate_matrix(n, sparse_format="csr"):
 
 @memoize
 def moran_eigensystem(n):
-    M = np.asarray(rate_matrix(n).todense())
+    M = rate_matrix(n).toarray()
     d, P = np.linalg.eig(M)
     return P, d, np.linalg.inv(P)

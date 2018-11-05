@@ -152,8 +152,8 @@ class Sfs(object):
                 self.loc_counts.append(np.array(cnts, dtype=float))
 
         if len(self.loc_idxs) > 1:
-            self._total_freqs = np.array(np.squeeze(np.asarray(
-                self.freqs_matrix.sum(axis=1))), ndmin=1)
+            self._total_freqs = self.freqs_matrix.dot(np.ones(self.n_loci))
+            assert self._total_freqs.shape == (self.freqs_matrix.shape[0],)
         else:
             # avoid costly building of frequency matrix, when there are many
             # Sfs's of a single locus (e.g. in many stochastic minibatches)

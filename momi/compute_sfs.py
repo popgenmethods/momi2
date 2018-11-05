@@ -455,7 +455,7 @@ class LikelihoodTensor(object):
     def convolve_trailing_axes(self, other):
         def within_pop_sfs(a, b):
             return a.sfs * b.liks[
-                [slice(None)] + [0] * len(b.pop_labels)]
+                tuple([slice(None)] + [0] * len(b.pop_labels))]
         self.sfs = within_pop_sfs(
             self, other) + within_pop_sfs(other, self)
 
@@ -506,9 +506,10 @@ class LikelihoodTensor(object):
 
     def add_last_axis_sfs(self, truncated_sfs):
         self.sfs = self.sfs + np.dot(
-            self.liks[[slice(None)] +
-                      [0] * (self.n_pops - 1) +
-                      [slice(None)]],
+            self.liks[tuple(
+                [slice(None)] +
+                [0] * (self.n_pops - 1) +
+                [slice(None)])],
             truncated_sfs)
 
     def get_last_axis_n(self):
