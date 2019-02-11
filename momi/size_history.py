@@ -5,6 +5,7 @@ from autograd.numpy import sum, exp, log
 from .math_functions import transformed_expi, expm1d
 from scipy.special import comb as binom
 
+from momi.w_matrix import Wmatrix
 
 class SizeHistory(object):
 
@@ -123,28 +124,6 @@ class PiecewiseHistory(SizeHistory):
             curr += pop.tau
         return " ".join(ret)
 
-
-@memoize
-def W(n, b, j):
-    if j == 2:
-        return 6.0 / (n + 1)
-    elif j == 3:
-        return 30.0 * (n - 2 * b) / (n + 1) / (n + 2)
-    else:
-        jj = j - 2
-        ret = W(n, b, jj) * -(1 + jj) * (3 + 2 * jj) * \
-            (n - jj) / jj / (2 * jj - 1) / (n + jj + 1)
-        ret += W(n, b, jj + 1) * (3 + 2 * jj) * (n - 2 * b) / jj / (n + jj + 1)
-        return ret
-
-
-@memoize
-def Wmatrix(n):
-    ww = np.zeros([n - 1, n - 1])
-    for i in range(2, n + 1):
-        for j in range(1, n):
-            ww[i - 2, j - 1] = W(n, j, i)
-    return ww
 
 # given vector [sfs{n,1},...,sfs{n,n}],
 # returns (n-1)x(n-1) matrix whose (ij) entry is sfs{i,j}
