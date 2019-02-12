@@ -1,6 +1,7 @@
 import itertools as it
 import autograd.numpy as np
 from scipy.special import comb
+import scipy.stats
 from .compressed_counts import _config2hashable
 from ..util import memoize_instance
 
@@ -202,9 +203,12 @@ class ConfigList(object):
             n = self.sampled_n[i]
             derived = np.einsum(
                 "i,j->ji", np.ones(len(augmented_configs)), np.arange(n + 1))
-            curr = (comb(derived, augmented_configs[:, i, 1])
-                    * comb(n - derived, augmented_configs[:, i, 0])
-                    / comb(n, np.sum(augmented_configs[:, i, :], axis=1)))
+            curr = scipy.stats.hypergeom.pmf(
+                    k=augmented_configs[:, i, 1],
+                    M=n,
+                    n=derived,
+                    N=augmented_configs[:, i].sum(1)
+                )
             assert not np.any(np.isnan(curr))
             vecs[i] = np.transpose(curr)
 

@@ -35,7 +35,13 @@ if not on_rtd:
                   sources=["momi/einsum2/parallel_matmul" + ext],
                   extra_compile_args=extra_compile_args,
                   extra_link_args=extra_link_args,
-                  include_dirs=[numpy_get_include])]
+                  include_dirs=[numpy_get_include]),
+        Extension("momi.w_matrix",
+                  sources=["momi/w_matrix.pyx"],
+                  extra_compile_args=extra_compile_args,
+                  extra_link_args=extra_link_args,
+                  include_dirs=[numpy_get_include])
+        ]
     if use_cython:
         extensions = cythonize(extensions)
 
