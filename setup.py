@@ -20,10 +20,11 @@ class numpy_get_include(object):
         return numpy.get_include()
 numpy_get_include = numpy_get_include()
 
+extra_link_args = ['-L/usr/lib/x86_64-linux-gnu/']  # should cause no problems on OSX
 on_rtd = os.environ.get('READTHEDOCS') == 'True'
 if not on_rtd:
     extra_compile_args=["-fopenmp"]
-    extra_link_args=["-fopenmp"]
+    extra_link_args.append("-fopenmp")
 
     extensions = [
         Extension("momi.convolution",
