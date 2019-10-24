@@ -25,6 +25,9 @@ if not on_rtd:
     extra_compile_args=["-fopenmp"]
     extra_link_args=["-fopenmp"]
 
+    if use_cython:
+        numpy_get_include = str(numpy_get_include)
+
     extensions = [
         Extension("momi.convolution",
                   sources=["momi/convolution" + ext],
@@ -42,6 +45,7 @@ if not on_rtd:
                   extra_link_args=extra_link_args,
                   include_dirs=[numpy_get_include])
         ]
+
     if use_cython:
         extensions = cythonize(extensions)
 
