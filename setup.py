@@ -54,7 +54,7 @@ if not on_rtd:
         'pandas', 'msprime', "matplotlib", "seaborn", "pysam"])
 
 setup(name='momi',
-      version='2.1.16',
+      version='2.1.17',
       description='MOran Model for Inference',
       author='Jack Kamm, Jonathan Terhorst, Richard Durbin, Yun S. Song',
       author_email='jkamm@stat.berkeley.edu, terhorst@stat.berkeley.edu, yss@eecs.berkeley.edu',
