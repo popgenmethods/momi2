@@ -46,7 +46,7 @@ if not on_rtd:
         extensions = cythonize(extensions)
 
     install_requires.extend([
-        'autograd>=1.2.0', 'numpy>=1.9.0', 'networkx', 'scipy',
+        'autograd>=1.2.0', 'numpy>=1.9.0', 'networkx<=2.3', 'scipy',
         'pandas', 'msprime', "matplotlib", "seaborn", "pysam"])
 
 setup(name='momi',
