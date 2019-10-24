@@ -48,9 +48,9 @@ def check_num_snps(sampled_n_dict, demo, num_loci, mut_rate, ascertainment_pop=N
 
 def test_admixture_3pop_numsnps():
     check_num_snps({"a":1,"b":2,"c":3}, simple_admixture_3pop(),
-                   1000.0, 1.0)
+                   1000, 1.0)
     #check_num_snps({"a":1,"b":2,"c":3}, simple_admixture_3pop(),
-    #               1000.0, 1.0,
+    #               1000, 1.0,
     #               ascertainment_pop=[True, True, False])
 
 
@@ -60,11 +60,11 @@ def test_tree_demo_numsnps():
 
     demo = random_tree_demo(num_leaf_pops, lins_per_pop)
     check_num_snps(dict(zip(demo.leafs, [10]*num_leaf_pops)),
-                   demo, 1000.0, 1.0)
+                   demo, 1000, 1.0)
 
 
 def test_admixture_demo_numsnps():
-    check_num_snps({"a":1,"b":2}, simple_admixture_demo(), 1000.0, 1.0)
+    check_num_snps({"a":1,"b":2}, simple_admixture_demo(), 1000, 1.0)
 
 
 def check_demo_normalization(demo, ascertainment_pop=None, error_matrices=True, **kwargs):
