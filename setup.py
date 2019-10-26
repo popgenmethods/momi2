@@ -40,7 +40,7 @@ if not on_rtd:
                   extra_link_args=extra_link_args,
                   include_dirs=[numpy_get_include]),
         Extension("momi.w_matrix",
-                  sources=["momi/w_matrix.pyx"],
+                  sources=["momi/w_matrix" + ext],
                   extra_compile_args=extra_compile_args,
                   extra_link_args=extra_link_args,
                   include_dirs=[numpy_get_include])

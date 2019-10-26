@@ -5,7 +5,7 @@ from autograd.numpy import sum, exp, log
 from .math_functions import transformed_expi, expm1d
 from scipy.special import comb as binom
 
-from momi.w_matrix import Wmatrix
+from .w_matrix import Wmatrix
 
 class SizeHistory(object):
 
