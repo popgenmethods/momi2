@@ -191,7 +191,7 @@ class Mock(MagicMock):
             return MagicMock()
 
 MOCK_MODULES = [
-    "momi.convolution", "momi.einsum2.parallel_matmul",
+    "momi.convolution", "momi.einsum2.parallel_matmul", "momi.w_matrix",
     "autograd", "autograd.numpy", "autograd.extend",
     "numpy", "networkx",
     "scipy", "scipy.special", "scipy.sparse",
