@@ -457,6 +457,13 @@ class Sfs(object):
         return np.sum(weights[idxs] * counts)
 
     def subset_populations(self, populations, non_ascertained_pops=None):
+        """Returns lower-dimensional SFS restricted to a subset of populations.
+
+        :param list populations: list of populations to subset to
+        :param list non_ascertained_pops: list of populations to treat as non-ascertained (SNPs must be polymorphic with respect to the ascertained populations)
+        :returns: Lower-dimensional SFS restricted to a subset of populations.
+        :rtype: :class:`Sfs`
+        """
         if non_ascertained_pops is None:
             non_ascertained_pops = []
             for pop, asc in zip(self.sampled_pops, self.ascertainment_pop):
