@@ -568,43 +568,6 @@ class DemographicModel(object):
         finally:
             self._set_x(prev_x)
 
-        """
-        Sets data, and optionally the mutation rate,
-        in order to compute likelihoods and fit parameters
-
-        Arguments
-        ---------
-        data: data object as read in by momi.vcf2momi, or
-            as simulated by DemographicModel.simulate_data()
-        muts_per_gen: float or None
-            the number of de novo mutations per generation,
-            i.e. the genome length * per base mutation rate.
-
-            if None, assumes the number of observed SNPs
-            is fixed (i.e. if using a SNP chip instead of
-            whole genome sequencing)
-        use_folded_sfs:
-            whether to use the folded SFS when computing likelihood.
-            Default is to check the use_folded_sfs property of the data
-        mem_chunk_size:
-            controls memory usage by computing likelihood
-            in chunks of SNPs.
-            if mem_chunk_size=-1 then the data is not broken up
-            into chunks
-
-        Other Arguments
-        ---------------
-        use_pairwise_diffs: None or bool
-            Only has an effect if muts_per_gen is not None
-            if False, the likelihood incorporates a term for the total number
-            of mutations (corresponding to the total tree length).
-            This requires there to be no missing data
-            if True, the likelihood instead uses a term for the average
-            heterozygosity within populations (corresponding to the pairwise
-            coalescence time within a population)
-            if None, uses the pairwise heterozygosity if there is missing data;
-            else, if there is no missing data, use total number of mutations
-        """
     def set_data(
             self, sfs, length=None,
             mem_chunk_size=1000,
