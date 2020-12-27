@@ -35,7 +35,7 @@ class NoLookdownDemography(momi.demography.Demography):
 
     def _n_at_node(self, node):
         if node[0] in self.sampled_pops and node[1] == 0:
-            return self._G.node[node]['lineages']
+            return self._G.nodes[node]['lineages']
         return np.sum(self._n_at_node(l) for l in self._G[node])
 
 

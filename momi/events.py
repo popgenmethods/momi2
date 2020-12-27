@@ -20,7 +20,7 @@ def _build_demo_graph(events, sample_sizes, params_dict, default_N):
     for e in events:
         e.add_to_graph(_G, sample_sizes, params_dict)
 
-    assert _G.node
+    assert _G.nodes
     _G.graph['roots'] = [r for _, r in list(
         _G.graph['roots'].items()) if r is not None]
 
@@ -28,7 +28,7 @@ def _build_demo_graph(events, sample_sizes, params_dict, default_N):
         raise DemographyError("Must have a single root population")
 
     node, = _G.graph['roots']
-    _set_sizes(_G.node[node], float('inf'))
+    _set_sizes(_G.nodes[node], float('inf'))
 
     _G.graph['sampled_pops'] = tuple(sample_sizes.keys())
     _G.graph["events"] = tuple(events)
@@ -129,20 +129,20 @@ class LeafEvent(object):
                 raise DemographyError(
                     "Invalid events: pop {0} removed by move_lineages before sampling time".format(i))
 
-            #G.node[(i,0)]['model'] = _TrivialHistory()
-            G.node[(i, 0)]['sizes'] = [
+            #G.nodes[(i,0)]['model'] = _TrivialHistory()
+            G.nodes[(i, 0)]['sizes'] = [
                 {'t': t, 'N': G.graph['default_N'], 'growth_rate':None}]
-            _set_sizes(G.node[(i, 0)], t)
+            _set_sizes(G.nodes[(i, 0)], t)
 
             prev = G.graph['roots'][i]
-            _set_sizes(G.node[prev], t)
+            _set_sizes(G.nodes[prev], t)
 
             assert prev[0] == i and prev[1] != 0
             newpop = (i, prev[1] + 1)
             _ej_helper(G, t, (i, 0), prev, newpop)
         else:
             newpop = (i, 0)
-            G.node[newpop]['sizes'] = [
+            G.nodes[newpop]['sizes'] = [
                 {'t': t, 'N': G.graph['default_N'], 'growth_rate':None}]
         G.graph['roots'][i] = newpop
 
@@ -176,7 +176,7 @@ class SizeEvent(object):
         i=self.pop
         N=self.N(params_dict)
         _check_en_eg_pops(G, '-en', t, i, N)
-        G.node[G.graph['roots'][i]]['sizes'].append(
+        G.nodes[G.graph['roots'][i]]['sizes'].append(
             {'t': t, 'N': N, 'growth_rate': None})
 
     def get_msprime_event(self, params_dict, pop_ids_dict):
@@ -221,7 +221,7 @@ class JoinEvent(object):
         for k in i0, j0:
             # sets the TruncatedSizeHistory, and N_top and growth_rate for all
             # epochs
-            _set_sizes(G.node[k], t)
+            _set_sizes(G.nodes[k], t)
         _ej_helper(G, t, i0, j0, j1)
 
         G.graph['roots'][j] = j1
@@ -271,12 +271,12 @@ class PulseEvent(object):
 
         children = {k: G.graph['roots'][k] for k in (i, j)}
         for v in list(children.values()):
-            _set_sizes(G.node[v], t)
+            _set_sizes(G.nodes[v], t)
 
         parents = {k: (v[0], v[1] + 1) for k, v in list(children.items())}
-        assert all([par not in G.node for par in list(parents.values())])
+        assert all([par not in G.nodes for par in list(parents.values())])
 
-        prev_sizes = {k: G.node[c]['sizes'][-1] for k, c in list(children.items())}
+        prev_sizes = {k: G.nodes[c]['sizes'][-1] for k, c in list(children.items())}
         for k, s in list(prev_sizes.items()):
             G.add_node(parents[k], sizes=[
                     {'t': t, 'N': s['N_top'], 'growth_rate':s['growth_rate']}])
@@ -325,7 +325,7 @@ class GrowthEvent(object):
         i=self.pop
         growth_rate=self.g(params_dict)
         _check_en_eg_pops(G, '-eg', t, i, growth_rate)
-        G.node[G.graph['roots'][i]]['sizes'].append(
+        G.nodes[G.graph['roots'][i]]['sizes'].append(
             {'t': t, 'growth_rate': growth_rate})
 
     def get_msprime_event(self, params_dict, pop_ids_dict):
@@ -339,7 +339,7 @@ class GrowthEvent(object):
 ## TODO remove/rename these!!
 
 def _ej_helper(G, t, i0, j0, j1):
-    prev = G.node[j0]['sizes'][-1]
+    prev = G.nodes[j0]['sizes'][-1]
     G.add_node(j1, sizes=[{'t': t, 'N': prev['N_top'],
                            'growth_rate':prev['growth_rate']}])
 

@@ -84,7 +84,7 @@ class Demography(object):
 
         for v, d in self._G.nodes(data=True):
             if 'lineages' in d:
-                ret.node[v]['lineages'] = d['lineages']
+                ret.nodes[v]['lineages'] = d['lineages']
 
         ret.graph['events_as_edges'] = tuple(self._G.graph['events_as_edges'])
         ret.graph['sampled_pops'] = self.sampled_pops
@@ -123,11 +123,11 @@ class Demography(object):
         """
         The list of number of samples per population
         """
-        return np.array(tuple(self._G.node[(l, 0)]['lineages'] for l in self.sampled_pops), dtype=int)
+        return np.array(tuple(self._G.nodes[(l, 0)]['lineages'] for l in self.sampled_pops), dtype=int)
 
     @memoize_instance
     def _n_at_node(self, node):
-        return sum(self._G.node[(pop, idx)]['lineages']
+        return sum(self._G.nodes[(pop, idx)]['lineages']
                    for pop, idx in nx.dfs_preorder_nodes(self._G, node)
                    if idx == 0)
 
@@ -154,11 +154,11 @@ class Demography(object):
         '''
         The group of subpopulations corresponding to this event in the junction tree.
         '''
-        return self._event_tree.node[event]['subpops']
+        return self._event_tree.nodes[event]['subpops']
 
     def _parent_pops(self, event):
         '''The populations arising due to this event, backwards in time.'''
-        return self._event_tree.node[event]['parent_pops']
+        return self._event_tree.nodes[event]['parent_pops']
 
     def _child_pops(self, event):
         '''
@@ -167,7 +167,7 @@ class Demography(object):
         which gives populations arising from this event forward in time,
         and the corresponding child events in the junction tree.
         '''
-        return self._event_tree.node[event]['child_pops']
+        return self._event_tree.nodes[event]['child_pops']
 
     def _pulse_nodes(self, event):
         parent_pops = self._parent_pops(event)
@@ -201,7 +201,7 @@ class Demography(object):
         """
         An array of times at which each population was sampled
         """
-        return np.array(tuple(self._G.node[(l, 0)]['sizes'][0]['t'] for l in self.sampled_pops))
+        return np.array(tuple(self._G.nodes[(l, 0)]['sizes'][0]['t'] for l in self.sampled_pops))
 
     @property
     @differentiable_method
@@ -213,11 +213,11 @@ class Demography(object):
 
     @differentiable_method
     def _truncated_sfs(self, node):
-        return self._G.node[node]['model'].sfs(self._n_at_node(node))
+        return self._G.nodes[node]['model'].sfs(self._n_at_node(node))
 
     @differentiable_method
     def _scaled_time(self, node):
-        return self._G.node[node]['model'].scaled_time
+        return self._G.nodes[node]['model'].scaled_time
 
     def _pulse_prob(self, event):
         return self._pulse_prob_helper(event), self._pulse_prob_idxs(event)
@@ -523,7 +523,7 @@ def admixture_operator(n_node, p):
 
 def _build_event_tree(G):
     # def node_time(v):
-    #     return G.node[v]['sizes'][0]['t']
+    #     return G.nodes[v]['sizes'][0]['t']
 
     eventEdgeList = []
     currEvents = {k: (k,) for k, v in list(dict(G.out_degree()).items()) if v == 0}
