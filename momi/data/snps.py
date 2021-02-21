@@ -537,6 +537,11 @@ class SnpAlleleCounts(object):
                                self.n_read_snps, self.n_excluded_snps)
 
     def down_sample(self, sampled_n_dict):
+        """Randomly subsample the alleles at each site.
+
+        :param dict sampled_n_dict: dictionary mapping population names to the subsample size (number of alleles to subsample from each population).
+        :rtype: :class:`SnpAlleleCounts`
+        """
         pops, sub_n = zip(*sampled_n_dict.items())
         pop_idxs = [self.populations.index(p) for p in pops]
 
