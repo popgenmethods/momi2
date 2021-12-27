@@ -66,7 +66,7 @@ class DemographyPlot(object):
             self.ax = fig.gca()
 
         if linthreshy:
-            self.ax.set_yscale('symlog', linthreshy=linthreshy)
+            self.ax.set_yscale('symlog', linthresh=linthreshy)
             self.ax.get_yaxis().set_major_formatter(
                 LogFormatterSciNotation(labelOnlyBase=False,
                                         minor_thresholds=(100, 100),

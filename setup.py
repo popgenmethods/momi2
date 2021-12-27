@@ -51,7 +51,7 @@ if not on_rtd:
 
     install_requires.extend([
         'autograd>=1.2.0', 'numpy>=1.9.0', 'networkx', 'scipy',
-        'pandas', 'msprime', "matplotlib", "seaborn", "pysam"])
+        'pandas', 'msprime', "matplotlib>=3.3", "seaborn", "pysam"])
 
 setup(name='momi',
       version='2.1.18',
