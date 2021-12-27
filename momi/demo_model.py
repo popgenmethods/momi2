@@ -876,7 +876,7 @@ class DemographicModel(object):
 
         self._set_x(res.x)
         res["parameters"] = self.get_params()
-        res["log_likelihood"] = res.fun
+        res["cross_entropy"] = res.fun
         return res
 
     def optimize(self, method="tnc", jac=True,

@@ -365,6 +365,7 @@ class Sfs(object):
             return [{_hashed2config(k): v for k, v in d.items()}
                     for d in self._get_dict(vector=True)]
 
+    # FIXME: This method returns the _negative_ entropy, and should be renamed.
     @cached_property
     def _entropy(self):
         counts = self._total_freqs
