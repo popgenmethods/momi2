@@ -2,7 +2,6 @@ import pytest
 import momi
 import demo_utils
 import io
-import vcf
 import collections as co
 import subprocess as sp
 
