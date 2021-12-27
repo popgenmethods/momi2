@@ -18,7 +18,6 @@ from .confidence_region import _ConfidenceRegion
 from .events import LeafEvent, SizeEvent, JoinEvent, PulseEvent, GrowthEvent
 from .events import Parameter, ParamsDict
 from .events import _build_demo_graph
-from .demo_plotter import DemographyPlotter
 from .sfs_stats import SfsModelFitStats
 
 
