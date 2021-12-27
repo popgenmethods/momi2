@@ -13,7 +13,7 @@ from .data.snps import SnpAlleleCounts
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("vcf_file", help="VCF file to read")
+    parser.add_argument("vcf_file", help="VCF file to read. The VCF file should be indexed, e.g. with tabix or bcftools. Alternatively, use \"-\" to read the VCF from stdin.")
     parser.add_argument("ind2pop",
                         help="File whose first column is individual ID and second column is population ID")
     parser.add_argument("out_file", help="Output file to store counts. If ends with .gz, gzip it.")

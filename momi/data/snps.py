@@ -68,7 +68,9 @@ class SnpAlleleCounts(object):
                  info_aa_field="AA"):
         """Read in a VCF file and return the allele counts at biallelic SNPs.
 
-        :param str vcf_file: VCF file to read in. "-" reads from stdin.
+        :param str vcf_file: VCF file to read in. The VCF file should be indexed, \
+        e.g. with tabix or bcftools. Alternatively, if equal to "-", reads \
+        the VCF from stdin.
         :param dict ind2pop: Maps individual samples to populations.
         :param str,None bed_file: BED accessibility regions file. \
         Only regions in the BED file are read from the VCF. The BED file \
