@@ -7,15 +7,15 @@ from collections import Counter
 from itertools import product
 
 def sfs_from_dadi(infile, outfile=None):
-    """Create momi-style sfs from dadi-style sfs
+    """Generate a momi formatted :class:`Sfs` object from the dadi
+    frequency spectrum format as documented in section 3.1 of the dadi
+    manual. One slight modification is that if you include population
+    names after the "folding" flag on the info line, then this
+    function will honor these pop names.
 
     :param str infile: dadi-style sfs to be converted
-    Generate a momi formatted sfs from the dadi frequency spectrum format
-    as documented in section 3.1 of the dadi manual. One slight modification
-    is that if you include population names after the "folding" flag
-    on the info line, then this function will honor these pop names.
-    :param str,None outfile: Optional outfile to write Sfs to
-    Optionally write the momi-formatted sfs file to this output file.
+    :param str,None outfile: Optional output file to write the :class:`Sfs` to
+
     :rtype: :class:`Sfs`
     """
     dat = open(infile).readlines()

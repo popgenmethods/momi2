@@ -32,6 +32,8 @@ Data
 .. autoclass:: momi.Sfs()
    :members:
 
+.. autofunction:: momi.sfs_from_dadi
+
 ==========
 Statistics
 ==========
