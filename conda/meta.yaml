@@ -13,7 +13,7 @@ requirements:
     - gcc_linux-64 # [linux]
     - clang_osx-64 # [osx]
     - openmp # [osx]
-    - python
+    - python {{ python }}
     - setuptools
     - numpy
   run:
@@ -25,7 +25,7 @@ requirements:
     - scipy
     - autograd
     - cached-property
-    - networkx <=2.3
+    - networkx
     - pandas
     - msprime >=0.5.0
     - matplotlib
