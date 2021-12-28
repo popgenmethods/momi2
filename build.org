@@ -1,10 +1,43 @@
-* Notes on building for conda
+* PyPI
+** Packaging and uploading source files
 
-  To build for conda, do:
+To package the source files, run:
 
-  #+BEGIN_SRC sh
-    conda build conda -c conda-forge -c bioconda
-  #+END_SRC
+#+begin_src sh
+  python setup.py sdist
+#+end_src
+
+To upload to pypi, do something like the following (but replacing with
+the appropriate version):
+
+#+begin_src sh
+  twine upload dist/momi-2.1.19.tar.gz
+#+end_src
+
+** Building and uploading binary wheels
+
+We no longer build binary wheels for pypi to avoid the complexity of
+building for many platforms (linux, osx). Also, it's not
+straightforward to make a generic build for linux (see [1]).
+
+Nevertheless, I record the steps for building a binary wheel here:
+
+#+begin_src sh
+  python setup.py bdist_wheel # build binary dist
+  twine upload dist/*
+#+end_src
+
+[1] https://stackoverflow.com/questions/59451069/binary-wheel-cant-be-uploaded-on-pypi-using-twine
+
+* conda
+** conda-build command
+
+To build for conda, run the following from a separate conda
+environment with conda-build installed:
+
+#+BEGIN_SRC sh
+  conda build -c conda-forge -c bioconda conda/
+#+END_SRC
 
 ** meta.yaml
 
