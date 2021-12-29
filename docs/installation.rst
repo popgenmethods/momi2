@@ -4,21 +4,67 @@
 Installation
 ============
 
-``momi`` requires Python >= 3.5, and can be installed with `conda <https://conda.io/docs/>`_ or `pip <https://pip.readthedocs.io/en/stable/>`_.
+------------------------
+Recommended method (pip)
+------------------------
 
----------------------
-Installing with conda
----------------------
+.. code :: bash
 
-1. Download `anaconda <https://www.anaconda.com/download/>`_ or `miniconda <https://conda.io/miniconda.html>`_.
-2. (Optional) create a separate `conda environment <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ to install into:
-
-.. code:: bash
-
+    # (Optional) Create and activate a separate conda environment
     conda create -n my-momi-env
     conda activate my-momi-env
 
-3. Install:
+    # Install non-Python-package dependencies, e.g. with conda
+    conda install hdf5 gsl python
+
+    # Install momi with pip
+    pip install momi
+
+Additional notes:
+
+- Installing on macOS requires additional steps. See `Installing on
+  macOS`_.
+- Depending on your system, ``pip`` may have trouble installing some
+  dependencies (such as ``numpy``, ``msprime``, ``pysam``).  In this
+  case, you should manually install these dependencies and try again.
+- You can download ``conda`` from `anaconda <https://www.anaconda.com/download/>`_ or
+  `miniconda <https://conda.io/miniconda.html>`_.
+- If you prefer not to use conda, you can install the non-Python
+  dependencies (hdf5, gsl) with another package manager such as apt.
+
+-------------------
+Installing on macOS
+-------------------
+
+    **Note:** Recent versions of macOS may not work,
+     see `#50 <https://github.com/popgenmethods/momi2/issues/50>`_.
+     As an alternative, consider
+     `Installing with conda (deprecated)`_.
+     
+
+Installing on macOS requires OpenMP-enabled clang, which can be
+installed via homebrew or conda as follows:
+
+* On homebrew, do: ``brew install llvm libomp``.
+* Or if using conda, do: ``conda install llvm-openmp clang``.
+
+You will also need to set the environment variable ``CC=/path/to/clang`` during installation.
+
+For example, if you installed the above dependencies using homebrew, the command to install would be:
+
+``CC=$(brew --prefix llvm)/bin/clang pip install momi``
+
+If you installed clang via conda, the command would look instead like:
+
+``CC=$(which clang) pip install momi``
+
+----------------------------------
+Installing with conda (deprecated)
+----------------------------------
+
+New versions of momi are no longer released on conda. However, older
+versions of momi that were built for conda are still available, and
+may be installed with the following command:
 
 .. code:: bash
 
@@ -26,38 +72,6 @@ Installing with conda
 
 Note the order of the ``-c`` flags matters, it determines the priority of each channel when installing dependencies.
 
-
--------------------
-Installing with pip
--------------------
-
-The ``momi`` source distribution is provided on PyPi, and can be downloaded, built, and installed with ``pip``.
-
-First, ensure the following non-Python dependencies are installed with your favorite package manager (e.g. ``apt-get``, ``yum``, ``brew``, ``conda``, etc):
-
-1. hdf5
-2. gsl
-3. (OSX only) OpenMP-enabled clang
-
-   * If using homebrew, do ``brew install llvm libomp``.
-   * Or if using conda, do ``conda install llvm-openmp clang``.
-   * You will also need to set the environment variable ``CC=/path/to/clang`` during installation.
-
-Then do ``pip install momi``.
-
-On OSX, remember to set the environment variable:
-
-``CC=/path/to/clang pip install momi``
-
-If you installed the above dependencies using homebrew, this should be:
-
-``CC=$(brew --prefix llvm)/bin/clang pip install momi``
-
-Depending on your system, ``pip`` may have trouble installing some
-dependencies (such as ``numpy``, ``msprime``, ``pysam``).
-In this case, you should manually install these dependencies and try again.
-
-See  `venv <https://docs.python.org/3/tutorial/venv.html>`_ to install into a virtual environment.
 
 ---------------
 Troubleshooting
