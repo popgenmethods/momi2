@@ -17,7 +17,8 @@ Recommended method (pip)
     # Install non-Python-package dependencies, e.g. with conda
     conda install hdf5 gsl python
 
-    # Install momi with pip
+    # Install momi and Python dependencies with pip
+    pip install numpy
     pip install momi
 
 Additional notes:
