@@ -7,7 +7,7 @@ import sys
 extensions = []
 install_requires = ['cached_property>=1.3']
 
-use_cython = "USE_CYTHON" in os.environ
+use_cython = True  # "USE_CYTHON" in os.environ
 if use_cython:
     from Cython.Build import cythonize
     ext = ".pyx"
