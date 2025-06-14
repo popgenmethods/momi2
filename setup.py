@@ -5,6 +5,7 @@ import os
 import sys
 
 extensions = []
+setup_requires = []
 install_requires = ['cached_property>=1.3']
 
 use_cython = "USE_CYTHON" in os.environ
@@ -46,19 +47,25 @@ if not on_rtd:
                   include_dirs=[numpy_get_include])
         ]
 
+    numpy_minver = '1.9.0'
+
     if use_cython:
         extensions = cythonize(extensions)
+        setup_requires = ['cython']
+    else:
+        setup_requires = [f'numpy>={numpy_minver}']
 
     install_requires.extend([
-        'autograd>=1.2.0', 'numpy>=1.9.0', 'networkx', 'scipy',
+        'autograd>=1.2.0', f'numpy>={numpy_minver}', 'networkx', 'scipy',
         'pandas', 'msprime', "matplotlib>=3.3", "seaborn", "pysam"])
 
 setup(name='momi',
-      version='2.1.20',
+      version='2.1.21',
       description='MOran Model for Inference',
       author='Jack Kamm, Jonathan Terhorst, Richard Durbin, Yun S. Song',
       author_email='jkamm@stat.berkeley.edu, terhorst@stat.berkeley.edu, yss@eecs.berkeley.edu',
       packages=['momi', 'momi.einsum2', 'momi.data'],
+      setup_requires=setup_requires,
       install_requires=install_requires,
       python_requires='>=3.5',
       keywords=['population genetics', 'statistics',

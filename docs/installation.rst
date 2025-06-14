@@ -18,7 +18,6 @@ Recommended method (pip)
     conda install hdf5 gsl python
 
     # Install momi and Python dependencies with pip
-    pip install numpy
     pip install momi
 
 Additional notes:
