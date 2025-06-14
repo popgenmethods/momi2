@@ -49,11 +49,10 @@ if not on_rtd:
 
     numpy_minver = '1.9.0'
 
+    setup_requires = [f'numpy>={numpy_minver}']
     if use_cython:
         extensions = cythonize(extensions)
-        setup_requires = ['cython']
-    else:
-        setup_requires = [f'numpy>={numpy_minver}']
+        setup_requires.append('cython')
 
     install_requires.extend([
         'autograd>=1.2.0', f'numpy>={numpy_minver}', 'networkx', 'scipy',
